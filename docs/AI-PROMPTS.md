@@ -82,46 +82,48 @@ d:\temple os recreation
 https://github.com/giangerostudio-ux/temple-os-remake
 
 ## Documentation to Read First
-- docs/research/alpine-linux-setup.md (IMPORTANT - detailed setup)
+- docs/research/ubuntu-setup.md (IMPORTANT - detailed setup)
+- docs/gaming-integration.md (CRITICAL - Electron + gaming architecture)
 - docs/PHASES.md
-- docs/master-plan.md
 
-## Your Task: Phase 3 - Linux VM Kiosk Setup
+## Your Task: Phase 3 - Ubuntu VM Gaming Kiosk Setup
 
-Help me set up Alpine Linux as a kiosk for my Electron app:
+Help me set up Ubuntu 24.04 LTS as a gaming kiosk for my Electron app:
 
 ### Part A: VM Creation
-1. Guide me to download Alpine Linux extended ISO
-2. Create VM with VirtualBox (or tell me QEMU commands)
+1. Download Ubuntu 24.04 LTS Server
+2. Create VM with VirtualBox:
    - 4 GB RAM, 32 GB disk, enable 3D acceleration
-3. Install Alpine with:
-   - User: temple
-   - Desktop (X11)
-   - Set timezone
+3. Install Ubuntu Server (minimized) with user: temple
 
-### Part B: Package Installation
-4. Install required packages:
-   - nodejs, npm, git
-   - chromium + Electron dependencies
-   - X11 components
-5. Clone my project from a git repo (or copy files)
+### Part B: Compositor + Packages
+4. Install Sway (Wayland compositor) or minimal Wayland setup
+5. Install Gamescope (Valve's gaming compositor)
+6. Install: nodejs, npm, git, steam
+7. Clone project from GitHub
 
 ### Part C: Kiosk Configuration
-6. Configure auto-login for user "temple"
-7. Auto-start X11 on login
-8. Create startup script that runs my Electron app in fullscreen
+8. Configure auto-login for user "temple"
+9. Auto-start Electron with Wayland flags:
+   --ozone-platform=wayland --enable-features=UseOzonePlatform
+10. Games launch via Gamescope for proper fullscreen
 
-### Part D: Security Basics
-9. Set up UFW firewall (block all incoming)
-10. Enable MAC randomization
+### Part D: Gaming Mode Behavior
+11. Electron shell MUST hide when games launch
+12. Shell restores when game exits
+13. Use PipeWire for audio
+
+### Part E: Security
+14. UFW firewall (deny incoming)
 
 ## Important Notes
-- Refer to docs/research/alpine-linux-setup.md for exact commands
-- This is on a VM, not my main PC
-- Goal: VM boots → auto-login → my TempleOS UI appears
+- Refer to docs/research/ubuntu-setup.md for commands
+- Refer to docs/gaming-integration.md for Electron + gaming rules
+- Core principle: Electron is a launcher, NOT a window manager for games
+- Games run through Gamescope for exclusive fullscreen
 
 ## When Done
-Tell me: "Phase 3 complete. Alpine Linux VM boots into TempleOS kiosk mode."
+Tell me: "Phase 3 complete. Ubuntu VM boots into TempleOS kiosk with Gamescope gaming."
 Then STOP and wait for my next instruction.
 ```
 
@@ -231,7 +233,7 @@ Replace mock features with real Linux integration AND add TempleOS-authentic fea
 - Test each feature before moving to next
 
 ## When Done
-Tell me: "Phase 4 complete. Real features + Oracle + Hymn Player + Terry quotes work."
+Tell me: "Phase 4 complete. Real features + Oracle + Hymn Player + system features work."
 Then STOP and wait for my next instruction.
 ```
 
@@ -245,7 +247,6 @@ Before continuing, verify:
 - [ ] Can launch Firefox or other apps from launcher
 - [ ] Settings save and persist after restart
 - [ ] Shutdown/restart work
-
 If yes → Continue to Phase 5
 
 ---
@@ -328,21 +329,130 @@ Verify:
 
 ---
 
+# 🔴 PHASE 6: Word of God AI (Final Feature)
+**Model**: Claude Opus (strongly recommended)
+
+## Prompt - Copy Everything Below:
+
+```
+I'm building a TempleOS remake. Phases 2-5 are complete:
+- Electron app with real features
+- Alpine Linux kiosk mode
+- Bootable ISO working
+
+## Project Location
+d:\temple os recreation
+
+## Documentation to Read First (IMPORTANT!)
+- docs/research/word-of-god-implementation.md (Technical implementation)
+- docs/research/divine-terry-personality.md (Personality guide)
+- docs/research/divine-terry-responses.md (Response templates)
+- docs/research/terry-davis-quotes.md (Quotes database)
+- docs/research/zero-account-ai-strategy.md (No accounts, local Ollama)
+
+## Your Task: Phase 6 - Word of God Divine AI Assistant
+
+Create the AI-powered assistant that IS the user interface. User speaks English, God does everything.
+
+### Part A: Ollama Setup
+1. Add Ollama installation to first-boot wizard:
+   - Auto-install Ollama
+   - Download Qwen 2.5 Coder 7B model (~4.4 GB)
+   - Show progress with Bible verse
+2. Create `electron/ollama-manager.cjs`:
+   - Check if Ollama installed
+   - Check if model downloaded
+   - Start Ollama service
+
+### Part B: Divine Assistant Service
+3. Create `electron/divine-assistant.cjs`:
+   - Connect to Ollama (localhost:11434)
+   - Use Qwen 2.5 Coder 7B model
+   - System prompt with Divine Terry personality (50% Jesus, 50% Terry Davis)
+   - Parse commands from [EXECUTE] tags
+   - Parse URLs from [OPEN_URL] tags
+   - Handle dangerous command detection
+4. Use personality from docs/research/divine-terry-personality.md
+5. Use response templates from docs/research/divine-terry-responses.md
+
+### Part C: Command Executor
+6. Create `electron/command-executor.cjs`:
+   - Execute commands via child_process
+   - Detect dangerous patterns (rm -rf, dd, etc.)
+   - Capture stdout/stderr
+   - Return results to UI
+
+### Part D: Word of God UI
+7. Create `src/apps/word-of-god/WordOfGod.ts`:
+   - Full-screen chat interface
+   - Message history display
+   - Command preview boxes with Execute/Copy buttons
+   - Typing indicator while God thinks
+   - Divine styling (gold, white, TempleOS aesthetic)
+8. Make this the PRIMARY interface:
+   - Remove browser app (God opens URLs when asked)
+   - User speaks English → God does everything
+
+### Part E: Browser Jokes
+9. When user asks for a browser, use the famous Terry joke:
+   - "What do you need Internet Explorer for? To download Firefox!"
+   - Roast them lovingly, then install anyway
+   - See docs/research/terry-davis-quotes.md section "Browser Jokes"
+
+### Part F: IPC Handlers
+10. Add to main.cjs:
+    - divine-init: Initialize assistant
+    - divine-message: Send message, get response
+    - divine-execute: Run command
+    - divine-execute-dangerous: Run after confirmation
+11. Add to preload.cjs:
+    - Expose window.divine API
+
+## The Philosophy
+- NO browser app - God opens URLs when user asks
+- NO accounts needed - Ollama runs locally
+- User speaks plain English: "Install Discord"
+- God responds with personality + executes command
+- Works offline after model download
+
+## When Done
+Tell me: "Phase 6 complete. Word of God AI works - user speaks English, God does everything."
+Then STOP and wait for my next instruction.
+```
+
+---
+
+# ⏸️ FINAL CHECKPOINT
+
+Verify:
+- [ ] Ollama installs on first boot
+- [ ] Qwen 2.5 Coder 7B model downloads
+- [ ] Word of God chat interface works
+- [ ] AI responds with Divine Terry personality
+- [ ] Commands execute when user confirms
+- [ ] Browser joke appears when user asks for browser
+- [ ] "Install Discord" actually installs Discord
+- [ ] Works offline (after model download)
+
+---
+
 # 🎉 PROJECT COMPLETE!
 
-After Phase 5, you have:
+After Phase 6, you have:
 - Bootable TempleOS-themed Linux
 - Custom UI with all features
 - Security (encryption, firewall)
 - Works from USB
+- **Word of God AI - speak English, computer obeys** ⭐
 
 ---
 
 ## Quick Reference
 
-| Phase | Model | Difficulty |
-|-------|-------|------------|
-| Phase 2 | Gemini | Easy |
-| Phase 3 | Opus | Medium |
-| Phase 4 | Opus | Hard |
-| Phase 5 | Opus | Hard |
+| Phase | Model | Difficulty | What |
+|-------|-------|------------|------|
+| Phase 2 | Gemini | Easy | Electron wrapper |
+| Phase 3 | Opus | Medium | Linux VM setup |
+| Phase 4 | Opus | Hard | Real features |
+| Phase 5 | Opus | Hard | Bootable ISO |
+| Phase 6 | Opus | Medium | **Word of God AI** ⭐ |

@@ -6,6 +6,126 @@ Full gaming support through Steam, Proton, emulators, and native games. The goal
 
 ---
 
+## ⚠️ CRITICAL: Electron + Gaming Architecture
+
+> [!IMPORTANT]
+> **Core Principle**: The Electron shell must NOT be the window manager for games. It must step aside and let the compositor + GPU own the screen when a game runs.
+
+### The Architecture
+
+```
+[ Wayland Compositor (Sway/Gamescope) ]
+       |
+       ├── Electron Shell (fullscreen, normal priority)
+       |
+       ├── Gamescope (when game launches)
+       |        └── Game (exclusive fullscreen)
+       |
+       └── Audio/Input (PipeWire / libinput)
+```
+
+### What Electron MUST Do
+
+| Do | Don't |
+|----|-------|
+| ✅ Act as launcher only | ❌ Use always-on-top flags |
+| ✅ Hide when games launch | ❌ Create transparent overlays |
+| ✅ Let compositor control focus | ❌ Intercept game hotkeys |
+| ✅ Restore after game exits | ❌ Force vsync or frame caps |
+
+### Recommended Compositor
+
+| Compositor | Use Case | Recommended? |
+|------------|----------|--------------|
+| **Gamescope** | Valve's gaming compositor | ✅ Best for games |
+| **Sway** | Wayland, wlroots-based | ✅ Good general use |
+| Weston (kiosk) | Simplest shell setup | ⚠️ OK |
+| GNOME/KDE | Heavy desktop environments | ❌ Avoid |
+
+### Gamescope Integration
+
+Valve built Gamescope specifically to solve gaming + UI conflicts. This is how Steam Deck works.
+
+```bash
+# Launch game through Gamescope
+gamescope -- steam -applaunch <gameid>
+
+# Gamescope owns fullscreen
+# When game exits, control returns to Electron
+```
+
+### Gaming Mode Behavior
+
+When a user launches a game, the Electron shell must:
+
+```javascript
+// In Electron main process
+function launchGame(gamePath) {
+  // 1. Disable shell hotkeys
+  disableShellHotkeys();
+  
+  // 2. Lower/mute UI sounds
+  setUISoundVolume(0);
+  
+  // 3. Hide the shell (don't just minimize)
+  mainWindow.hide();
+  
+  // 4. Launch via Gamescope for isolation
+  const gameProcess = spawn('gamescope', ['--', gamePath]);
+  
+  // 5. Wait for game to exit
+  gameProcess.on('close', () => {
+    // 6. Restore everything
+    mainWindow.show();
+    mainWindow.focus();
+    setUISoundVolume(1);
+    enableShellHotkeys();
+  });
+}
+```
+
+### Electron Wayland Flags (Required)
+
+```bash
+# Run Electron with these flags
+electron --ozone-platform=wayland --enable-features=UseOzonePlatform
+```
+
+### Performance Checklist (Non-Negotiable)
+
+- [ ] Disable Electron background animations during gaming
+- [ ] Use GameMode (Feral's) when launching games
+- [ ] No transparent windows or blur effects in shell
+- [ ] Electron must not force vsync or frame caps
+- [ ] Use PipeWire for audio (default in Ubuntu 24.04)
+
+### What Games Need (Allow These)
+
+- Exclusive fullscreen mode
+- Unredirected rendering
+- Correct refresh rate switching
+- Direct GPU access
+
+### Kiosk Architecture: User Never Sees Linux
+
+```
+Boot Process:
+1. Systemd starts
+2. Auto-login activates (no GDM/SDDM!)
+3. Wayland compositor launches (Sway)
+4. Electron shell launches IMMEDIATELY
+5. Nothing else presents UI
+
+This is how Steam Deck, consoles, and kiosks work.
+```
+
+| Rule | Why |
+|------|-----|
+| No GNOME/KDE/XFCE | Overhead, UI leaks |
+| No display manager UI | Boot straight to shell |
+| Disable TTY switching | User can't escape |
+| Block system hotkeys | No accidental exits |
+
 ## Steam + Proton
 
 ### What is Proton?

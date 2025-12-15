@@ -38,8 +38,8 @@ A bootable, secure Linux-based operating system with a TempleOS-inspired interfa
 ├─────────────────────────────────────────────────────────────┤
 │                    BASE SYSTEM                              │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              Alpine Linux (minimal)                  │   │
-│  │  • ~150MB base  • Fast boot  • Security-focused     │   │
+│  │            Ubuntu 24.04 LTS + Gamescope             │   │
+│  │  • glibc-based  • Steam native  • 5yr LTS support   │   │
 │  └─────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────┤
 │                    HARDWARE                                 │

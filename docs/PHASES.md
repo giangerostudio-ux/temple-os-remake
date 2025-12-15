@@ -82,46 +82,49 @@ The web app is in src/main.ts and src/style.css
 
 ---
 
-# ⚪ Phase 3: Linux Base Setup
+# 🔵 Phase 3: Linux Base Setup
 
-**Goal**: Set up Alpine Linux to run Electron in kiosk mode
+**Goal**: Set up Ubuntu 24.04 LTS with Gamescope to run Electron in kiosk mode
+
+> ⚠️ **Changed from Alpine Linux** - Alpine's musl libc is incompatible with Steam/Proton.
 
 ## To-Do List
 
 ### VM Setup
-- [ ] Download Alpine Linux extended
+- [ ] Download Ubuntu 24.04 LTS Server
 - [ ] Create VM (VirtualBox or QEMU)
-- [ ] Install Alpine with X11
+- [ ] Install Ubuntu Server (minimized)
 - [ ] User account "temple"
 
-### Kiosk Mode
-- [ ] Install Chromium + Electron deps
+### Compositor + Kiosk Mode
+- [ ] Install Sway or minimal Wayland compositor
+- [ ] Install Gamescope for gaming
 - [ ] Configure auto-login
-- [ ] Auto-start Electron fullscreen
-- [ ] Crash recovery (auto-restart)
+- [ ] Auto-start Electron with Wayland flags
+- [ ] Gaming mode: hide shell when games launch
 
 ### Apps
-- [ ] Install Steam (Flatpak)
-- [ ] Install browsers (Opera GX, Firefox, Tor)
-- [ ] Create launch scripts
+- [ ] Install Steam (native .deb)
+- [ ] Install browsers (Firefox, Tor)
+- [ ] Create launch scripts with Gamescope
 
 ### Security
 - [ ] UFW firewall (deny incoming)
-- [ ] MAC randomization
-- [ ] AppArmor profiles
+- [ ] Configure PipeWire audio
 
 ## AI Prompt
 ```
-Help me set up Alpine Linux as a kiosk for my TempleOS Electron app:
+Help me set up Ubuntu 24.04 LTS as a gaming kiosk for my TempleOS Electron app:
 
-1. Create Alpine Linux VM with X11
-2. Install: nodejs, npm, chromium, git
+GitHub: https://github.com/giangerostudio-ux/temple-os-remake
+
+1. Create Ubuntu 24.04 LTS Server VM with Wayland
+2. Install: Sway compositor, Gamescope, nodejs, steam
 3. Configure auto-login to user "temple"
-4. Auto-start my Electron app in fullscreen on boot
-5. Set up firewall (UFW) blocking all incoming
-6. Enable MAC address randomization
+4. Auto-start Electron with --ozone-platform=wayland
+5. Launch games through Gamescope for proper fullscreen
 
-Goal: When VM boots, it goes straight to my TempleOS UI
+Goal: VM boots → auto-login → TempleOS UI appears → games launch via Gamescope
 ```
 
 ---

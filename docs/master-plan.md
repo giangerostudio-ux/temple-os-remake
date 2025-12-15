@@ -6,6 +6,8 @@ A bootable, secure Linux-based operating system with a TempleOS-inspired interfa
 
 **Created by Giangero Studio**
 
+**GitHub**: https://github.com/giangerostudio-ux/temple-os-remake
+
 ---
 
 ## Architecture

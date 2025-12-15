@@ -4,7 +4,9 @@
 
 Project tracking with to-do lists and AI prompts. Build the OS foundation first, then add real features.
 
-**Current Phase**: 🔵 Phase 1 - UI Shell ✅ → Ready for Phase 2!
+**GitHub Repository**: https://github.com/giangerostudio-ux/temple-os-remake
+
+**Current Phase**: 🟢 Phase 2 - Electron Wrapper ✅ → Ready for Phase 3!
 
 ---
 
@@ -13,8 +15,8 @@ Project tracking with to-do lists and AI prompts. Build the OS foundation first,
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 1: UI Shell | ✅ Complete | Visual UI with mock data |
-| Phase 2: Electron Wrapper | ⚪ Next | Package as desktop app |
-| Phase 3: Linux Base | ⚪ Pending | Alpine Linux + kiosk mode |
+| Phase 2: Electron Wrapper | ✅ Complete | Package as desktop app |
+| Phase 3: Linux Base | 🔵 Next | Alpine Linux + kiosk mode |
 | Phase 4: Real Features | ⚪ Pending | Connect UI to real OS |
 | Phase 5: Bootable USB | ⚪ Pending | Create installable ISO |
 
@@ -24,8 +26,8 @@ Project tracking with to-do lists and AI prompts. Build the OS foundation first,
 
 ```
 Phase 1: UI Shell          → Just the look (mockups)     ✅ DONE
-Phase 2: Electron Wrapper  → Package for desktop         ← NEXT
-Phase 3: Linux Base        → Set up Alpine + kiosk
+Phase 2: Electron Wrapper  → Package for desktop         ✅ DONE
+Phase 3: Linux Base        → Set up Alpine + kiosk       ← NEXT
 Phase 4: Real Features     → Real files, terminal, apps
 Phase 5: Bootable USB      → ISO for USB install
 ```
@@ -44,9 +46,16 @@ Phase 5: Bootable USB      → ISO for USB install
 
 ---
 
-# ⚪ Phase 2: Electron Wrapper
+# ✅ Phase 2: Electron Wrapper (Complete)
 
 **Goal**: Package UI as standalone desktop app
+
+**What's done:**
+- Electron main process (electron/main.cjs)
+- Preload script for IPC (electron/preload.cjs)
+- Dev mode with Vite integration
+- Build configuration for Windows/Mac/Linux
+- GitHub repository set up for updates
 
 ## To-Do List
 - [ ] Install Electron and configure

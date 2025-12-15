@@ -265,20 +265,33 @@ Update process:
 
 ## Implementation Details
 
-### Update Server
+### Update Server (GitHub Releases)
+
+We use GitHub Releases for distribution:
+
+**Repository**: https://github.com/giangerostudio-ux/temple-os-remake
 
 ```
-updates.templeos.giangerostudio.com/
-├── current-version.json
-├── v1.0/
-│   └── base.sfs
-├── v1.1/
-│   ├── update-1.0-to-1.1.sfs
-│   └── full.sfs
-├── v1.2/
-│   ├── update-1.1-to-1.2.sfs
-│   └── full.sfs
-└── latest -> v1.2/
+GitHub Releases Structure:
+├── v1.0.0/
+│   ├── temple-os-1.0.0.AppImage
+│   ├── temple-os-1.0.0.iso
+│   └── CHANGELOG.md
+├── v1.1.0/
+│   ├── temple-os-1.1.0.AppImage
+│   ├── temple-os-1.1.0.iso
+│   └── CHANGELOG.md
+└── latest → v1.1.0
+```
+
+Check for updates via GitHub API:
+```javascript
+const response = await fetch(
+  'https://api.github.com/repos/giangerostudio-ux/temple-os-remake/releases/latest'
+);
+const release = await response.json();
+// release.tag_name = "v1.1.0"
+// release.assets = [{name: "temple-os-1.1.0.AppImage", ...}]
 ```
 
 ### Version Check (Client)

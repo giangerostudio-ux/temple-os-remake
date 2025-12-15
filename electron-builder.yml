@@ -1,0 +1,17 @@
+appId: com.giangerostudio.templeos
+productName: TempleOS
+directories:
+  output: release
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: System
+  icon: public/favicon.svg
+
+mac:
+  target: dmg
+
+win:
+  target: nsis

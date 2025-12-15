@@ -96,25 +96,34 @@ Help me set up Ubuntu 24.04 LTS as a gaming kiosk for my Electron app:
    - 4 GB RAM, 32 GB disk, enable 3D acceleration
 3. Install Ubuntu Server (minimized) with user: temple
 
-### Part B: Compositor + Packages
-4. Install Sway (Wayland compositor) or minimal Wayland setup
-5. Install Gamescope (Valve's gaming compositor)
-6. Install: nodejs, npm, git, steam
-7. Clone project from GitHub
+### Part B: Gaming Stack (CRITICAL - Server is NOT gaming-ready by default!)
+4. Install HWE kernel: `sudo apt install linux-generic-hwe-24.04`
+5. Install GPU drivers:
+   - NVIDIA: `sudo ubuntu-drivers autoinstall`
+   - AMD/Intel: `sudo apt install mesa-vulkan-drivers`
+6. Install Sway compositor + Gamescope + GameMode
+7. Install PipeWire audio
+8. Install Steam (with 32-bit libs)
+9. Install nodejs, git, clone project from GitHub
 
-### Part C: Kiosk Configuration
-8. Configure auto-login for user "temple"
-9. Auto-start Electron with Wayland flags:
-   --ozone-platform=wayland --enable-features=UseOzonePlatform
-10. Games launch via Gamescope for proper fullscreen
+### Part C: Kiosk Lockdown
+10. Auto-login (NO GDM/SDDM - user never sees Linux)
+11. Sway auto-starts Electron with Wayland flags
+12. Disable TTY switching (Ctrl+Alt+F* blocked)
+13. Games launch via Gamescope
 
-### Part D: Gaming Mode Behavior
-11. Electron shell MUST hide when games launch
-12. Shell restores when game exits
-13. Use PipeWire for audio
+### Part D: Gaming Behavior
+14. Electron shell hides when games launch
+15. Shell restores when game exits
 
 ### Part E: Security
-14. UFW firewall (deny incoming)
+16. UFW firewall (deny incoming)
+
+## Important Notes
+- Ubuntu Server gives you a CLEAN SLATE - no UI to leak
+- But Server is NOT gaming-ready - you MUST add the gaming stack
+- HWE kernel is NON-NEGOTIABLE for gaming
+- This is OS-architect-level work, same model as SteamOS
 
 ## Important Notes
 - Refer to docs/research/ubuntu-setup.md for commands

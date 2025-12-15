@@ -30,6 +30,185 @@ Detailed guide for setting up Ubuntu 24.04 LTS as the base OS for the TempleOS k
 
 ---
 
+## ⚠️ CRITICAL: Gaming Stack Requirements
+
+> [!IMPORTANT]
+> Ubuntu Server is the correct base, but it is NOT gaming-ready by default. You must explicitly add and manage the gaming stack. This is OS-architect-level work.
+
+### What Ubuntu Server Gives You (Clean Slate)
+
+- ✅ No GNOME, No KDE, No display manager
+- ✅ No compositor, no graphical assumptions
+- ✅ Nothing can "leak" visually except what you install
+- ⚠️ Ships with GA kernel (conservative, ages poorly for gaming)
+- ⚠️ Uses older Mesa by default
+- ⚠️ Does NOT install GPU drivers
+
+### What You Must Add (The Gaming Stack)
+
+```
+Ubuntu Server (clean base)
+    ↓
++ HWE Kernel (non-negotiable)
++ GPU Drivers (NVIDIA/AMD/Intel)
++ Mesa Updates (keep fresh)
++ Wayland Compositor (Sway)
++ Gamescope
++ Steam + Proton
++ PipeWire Audio
++ Your Electron Shell
+    ↓
+= Gaming-Ready Kiosk OS
+```
+
+---
+
+## 1. HWE Kernel (Non-Negotiable for Gaming)
+
+> [!CAUTION]
+> Without HWE, your OS will age poorly for gaming. New GPUs, better scheduler, anti-cheat compatibility, controller fixes, and performance improvements ALL depend on newer kernels.
+
+Ubuntu LTS has two kernel tracks:
+- **GA (General Availability)**: Very stable, but ages fast
+- **HWE (Hardware Enablement)**: Newer kernels backported over time ← **USE THIS**
+
+```bash
+# Install HWE kernel
+sudo apt install --install-recommends linux-generic-hwe-24.04
+
+# Verify after reboot
+uname -r
+# Should show something like 6.8.x or newer
+```
+
+---
+
+## 2. GPU Drivers (Must Install Explicitly)
+
+### NVIDIA (Proprietary Required)
+```bash
+# Detect GPU
+ubuntu-drivers devices
+
+# Install recommended driver
+sudo ubuntu-drivers autoinstall
+
+# Or install specific version
+sudo apt install nvidia-driver-545
+```
+
+> [!WARNING]
+> Nouveau (open-source) is NOT sufficient for gaming. You MUST use proprietary NVIDIA drivers.
+
+### AMD / Intel (Mesa)
+```bash
+# Mesa is used for AMD/Intel
+sudo apt install mesa-vulkan-drivers mesa-va-drivers
+
+# For newer Mesa (if needed), add Ubuntu Graphics PPA:
+# sudo add-apt-repository ppa:kisak/kisak-mesa
+# sudo apt update && sudo apt upgrade
+```
+
+---
+
+## 3. Mesa Strategy
+
+Mesa controls Vulkan, OpenGL, and Proton compatibility.
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Ubuntu point releases | Stable, tested | May lag behind |
+| kisak-mesa PPA | Fresher drivers | Less tested |
+| Freezing forever | ❌ DON'T DO THIS | Games will break |
+
+**Recommended**: Track Ubuntu's point release graphics updates. Add PPA only if specific games require it.
+
+---
+
+## 4. Steam + Proton (Core System Component)
+
+> Steam is not "just another app" — it's a core system component for a gaming OS.
+
+```bash
+# Enable 32-bit packages (required)
+sudo dpkg --add-architecture i386
+sudo apt update
+
+# Install Steam
+sudo apt install steam
+
+# Proton updates automatically via Steam
+# Enable Steam Play for all titles in Steam settings
+```
+
+### Optional but Recommended
+```bash
+# Gamescope (Valve's compositor)
+sudo apt install gamescope
+
+# GameMode (performance optimization)
+sudo apt install gamemode
+```
+
+---
+
+## 5. Complete Gaming Stack Install Script
+
+```bash
+#!/bin/bash
+# Ubuntu Server → Gaming OS conversion
+
+# 1. Update system
+sudo apt update && sudo apt upgrade -y
+
+# 2. Install HWE kernel
+sudo apt install --install-recommends linux-generic-hwe-24.04
+
+# 3. Install GPU drivers (NVIDIA example)
+sudo ubuntu-drivers autoinstall
+# OR for AMD/Intel:
+# sudo apt install mesa-vulkan-drivers
+
+# 4. Install compositor + gaming tools
+sudo apt install -y sway gamescope gamemode
+
+# 5. Install audio (PipeWire)
+sudo apt install -y pipewire pipewire-audio pipewire-pulse wireplumber
+
+# 6. Install Steam
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install -y steam
+
+# 7. Install Node.js for Electron
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs git
+
+# 8. Reboot to apply kernel
+sudo reboot
+```
+
+---
+
+## Future-Proofing Strategy
+
+This is the same model used by **SteamOS**:
+
+| Component | Update Strategy |
+|-----------|-----------------|
+| Ubuntu LTS base | Stable, 5-year support |
+| HWE Kernel | Auto-updates with point releases |
+| GPU drivers | Ubuntu-managed or PPA |
+| Mesa | Ubuntu point releases (+ PPA if needed) |
+| Proton | Valve maintains independently |
+| Your Shell | You control via GitHub |
+
+> [!TIP]
+> You are now making **OS-architect-level decisions**, not distro-hopper decisions. This is exactly where you should be.
+
+---
+
 ## ⚠️ Electron + Gaming Warning
 
 > [!IMPORTANT]

@@ -153,13 +153,13 @@
 
 
 ### 4.3 App Launcher (Real .desktop files)
-- [ ] Full app launcher (grid or list)
-- [ ] Search apps
-- [ ] Categorized apps (Games, Internet, Office, etc.)
-- [ ] Recent apps
-- [ ] Frequently used
-- [ ] Right-click → add to desktop
-- [ ] Keyboard shortcut (Super key)
+- [x] Full app launcher (grid or list)
+- [x] Search apps
+- [x] Categorized apps (Games, Internet, Office, etc.)
+- [x] Recent apps
+- [x] Frequently used
+- [x] Right-click → add to desktop
+- [x] Keyboard shortcut (Super key)
 
 ### 4.4 Image Viewer
 - [ ] View images (JPG, PNG, GIF, WebP)

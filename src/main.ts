@@ -463,6 +463,12 @@ class TempleOS {
   private recentApps: string[] = [];
   private appUsage: Record<string, number> = {};
 
+  // App Launcher (full-screen overlay) state
+  private showAppLauncher = false;
+  private launcherSearchQuery = '';
+  private launcherCategory: 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' = 'All';
+  private launcherView: 'all' | 'recent' | 'frequent' = 'all';
+
   // Notifications State
   private notifications: Notification[] = [];
   private activeToasts: Notification[] = [];
@@ -800,6 +806,7 @@ class TempleOS {
        "></div>
        <div id="toast-container" class="toast-container"></div>
        <div id="alt-tab-overlay" class="alt-tab-overlay"></div>
+       <div id="launcher-overlay-root" class="launcher-overlay-root"></div>
        <div id="modal-overlay" class="modal-overlay-root"></div>
        ${this.renderTaskbar()}
      `;
@@ -811,6 +818,7 @@ class TempleOS {
     const taskbarApps = document.querySelector('.taskbar-apps')!;
     const toastContainer = document.getElementById('toast-container');
     const altTabContainer = document.getElementById('alt-tab-overlay');
+    const launcherOverlayRoot = document.getElementById('launcher-overlay-root');
     const modalOverlay = document.getElementById('modal-overlay');
 
     // Update toasts
@@ -821,6 +829,8 @@ class TempleOS {
     if (altTabContainer) {
       altTabContainer.innerHTML = this.renderAltTabOverlay();
     }
+
+    this.updateAppLauncherDom(launcherOverlayRoot);
 
     if (modalOverlay) {
       modalOverlay.innerHTML = this.renderModal();
@@ -1552,7 +1562,10 @@ class TempleOS {
       <div class="start-menu">
         <div class="start-menu-left">
           <div class="start-search-container">
-            <input type="text" class="start-search-input" placeholder="≡ƒöì Search apps..." value="${this.startMenuSearchQuery}">
+            <div class="start-search-row">
+              <input type="text" class="start-search-input" placeholder="≡ƒöì Search apps..." value="${escapeHtml(this.startMenuSearchQuery)}">
+              <button class="start-all-apps-btn" data-start-action="launcher" title="Open App Launcher (Super+A)">▦ All Apps</button>
+            </div>
           </div>
 
           <div style="display: flex; gap: 10px; padding: 0 20px 10px 20px;">
@@ -1624,6 +1637,216 @@ class TempleOS {
         </div>
       </div>
     `;
+  }
+
+  // ============================================
+  // APP LAUNCHER (Full-screen overlay)
+  // ============================================
+  private updateAppLauncherDom(root: HTMLElement | null): void {
+    if (!root) return;
+
+    if (!this.showAppLauncher) {
+      if (root.innerHTML) root.innerHTML = '';
+      return;
+    }
+
+    // First render (animate in)
+    if (!root.firstElementChild) {
+      root.innerHTML = this.renderAppLauncherOverlay();
+      window.setTimeout(() => this.focusAppLauncherSearch(), 0);
+      return;
+    }
+
+    // Keep focus stable: update only the grid + active states while open.
+    this.refreshAppLauncherOverlayDom(root);
+  }
+
+  private focusAppLauncherSearch(): void {
+    const input = document.querySelector('.launcher-search-input') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  private openAppLauncher(): void {
+    if (this.showAppLauncher) return;
+    this.showAppLauncher = true;
+    this.launcherSearchQuery = '';
+    this.showStartMenu = false;
+    this.render();
+  }
+
+  private closeAppLauncher(): void {
+    if (!this.showAppLauncher) return;
+    this.showAppLauncher = false;
+    this.launcherSearchQuery = '';
+    this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
+  }
+
+  private canonicalCategoryForInstalledApp(app: InstalledApp): 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' {
+    const cats = (app.categories || []).map(c => String(c || '').toLowerCase());
+    const name = String(app.name || '').toLowerCase();
+    if (cats.some(c => c.includes('game')) || name.includes('steam')) return 'Games';
+    if (cats.some(c => c.includes('network') || c.includes('internet') || c.includes('webbrowser')) || name.includes('browser')) return 'Internet';
+    if (cats.some(c => c.includes('office'))) return 'Office';
+    if (cats.some(c => c.includes('audio') || c.includes('video') || c.includes('graphics') || c.includes('multimedia'))) return 'Multimedia';
+    if (cats.some(c => c.includes('development') || c.includes('ide') || c.includes('programming'))) return 'Development';
+    if (cats.some(c => c.includes('system') || c.includes('settings'))) return 'System';
+    return 'Utilities';
+  }
+
+  private renderAppLauncherOverlay(): string {
+    if (!this.showAppLauncher) return '';
+
+    const categories = ['All', 'Games', 'Internet', 'Office', 'Multimedia', 'Development', 'System', 'Utilities'] as const;
+    const views = [
+      { id: 'all' as const, label: 'All' },
+      { id: 'recent' as const, label: 'Recent' },
+      { id: 'frequent' as const, label: 'Frequent' },
+    ];
+
+    return `
+      <div class="app-launcher-overlay" role="dialog" aria-modal="true" aria-label="Application Launcher">
+        <div class="app-launcher-backdrop" data-launcher-action="close"></div>
+        <div class="app-launcher-panel">
+          <div class="app-launcher-top">
+            <div class="app-launcher-brand">
+              <div class="app-launcher-title">dYs? APPLICATION LAUNCHER</div>
+              <div class="app-launcher-sub">Type to search • Right‑click for ƒ+' Desktop/Pin • Esc to close</div>
+            </div>
+            <button class="app-launcher-close-btn" data-launcher-action="close" title="Close (Esc)">×</button>
+          </div>
+
+          <div class="app-launcher-controls">
+            <input class="launcher-search-input" type="text" placeholder="Type to search…" value="${escapeHtml(this.launcherSearchQuery)}" />
+            <div class="app-launcher-filters">
+              <div class="launcher-view-row" role="tablist" aria-label="Launcher view">
+                ${views.map(v => `
+                  <button class="launcher-view-btn ${this.launcherView === v.id ? 'active' : ''}" data-launcher-view="${v.id}" role="tab" aria-selected="${this.launcherView === v.id ? 'true' : 'false'}">${v.label}</button>
+                `).join('')}
+              </div>
+              <div class="launcher-cat-row" role="tablist" aria-label="Categories">
+                ${categories.map(c => `
+                  <button class="launcher-cat-btn ${this.launcherCategory === c ? 'active' : ''}" data-launcher-category="${c}" role="tab" aria-selected="${this.launcherCategory === c ? 'true' : 'false'}">${c}</button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="app-launcher-grid" role="list">
+            ${this.renderAppLauncherGridHtml()}
+          </div>
+
+          <div class="app-launcher-footer">
+            <span class="app-launcher-footer-left">Super+A: Apps</span>
+            <span class="app-launcher-footer-right">TempleOS Remake • God's Own Launcher</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderAppLauncherGridHtml(): string {
+    type Entry = {
+      key: string;
+      label: string;
+      kind: 'builtin' | 'installed';
+      category: 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities';
+      comment?: string;
+      iconText: string;
+      iconKind: 'emoji' | 'monogram';
+    };
+
+    const builtin: Entry[] = [
+      { key: 'builtin:terminal', label: 'Terminal', kind: 'builtin', category: 'System', iconText: '💻', iconKind: 'emoji' },
+      { key: 'builtin:word-of-god', label: 'Word of God', kind: 'builtin', category: 'Utilities', iconText: '✝️', iconKind: 'emoji' },
+      { key: 'builtin:files', label: 'Files', kind: 'builtin', category: 'System', iconText: '📁', iconKind: 'emoji' },
+      { key: 'builtin:editor', label: 'HolyC Editor', kind: 'builtin', category: 'Development', iconText: '📝', iconKind: 'emoji' },
+      { key: 'builtin:hymns', label: 'Hymn Player', kind: 'builtin', category: 'Multimedia', iconText: '🎵', iconKind: 'emoji' },
+      { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '⬇️', iconKind: 'emoji' },
+      { key: 'builtin:system-monitor', label: 'Task Manager', kind: 'builtin', category: 'System', iconText: '📊', iconKind: 'emoji' },
+      { key: 'builtin:settings', label: 'Settings', kind: 'builtin', category: 'System', iconText: '⚙️', iconKind: 'emoji' },
+    ];
+
+    const installed: Entry[] = this.installedApps.map(app => {
+      const label = String(app.name || '').trim() || 'App';
+      const first = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || label.slice(0, 1).toUpperCase() || '•';
+      return {
+        key: this.keyForInstalledApp(app),
+        label,
+        kind: 'installed',
+        category: this.canonicalCategoryForInstalledApp(app),
+        comment: app.comment || '',
+        iconText: first,
+        iconKind: 'monogram',
+      };
+    });
+
+    const allEntries: Entry[] = [...builtin, ...installed];
+    const entryByKey = new Map(allEntries.map(e => [e.key, e] as const));
+
+    const query = this.launcherSearchQuery.trim().toLowerCase();
+    const matchesQuery = (e: Entry) => {
+      if (!query) return true;
+      return (
+        e.label.toLowerCase().includes(query) ||
+        (e.comment || '').toLowerCase().includes(query) ||
+        e.category.toLowerCase().includes(query)
+      );
+    };
+
+    let filtered: Entry[] = [];
+
+    if (this.launcherView === 'recent') {
+      filtered = this.recentApps.map(k => entryByKey.get(k)).filter(Boolean) as Entry[];
+    } else if (this.launcherView === 'frequent') {
+      filtered = allEntries
+        .map(e => ({ e, score: this.appUsage[e.key] || 0 }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score || a.e.label.localeCompare(b.e.label))
+        .map(x => x.e);
+    } else {
+      filtered = allEntries.slice();
+      if (this.launcherCategory !== 'All') filtered = filtered.filter(e => e.category === this.launcherCategory);
+      filtered.sort((a, b) => (a.kind === b.kind ? 0 : (a.kind === 'builtin' ? -1 : 1)) || a.label.localeCompare(b.label));
+    }
+
+    filtered = filtered.filter(matchesQuery);
+
+    if (filtered.length === 0) {
+      return `<div class="launcher-no-results">No apps found.</div>`;
+    }
+
+    return filtered.map(e => `
+      <div class="launcher-app-tile" role="listitem" data-launch-key="${escapeHtml(e.key)}" title="${escapeHtml(e.label)}">
+        <div class="launcher-app-icon ${e.iconKind === 'monogram' ? 'mono' : 'emoji'}" data-cat="${e.category}">${escapeHtml(e.iconText)}</div>
+        <div class="launcher-app-name">${escapeHtml(e.label)}</div>
+        ${e.comment ? `<div class="launcher-app-comment">${escapeHtml(e.comment)}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  private refreshAppLauncherOverlayDom(root: HTMLElement): void {
+    const search = root.querySelector('.launcher-search-input') as HTMLInputElement | null;
+    if (search && search.value !== this.launcherSearchQuery) {
+      search.value = this.launcherSearchQuery;
+    }
+
+    for (const btn of Array.from(root.querySelectorAll('.launcher-view-btn')) as HTMLElement[]) {
+      const v = (btn.dataset.launcherView as any) as 'all' | 'recent' | 'frequent' | undefined;
+      btn.classList.toggle('active', !!v && v === this.launcherView);
+      btn.setAttribute('aria-selected', !!v && v === this.launcherView ? 'true' : 'false');
+    }
+
+    for (const btn of Array.from(root.querySelectorAll('.launcher-cat-btn')) as HTMLElement[]) {
+      const c = (btn.dataset.launcherCategory as any) as typeof this.launcherCategory | undefined;
+      btn.classList.toggle('active', !!c && c === this.launcherCategory);
+      btn.setAttribute('aria-selected', !!c && c === this.launcherCategory ? 'true' : 'false');
+    }
+
+    const grid = root.querySelector('.app-launcher-grid') as HTMLElement | null;
+    if (grid) grid.innerHTML = this.renderAppLauncherGridHtml();
   }
 
   private async loadInstalledApps(): Promise<void> {
@@ -1943,6 +2166,16 @@ class TempleOS {
     this.showNotification('Apps', 'App not found.', 'warning');
   }
 
+  private launchByKeyClosingShellUi(key: string): void {
+    const raw = String(key || '');
+    if (!raw) return;
+    const shouldRender = this.showStartMenu || this.showAppLauncher;
+    this.showStartMenu = false;
+    this.closeAppLauncher();
+    if (shouldRender) this.render();
+    this.launchByKey(raw);
+  }
+
   private pinStart(key: string): void {
     if (!key) return;
     if (!this.pinnedStart.includes(key)) {
@@ -2028,10 +2261,11 @@ class TempleOS {
         }
       }
 
-      // Start menu search
-      if (target.matches('.start-search-input')) {
-        this.startMenuSearchQuery = target.value;
-        this.render();
+      // App launcher search (update grid without losing focus)
+      if (target.matches('.launcher-search-input')) {
+        this.launcherSearchQuery = target.value;
+        this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
+        return;
       }
 
       // File browser search
@@ -2222,6 +2456,40 @@ class TempleOS {
         } else if (action === 'maximize') {
           this.maximizeWindow(windowId);
         }
+        return;
+      }
+
+      // App Launcher (overlay) interactions
+      const launcherActionEl = target.closest('[data-launcher-action]') as HTMLElement | null;
+      if (launcherActionEl?.dataset.launcherAction === 'close') {
+        this.closeAppLauncher();
+        return;
+      }
+
+      const launcherViewBtn = target.closest('.launcher-view-btn') as HTMLElement | null;
+      if (launcherViewBtn?.dataset.launcherView) {
+        const view = (launcherViewBtn.dataset.launcherView as any) as 'all' | 'recent' | 'frequent';
+        this.launcherView = view;
+        if (view !== 'all') this.launcherCategory = 'All';
+        this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
+        return;
+      }
+
+      const launcherCatBtn = target.closest('.launcher-cat-btn') as HTMLElement | null;
+      if (launcherCatBtn?.dataset.launcherCategory) {
+        const cat = launcherCatBtn.dataset.launcherCategory as any;
+        if (this.launcherView === 'all') {
+          this.launcherCategory = cat;
+          this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
+        }
+        return;
+      }
+
+      const launcherTile = target.closest('.launcher-app-tile') as HTMLElement | null;
+      if (launcherTile?.dataset.launchKey) {
+        const key = launcherTile.dataset.launchKey;
+        this.closeAppLauncher();
+        this.launchByKey(key);
         return;
       }
 
@@ -2706,6 +2974,13 @@ class TempleOS {
       if (this.showNotificationPopup && !target.closest('#tray-notification') && !target.closest('.notification-popup')) {
         this.showNotificationPopup = false;
         this.render();
+      }
+
+      // Start menu: All Apps / Launcher
+      const startAllAppsBtn = target.closest('.start-all-apps-btn') as HTMLElement | null;
+      if (startAllAppsBtn) {
+        this.openAppLauncher();
+        return;
       }
 
       // Start menu item click (pinned apps)
@@ -3369,6 +3644,13 @@ class TempleOS {
           }
         }
 
+        // Launcher overlay takes precedence over window-level shortcuts
+        if (this.showAppLauncher && e.key === 'Escape') {
+          e.preventDefault();
+          this.closeAppLauncher();
+          return;
+        }
+
         // Editor Ctrl+F - Find
         if (e.ctrlKey && e.key.toLowerCase() === 'f') {
           const target = e.target as HTMLElement;
@@ -3429,6 +3711,14 @@ class TempleOS {
 
         }
 
+        // Super+A - App Launcher
+        if (e.metaKey && e.key.toLowerCase() === 'a') {
+          e.preventDefault();
+          if (this.showAppLauncher) this.closeAppLauncher();
+          else this.openAppLauncher();
+          return;
+        }
+
         // Win+D - Show Desktop (minimize all)
         if (e.metaKey && e.key.toLowerCase() === 'd') {
           e.preventDefault();
@@ -3476,7 +3766,7 @@ class TempleOS {
         }
 
         // Super/Meta opens Start Menu (Windows-like)
-        if ((e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
+        if (!this.showAppLauncher && (e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
           const target = e.target as HTMLElement;
           const tag = target?.tagName;
           if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
@@ -3528,7 +3818,7 @@ class TempleOS {
         this.closeContextMenu();
 
         // Determine context
-        const startAppItem = target.closest('.start-app-item') as HTMLElement;
+        const startAppItem = target.closest('.start-app-item, .launcher-app-tile') as HTMLElement;
         const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
         const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
@@ -3545,7 +3835,7 @@ class TempleOS {
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { label: `dY", Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
               { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
               { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
@@ -3556,13 +3846,13 @@ class TempleOS {
         }
 
         if (taskbarItem) {
-          const key = taskbarItem.dataset.launchKey || '';
-          const windowId = taskbarItem.dataset.taskbarWindow || '';
+            const key = taskbarItem.dataset.launchKey || '';
+            const windowId = taskbarItem.dataset.taskbarWindow || '';
           if (key) {
             const pinnedStart = this.pinnedStart.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { label: `dY", Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
               { label: 'dY", Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
               { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
@@ -3674,13 +3964,6 @@ class TempleOS {
       // Start Menu Search
       app.addEventListener('input', (e) => {
         const target = e.target as HTMLInputElement;
-
-        // Volume Slider
-        if (target.classList.contains('volume-slider')) {
-          const val = parseInt(target.value, 10);
-          this.updateVolume(val);
-          return;
-        }
 
         if (target.classList.contains('start-search-input')) {
           this.startMenuSearchQuery = target.value;

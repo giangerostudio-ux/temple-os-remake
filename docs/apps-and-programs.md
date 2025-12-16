@@ -43,11 +43,9 @@ god (Word of God), hymn, about, neofetch
 ---
 
 ### 📁 File Browser
-**Status**: ✅ Implemented (UI only)
+**Status**: ✅ Implemented (real filesystem)
 
 **Features to add**:
-- Real file system access (via Electron)
-- Create/delete/rename files
 - Drag and drop
 - File preview (images, text, video)
 - Context menu (right-click)
@@ -70,7 +68,7 @@ god (Word of God), hymn, about, neofetch
 ---
 
 ### ⚙️ Settings Panel
-**Status**: ❌ Not started
+**Status**: ✅ Implemented (core)
 
 **Features**:
 - Theme customization
@@ -90,7 +88,7 @@ god (Word of God), hymn, about, neofetch
 ---
 
 ### 🖥️ System Monitor
-**Status**: ❌ Not started
+**Status**: ✅ Implemented (basic)
 
 **Features**:
 - Real-time CPU usage graph

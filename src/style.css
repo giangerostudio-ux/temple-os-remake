@@ -27,6 +27,16 @@
   --accent-gold: #ffd700;
 }
 
+:root[data-theme='light'] {
+  --bg-primary: #e9eef5;
+  --bg-secondary: #f5f7fb;
+  --bg-window: #ffffff;
+  --border-glow: rgba(0, 140, 40, 0.25);
+  --text-primary: #0b1220;
+  --text-highlight: #008c28;
+  --accent-gold: #b8860b;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -435,6 +445,29 @@ body {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.taskbar-app.pinned {
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taskbar-app.pinned .taskbar-title {
+  font-size: 13px;
+  opacity: 0.95;
+}
+
+.taskbar-app.running {
+  border-bottom-color: var(--tos-green);
+  box-shadow: inset 0 -2px 0 rgba(0, 255, 65, 0.35);
+}
+
+.taskbar-sep {
+  width: 1px;
+  background: rgba(0, 255, 65, 0.25);
+  margin: 6px 6px;
 }
 
 .taskbar-app:hover,
@@ -1098,6 +1131,85 @@ input[type=range]::-webkit-slider-thumb {
   color: #fff;
 }
 
+.terminal-link {
+  color: var(--tos-light-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.terminal-link:hover {
+  filter: brightness(1.2);
+}
+
+/* Alt+Tab Overlay */
+.alt-tab-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  pointer-events: none;
+}
+
+.alt-tab-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+
+.alt-tab-panel {
+  width: min(560px, 90vw);
+  max-height: min(360px, 70vh);
+  overflow: auto;
+  background: rgba(13, 17, 23, 0.96);
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+  padding: 12px;
+}
+
+.alt-tab-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.15);
+  margin-bottom: 8px;
+}
+
+.alt-tab-item.active {
+  background: rgba(0, 255, 65, 0.18);
+  border-color: rgba(0, 255, 65, 0.6);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+}
+
+.alt-tab-icon {
+  font-size: 22px;
+  width: 28px;
+  text-align: center;
+}
+
+.alt-tab-title {
+  color: #00ff41;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.alt-tab-sub {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.alt-tab-hint {
+  font-size: 12px;
+  opacity: 0.6;
+  padding: 4px 2px 0 2px;
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);
@@ -1140,4 +1252,235 @@ input[type=range]::-webkit-slider-thumb {
   color: #888;
   margin-top: 4px;
   display: block;
+}
+
+/* ============================================
+   TERMINAL TABS
+   ============================================ */
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terminal-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  padding: 4px 4px 0;
+  flex-shrink: 0;
+}
+
+.terminal-tab {
+  padding: 6px 12px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  margin-right: 2px;
+  font-size: 13px;
+  color: rgba(0, 255, 65, 0.7);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-tab:hover {
+  background: rgba(0, 255, 65, 0.12);
+  color: #00ff41;
+}
+
+.terminal-tab.active {
+  background: rgba(0, 255, 65, 0.2);
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.4);
+}
+
+.terminal-tab-close {
+  opacity: 0.5;
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+.terminal-tab-close:hover {
+  opacity: 1;
+  color: #ff6464;
+}
+
+.terminal-tab-new {
+  padding: 6px 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 16px;
+  transition: opacity 0.15s ease;
+}
+
+.terminal-tab-new:hover {
+  opacity: 1;
+  color: #00ff41;
+}
+
+/* xterm.js container */
+.xterm-container {
+  flex: 1;
+  background: #0d1117;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.xterm-container .xterm {
+  height: 100%;
+}
+
+.xterm-container .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* ============================================
+   EDITOR TABS & FIND/REPLACE
+   ============================================ */
+
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  padding: 4px 4px 0;
+  flex-shrink: 0;
+}
+
+.editor-tab {
+  padding: 6px 12px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  margin-right: 2px;
+  font-size: 13px;
+  color: rgba(0, 255, 65, 0.7);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-tab:hover {
+  background: rgba(0, 255, 65, 0.12);
+  color: #00ff41;
+}
+
+.editor-tab.active {
+  background: rgba(0, 255, 65, 0.2);
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.4);
+}
+
+.editor-tab-modified {
+  color: #ffd700;
+  font-size: 10px;
+}
+
+.editor-tab-close {
+  opacity: 0.5;
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+.editor-tab-close:hover {
+  opacity: 1;
+  color: #ff6464;
+}
+
+.editor-tab-new {
+  padding: 6px 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 16px;
+  transition: opacity 0.15s ease;
+}
+
+.editor-tab-new:hover {
+  opacity: 1;
+  color: #00ff41;
+}
+
+.editor-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  flex-shrink: 0;
+}
+
+.editor-find-input,
+.editor-replace-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  min-width: 150px;
+}
+
+.editor-find-input:focus,
+.editor-replace-input:focus {
+  border-color: #00ff41;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.25);
+}
+
+.editor-find-btn {
+  background: rgba(0, 255, 65, 0.12);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+
+.editor-find-btn:hover {
+  background: rgba(0, 255, 65, 0.2);
+  border-color: #00ff41;
+}
+
+.editor-find-count {
+  color: rgba(0, 255, 65, 0.6);
+  font-size: 12px;
+  min-width: 50px;
+}
+
+.editor-find-close {
+  margin-left: auto;
+}
+
+.editor-content {
+  flex: 1;
+  background: #0d1117;
+  color: #00ff41;
+  border: none;
+  padding: 15px;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+}
+
+.editor-content::placeholder {
+  color: rgba(0, 255, 65, 0.35);
 }

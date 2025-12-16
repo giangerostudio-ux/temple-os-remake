@@ -35,7 +35,7 @@
     - [x] User profile display
     - [x] Integrated Power options
     - [x] **Real App Search** (scan .desktop files from /usr/share/applications)
-    - [ ] Super key opens Start Menu
+    - [x] Super key opens Start Menu
 - [x] **2.2 Window Snapping**
     - [x] Drag to edges (Left, Right, Top)
     - [x] Corner snapping (Quarter screen)
@@ -74,9 +74,9 @@
 
 ### 3.1 Settings Panel ✅
 - [x] Settings Window Layout (Sidebar + Content)
-- [x] System Page (Sound, Display mocks)
+- [x] System Page (Sound devices, volume, display resolution + lock timeout)
 - [x] Personalization Page (Wallpaper changer)
-- [x] Network & About Pages (Mocks)
+- [x] Network & About Pages (nmcli Wi‑Fi connect/disconnect + system info)
 - [x] Integrate with Start Menu & Tray
 
 ### 3.2 Notifications System 🔄
@@ -84,40 +84,40 @@
 - [x] Notification history panel
 - [x] Do Not Disturb mode
 - [x] App-specific notifications
-- [ ] Actions in notifications
+- [x] Actions in notifications
 - [x] Sound on notification
 - [x] Notification indicator badge
 
 ### 3.3 Lock Screen
-- [ ] Password/PIN entry UI
-- [ ] Clock display with date
-- [ ] Custom wallpaper support
-- [ ] Auto-lock after timeout (settings configurable)
-- [ ] Lock on keyboard shortcut (Win+L)
+- [/] Password/PIN entry UI (password done; PIN later)
+- [x] Clock display with date
+- [x] Custom wallpaper support
+- [x] Auto-lock after timeout (settings configurable)
+- [x] Lock on keyboard shortcut (Win+L)
 
 ### 3.4 Alt+Tab Window Switcher (Visual)
-- [ ] Alt+Tab triggers window switcher overlay
-- [ ] Show app icons and window previews
-- [ ] Keep holding Alt, press Tab to cycle
-- [ ] Release Alt to switch
-- [ ] Alt+Shift+Tab goes backward
-- [ ] Highlight active selection
+- [x] Alt+Tab triggers window switcher overlay
+- [/] Show app icons and window previews (icons done; previews later)
+- [x] Keep holding Alt, press Tab to cycle
+- [x] Release Alt to switch
+- [x] Alt+Shift+Tab goes backward
+- [x] Highlight active selection
 
 ---
 
 ## 💪 TIER 4: CORE APPS & FUNCTIONALITY
 
 ### 4.1 Real Terminal (PTY Shell)
-- [ ] Real shell (bash/zsh via pty.js)
-- [ ] Command history (up/down arrows)
+- [/] Real shell (bash/zsh via pty.js) (non-PTY exec implemented; PTY backend ready)
+- [x] Command history (up/down arrows)
 - [ ] Tab completion
-- [ ] ANSI color support
-- [ ] Copy/paste
-- [ ] Multiple tabs
+- [x] ANSI color support
+- [x] Copy/paste
+- [x] Multiple tabs
 - [ ] Split panes (like tmux)
-- [ ] Scrollback buffer
+- [x] Scrollback buffer
 - [ ] Search in output
-- [ ] Clickable URLs
+- [x] Clickable URLs
 - [ ] Custom fonts/colors
 - [ ] Alias support
 - [ ] Custom prompts
@@ -142,14 +142,15 @@
 ### 4.2 Text Editor Enhancements
 - [ ] Syntax highlighting (HolyC, Python, JS, etc.)
 - [ ] Line numbers
-- [ ] Find/replace
-- [ ] Multiple tabs
+- [x] Find/replace
+- [x] Multiple tabs
 - [ ] Undo/redo
 - [ ] Auto-save
 - [ ] File save dialog
 - [ ] Recent files
 - [ ] Word wrap toggle
 - [ ] Code folding
+
 
 ### 4.3 App Launcher (Real .desktop files)
 - [ ] Full app launcher (grid or list)
@@ -170,28 +171,28 @@
 - [ ] Basic editing (crop)
 
 ### 4.5 File Browser Improvements
-- [ ] Breadcrumb navigation bar
-- [ ] Sidebar with favorites
-- [ ] Search box
-- [ ] View toggle (grid/list/details)
-- [ ] Column headers for sorting
-- [ ] Create/rename/delete files & folders
-- [ ] Cut/copy/paste
+- [x] Breadcrumb navigation bar
+- [x] Sidebar with favorites
+- [x] Search box
+- [/] View toggle (grid/list/details) (grid+list done; details later)
+- [x] Column headers for sorting
+- [/] Create/rename/delete files & folders (rename/delete/new file/folder done; more later)
+- [/] Cut/copy/paste (single-item cut/copy/paste done; multi-select later)
 - [ ] Drag and drop
 - [ ] File previews (images, text)
-- [ ] Hidden files toggle
+- [x] Hidden files toggle
 - [ ] Zip/extract archives
-- [ ] Trash/recycle bin
+- [x] Trash/recycle bin
 - [ ] Bookmarks/favorites
-- [ ] Context menu (right-click) enhancements
+- [/] Context menu (right-click) enhancements
 
 ### 4.6 System Monitor
-- [ ] Real-time CPU usage graph
-- [ ] Memory usage
-- [ ] Disk space
-- [ ] Network activity
-- [ ] Process list
-- [ ] Kill process option
+- [/] Real-time CPU usage graph (percent + polling done; graph later)
+- [x] Memory usage
+- [x] Disk space
+- [x] Network activity
+- [x] Process list
+- [x] Kill process option
 - [ ] GPU usage (if available)
 
 ---
@@ -425,11 +426,11 @@
 - [ ] Enhanced desktop right-click menu
 
 ### 9.6 Additional Keyboard Shortcuts
-- [ ] Win+E → Open File Explorer
-- [ ] Win+D → Show desktop (minimize all)
-- [ ] Win+L → Lock screen
-- [ ] Ctrl+Shift+Esc → Task manager / System Monitor
-- [ ] Win+X → Quick link menu
+- [x] Win+E → Open File Explorer
+- [x] Win+D → Show desktop (minimize all)
+- [x] Win+L → Lock screen
+- [x] Ctrl+Shift+Esc → Task manager / System Monitor
+- [x] Win+X → Quick link menu
 - [ ] Super+B → Open default browser
 
 ### 9.7 Accessibility

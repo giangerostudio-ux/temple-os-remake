@@ -1,5 +1,10 @@
 import './style.css';
 import templeLogo from './assets/temple-logo.jpg';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
+
+
 
 // ============================================
 // ELECTRON API TYPE DECLARATION
@@ -12,8 +17,14 @@ declare global {
       readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
       deleteItem: (path: string) => Promise<{ success: boolean; error?: string }>;
+      trashItem?: (path: string) => Promise<{ success: boolean; entry?: any; error?: string }>;
+      listTrash?: () => Promise<{ success: boolean; entries?: any[]; error?: string }>;
+      restoreTrash?: (trashPath: string, originalPath: string) => Promise<{ success: boolean; restored?: any; error?: string }>;
+      deleteTrashItem?: (trashPath: string) => Promise<{ success: boolean; error?: string }>;
+      emptyTrash?: () => Promise<{ success: boolean; error?: string }>;
       mkdir: (path: string) => Promise<{ success: boolean; error?: string }>;
       rename: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>;
+      copyItem?: (srcPath: string, destPath: string) => Promise<{ success: boolean; error?: string }>;
       getHome: () => Promise<string>;
       getAppPath: () => Promise<string>;
       openExternal: (path: string) => Promise<{ success: boolean; error?: string }>;
@@ -22,9 +33,49 @@ declare global {
       restart: () => Promise<void>;
       lock: () => Promise<void>;
       getSystemInfo: () => Promise<SystemInfo>;
+      getMonitorStats?: () => Promise<{ success: boolean; stats?: MonitorStats; error?: string }>;
+      listProcesses?: () => Promise<{ success: boolean; processes?: ProcessInfo[]; unsupported?: boolean; error?: string }>;
+      killProcess?: (pid: number, signal?: 'TERM' | 'KILL') => Promise<{ success: boolean; error?: string }>;
       setSystemVolume: (level: number) => Promise<void>;
-      setResolution: (resolution: string) => Promise<void>;
+      setResolution: (resolution: string) => Promise<{ success: boolean; backend?: string; error?: string }>;
       getResolutions: () => Promise<{ success: boolean; resolutions: string[]; current: string }>;
+      // Config
+      loadConfig?: () => Promise<{ success: boolean; config: any; error?: string }>;
+      saveConfig?: (config: any) => Promise<{ success: boolean; error?: string }>;
+      // Audio devices
+      listAudioDevices?: () => Promise<{ success: boolean; sinks: any[]; sources: any[]; defaultSink: string | null; defaultSource: string | null; error?: string }>;
+      setDefaultSink?: (sinkName: string) => Promise<{ success: boolean; error?: string }>;
+      setDefaultSource?: (sourceName: string) => Promise<{ success: boolean; error?: string }>;
+      setAudioVolume?: (level: number) => Promise<{ success: boolean; error?: string }>;
+      // Network
+      getNetworkStatus?: () => Promise<{ success: boolean; status?: any; error?: string }>;
+      listWifiNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
+      connectWifi?: (ssid: string, password?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+      disconnectNetwork?: () => Promise<{ success: boolean; error?: string }>;
+      getWifiEnabled?: () => Promise<{ success: boolean; enabled?: boolean; error?: string }>;
+      setWifiEnabled?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      listSavedNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
+      connectSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+      forgetSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
+      // Display
+      getDisplayOutputs?: () => Promise<{ success: boolean; outputs?: any[]; backend?: string; error?: string }>;
+      setDisplayMode?: (outputName: string, mode: string) => Promise<{ success: boolean; error?: string }>;
+      setDisplayScale?: (outputName: string, scale: number) => Promise<{ success: boolean; error?: string }>;
+      setDisplayTransform?: (outputName: string, transform: string) => Promise<{ success: boolean; error?: string }>;
+      // Mouse / pointer
+      applyMouseSettings?: (settings: any) => Promise<{ success: boolean; warnings?: string[]; error?: string }>;
+      getMouseDpiInfo?: () => Promise<{ success: boolean; supported: boolean; devices?: Array<{ id: string; name: string }>; deviceId?: string; currentDpi?: number | null; dpiValues?: number[]; error?: string }>;
+      setMouseDpi?: (deviceId: string | null, dpi: number) => Promise<{ success: boolean; error?: string }>;
+      // Terminal
+      execTerminal?: (command: string, cwd?: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
+      // PTY Terminal
+      createPty?: (options?: { cols?: number; rows?: number; cwd?: string }) => Promise<{ success: boolean; id?: string; error?: string }>;
+      writePty?: (id: string, data: string) => Promise<{ success: boolean; error?: string }>;
+      resizePty?: (id: string, cols: number, rows: number) => Promise<{ success: boolean; error?: string }>;
+      destroyPty?: (id: string) => Promise<{ success: boolean; error?: string }>;
+      isPtyAvailable?: () => Promise<{ success: boolean; available: boolean }>;
+      onTerminalData?: (callback: (data: { id: string; data: string }) => void) => () => void;
+      onTerminalExit?: (callback: (data: { id: string; exitCode: number }) => void) => () => void;
       // Holy Updater
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
@@ -35,6 +86,9 @@ declare global {
       closeWindow: () => Promise<void>;
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;
+      // Events
+      onLockScreen?: (callback: () => void) => void;
+
     };
   }
 }
@@ -56,6 +110,28 @@ interface SystemInfo {
   user: string;
 }
 
+interface MonitorStats {
+  platform: string;
+  hostname: string;
+  uptime: number;
+  loadavg: number[];
+  cpuPercent: number | null;
+  cpuCores: number;
+  memory: { total: number; free: number; used: number };
+  disk: { total: number; used: number; avail: number; percent: number | null } | null;
+  network: { rxBps: number; txBps: number; rxBytes: number; txBytes: number } | null;
+}
+
+interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu: number;
+  mem: number;
+  rssKb: number;
+  etime: string;
+  command: string;
+}
+
 interface InstalledApp {
   name: string;
   icon: string;
@@ -72,6 +148,52 @@ interface Notification {
   timestamp: number;
   read: boolean;
   type: 'info' | 'warning' | 'error' | 'divine';
+  actions?: Array<{ id: string; label: string }>;
+}
+
+interface NetworkStatus {
+  connected: boolean;
+  device?: string;
+  type?: string;
+  connection?: string;
+  ip4?: string | null;
+  wifi?: { ssid: string; signal: number; security: string } | null;
+}
+
+interface WifiNetwork {
+  inUse: boolean;
+  ssid: string;
+  signal: number;
+  security: string;
+}
+
+interface AudioDevice {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface MouseSettings {
+  speed: number; // -1..1
+  raw: boolean; // disable accel
+  naturalScroll: boolean;
+  dpi?: number; // optional; requires ratbagd/libratbag-tools (ratbagctl)
+}
+
+interface TempleConfig {
+  wallpaperImage?: string;
+  themeMode?: 'dark' | 'light';
+  currentResolution?: string;
+  volumeLevel?: number;
+  doNotDisturb?: boolean;
+  lockTimeoutMs?: number;
+  audio?: { defaultSink?: string | null; defaultSource?: string | null };
+  mouse?: Partial<MouseSettings>;
+  pinnedStart?: string[];
+  pinnedTaskbar?: string[];
+  desktopShortcuts?: Array<{ key: string; label: string }>;
+  recentApps?: string[];
+  appUsage?: Record<string, number>;
 }
 
 // ============================================
@@ -98,6 +220,121 @@ function getFileIcon(name: string, isDirectory: boolean): string {
   };
 
   return iconMap[ext] || '📄';
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getBaseName(p: string): string {
+  const parts = p.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] || '';
+}
+
+function ansiToHtml(line: string): string {
+  // Minimal ANSI SGR support: 0 reset, 1 bold, 30-37/90-97 fg, 40-47/100-107 bg.
+  const FG: Record<number, string> = {
+    30: 'var(--tos-black)',
+    31: 'var(--tos-red)',
+    32: 'var(--tos-green)',
+    33: 'var(--tos-yellow)',
+    34: 'var(--tos-blue)',
+    35: 'var(--tos-magenta)',
+    36: 'var(--tos-cyan)',
+    37: 'var(--tos-light-gray)',
+    90: 'var(--tos-dark-gray)',
+    91: 'var(--tos-light-red)',
+    92: 'var(--tos-light-green)',
+    93: 'var(--tos-yellow)',
+    94: 'var(--tos-light-blue)',
+    95: 'var(--tos-light-magenta)',
+    96: 'var(--tos-light-cyan)',
+    97: 'var(--tos-white)',
+  };
+  const BG: Record<number, string> = {
+    40: 'var(--tos-black)',
+    41: 'var(--tos-red)',
+    42: 'var(--tos-green)',
+    43: 'var(--tos-yellow)',
+    44: 'var(--tos-blue)',
+    45: 'var(--tos-magenta)',
+    46: 'var(--tos-cyan)',
+    47: 'var(--tos-light-gray)',
+    100: 'var(--tos-dark-gray)',
+    101: 'var(--tos-light-red)',
+    102: 'var(--tos-light-green)',
+    103: 'var(--tos-yellow)',
+    104: 'var(--tos-light-blue)',
+    105: 'var(--tos-light-magenta)',
+    106: 'var(--tos-light-cyan)',
+    107: 'var(--tos-white)',
+  };
+
+  let fg: string | null = null;
+  let bg: string | null = null;
+  let bold = false;
+
+  const urlRe = /(https?:\/\/[^\s<>"']+)/g;
+
+  const renderChunk = (text: string) => {
+    if (!text) return '';
+    const escaped = escapeHtml(text);
+    const linked = escaped.replace(urlRe, (m) => {
+      const safe = escapeHtml(m);
+      return `<a class="terminal-link" data-url="${safe}">${safe}</a>`;
+    });
+    const style: string[] = [];
+    if (fg) style.push(`color:${fg}`);
+    if (bg) style.push(`background:${bg}`);
+    if (bold) style.push('font-weight:700');
+    if (style.length) return `<span style="${style.join(';')}">${linked}</span>`;
+    return linked;
+  };
+
+  let out = '';
+  let i = 0;
+  let buf = '';
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === '\x1b' && line[i + 1] === '[') {
+      // flush buffer
+      out += renderChunk(buf);
+      buf = '';
+      const end = line.indexOf('m', i + 2);
+      if (end === -1) break;
+      const seq = line.slice(i + 2, end);
+      const codes = seq.split(';').filter(Boolean).map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n));
+      if (codes.length === 0) codes.push(0);
+
+      for (const c of codes) {
+        if (c === 0) {
+          fg = null; bg = null; bold = false;
+        } else if (c === 1) {
+          bold = true;
+        } else if (FG[c]) {
+          fg = FG[c];
+        } else if (BG[c]) {
+          bg = BG[c];
+        } else if (c === 39) {
+          fg = null;
+        } else if (c === 49) {
+          bg = null;
+        }
+      }
+
+      i = end + 1;
+      continue;
+    }
+    buf += ch;
+    i += 1;
+  }
+  out += renderChunk(buf);
+  return out;
 }
 
 // Bible verses for Word of God feature
@@ -154,10 +391,22 @@ class TempleOS {
   // File browser state
   private currentPath = '';
   private fileEntries: FileEntry[] = [];
+  private trashEntries: Array<{ name: string; trashPath: string; originalPath: string; deletionDate: string; isDirectory: boolean; size: number }> = [];
+  private fileSearchQuery = '';
+  private fileSortMode: 'name' | 'size' | 'modified' = 'name';
+  private fileSortDir: 'asc' | 'desc' = 'asc';
+  private fileViewMode: 'grid' | 'list' = 'grid';
+  private showHiddenFiles = false;
+  private fileClipboard: { mode: 'copy' | 'cut'; srcPath: string } | null = null;
+  private homePath: string | null = null;
 
   // Start Menu state
   private installedApps: InstalledApp[] = [];
   private startMenuSearchQuery = '';
+  private startMenuCategory: 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' = 'All';
+  private startMenuView: 'all' | 'recent' | 'frequent' = 'all';
+  private recentApps: string[] = [];
+  private appUsage: Record<string, number> = {};
 
   // Notifications State
   private notifications: Notification[] = [];
@@ -170,8 +419,115 @@ class TempleOS {
   // Lock Screen State
   private isLocked = false;
   private autoLockTimer: number | null = null;
-  private readonly LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  private lockTimeoutMs = 5 * 60 * 1000; // 5 minutes (configurable)
   private readonly PASSWORD = 'god'; // Authentic TempleOS password
+
+  // Network State
+  private networkStatus: NetworkStatus = { connected: false };
+  private wifiNetworks: WifiNetwork[] = [];
+  private networkLastError: string | null = null;
+  private wifiEnabled = true;
+  private savedNetworks: Array<{ name: string; uuid: string; type: string; device: string }> = [];
+
+  // Audio Devices State
+  private audioDevices: { sinks: AudioDevice[]; sources: AudioDevice[]; defaultSink: string | null; defaultSource: string | null } = {
+    sinks: [],
+    sources: [],
+    defaultSink: null,
+    defaultSource: null
+  };
+  private systemInfo: SystemInfo | null = null;
+
+  // System Monitor State
+  private monitorStats: MonitorStats | null = null;
+  private monitorProcesses: ProcessInfo[] = [];
+  private monitorQuery = '';
+  private monitorSort: 'cpu' | 'mem' | 'name' | 'pid' = 'cpu';
+  private monitorSortDir: 'asc' | 'desc' = 'desc';
+  private monitorTimer: number | null = null;
+  private monitorBusy = false;
+
+  // Display State (multi-monitor, scale, refresh)
+  private displayOutputs: Array<{ name: string; active: boolean; scale: number; transform: string; currentMode: string; modes: Array<{ width: number; height: number; refreshHz: number | null }> }> = [];
+  private activeDisplayOutput: string | null = null;
+
+  // Mouse / Pointer State
+  private mouseSettings: MouseSettings = { speed: 0, raw: false, naturalScroll: false };
+  private mouseDpiSupported = false;
+  private mouseDpiValues: number[] = [400, 800, 1200, 1600, 2400, 3200];
+  private mouseDpiDeviceId: string | null = null;
+
+  // Pinned / shortcuts (Windows-like)
+  private pinnedStart: string[] = ['builtin:terminal', 'builtin:files', 'builtin:settings', 'builtin:editor', 'builtin:hymns'];
+  private pinnedTaskbar: string[] = ['builtin:files', 'builtin:terminal', 'builtin:settings'];
+  private desktopShortcuts: Array<{ key: string; label: string }> = [];
+
+  // Alt-Tab Overlay State
+  private altTabOpen = false;
+  private altTabIndex = 0;
+  private altTabOrder: string[] = [];
+
+  // Win+D Show Desktop toggle
+  private showDesktopMode = false;
+  private showDesktopRestoreIds: string[] = [];
+
+  // Terminal State (basic shell exec)
+  private terminalCwd = '';
+  private terminalHistory: string[] = [];
+  private terminalHistoryIndex = -1;
+  private terminalBuffer: string[] = [];
+
+  // Terminal Tabs State (PTY with xterm.js)
+  private terminalTabs: Array<{
+    id: string;
+    ptyId: string | null;
+    title: string;
+    buffer: string[];
+    cwd: string;
+    xterm: Terminal | null;
+    fitAddon: FitAddon | null;
+  }> = [];
+  private activeTerminalTab = 0;
+  private ptySupported = false; // Set to true on Linux
+
+
+  // Editor State
+
+  private editorTabs: Array<{
+    id: string;
+    path: string | null;
+    filename: string;
+    content: string;
+    modified: boolean;
+    cursorPos?: number;
+  }> = [];
+  private activeEditorTab = 0;
+  private editorFindOpen = false;
+  private editorFindQuery = '';
+  private editorReplaceQuery = '';
+  private editorFindMode: 'find' | 'replace' = 'find';
+  private editorFindMatches: number[] = [];
+  private editorFindCurrentMatch = -1;
+
+  // Config persistence
+  private configSaveTimer: number | null = null;
+
+
+  // Modal dialogs (replace browser prompt/confirm/alert)
+  private modal:
+    | {
+      type: 'prompt' | 'confirm' | 'alert';
+      title: string;
+      message?: string;
+      inputLabel?: string;
+      inputValue?: string;
+      placeholder?: string;
+      password?: boolean;
+      confirmText?: string;
+      cancelText?: string;
+    }
+    | null = null;
+  private modalResolve: ((value: any) => void) | null = null;
 
 
 
@@ -183,8 +539,14 @@ class TempleOS {
   private init() {
     this.renderInitial();
     this.setupEventListeners();
+    this.keepLegacyMethodsReferenced();
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
+
+    // Electron main-process lock request
+    if (window.electronAPI?.onLockScreen) {
+      window.electronAPI.onLockScreen(() => this.lock());
+    }
 
     // Hide boot screen after animation completes
     setTimeout(() => {
@@ -194,25 +556,75 @@ class TempleOS {
       }
     }, 4500);
 
-    // Fetch available resolutions
-    this.loadResolutions();
+    // Bootstrap async OS integration + persisted settings
+    void this.bootstrap();
+  }
 
-    // Load installed apps for Start Menu
-    this.loadInstalledApps();
+  private keepLegacyMethodsReferenced(): void {
+    // Keeps older implementations from triggering TS6133 while we transition to v2 UI.
+    // (Safe: no execution, just references.)
+    void this.renderNetworkPopup;
+    void this.renderNotificationPopup;
+    void this.getFileBrowserContent;
+    void this.getSettingsContent;
+    void this.cycleWindows;
+    void this.handleTerminalCommand;
+  }
 
-    // Setup Auto-Lock
+  private async bootstrap(): Promise<void> {
+    await this.loadResolutions();
+    await this.loadInstalledApps();
+    await this.loadConfig();
+    await this.refreshMouseDpiInfo();
+    await this.refreshDisplayOutputs();
+
+    // Setup Auto-Lock (uses persisted timeout)
     this.setupAutoLock();
+
+    // Load initial state for system panels
+    await this.refreshAudioDevices();
+    await this.refreshNetworkStatus();
+    await this.refreshWifiEnabled();
+    await this.refreshSavedNetworks();
+    await this.refreshSystemInfo();
+
+    // Check PTY availability and setup listeners
+    await this.checkPtySupport();
+    this.setupPtyListeners();
+
+    // Periodic refresh (Windows-like status panels)
+    window.setInterval(() => void this.refreshNetworkStatus(), 10000);
+    window.setInterval(() => void this.refreshAudioDevices(), 15000);
+    window.setInterval(() => void this.refreshSystemInfo(), 30000);
 
     // Welcome Notification
     setTimeout(() => {
-      this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine');
+      this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
+        { id: 'open-settings', label: 'Open Settings' }
+      ]);
     }, 2000);
   }
+
+  private async checkPtySupport(): Promise<void> {
+    if (window.electronAPI?.isPtyAvailable) {
+      const result = await window.electronAPI.isPtyAvailable();
+      this.ptySupported = result.success && result.available;
+      if (this.ptySupported) {
+        console.log('PTY terminal support enabled');
+      }
+    }
+  }
+
 
   // ============================================
   // NOTIFICATIONS SYSTEM
   // ============================================
-  private showNotification(title: string, message: string, type: 'info' | 'warning' | 'error' | 'divine' = 'info') {
+  private showNotification(
+    title: string,
+    message: string,
+    type: 'info' | 'warning' | 'error' | 'divine' = 'info',
+    actions?: Array<{ id: string; label: string }>
+  ) {
     const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const notification: Notification = {
       id,
@@ -220,7 +632,8 @@ class TempleOS {
       message,
       timestamp: Date.now(),
       read: false,
-      type
+      type,
+      actions
     };
 
     // Add to history
@@ -307,11 +720,13 @@ class TempleOS {
         z-index: 9999;
         display: none;
         pointer-events: none;
-        transition: all 0.1s;
-      "></div>
-      <div id="toast-container" class="toast-container"></div>
-      ${this.renderTaskbar()}
-    `;
+       transition: all 0.1s;
+       "></div>
+       <div id="toast-container" class="toast-container"></div>
+       <div id="alt-tab-overlay" class="alt-tab-overlay"></div>
+       <div id="modal-overlay" class="modal-overlay-root"></div>
+       ${this.renderTaskbar()}
+     `;
   }
 
   // Only update windows and taskbar, not the boot screen
@@ -319,23 +734,61 @@ class TempleOS {
     const windowsContainer = document.getElementById('windows-container')!;
     const taskbarApps = document.querySelector('.taskbar-apps')!;
     const toastContainer = document.getElementById('toast-container');
+    const altTabContainer = document.getElementById('alt-tab-overlay');
+    const modalOverlay = document.getElementById('modal-overlay');
 
     // Update toasts
     if (toastContainer) {
       toastContainer.innerHTML = this.renderToasts();
     }
 
-    // Update windows (only show non-minimized)
-    windowsContainer.innerHTML = this.windows
-      .filter(w => !w.minimized)
-      .map(w => this.renderWindow(w)).join('');
+    if (altTabContainer) {
+      altTabContainer.innerHTML = this.renderAltTabOverlay();
+    }
 
-    // Update taskbar apps
-    taskbarApps.innerHTML = this.windows.map(w => `
-      <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-        ${w.icon} ${w.title}
-      </div>
-    `).join('');
+    if (modalOverlay) {
+      modalOverlay.innerHTML = this.renderModal();
+    }
+
+    // AUDIO PRESERVATION: Find any window with actively playing audio
+    // and preserve it instead of destroying/recreating it
+    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement;
+    const isAudioPlaying = audioEl && !audioEl.paused;
+    let preservedWindowEl: HTMLElement | null = null;
+    let preservedWindowId: string | null = null;
+
+    if (isAudioPlaying) {
+      // Find the parent window element containing the audio
+      preservedWindowEl = audioEl.closest('.window') as HTMLElement;
+      if (preservedWindowEl) {
+        preservedWindowId = preservedWindowEl.dataset.windowId || null;
+        // Temporarily detach from DOM to preserve it
+        preservedWindowEl.remove();
+      }
+    }
+
+    // Update windows (only show non-minimized), EXCEPT preserved audio window
+    const windowsToRender = this.windows.filter(w =>
+      !w.minimized && w.id !== preservedWindowId
+    );
+    windowsContainer.innerHTML = windowsToRender.map(w => this.renderWindow(w)).join('');
+
+    // Re-attach preserved window if it exists
+    if (preservedWindowEl && preservedWindowId) {
+      const preservedWin = this.windows.find(w => w.id === preservedWindowId);
+      if (preservedWin && !preservedWin.minimized) {
+        windowsContainer.appendChild(preservedWindowEl);
+        // Update active styling
+        if (preservedWin.active) {
+          preservedWindowEl.classList.add('active');
+        } else {
+          preservedWindowEl.classList.remove('active');
+        }
+      }
+    }
+
+    // Update taskbar apps (pinned + running)
+    taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
 
     // Update tray
     const tray = document.querySelector('.taskbar-tray');
@@ -370,6 +823,131 @@ class TempleOS {
         <div class="boot-text ready">System Ready. God's Temple Awaits.</div>
       </div>
     `;
+  }
+
+  // ============================================
+  // MODALS (replace browser prompt/confirm/alert)
+  // ============================================
+  private renderModal(): string {
+    if (!this.modal) return '';
+
+    const isPrompt = this.modal.type === 'prompt';
+    const showCancel = this.modal.type !== 'alert' && (this.modal.cancelText ?? 'Cancel');
+    const confirmText = this.modal.confirmText ?? (this.modal.type === 'alert' ? 'OK' : 'Confirm');
+    const cancelText = this.modal.cancelText ?? 'Cancel';
+
+    return `
+      <div class="modal-overlay-backdrop" style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        z-index: 100000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+      ">
+        <div class="modal-dialog" role="dialog" aria-modal="true" style="
+          width: min(520px, 100%);
+          background: rgba(13,17,23,0.98);
+          border: 1px solid rgba(0,255,65,0.35);
+          border-radius: 10px;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.75);
+          padding: 14px;
+          font-family: 'VT323', monospace;
+          color: #00ff41;
+        ">
+          <div style="display:flex; align-items:center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
+            <div style="font-size: 18px; color: #ffd700;">${escapeHtml(this.modal.title)}</div>
+            <div style="font-size: 12px; opacity: 0.65;">TempleOS</div>
+          </div>
+          ${this.modal.message ? `<div style="font-size: 14px; opacity: 0.9; margin-bottom: 10px; line-height: 1.2;">${escapeHtml(this.modal.message).replace(/\n/g, '<br>')}</div>` : ''}
+          ${isPrompt ? `
+            <div style="display:flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+              ${this.modal.inputLabel ? `<div style="font-size: 13px; opacity: 0.8;">${escapeHtml(this.modal.inputLabel)}</div>` : ''}
+              <input class="modal-input" ${this.modal.password ? 'type="password"' : 'type="text"'} value="${escapeHtml(this.modal.inputValue || '')}" placeholder="${escapeHtml(this.modal.placeholder || '')}" style="
+                width: 100%;
+                background: rgba(0,255,65,0.08);
+                border: 1px solid rgba(0,255,65,0.35);
+                color: #00ff41;
+                padding: 10px 12px;
+                border-radius: 8px;
+                outline: none;
+                font-family: inherit;
+                font-size: 16px;
+              " />
+            </div>
+          ` : ''}
+          <div style="display:flex; justify-content: flex-end; gap: 10px;">
+            ${showCancel ? `<button class="modal-cancel" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 8px 12px; border-radius: 8px; cursor: pointer;">${escapeHtml(cancelText)}</button>` : ''}
+            <button class="modal-confirm" style="background: #00ff41; border: 1px solid #00ff41; color: #000; padding: 8px 12px; border-radius: 8px; cursor: pointer;">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private openPromptModal(opts: { title: string; message?: string; inputLabel?: string; placeholder?: string; defaultValue?: string; password?: boolean; confirmText?: string; cancelText?: string }): Promise<string | null> {
+    return new Promise((resolve) => {
+      this.modalResolve?.(null);
+      this.modalResolve = resolve;
+      this.modal = {
+        type: 'prompt',
+        title: opts.title,
+        message: opts.message,
+        inputLabel: opts.inputLabel,
+        placeholder: opts.placeholder,
+        inputValue: opts.defaultValue ?? '',
+        password: opts.password,
+        confirmText: opts.confirmText ?? 'OK',
+        cancelText: opts.cancelText ?? 'Cancel',
+      };
+      this.render();
+      window.setTimeout(() => {
+        const input = document.querySelector('.modal-input') as HTMLInputElement | null;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 10);
+    });
+  }
+
+  private openConfirmModal(opts: { title: string; message?: string; confirmText?: string; cancelText?: string }): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.modalResolve?.(false);
+      this.modalResolve = resolve;
+      this.modal = {
+        type: 'confirm',
+        title: opts.title,
+        message: opts.message,
+        confirmText: opts.confirmText ?? 'Confirm',
+        cancelText: opts.cancelText ?? 'Cancel',
+      };
+      this.render();
+    });
+  }
+
+  private openAlertModal(opts: { title: string; message?: string; confirmText?: string }): Promise<void> {
+    return new Promise((resolve) => {
+      this.modalResolve?.(undefined);
+      this.modalResolve = resolve;
+      this.modal = {
+        type: 'alert',
+        title: opts.title,
+        message: opts.message,
+        confirmText: opts.confirmText ?? 'OK',
+      };
+      this.render();
+    });
+  }
+
+  private closeModal(result: any): void {
+    const resolve = this.modalResolve;
+    this.modalResolve = null;
+    this.modal = null;
+    this.render();
+    if (resolve) resolve(result);
   }
 
 
@@ -465,6 +1043,59 @@ class TempleOS {
     `;
   }
 
+  private renderNetworkPopupV2() {
+    const connected = this.networkStatus.connected;
+    const ssid = this.networkStatus.wifi?.ssid;
+    const signal = this.networkStatus.wifi?.signal ?? 0;
+    const ip = this.networkStatus.ip4;
+
+    const networks = this.wifiNetworks.slice(0, 8).map(n => `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
+        <div style="min-width: 0; display: flex; flex-direction: column;">
+          <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
+          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+        </div>
+        ${n.inUse ? `
+          <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 6px; cursor: pointer;">Disconnect</button>
+        ` : `
+          <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 8px; border-radius: 6px; cursor: pointer;">Connect</button>
+        `}
+      </div>
+    `).join('');
+
+    return `
+      <div class="tray-popup network-popup" style="
+        position: absolute;
+        bottom: 40px;
+        right: 80px;
+        width: 320px;
+        background: rgba(13,17,23,0.96);
+        border: 2px solid #00ff41;
+        z-index: 10000;
+        padding: 10px;
+        font-family: 'VT323', monospace;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,255,65,0.2); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; color: #00ff41;">
+          <span>Network</span>
+          <div style="display: flex; gap: 8px;">
+            <button class="net-btn" data-net-action="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 6px; cursor: pointer;">Refresh</button>
+            <button class="net-btn" data-net-action="open-settings" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 6px; cursor: pointer;">Settings</button>
+          </div>
+        </div>
+
+        <div style="padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,255,65,0.08); margin-bottom: 10px;">
+          <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto;">
+          ${window.electronAPI?.listWifiNetworks ? (networks || '<div style="opacity: 0.6;">No Wi-Fi networks found.</div>') : '<div style="opacity: 0.6;">Network controls require Electron/Linux.</div>'}
+        </div>
+      </div>
+    `;
+  }
+
   private renderNotificationPopup() {
     return `
       <div class="tray-popup notification-popup" style="
@@ -506,16 +1137,74 @@ class TempleOS {
     `;
   }
 
+  private renderNotificationPopupV2() {
+    const unread = this.notifications.filter(n => !n.read).length;
+    return `
+      <div class="tray-popup notification-popup" style="
+        position: absolute;
+        bottom: 40px;
+        right: 40px;
+        width: 320px;
+        max-height: 420px;
+        overflow-y: auto;
+        background: rgba(13,17,23,0.96);
+        border: 2px solid #ffd700;
+        z-index: 10000;
+        padding: 10px;
+        font-family: 'VT323', monospace;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <div style="border-bottom: 1px solid rgba(255,215,0,0.25); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
+          <span>Notifications ${unread ? `(${unread})` : ''}</span>
+          <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
+            ${this.doNotDisturb ? '🔕' : '🔔'}
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <button class="notif-btn" data-notif-action="mark-all-read" style="flex: 1; background: none; border: 1px solid rgba(255,215,0,0.35); color: #ffd700; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Mark all read</button>
+          <button class="notif-btn" data-notif-action="clear" style="flex: 1; background: none; border: 1px solid rgba(255,215,0,0.35); color: #ffd700; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Clear</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; color: #fff;">
+          ${this.notifications.length === 0 ? `
+            <div style="text-align: center; padding: 20px 10px; opacity: 0.8;">
+              <div style="font-size: 14px; margin-bottom: 5px;">No notifications.</div>
+              <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
+              <div style="font-size: 11px; opacity: 0.7;">Psalm 46:10</div>
+            </div>
+          ` : this.notifications.slice(0, 25).map(n => `
+            <div class="notification-item ${!n.read ? 'unread' : ''}" data-notif-id="${n.id}" style="cursor: pointer;">
+              <div style="font-weight: bold; color: ${this.getNotificationColor(n.type)}">${n.title}</div>
+              <div style="font-size: 14px;">${n.message}</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</span>
+                <button class="notif-btn" data-notif-action="dismiss" data-notif-id="${n.id}" style="background: none; border: 1px solid rgba(255,215,0,0.25); color: #ffd700; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 12px;">Dismiss</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   private renderToasts() {
     if (this.activeToasts.length === 0) return '';
 
     return this.activeToasts.map(toast => `
-      <div class="toast ${toast.type}">
+      <div class="toast ${toast.type}" data-toast-id="${toast.id}">
         <div class="toast-header">
           <span style="color: ${this.getNotificationColor(toast.type)}">${toast.title}</span>
-          <span class="toast-close" onclick="console.log('Dismiss toast')">x</span> 
+          <button class="toast-close" data-toast-action="dismiss" data-toast-id="${toast.id}" style="background: none; border: none; font: inherit;">x</button>
         </div>
         <div class="toast-body">${toast.message}</div>
+        ${toast.actions && toast.actions.length ? `
+          <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end;">
+            ${toast.actions.map(a => `
+              <button class="toast-action-btn" data-toast-action="action" data-toast-id="${toast.id}" data-action-id="${a.id}" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px;">${a.label}</button>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
     `).join('');
   }
@@ -543,12 +1232,33 @@ class TempleOS {
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
     ];
 
-    return icons.map(icon => `
+    const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
+    const shortcutIcons = this.desktopShortcuts
+      .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string' && !builtinKeys.has(s.key))
+      .slice(0, 48)
+      .map(s => {
+        const display = this.launcherDisplayForKey(s.key);
+        return {
+          key: s.key,
+          icon: display?.icon || 'dY"Ý',
+          label: s.label
+        };
+      });
+
+    return [
+      ...icons.map(icon => `
       <div class="desktop-icon" data-app="${icon.id}">
         <span class="icon">${icon.icon}</span>
         <span class="label">${icon.label}</span>
       </div>
-    `).join('');
+    `),
+      ...shortcutIcons.map(s => `
+      <div class="desktop-icon" data-launch-key="${escapeHtml(s.key)}">
+        <span class="icon">${s.icon}</span>
+        <span class="label">${escapeHtml(s.label)}</span>
+      </div>
+    `)
+    ].join('');
   }
 
   private renderWindow(win: WindowState): string {
@@ -590,11 +1300,7 @@ class TempleOS {
       <div class="taskbar">
         <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
         <div class="taskbar-apps">
-          ${this.windows.map(w => `
-            <div class="taskbar-app ${w.active ? 'active' : ''}" data-taskbar-window="${w.id}">
-              ${w.icon} ${w.title}
-            </div>
-          `).join('')}
+          ${this.renderTaskbarAppsHtml()}
         </div>
         <div class="taskbar-tray">
           ${this.getTrayHTML()}
@@ -602,16 +1308,56 @@ class TempleOS {
       </div>`;
   }
 
+  private renderTaskbarAppsHtml(): string {
+    const pinned = this.pinnedTaskbar
+      .slice(0, 20)
+      .filter(k => !!this.launcherDisplayForKey(k));
+
+    const pinnedBuiltinIds = new Set(
+      pinned
+        .filter(k => k.startsWith('builtin:'))
+        .map(k => k.slice('builtin:'.length))
+    );
+
+    const pinnedHtml = pinned.map(key => {
+      const display = this.launcherDisplayForKey(key);
+      if (!display) return '';
+      const builtinId = key.startsWith('builtin:') ? key.slice('builtin:'.length) : '';
+      const active = builtinId ? !!this.windows.find(w => w.active && w.id.startsWith(builtinId)) : false;
+      const running = builtinId ? !!this.windows.find(w => w.id.startsWith(builtinId) && !w.minimized) : false;
+      return `
+        <div class="taskbar-app pinned ${active ? 'active' : ''} ${running ? 'running' : ''}" data-launch-key="${escapeHtml(key)}" title="${escapeHtml(display.label)}">
+          <span class="taskbar-icon">${display.icon}</span>
+          <span class="taskbar-title">${escapeHtml(display.label)}</span>
+        </div>
+      `;
+    }).join('');
+
+    const unpinnedWindows = this.windows.filter(w => {
+      const appId = w.id.split('-')[0];
+      return !pinnedBuiltinIds.has(appId);
+    });
+
+    const windowsHtml = unpinnedWindows.map(w => `
+      <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+        ${w.icon} ${w.title}
+      </div>
+    `).join('');
+
+    const sep = (pinnedHtml && windowsHtml) ? `<div class="taskbar-sep"></div>` : '';
+    return `${pinnedHtml}${sep}${windowsHtml}`;
+  }
+
   private getTrayHTML(): string {
     return `
-      <div class="tray-icon" id="tray-network" title="Network: Connected" style="position: relative;">
+      <div class="tray-icon" id="tray-network" title="Network: ${this.networkStatus.connected ? (this.networkStatus.wifi?.ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}" style="position: relative; color: ${this.networkStatus.connected ? '#00ff41' : '#888'};">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
           <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
           <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
           <line x1="12" y1="20" x2="12.01" y2="20"></line>
         </svg>
-        ${this.showNetworkPopup ? this.renderNetworkPopup() : ''}
+        ${this.showNetworkPopup ? this.renderNetworkPopupV2() : ''}
       </div>
       
       <div class="tray-icon" id="tray-volume" title="Volume: ${this.volumeLevel}%" style="position: relative;">
@@ -627,8 +1373,8 @@ class TempleOS {
            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
          </svg>
-         ${this.showNotificationPopup ? this.renderNotificationPopup() : ''}
-      </div>
+         ${this.showNotificationPopup ? this.renderNotificationPopupV2() : ''}
+       </div>
  
 
 
@@ -646,7 +1392,7 @@ class TempleOS {
     if (!this.showStartMenu) return '';
 
     // Built-in pinned apps
-    const pinnedApps = [
+    const legacyPinnedApps = [
       { id: 'terminal', icon: '💻', name: 'Terminal' },
       { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
       { id: 'files', icon: '📁', name: 'Files' },
@@ -655,15 +1401,58 @@ class TempleOS {
       { id: 'settings', icon: '⚙️', name: 'Settings' },
     ];
 
+    const pinnedAppsView = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
+      .slice(0, 24)
+      .map(key => {
+        const display = this.launcherDisplayForKey(key);
+        if (!display) return null;
+        return { key, icon: display.icon, name: display.label };
+      })
+      .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
+
     // Filter installed apps based on search query
     const query = this.startMenuSearchQuery.toLowerCase();
-    const filteredApps = query
-      ? this.installedApps.filter(app =>
+
+    const getCategory = (app: InstalledApp): typeof this.startMenuCategory => {
+      const cats = (app.categories || []).map(c => c.toLowerCase());
+      const name = app.name.toLowerCase();
+      if (cats.some(c => c.includes('game')) || name.includes('steam')) return 'Games';
+      if (cats.some(c => c.includes('network') || c.includes('internet') || c.includes('webbrowser')) || name.includes('browser')) return 'Internet';
+      if (cats.some(c => c.includes('office'))) return 'Office';
+      if (cats.some(c => c.includes('audio') || c.includes('video') || c.includes('graphics') || c.includes('multimedia'))) return 'Multimedia';
+      if (cats.some(c => c.includes('development') || c.includes('ide') || c.includes('programming'))) return 'Development';
+      if (cats.some(c => c.includes('system') || c.includes('settings'))) return 'System';
+      return 'Utilities';
+    };
+
+    const keyForInstalled = (app: InstalledApp): string => this.keyForInstalledApp(app);
+
+    const searchFiltered = (apps: InstalledApp[]) =>
+      apps.filter(app =>
         app.name.toLowerCase().includes(query) ||
         app.comment?.toLowerCase().includes(query) ||
         app.categories.some(c => c.toLowerCase().includes(query))
-      )
-      : this.installedApps.slice(0, 20); // Show first 20 when not searching
+      );
+
+    let filteredApps: InstalledApp[] = [];
+    if (query) {
+      filteredApps = searchFiltered(this.installedApps);
+    } else if (this.startMenuView === 'recent') {
+      const map = new Map(this.installedApps.map(a => [keyForInstalled(a), a] as const));
+      filteredApps = this.recentApps.map(k => map.get(k)).filter(Boolean) as InstalledApp[];
+    } else if (this.startMenuView === 'frequent') {
+      filteredApps = this.installedApps
+        .map(a => ({ a, score: this.appUsage[keyForInstalled(a)] || 0 }))
+        .filter(x => x.score > 0)
+        .sort((x, y) => y.score - x.score)
+        .map(x => x.a);
+    } else {
+      filteredApps = this.startMenuCategory === 'All'
+        ? this.installedApps.slice()
+        : this.installedApps.filter(a => getCategory(a) === this.startMenuCategory);
+    }
+
+    if (!query) filteredApps = filteredApps.slice(0, 30);
 
     return `
       <div class="start-menu">
@@ -671,15 +1460,26 @@ class TempleOS {
           <div class="start-search-container">
             <input type="text" class="start-search-input" placeholder="🔍 Search apps..." value="${this.startMenuSearchQuery}">
           </div>
-          
+
+          <div style="display: flex; gap: 10px; padding: 0 20px 10px 20px;">
+            <select class="start-view-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;">
+              <option value="all" ${this.startMenuView === 'all' ? 'selected' : ''}>All apps</option>
+              <option value="recent" ${this.startMenuView === 'recent' ? 'selected' : ''}>Recent</option>
+              <option value="frequent" ${this.startMenuView === 'frequent' ? 'selected' : ''}>Frequently used</option>
+            </select>
+            <select class="start-category-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;" ${this.startMenuView === 'all' ? '' : 'disabled'}>
+              ${(['All', 'Games', 'Internet', 'Office', 'Multimedia', 'Development', 'System', 'Utilities'] as const).map(c => `<option value="${c}" ${this.startMenuCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+          </div>
+
           ${!query ? `
           <div class="start-section">
             <h3>Pinned</h3>
             <div class="start-pinned-grid">
-              ${pinnedApps.map(app => `
-                <div class="start-app-item pinned" data-app="${app.id}">
+              ${pinnedAppsView.map(app => `
+                <div class="start-app-item pinned" data-launch-key="${escapeHtml(app.key)}">
                   <span class="app-icon">${app.icon}</span>
-                  <span class="app-name">${app.name}</span>
+                  <span class="app-name">${escapeHtml(app.name)}</span>
                 </div>
               `).join('')}
             </div>
@@ -692,7 +1492,7 @@ class TempleOS {
               ${filteredApps.length === 0 ? `
                 <div class="start-no-results">No apps found</div>
               ` : filteredApps.map(app => `
-                <div class="start-app-item installed" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}'>
+                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}'>
                   <span class="app-icon">📦</span>
                   <div class="app-info">
                     <span class="app-name">${app.name}</span>
@@ -749,17 +1549,349 @@ class TempleOS {
     }
   }
 
+  private async refreshNetworkStatus(): Promise<void> {
+    if (!window.electronAPI?.getNetworkStatus) return;
+
+    try {
+      const res = await window.electronAPI.getNetworkStatus();
+      if (res.success && res.status) {
+        this.networkStatus = res.status as NetworkStatus;
+        this.networkLastError = null;
+      } else {
+        this.networkLastError = res.error || 'Failed to read network status';
+        this.networkStatus = { connected: false };
+      }
+    } catch (e) {
+      this.networkLastError = String(e);
+      this.networkStatus = { connected: false };
+    }
+
+    await this.refreshWifiNetworks();
+    await this.refreshWifiEnabled();
+    await this.refreshSavedNetworks();
+
+    // Update tray (contains popups + status icon)
+    const tray = document.querySelector('.taskbar-tray') as HTMLElement | null;
+    if (tray) tray.innerHTML = this.getTrayHTML();
+
+    if (this.activeSettingsCategory === 'Network') {
+      this.refreshSettingsWindow();
+    }
+  }
+
+  private async refreshWifiNetworks(): Promise<void> {
+    if (!window.electronAPI?.listWifiNetworks) return;
+
+    try {
+      const res = await window.electronAPI.listWifiNetworks();
+      if (res.success && Array.isArray(res.networks)) {
+        this.wifiNetworks = res.networks as WifiNetwork[];
+      } else {
+        this.wifiNetworks = [];
+      }
+    } catch {
+      this.wifiNetworks = [];
+    }
+  }
+
+  private async refreshWifiEnabled(): Promise<void> {
+    if (!window.electronAPI?.getWifiEnabled) return;
+    try {
+      const res = await window.electronAPI.getWifiEnabled();
+      if (res.success && typeof res.enabled === 'boolean') {
+        this.wifiEnabled = res.enabled;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+  }
+
+  private async refreshSavedNetworks(): Promise<void> {
+    if (!window.electronAPI?.listSavedNetworks) return;
+    try {
+      const res = await window.electronAPI.listSavedNetworks();
+      if (res.success && Array.isArray(res.networks)) {
+        this.savedNetworks = (res.networks as any[])
+          .filter(n => n && typeof n.name === 'string' && typeof n.uuid === 'string')
+          .map(n => ({ name: String(n.name), uuid: String(n.uuid), type: String(n.type || ''), device: String(n.device || '') }))
+          .slice(0, 50);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+  }
+
+  private async connectWifiFromUi(ssid: string, security: string): Promise<void> {
+    if (!window.electronAPI?.connectWifi) return;
+
+    let password: string | undefined = undefined;
+    if (security && !security.toLowerCase().includes('open')) {
+      const pw = await this.openPromptModal({
+        title: 'Wi-Fi Password',
+        message: `Enter password for "${ssid}"`,
+        inputLabel: 'Password',
+        placeholder: 'Network password',
+        password: true,
+        confirmText: 'Connect',
+        cancelText: 'Cancel'
+      });
+      if (pw === null) return;
+      password = pw;
+    }
+
+    this.showNotification('Network', `Connecting to ${ssid}...`, 'info');
+    try {
+      const res = await window.electronAPI.connectWifi(ssid, password);
+      if (res.success) {
+        this.showNotification('Network', `Connected to ${ssid}`, 'divine');
+      } else {
+        this.showNotification('Network', res.error || `Failed to connect to ${ssid}`, 'error');
+      }
+    } catch (e) {
+      this.showNotification('Network', String(e), 'error');
+    }
+
+    void this.refreshNetworkStatus();
+  }
+
+  private async refreshAudioDevices(): Promise<void> {
+    if (!window.electronAPI?.listAudioDevices) return;
+
+    try {
+      const res = await window.electronAPI.listAudioDevices();
+      if (res.success) {
+        this.audioDevices = {
+          sinks: (res.sinks || []).map((s: any) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
+          sources: (res.sources || []).map((s: any) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
+          defaultSink: res.defaultSink ?? null,
+          defaultSource: res.defaultSource ?? null
+        };
+      }
+    } catch {
+      // keep previous
+    }
+
+    if (this.activeSettingsCategory === 'System') {
+      this.refreshSettingsWindow();
+    }
+  }
+
+  private async refreshSystemInfo(): Promise<void> {
+    if (!window.electronAPI?.getSystemInfo) return;
+    try {
+      this.systemInfo = await window.electronAPI.getSystemInfo();
+    } catch {
+      // ignore
+    }
+  }
+
+  private async refreshDisplayOutputs(): Promise<void> {
+    if (!window.electronAPI?.getDisplayOutputs) return;
+    try {
+      const res = await window.electronAPI.getDisplayOutputs();
+      if (res.success && Array.isArray(res.outputs)) {
+        this.displayOutputs = res.outputs
+          .filter(o => o && typeof o.name === 'string')
+          .map(o => ({
+            name: String(o.name),
+            active: !!o.active,
+            scale: typeof o.scale === 'number' ? o.scale : 1,
+            transform: String(o.transform || 'normal'),
+            currentMode: String(o.currentMode || ''),
+            modes: Array.isArray(o.modes)
+              ? o.modes
+                .filter((m: any) => m && typeof m.width === 'number' && typeof m.height === 'number')
+                .map((m: any) => ({
+                  width: m.width,
+                  height: m.height,
+                  refreshHz: typeof m.refreshHz === 'number' ? m.refreshHz : null
+                }))
+              : []
+          }))
+          .slice(0, 10);
+
+        if (!this.activeDisplayOutput || !this.displayOutputs.some(o => o.name === this.activeDisplayOutput)) {
+          const active = this.displayOutputs.find(o => o.active) || this.displayOutputs[0] || null;
+          this.activeDisplayOutput = active ? active.name : null;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (this.activeSettingsCategory === 'System') this.refreshSettingsWindow();
+  }
+
+  private async refreshMouseDpiInfo(): Promise<void> {
+    this.mouseDpiSupported = false;
+    this.mouseDpiDeviceId = null;
+
+    if (!window.electronAPI?.getMouseDpiInfo) return;
+
+    try {
+      const res = await window.electronAPI.getMouseDpiInfo();
+      if (res.success && res.supported) {
+        this.mouseDpiSupported = true;
+        this.mouseDpiDeviceId = res.deviceId ?? null;
+        if (Array.isArray(res.dpiValues) && res.dpiValues.length) {
+          this.mouseDpiValues = res.dpiValues.slice(0, 50).filter(n => typeof n === 'number' && Number.isFinite(n)).sort((a, b) => a - b);
+        }
+
+        const fallback = this.mouseDpiValues.includes(800) ? 800 : (this.mouseDpiValues[0] ?? 800);
+        const desired = this.mouseSettings.dpi ?? (res.currentDpi ?? fallback);
+        if (Number.isFinite(desired) && desired > 0) {
+          this.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round(desired)));
+        }
+
+        if (window.electronAPI?.setMouseDpi && this.mouseSettings.dpi && res.currentDpi && this.mouseSettings.dpi !== res.currentDpi) {
+          void window.electronAPI.setMouseDpi(this.mouseDpiDeviceId, this.mouseSettings.dpi).then(r => {
+            if (!r.success) this.showNotification('Mouse', r.error || 'Failed to apply DPI', 'warning');
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (this.activeSettingsCategory === 'Devices') {
+      this.refreshSettingsWindow();
+    }
+  }
+
   private launchInstalledApp(appData: string): void {
     try {
       const app = JSON.parse(appData);
       if (window.electronAPI) {
         window.electronAPI.launchApp(app);
       }
+      // Track recent/frequent apps (Windows-like)
+      const key = app.desktopFile ? `desktop:${app.desktopFile}` : (app.name ? `name:${app.name}` : 'unknown');
+      this.recordAppLaunch(key);
       this.showStartMenu = false;
       this.render();
     } catch (error) {
       console.error('Error launching app:', error);
     }
+  }
+
+  private recordAppLaunch(key: string): void {
+    if (!key) return;
+
+    this.appUsage[key] = (this.appUsage[key] || 0) + 1;
+
+    // Only track recent for desktop apps + built-ins
+    this.recentApps = this.recentApps.filter(k => k !== key);
+    this.recentApps.unshift(key);
+    this.recentApps = this.recentApps.slice(0, 12);
+
+    this.queueSaveConfig();
+  }
+
+  private builtinLauncherMeta(appId: string): { label: string; icon: string } | null {
+    switch (appId) {
+      case 'terminal': return { label: 'Terminal', icon: `dY'¯` };
+      case 'word-of-god': return { label: 'Word of God', icon: 'ƒo?‹,?' };
+      case 'files': return { label: 'Files', icon: 'dY"?' };
+      case 'editor': return { label: 'HolyC Editor', icon: 'dY"?' };
+      case 'hymns': return { label: 'Hymn Player', icon: 'dYZæ' };
+      case 'settings': return { label: 'Settings', icon: 'ƒsT‹,?' };
+      case 'updater': return { label: 'Holy Updater', icon: 'ƒªØ‹,?' };
+      case 'system-monitor': return { label: 'Task Manager', icon: 'dY-ЭЛ,?' };
+      default: return null;
+    }
+  }
+
+  private keyForInstalledApp(app: InstalledApp): string {
+    return app.desktopFile ? `desktop:${app.desktopFile}` : `name:${app.name}`;
+  }
+
+  private findInstalledAppByKey(key: string): InstalledApp | null {
+    const raw = String(key || '');
+    if (raw.startsWith('desktop:')) {
+      const f = raw.slice('desktop:'.length);
+      const found = this.installedApps.find(a => a.desktopFile === f);
+      if (found) return found;
+    }
+    if (raw.startsWith('name:')) {
+      const n = raw.slice('name:'.length);
+      const found = this.installedApps.find(a => a.name === n);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  private launcherDisplayForKey(key: string): { label: string; icon: string } | null {
+    const raw = String(key || '');
+    if (raw.startsWith('builtin:')) {
+      return this.builtinLauncherMeta(raw.slice('builtin:'.length));
+    }
+    const installed = this.findInstalledAppByKey(raw);
+    if (installed) return { label: installed.name, icon: 'dY"Ý' };
+    return null;
+  }
+
+  private launchByKey(key: string): void {
+    const raw = String(key || '');
+    if (raw.startsWith('builtin:')) {
+      this.openApp(raw.slice('builtin:'.length));
+      return;
+    }
+    const installed = this.findInstalledAppByKey(raw);
+    if (installed && window.electronAPI) {
+      void window.electronAPI.launchApp(installed);
+      this.recordAppLaunch(this.keyForInstalledApp(installed));
+      return;
+    }
+    this.showNotification('Apps', 'App not found.', 'warning');
+  }
+
+  private pinStart(key: string): void {
+    if (!key) return;
+    if (!this.pinnedStart.includes(key)) {
+      this.pinnedStart.unshift(key);
+      this.pinnedStart = this.pinnedStart.slice(0, 24);
+      this.queueSaveConfig();
+    }
+  }
+
+  private unpinStart(key: string): void {
+    this.pinnedStart = this.pinnedStart.filter(k => k !== key);
+    this.queueSaveConfig();
+  }
+
+  private pinTaskbar(key: string): void {
+    if (!key) return;
+    if (!this.pinnedTaskbar.includes(key)) {
+      this.pinnedTaskbar.push(key);
+      this.pinnedTaskbar = this.pinnedTaskbar.slice(0, 20);
+      this.queueSaveConfig();
+    }
+  }
+
+  private unpinTaskbar(key: string): void {
+    this.pinnedTaskbar = this.pinnedTaskbar.filter(k => k !== key);
+    this.queueSaveConfig();
+  }
+
+  private addDesktopShortcut(key: string): void {
+    if (!key) return;
+    const display = this.launcherDisplayForKey(key);
+    if (!display) return;
+    if (this.desktopShortcuts.some(s => s.key === key)) return;
+    this.desktopShortcuts.unshift({ key, label: display.label });
+    this.desktopShortcuts = this.desktopShortcuts.slice(0, 48);
+    this.queueSaveConfig();
+    this.render();
+  }
+
+  private removeDesktopShortcut(key: string): void {
+    this.desktopShortcuts = this.desktopShortcuts.filter(s => s.key !== key);
+    this.queueSaveConfig();
+    this.render();
   }
 
 
@@ -782,6 +1914,37 @@ class TempleOS {
         const val = parseInt(target.value, 10);
         this.updateVolume(val);
       }
+
+      if (target.matches('.modal-input') && this.modal?.type === 'prompt') {
+        this.modal.inputValue = target.value;
+      }
+
+      if (target.matches('.display-scale-slider')) {
+        const scale = parseFloat(target.value);
+        if (this.activeDisplayOutput && Number.isFinite(scale)) {
+          const clamped = Math.max(1, Math.min(2, Math.round(scale * 100) / 100));
+          const out = this.displayOutputs.find(o => o.name === this.activeDisplayOutput);
+          if (out) out.scale = clamped;
+          this.queueSaveConfig();
+          if (window.electronAPI?.setDisplayScale) {
+            void window.electronAPI.setDisplayScale(this.activeDisplayOutput, clamped).then(res => {
+              if (!res.success) this.showNotification('Display', res.error || 'Failed to set scale', 'warning');
+            });
+          }
+        }
+      }
+
+      // Start menu search
+      if (target.matches('.start-search-input')) {
+        this.startMenuSearchQuery = target.value;
+        this.render();
+      }
+
+      // File browser search
+      if (target.matches('.file-search-input')) {
+        this.fileSearchQuery = target.value;
+        this.updateFileBrowserWindow();
+      }
     });
 
     // Resolution Dropdown Change
@@ -790,11 +1953,166 @@ class TempleOS {
       if (target.matches('.resolution-select')) {
         this.changeResolution(target.value);
       }
+
+      if (target.matches('.display-output-select')) {
+        const val = target.value;
+        this.activeDisplayOutput = val || null;
+        this.refreshSettingsWindow();
+      }
+
+      if (target.matches('.display-mode-select')) {
+        const mode = target.value;
+        const out = this.activeDisplayOutput;
+        if (out && window.electronAPI?.setDisplayMode) {
+          void window.electronAPI.setDisplayMode(out, mode).then(res => {
+            if (!res.success) this.showNotification('Display', res.error || 'Failed to set display mode', 'warning');
+            void this.refreshDisplayOutputs();
+          });
+        } else {
+          // Fallback (single output)
+          if (mode.includes('x')) void this.changeResolution(mode.split('@')[0]);
+        }
+      }
+
+      if (target.matches('.display-transform-select')) {
+        const transform = target.value;
+        const out = this.activeDisplayOutput;
+        if (out && window.electronAPI?.setDisplayTransform) {
+          void window.electronAPI.setDisplayTransform(out, transform).then(res => {
+            if (!res.success) this.showNotification('Display', res.error || 'Failed to set orientation', 'warning');
+            void this.refreshDisplayOutputs();
+          });
+        }
+      }
+
+      if (target.matches('.file-sort-select')) {
+        const val = (target.value as any) as 'name' | 'size' | 'modified';
+        this.fileSortMode = val;
+        this.fileSortDir = val === 'name' ? 'asc' : 'desc';
+        this.updateFileBrowserWindow();
+      }
+
+      if (target.matches('.start-view-select')) {
+        const val = (target.value as any) as 'all' | 'recent' | 'frequent';
+        this.startMenuView = val;
+        this.render();
+      }
+
+      if (target.matches('.start-category-select')) {
+        const val = target.value as any;
+        this.startMenuCategory = val;
+        this.render();
+      }
+
+      if (target.matches('.audio-sink-select')) {
+        const sink = target.value;
+        if (sink && window.electronAPI?.setDefaultSink) {
+          void window.electronAPI.setDefaultSink(sink).then(() => {
+            this.audioDevices.defaultSink = sink;
+            this.queueSaveConfig();
+            this.refreshSettingsWindow();
+          });
+        }
+      }
+
+      if (target.matches('.audio-source-select')) {
+        const source = target.value;
+        if (source && window.electronAPI?.setDefaultSource) {
+          void window.electronAPI.setDefaultSource(source).then(() => {
+            this.audioDevices.defaultSource = source;
+            this.queueSaveConfig();
+            this.refreshSettingsWindow();
+          });
+        }
+      }
+
+      if (target.matches('.lock-timeout-select')) {
+        const minutes = parseInt(target.value, 10);
+        if (!Number.isNaN(minutes)) {
+          this.lockTimeoutMs = minutes <= 0 ? 0 : Math.max(30_000, minutes * 60 * 1000);
+          this.queueSaveConfig();
+          this.resetAutoLockTimer();
+        }
+      }
+
+      if (target.matches('.mouse-dpi-select')) {
+        const dpi = parseInt(target.value, 10);
+        if (!Number.isNaN(dpi) && dpi > 0) {
+          this.mouseSettings.dpi = dpi;
+          this.queueSaveConfig();
+          if (window.electronAPI?.setMouseDpi) {
+            void window.electronAPI.setMouseDpi(this.mouseDpiDeviceId, dpi).then(res => {
+              if (!res.success) this.showNotification('Mouse', res.error || 'Failed to set DPI', 'warning');
+            });
+          }
+        }
+      }
+
+      const inputTarget = e.target as HTMLInputElement;
+      if (inputTarget.matches('.file-hidden-toggle')) {
+        this.showHiddenFiles = inputTarget.checked;
+        this.updateFileBrowserWindow();
+      }
+
+      if (inputTarget.matches('.mouse-speed-slider')) {
+        const speed = parseFloat(inputTarget.value);
+        if (!Number.isNaN(speed)) {
+          this.mouseSettings.speed = Math.max(-1, Math.min(1, speed));
+          this.queueSaveConfig();
+          if (window.electronAPI?.applyMouseSettings) void window.electronAPI.applyMouseSettings(this.mouseSettings);
+        }
+      }
+
+      if (inputTarget.matches('.mouse-raw-toggle')) {
+        this.mouseSettings.raw = inputTarget.checked;
+        this.queueSaveConfig();
+        if (window.electronAPI?.applyMouseSettings) void window.electronAPI.applyMouseSettings(this.mouseSettings);
+      }
+
+      if (inputTarget.matches('.mouse-natural-toggle')) {
+        this.mouseSettings.naturalScroll = inputTarget.checked;
+        this.queueSaveConfig();
+        if (window.electronAPI?.applyMouseSettings) void window.electronAPI.applyMouseSettings(this.mouseSettings);
+      }
+
+      if (inputTarget.matches('.wifi-enabled-toggle')) {
+        this.wifiEnabled = inputTarget.checked;
+        this.queueSaveConfig();
+        if (window.electronAPI?.setWifiEnabled) {
+          void window.electronAPI.setWifiEnabled(this.wifiEnabled).then(res => {
+            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle Wi‑Fi', 'warning');
+            void this.refreshNetworkStatus();
+          });
+        }
+      }
     });
 
     // Desktop icon clicks
     app.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+
+      // Modal interactions (eat clicks before anything else)
+      if (this.modal) {
+        const confirmBtn = target.closest('.modal-confirm');
+        const cancelBtn = target.closest('.modal-cancel');
+        const backdrop = target.classList.contains('modal-overlay-backdrop');
+        if (confirmBtn) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (this.modal.type === 'prompt') this.closeModal(this.modal.inputValue ?? '');
+          else if (this.modal.type === 'confirm') this.closeModal(true);
+          else this.closeModal(undefined);
+          return;
+        }
+        if (cancelBtn || backdrop) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (this.modal.type === 'prompt') this.closeModal(null);
+          else if (this.modal.type === 'confirm') this.closeModal(false);
+          else this.closeModal(undefined);
+          return;
+        }
+      }
 
       // Window controls - handle FIRST and return early
       const btnEl = target.closest('.window-btn') as HTMLElement;
@@ -815,7 +2133,14 @@ class TempleOS {
       // Taskbar app click
       const taskbarApp = target.closest('.taskbar-app') as HTMLElement;
       if (taskbarApp) {
-        this.toggleWindow(taskbarApp.dataset.taskbarWindow!);
+        if (taskbarApp.dataset.launchKey) {
+          this.launchByKey(taskbarApp.dataset.launchKey);
+          return;
+        }
+        if (taskbarApp.dataset.taskbarWindow) {
+          this.toggleWindow(taskbarApp.dataset.taskbarWindow);
+          return;
+        }
         return;
       }
 
@@ -874,7 +2199,35 @@ class TempleOS {
         this.showCalendarPopup = false;
         this.showNotificationPopup = false;
         this.showNotificationPopup = false;
+        if (this.showNetworkPopup) {
+          void this.refreshNetworkStatus();
+        }
         this.render();
+        return;
+      }
+
+      // Network popup actions
+      const netBtn = target.closest('.net-btn') as HTMLElement;
+      if (netBtn && netBtn.dataset.netAction) {
+        const action = netBtn.dataset.netAction;
+        if (action === 'refresh') {
+          void this.refreshNetworkStatus();
+        } else if (action === 'open-settings') {
+          this.openApp('settings');
+          this.activeSettingsCategory = 'Network';
+          this.refreshSettingsWindow();
+        } else if (action === 'disconnect') {
+          if (window.electronAPI?.disconnectNetwork) {
+            void window.electronAPI.disconnectNetwork().then(res => {
+              if (!res.success) this.showNotification('Network', res.error || 'Disconnect failed', 'error');
+              void this.refreshNetworkStatus();
+            });
+          }
+        } else if (action === 'connect') {
+          const ssid = netBtn.dataset.ssid || '';
+          const sec = netBtn.dataset.sec || '';
+          if (ssid) void this.connectWifiFromUi(ssid, sec);
+        }
         return;
       }
 
@@ -895,11 +2248,207 @@ class TempleOS {
       const dndBtn = target.closest('.dnd-btn');
       if (dndBtn) {
         this.doNotDisturb = !this.doNotDisturb;
+        this.queueSaveConfig();
         this.render();
         return;
       }
 
+      // Notification center actions
+      const notifBtn = target.closest('.notif-btn') as HTMLElement;
+      if (notifBtn && notifBtn.dataset.notifAction) {
+        const action = notifBtn.dataset.notifAction;
+        const id = notifBtn.dataset.notifId;
+        if (action === 'clear') {
+          this.notifications = [];
+          this.activeToasts = [];
+          this.render();
+          return;
+        }
+        if (action === 'mark-all-read') {
+          this.notifications.forEach(n => n.read = true);
+          this.render();
+          return;
+        }
+        if (action === 'dismiss' && id) {
+          this.notifications = this.notifications.filter(n => n.id !== id);
+          this.activeToasts = this.activeToasts.filter(t => t.id !== id);
+          this.render();
+          return;
+        }
+      }
+
+      const notifItem = target.closest('.notification-item') as HTMLElement;
+      if (notifItem && notifItem.dataset.notifId) {
+        const n = this.notifications.find(x => x.id === notifItem.dataset.notifId);
+        if (n) {
+          n.read = true;
+          this.render();
+          return;
+        }
+      }
+
+      // Toast actions
+      const toastActionEl = target.closest('[data-toast-action]') as HTMLElement;
+      if (toastActionEl && toastActionEl.dataset.toastAction && toastActionEl.dataset.toastId) {
+        const toastId = toastActionEl.dataset.toastId;
+        const action = toastActionEl.dataset.toastAction;
+
+        if (action === 'dismiss') {
+          this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
+          const notif = this.notifications.find(n => n.id === toastId);
+          if (notif) notif.read = true;
+          this.render();
+          return;
+        }
+
+        if (action === 'action') {
+          const actionId = toastActionEl.dataset.actionId || '';
+          if (actionId === 'open-settings') {
+            this.openApp('settings');
+            this.render();
+          }
+          this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
+          const notif = this.notifications.find(n => n.id === toastId);
+          if (notif) notif.read = true;
+          this.render();
+          return;
+        }
+      }
+
+      // Terminal links (URLs)
+      const terminalLink = target.closest('.terminal-link') as HTMLElement;
+      if (terminalLink && terminalLink.dataset.url) {
+        const url = terminalLink.dataset.url;
+        if (window.electronAPI?.openExternal) {
+          void window.electronAPI.openExternal(url);
+        } else {
+          window.open(url, '_blank');
+        }
+        return;
+      }
+
+      // Terminal tab switching
+      const terminalTab = target.closest('.terminal-tab') as HTMLElement;
+      if (terminalTab && terminalTab.dataset.terminalTab !== undefined) {
+        const tabIndex = parseInt(terminalTab.dataset.terminalTab);
+        if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex < this.terminalTabs.length) {
+          this.activeTerminalTab = tabIndex;
+          this.refreshTerminalWindow();
+        }
+        return;
+      }
+
+      // Terminal tab close
+      const terminalClose = target.closest('.terminal-tab-close') as HTMLElement;
+      if (terminalClose && terminalClose.dataset.terminalClose !== undefined) {
+        const tabIndex = parseInt(terminalClose.dataset.terminalClose);
+        if (!isNaN(tabIndex) && this.terminalTabs.length > 1) {
+          const tab = this.terminalTabs[tabIndex];
+          // Destroy PTY if exists
+          if (tab?.ptyId && window.electronAPI?.destroyPty) {
+            void window.electronAPI.destroyPty(tab.ptyId);
+          }
+          this.terminalTabs.splice(tabIndex, 1);
+          if (this.activeTerminalTab >= this.terminalTabs.length) {
+            this.activeTerminalTab = this.terminalTabs.length - 1;
+          }
+          this.refreshTerminalWindow();
+        }
+        return;
+      }
+
+      // Terminal new tab
+      const terminalNew = target.closest('.terminal-tab-new') as HTMLElement;
+      if (terminalNew) {
+        const newTab = {
+          id: `tab-${Date.now()}`,
+          ptyId: null,
+          title: `Terminal ${this.terminalTabs.length + 1}`,
+          buffer: [] as string[],
+          cwd: this.terminalCwd || '',
+          xterm: null,
+          fitAddon: null
+        };
+        this.terminalTabs.push(newTab);
+
+        this.activeTerminalTab = this.terminalTabs.length - 1;
+        this.refreshTerminalWindow();
+        return;
+      }
+
+      // Editor tab switching
+      const editorTab = target.closest('.editor-tab') as HTMLElement;
+      if (editorTab && editorTab.dataset.editorTab !== undefined) {
+        const tabIndex = parseInt(editorTab.dataset.editorTab);
+        if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex < this.editorTabs.length) {
+          this.activeEditorTab = tabIndex;
+          this.refreshEditorWindow();
+        }
+        return;
+      }
+
+      // Editor tab close
+      const editorClose = target.closest('.editor-tab-close') as HTMLElement;
+      if (editorClose && editorClose.dataset.editorClose !== undefined) {
+        const tabIndex = parseInt(editorClose.dataset.editorClose);
+        if (!isNaN(tabIndex) && this.editorTabs.length > 1) {
+          const tab = this.editorTabs[tabIndex];
+          if (tab?.modified) {
+            // Prompt to save - for now just close
+            // TODO: Add save prompt
+          }
+          this.editorTabs.splice(tabIndex, 1);
+          if (this.activeEditorTab >= this.editorTabs.length) {
+            this.activeEditorTab = this.editorTabs.length - 1;
+          }
+          this.refreshEditorWindow();
+        }
+        return;
+      }
+
+      // Editor new tab
+      const editorNew = target.closest('.editor-tab-new') as HTMLElement;
+      if (editorNew) {
+        const newTab = {
+          id: `editor-${Date.now()}`,
+          path: null,
+          filename: `untitled${this.editorTabs.length + 1}.hc`,
+          content: '',
+          modified: false
+        };
+        this.editorTabs.push(newTab);
+        this.activeEditorTab = this.editorTabs.length - 1;
+        this.refreshEditorWindow();
+        return;
+      }
+
+      // Editor find/replace actions
+      const editorAction = target.closest('[data-editor-action]') as HTMLElement;
+      if (editorAction && editorAction.dataset.editorAction) {
+        const action = editorAction.dataset.editorAction;
+        switch (action) {
+          case 'find-next':
+            this.editorFindNext();
+            break;
+          case 'find-prev':
+            this.editorFindPrev();
+            break;
+          case 'replace':
+            this.editorReplace();
+            break;
+          case 'replace-all':
+            this.editorReplaceAll();
+            break;
+          case 'find-close':
+            this.editorFindOpen = false;
+            this.refreshEditorWindow();
+            break;
+        }
+        return;
+      }
+
       // Close tray popups if clicking outside
+
       if (this.showVolumePopup && !target.closest('#tray-volume') && !target.closest('.volume-popup')) {
         this.showVolumePopup = false;
         this.render();
@@ -919,6 +2468,13 @@ class TempleOS {
 
       // Start menu item click (pinned apps)
       const startAppItem = target.closest('.start-app-item') as HTMLElement;
+      if (startAppItem && startAppItem.dataset.launchKey) {
+        this.launchByKey(startAppItem.dataset.launchKey);
+        this.showStartMenu = false;
+        this.render();
+        return;
+      }
+
       if (startAppItem && startAppItem.dataset.app) {
         this.openApp(startAppItem.dataset.app);
         this.showStartMenu = false;
@@ -979,6 +2535,77 @@ class TempleOS {
         return;
       }
 
+      // Settings: audio device refresh
+      const audioRefreshBtn = target.closest('.audio-refresh-btn') as HTMLElement;
+      if (audioRefreshBtn) {
+        void this.refreshAudioDevices().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
+      // Settings: display refresh
+      const displayRefreshBtn = target.closest('.display-refresh-btn') as HTMLElement;
+      if (displayRefreshBtn) {
+        void this.refreshDisplayOutputs().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
+      // Settings: saved networks actions
+      const savedNetBtn = target.closest('.saved-net-btn') as HTMLElement;
+      if (savedNetBtn && savedNetBtn.dataset.action && savedNetBtn.dataset.key) {
+        const action = savedNetBtn.dataset.action;
+        const key = savedNetBtn.dataset.key;
+        if (action === 'connect' && window.electronAPI?.connectSavedNetwork) {
+          this.showNotification('Network', `Connecting to ${key}...`, 'info');
+          void window.electronAPI.connectSavedNetwork(key).then(res => {
+            if (!res.success) this.showNotification('Network', res.error || 'Connect failed', 'error');
+            void this.refreshNetworkStatus();
+          });
+        }
+        if (action === 'forget' && window.electronAPI?.forgetSavedNetwork) {
+          void this.openConfirmModal({
+            title: 'Forget Network',
+            message: `Remove saved network "${key}"?`,
+            confirmText: 'Forget',
+            cancelText: 'Cancel'
+          }).then(ok => {
+            if (!ok) return;
+            void window.electronAPI!.forgetSavedNetwork!(key).then(res => {
+              if (!res.success) this.showNotification('Network', res.error || 'Forget failed', 'error');
+              void this.refreshSavedNetworks();
+            });
+          });
+        }
+        return;
+      }
+
+      // Settings: theme buttons
+      const themeBtn = target.closest('.theme-btn') as HTMLElement;
+      if (themeBtn && themeBtn.dataset.theme) {
+        const theme = themeBtn.dataset.theme === 'light' ? 'light' : 'dark';
+        this.themeMode = theme;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      // Settings: wallpaper buttons
+      const wallpaperBtn = target.closest('.wallpaper-btn') as HTMLElement;
+      if (wallpaperBtn && wallpaperBtn.dataset.wallpaper) {
+        this.wallpaperImage = wallpaperBtn.dataset.wallpaper;
+        this.applyWallpaper();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      // Settings: about refresh
+      const aboutRefreshBtn = target.closest('.about-refresh-btn') as HTMLElement;
+      if (aboutRefreshBtn) {
+        void this.refreshSystemInfo().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
       // Click outside start menu closes it
       if (this.showStartMenu && !target.closest('.start-menu') && !target.closest('.start-btn')) {
         this.showStartMenu = false;
@@ -999,10 +2626,17 @@ class TempleOS {
 
       // Desktop icon clicks
       const iconEl = target.closest('.desktop-icon') as HTMLElement;
-      if (iconEl && iconEl.dataset.app) {
-        const appId = iconEl.dataset.app!;
-        this.openApp(appId);
-        return;
+      if (iconEl) {
+        const launchKey = iconEl.dataset.launchKey;
+        if (launchKey) {
+          this.launchByKey(launchKey);
+          return;
+        }
+        if (iconEl.dataset.app) {
+          const appId = iconEl.dataset.app!;
+          this.openApp(appId);
+          return;
+        }
       }
 
       // Focus window (only if clicking on window but not on controls)
@@ -1036,11 +2670,13 @@ class TempleOS {
       if (fileItem) {
         const filePath = fileItem.dataset.filePath;
         const isDir = fileItem.dataset.isDir === 'true';
-        if (filePath && isDir) {
-          this.loadFiles(filePath);
-        } else if (filePath && window.electronAPI) {
+        const trashPath = fileItem.dataset.trashPath || '';
+        const effectivePath = (this.currentPath === 'trash:' && trashPath) ? trashPath : (filePath || '');
+        if (effectivePath && isDir) {
+          this.loadFiles(effectivePath);
+        } else if (effectivePath && window.electronAPI) {
           // Open file with system default app
-          window.electronAPI.openExternal(filePath);
+          window.electronAPI.openExternal(effectivePath);
         }
         return;
       }
@@ -1049,6 +2685,27 @@ class TempleOS {
       const breadcrumb = target.closest('.breadcrumb-item') as HTMLElement;
       if (breadcrumb && breadcrumb.dataset.path) {
         this.loadFiles(breadcrumb.dataset.path);
+        return;
+      }
+
+      // Sidebar favorites
+      const sidebarLink = target.closest('.file-sidebar-link') as HTMLElement;
+      if (sidebarLink && sidebarLink.dataset.path) {
+        this.loadFiles(sidebarLink.dataset.path);
+        return;
+      }
+
+      // Column header sorting (list view)
+      const colHeader = target.closest('.file-col-header') as HTMLElement;
+      if (colHeader && colHeader.dataset.sortKey) {
+        const key = colHeader.dataset.sortKey as 'name' | 'size' | 'modified';
+        if (this.fileSortMode === key) {
+          this.fileSortDir = this.fileSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.fileSortMode = key;
+          this.fileSortDir = key === 'name' ? 'asc' : 'desc';
+        }
+        this.updateFileBrowserWindow();
         return;
       }
 
@@ -1070,6 +2727,85 @@ class TempleOS {
         } else if (nav === 'refresh') {
           this.loadFiles(this.currentPath);
         }
+        return;
+      }
+
+      // Trash: empty
+      const emptyTrashBtn = target.closest('.trash-empty-btn') as HTMLElement;
+      if (emptyTrashBtn) {
+        if (!window.electronAPI?.emptyTrash) return;
+        void this.openConfirmModal({
+          title: 'Empty Trash',
+          message: 'Permanently delete all items in Trash?',
+          confirmText: 'Empty',
+          cancelText: 'Cancel'
+        }).then(ok => {
+          if (!ok) return;
+          void window.electronAPI!.emptyTrash!().then(res => {
+            if (!res.success) this.showNotification('Files', res.error || 'Failed to empty trash', 'error');
+            void this.loadFiles('trash:');
+          });
+        });
+        return;
+      }
+
+      // File browser view toggle
+      const viewToggle = target.closest('.file-view-toggle') as HTMLElement;
+      if (viewToggle && viewToggle.dataset.view) {
+        this.fileViewMode = viewToggle.dataset.view === 'list' ? 'list' : 'grid';
+        this.updateFileBrowserWindow();
+        return;
+      }
+
+      // ============================================
+      // SYSTEM MONITOR (Task Manager) HANDLERS
+      // ============================================
+      const monitorRefreshBtn = target.closest('.monitor-refresh-btn') as HTMLElement;
+      if (monitorRefreshBtn) {
+        void this.ensureSystemMonitorPolling(true);
+        return;
+      }
+
+      const monitorHeader = target.closest('.monitor-col-header') as HTMLElement;
+      if (monitorHeader && monitorHeader.dataset.sortKey) {
+        const key = monitorHeader.dataset.sortKey as any;
+        if (this.monitorSort === key) {
+          this.monitorSortDir = this.monitorSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.monitorSort = key;
+          this.monitorSortDir = key === 'name' ? 'asc' : 'desc';
+        }
+        this.refreshSystemMonitorWindowDom();
+        return;
+      }
+
+      const killBtn = target.closest('.proc-kill-btn') as HTMLElement;
+      if (killBtn && killBtn.dataset.pid) {
+        const pid = parseInt(killBtn.dataset.pid, 10);
+        const name = killBtn.dataset.name || `PID ${pid}`;
+        if (!Number.isFinite(pid) || !window.electronAPI?.killProcess) return;
+        void this.openConfirmModal({
+          title: 'End Task',
+          message: `End "${name}" (PID ${pid})?`,
+          confirmText: 'End task',
+          cancelText: 'Cancel'
+        }).then(ok => {
+          if (!ok) return;
+          void window.electronAPI!.killProcess!(pid, 'TERM').then(async (res) => {
+            if (!res.success) {
+              const force = await this.openConfirmModal({
+                title: 'Force Kill',
+                message: (res.error || 'Failed to end task') + '\n\nTry SIGKILL (force)?',
+                confirmText: 'Force kill',
+                cancelText: 'Cancel'
+              });
+              if (!force) return;
+              const r2 = await window.electronAPI!.killProcess!(pid, 'KILL');
+              if (!r2.success) await this.openAlertModal({ title: 'Task Manager', message: r2.error || 'Force kill failed' });
+            }
+            void this.refreshSystemMonitorData(true);
+          });
+        });
         return;
       }
 
@@ -1292,11 +3028,53 @@ class TempleOS {
 
     // Terminal input
     app.addEventListener('keydown', (e) => {
+      if (this.modal) return;
       const target = e.target as HTMLElement;
-      if (target.classList.contains('terminal-input') && e.key === 'Enter') {
+      if (target.classList.contains('terminal-input')) {
         const input = target as HTMLInputElement;
-        this.handleTerminalCommand(input.value);
-        input.value = '';
+
+        // Copy/paste like a real terminal
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+          const selection = window.getSelection()?.toString() || '';
+          if (selection) {
+            e.preventDefault();
+            void navigator.clipboard.writeText(selection);
+          }
+          return;
+        }
+        if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v') || (e.ctrlKey && e.key.toLowerCase() === 'v')) {
+          e.preventDefault();
+          void navigator.clipboard.readText().then(text => {
+            if (!text) return;
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? input.value.length;
+            input.value = input.value.slice(0, start) + text + input.value.slice(end);
+            const pos = start + text.length;
+            input.setSelectionRange(pos, pos);
+          });
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          void this.handleTerminalCommandV2(input.value);
+          input.value = '';
+          this.terminalHistoryIndex = this.terminalHistory.length;
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (this.terminalHistory.length) {
+            if (this.terminalHistoryIndex < 0) this.terminalHistoryIndex = this.terminalHistory.length;
+            this.terminalHistoryIndex = Math.max(0, this.terminalHistoryIndex - 1);
+            input.value = this.terminalHistory[this.terminalHistoryIndex] || '';
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (this.terminalHistory.length) {
+            this.terminalHistoryIndex = Math.min(this.terminalHistory.length, this.terminalHistoryIndex + 1);
+            input.value = this.terminalHistoryIndex >= this.terminalHistory.length ? '' : (this.terminalHistory[this.terminalHistoryIndex] || '');
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }
       }
 
       // Global shortcuts
@@ -1318,6 +3096,116 @@ class TempleOS {
     // GLOBAL KEYBOARD SHORTCUTS
     // ============================================
     document.addEventListener('keydown', (e) => {
+      if (this.modal) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (this.modal.type === 'prompt') this.closeModal(null);
+          else if (this.modal.type === 'confirm') this.closeModal(false);
+          else this.closeModal(undefined);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (this.modal.type === 'prompt') this.closeModal(this.modal.inputValue ?? '');
+          else if (this.modal.type === 'confirm') this.closeModal(true);
+          else this.closeModal(undefined);
+          return;
+        }
+      }
+
+      // Editor Ctrl+F - Find
+      if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+        const target = e.target as HTMLElement;
+        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+        if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
+          e.preventDefault();
+          this.editorFindMode = 'find';
+          this.editorFindOpen = true;
+          this.editorUpdateFindMatches();
+          this.refreshEditorWindow();
+          setTimeout(() => {
+            const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
+            input?.focus();
+            input?.select();
+          }, 50);
+          return;
+        }
+      }
+
+      // Editor Ctrl+H - Replace
+      if (e.ctrlKey && e.key.toLowerCase() === 'h') {
+        const target = e.target as HTMLElement;
+        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+        if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
+          e.preventDefault();
+          this.editorFindMode = 'replace';
+          this.editorFindOpen = true;
+          this.editorUpdateFindMatches();
+          this.refreshEditorWindow();
+          setTimeout(() => {
+            const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
+            input?.focus();
+            input?.select();
+          }, 50);
+          return;
+        }
+      }
+
+      // Editor F3 - Find Next, Shift+F3 - Find Prev
+      if (e.key === 'F3') {
+        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+        if (editorWindow && this.editorFindOpen) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            this.editorFindPrev();
+          } else {
+            this.editorFindNext();
+          }
+          return;
+        }
+      }
+
+      // Win+E - File Explorer
+      if (e.metaKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        this.openApp('files');
+        return;
+
+      }
+
+      // Win+D - Show Desktop (minimize all)
+      if (e.metaKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        this.toggleShowDesktop();
+        return;
+      }
+
+      // Ctrl+Shift+Esc - Task Manager
+      if (e.ctrlKey && e.shiftKey && e.key === 'Escape') {
+        e.preventDefault();
+        this.openApp('system-monitor');
+        return;
+      }
+
+      // Win+X - Quick Link Menu
+      if (e.metaKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        this.showContextMenu(18, window.innerHeight - 64, [
+          { label: 'Files', action: () => this.openApp('files') },
+          { label: 'Terminal', action: () => this.openApp('terminal') },
+          { label: 'Task Manager', action: () => this.openApp('system-monitor') },
+          { divider: true },
+          { label: 'Settings', action: () => this.openApp('settings') },
+          { divider: true },
+          { label: 'Lock', action: () => this.lock() },
+          { label: 'Restart', action: () => window.electronAPI?.restart() },
+          { label: 'Shutdown', action: () => window.electronAPI?.shutdown() },
+        ]);
+        return;
+      }
+
       // Alt+F4 - Close active window
       if (e.altKey && e.key === 'F4') {
         e.preventDefault();
@@ -1330,13 +3218,29 @@ class TempleOS {
       // Alt+Tab - Cycle through windows
       if (e.altKey && e.key === 'Tab') {
         e.preventDefault();
-        this.cycleWindows();
+        this.stepAltTab(e.shiftKey ? -1 : 1);
+      }
+
+      // Super/Meta opens Start Menu (Windows-like)
+      if ((e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
+        const target = e.target as HTMLElement;
+        const tag = target?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault();
+          this.showStartMenu = !this.showStartMenu;
+          if (!this.showStartMenu) this.startMenuSearchQuery = '';
+          this.render();
+        }
       }
 
       // Escape - Close active window (optional, like some apps)
       // Only if not in an input field
       const target = e.target as HTMLElement;
       if (e.key === 'Escape' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        if (this.altTabOpen) {
+          this.cancelAltTab();
+          return;
+        }
         const activeWindow = this.windows.find(w => w.active && !w.minimized);
         if (activeWindow) {
           this.minimizeWindow(activeWindow.id);
@@ -1353,6 +3257,12 @@ class TempleOS {
       }
     });
 
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Alt' && this.altTabOpen) {
+        this.commitAltTab();
+      }
+    });
+
     // ============================================
     // CONTEXT MENU (Right-Click)
     // ============================================
@@ -1364,19 +3274,131 @@ class TempleOS {
       this.closeContextMenu();
 
       // Determine context
+      const startAppItem = target.closest('.start-app-item') as HTMLElement;
+      const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
+      const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
       const fileItem = target.closest('.file-item') as HTMLElement;
       const desktopEl = target.closest('.desktop') as HTMLElement;
+      const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
+
+      if (startAppItem) {
+        const key =
+          startAppItem.dataset.launchKey ||
+          (startAppItem.dataset.app ? `builtin:${startAppItem.dataset.app}` : '');
+        const display = key ? this.launcherDisplayForKey(key) : null;
+        if (key && display) {
+          const pinnedStart = this.pinnedStart.includes(key);
+          const pinnedTaskbar = this.pinnedTaskbar.includes(key);
+          const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: `dY", Open`, action: () => this.launchByKey(key) },
+            { divider: true },
+            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+            { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+          ]);
+          return;
+        }
+      }
+
+      if (taskbarItem) {
+        const key = taskbarItem.dataset.launchKey || '';
+        const windowId = taskbarItem.dataset.taskbarWindow || '';
+        if (key) {
+          const pinnedStart = this.pinnedStart.includes(key);
+          const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: `dY", Open`, action: () => this.launchByKey(key) },
+            { divider: true },
+            { label: 'dY", Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
+            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+            { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+          ]);
+          return;
+        }
+        if (windowId) {
+          const appId = windowId.split('-')[0];
+          const appKey = `builtin:${appId}`;
+          const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: 'dY", Restore/Focus', action: () => this.toggleWindow(windowId) },
+            { label: 'dY-`‹,? Close', action: () => this.closeWindow(windowId) },
+            { divider: true },
+            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
+          ]);
+          return;
+        }
+      }
+
+      if (desktopIcon) {
+        const key = desktopIcon.dataset.launchKey || (desktopIcon.dataset.app ? `builtin:${desktopIcon.dataset.app}` : '');
+        if (key) {
+          const pinnedStart = this.pinnedStart.includes(key);
+          const pinnedTaskbar = this.pinnedTaskbar.includes(key);
+          const isBuiltInDesktop = !!desktopIcon.dataset.app;
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: `dY", Open`, action: () => this.launchByKey(key) },
+            { divider: true },
+            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+            ...(isBuiltInDesktop ? [] : [{ label: 'dY", Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
+          ]);
+          return;
+        }
+      }
 
       if (fileItem) {
         // File/folder context menu
         const filePath = fileItem.dataset.filePath || '';
         const isDir = fileItem.dataset.isDir === 'true';
+        const trashPath = fileItem.dataset.trashPath || '';
+        const originalPath = fileItem.dataset.originalPath || '';
+        if (this.currentPath === 'trash:' && (trashPath || filePath)) {
+          const actualTrashPath = trashPath || filePath;
+          const openOriginalFolder = () => {
+            if (!originalPath) return;
+            const isWindows = originalPath.includes('\\') || originalPath.match(/^[A-Z]:/i);
+            const separator = isWindows ? '\\' : '/';
+            const parent = originalPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
+            this.loadFiles(parent);
+          };
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: 'dY", Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
+            { divider: true },
+            { label: 'dY", Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
+            { label: 'dY-`‹,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
+            { divider: true },
+            ...(originalPath ? [{ label: 'dY"< Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
+            ...(originalPath ? [{ label: 'dY", Open Original Folder', action: () => openOriginalFolder() }] : []),
+          ]);
+          return;
+        }
         this.showContextMenu(e.clientX, e.clientY, [
           { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+          { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
+          { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
           { label: '✏️ Rename', action: () => this.promptRename(filePath) },
           { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
           { divider: true },
           { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+        ]);
+      } else if (fileBrowserEl && !target.closest('.taskbar')) {
+        if (this.currentPath === 'trash:') {
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: 'dY", Refresh', action: () => this.loadFiles('trash:') },
+            { divider: true },
+            { label: 'dY-`‹,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
+          ]);
+          return;
+        }
+        const canPaste = !!this.fileClipboard && !!this.currentPath;
+        this.showContextMenu(e.clientX, e.clientY, [
+          { label: '📁 New Folder', action: () => this.promptNewFolder() },
+          { label: '📄 New File', action: () => this.promptNewFile() },
+          { divider: true },
+          ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
+          { divider: true },
+          { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
         ]);
       } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
         // Desktop context menu
@@ -1434,7 +3456,48 @@ class TempleOS {
           }
         }
       }
+
+      if (target.classList.contains('monitor-search-input')) {
+        this.monitorQuery = target.value;
+        this.refreshSystemMonitorWindowDom();
+      }
+
+      // Editor content change
+      if (target.hasAttribute('data-editor-textarea')) {
+        const currentTab = this.editorTabs[this.activeEditorTab];
+        if (currentTab) {
+          currentTab.content = target.value;
+          currentTab.modified = true;
+          // Update tab modified indicator without full refresh
+          const tabEl = document.querySelector(`.editor-tab[data-editor-tab="${this.activeEditorTab}"]`);
+          if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
+            const modSpan = document.createElement('span');
+            modSpan.className = 'editor-tab-modified';
+            modSpan.textContent = '●';
+            tabEl.insertBefore(modSpan, tabEl.firstChild);
+          }
+        }
+      }
+
+      // Editor find input
+      if (target.hasAttribute('data-editor-find-input')) {
+        this.editorFindQuery = target.value;
+        this.editorUpdateFindMatches();
+        // Update count display without full refresh
+        const countEl = document.querySelector('.editor-find-count');
+        if (countEl) {
+          countEl.textContent = this.editorFindMatches.length > 0
+            ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}`
+            : '';
+        }
+      }
+
+      // Editor replace input
+      if (target.hasAttribute('data-editor-replace-input')) {
+        this.editorReplaceQuery = target.value;
+      }
     });
+
 
     // Settings Navigation
     app.addEventListener('click', (e) => {
@@ -1444,7 +3507,7 @@ class TempleOS {
         this.activeSettingsCategory = settingsItem.dataset.settingsCat;
         const win = this.windows.find(w => w.id.startsWith('settings'));
         if (win) {
-          win.content = this.getSettingsContent();
+          win.content = this.getSettingsContentV2();
           this.render();
         }
       }
@@ -1457,12 +3520,25 @@ class TempleOS {
     this.openApp('settings');
   }
 
+  private getPathSeparator(path: string): string {
+    return (path.includes('\\') || path.match(/^[A-Z]:/i)) ? '\\' : '/';
+  }
+
+  private joinPath(base: string, name: string): string {
+    const sep = this.getPathSeparator(base);
+    if (!base) return name;
+    if (base.endsWith(sep)) return base + name;
+    return base + sep + name;
+  }
+
   private openApp(appId: string) {
     const existingWindow = this.windows.find(w => w.id.startsWith(appId));
     if (existingWindow) {
       this.focusWindow(existingWindow.id);
       return;
     }
+
+    this.recordAppLaunch(`builtin:${appId}`);
 
     let windowConfig: Partial<WindowState> = {};
 
@@ -1491,7 +3567,7 @@ class TempleOS {
           icon: '📁',
           width: 600,
           height: 450,
-          content: this.getFileBrowserContent()
+          content: this.getFileBrowserContentV2()
         };
         // Load real files after window opens
         setTimeout(() => this.loadFiles(), 100);
@@ -1525,13 +3601,23 @@ class TempleOS {
           content: this.getHymnPlayerContent()
         };
         break;
+      case 'system-monitor':
+        windowConfig = {
+          title: 'Task Manager',
+          icon: 'dY-ЭЛ,?',
+          width: 900,
+          height: 600,
+          content: this.getSystemMonitorContent()
+        };
+        setTimeout(() => void this.ensureSystemMonitorPolling(true), 100);
+        break;
       case 'settings':
         windowConfig = {
           title: 'Settings',
           icon: '⚙️',
           width: 800,
           height: 600,
-          content: this.getSettingsContent()
+          content: this.getSettingsContentV2()
         };
         break;
     }
@@ -1554,29 +3640,334 @@ class TempleOS {
     this.windows.push(newWindow);
     this.render();
 
-    // Focus terminal input
+    // Focus terminal input or initialize xterm
     if (appId === 'terminal') {
       setTimeout(() => {
-        const input = document.querySelector('.terminal-input') as HTMLInputElement;
-        if (input) input.focus();
+        if (this.ptySupported) {
+          // Initialize xterm.js for PTY mode
+          void this.initXtermForTab(this.activeTerminalTab);
+        } else {
+          // Fallback: focus basic terminal input
+          const input = document.querySelector('.terminal-input') as HTMLInputElement;
+          if (input) input.focus();
+        }
       }, 100);
     }
   }
 
+
   private getTerminalContent(): string {
-    return `
-      <div class="terminal">
-        <div class="terminal-output" id="terminal-output">
-          <div class="terminal-line system">TempleOS Terminal v1.0 - Divine Command Line</div>
-          <div class="terminal-line system">Type 'help' for available commands.</div>
-          <div class="terminal-line"></div>
+    // Ensure at least one tab exists
+    if (this.terminalTabs.length === 0) {
+      this.terminalTabs.push({
+        id: `tab-${Date.now()}`,
+        ptyId: null,
+        title: 'Terminal 1',
+        buffer: [] as string[],
+        cwd: this.terminalCwd || '',
+        xterm: null,
+        fitAddon: null
+      });
+    }
+
+
+    const currentTab = this.terminalTabs[this.activeTerminalTab] || this.terminalTabs[0];
+
+    const tabsHtml = this.terminalTabs.map((tab, i) => `
+      <div class="terminal-tab ${i === this.activeTerminalTab ? 'active' : ''}" data-terminal-tab="${i}">
+        ${escapeHtml(tab.title)}
+        ${this.terminalTabs.length > 1 ? `<span class="terminal-tab-close" data-terminal-close="${i}">×</span>` : ''}
+      </div>
+    `).join('');
+
+    // Use xterm.js container if PTY is supported, otherwise fallback to basic terminal
+    if (this.ptySupported && currentTab) {
+      return `
+        <div class="terminal-container">
+          <div class="terminal-tabs">
+            ${tabsHtml}
+            <div class="terminal-tab-new" data-terminal-new title="New Tab">+</div>
+          </div>
+          <div class="xterm-container" id="xterm-container-${this.activeTerminalTab}"></div>
         </div>
-        <div class="terminal-input-line">
-          <span class="terminal-prompt">C:/&gt;</span>
-          <input type="text" class="terminal-input" autofocus />
+      `;
+    }
+
+    // Fallback: Basic HTML terminal (no PTY)
+    const prompt = (currentTab?.cwd || this.terminalCwd || 'C:/').replace(/</g, '').replace(/>/g, '') + '>';
+    const bufferContent = currentTab?.buffer.length > 0
+      ? currentTab.buffer.join('')
+      : (this.terminalBuffer.length > 0
+        ? this.terminalBuffer.join('')
+        : `
+            <div class="terminal-line system">TempleOS Terminal - Command Line</div>
+            <div class="terminal-line system">Type 'help' for built-ins, or run Linux commands.</div>
+            <div class="terminal-line"></div>
+          `);
+
+    return `
+      <div class="terminal-container">
+        <div class="terminal-tabs">
+          ${tabsHtml}
+          <div class="terminal-tab-new" data-terminal-new title="New Tab">+</div>
+        </div>
+        <div class="terminal">
+          <div class="terminal-output" id="terminal-output">
+            ${bufferContent}
+          </div>
+          <div class="terminal-input-line">
+            <span class="terminal-prompt">${escapeHtml(prompt)}</span>
+            <input type="text" class="terminal-input" autofocus />
+          </div>
         </div>
       </div>
     `;
+  }
+
+  // Initialize xterm.js for the current terminal tab
+  private async initXtermForTab(tabIndex: number): Promise<void> {
+    const tab = this.terminalTabs[tabIndex];
+    if (!tab || tab.xterm) return; // Already initialized
+
+    const container = document.getElementById(`xterm-container-${tabIndex}`);
+    if (!container) return;
+
+    // Create xterm instance
+    const xterm = new Terminal({
+      theme: {
+        background: '#0d1117',
+        foreground: '#00ff41',
+        cursor: '#00ff41',
+        cursorAccent: '#0d1117',
+        selectionBackground: 'rgba(0, 255, 65, 0.3)',
+        black: '#0a0a0f',
+        red: '#ff3366',
+        green: '#00ff41',
+        yellow: '#ffff00',
+        blue: '#4a9eff',
+        magenta: '#ff00ff',
+        cyan: '#00d4ff',
+        white: '#c9d1d9',
+        brightBlack: '#2a2a3a',
+        brightRed: '#ff6b6b',
+        brightGreen: '#55ff55',
+        brightYellow: '#ffff00',
+        brightBlue: '#4a9eff',
+        brightMagenta: '#ff88ff',
+        brightCyan: '#7fffff',
+        brightWhite: '#ffffff'
+      },
+      fontFamily: '"VT323", monospace',
+      fontSize: 18,
+      cursorBlink: true,
+      scrollback: 10000
+    });
+
+    const fitAddon = new FitAddon();
+    xterm.loadAddon(fitAddon);
+    xterm.open(container);
+    fitAddon.fit();
+
+    tab.xterm = xterm;
+    tab.fitAddon = fitAddon;
+
+    // Create PTY if available
+    if (window.electronAPI?.createPty) {
+      const result = await window.electronAPI.createPty({
+        cols: xterm.cols,
+        rows: xterm.rows,
+        cwd: tab.cwd || undefined
+      });
+
+      if (result.success && result.id) {
+        tab.ptyId = result.id;
+
+        // Handle terminal input -> PTY
+        xterm.onData((data) => {
+          if (tab.ptyId && window.electronAPI?.writePty) {
+            void window.electronAPI.writePty(tab.ptyId, data);
+          }
+        });
+
+        // Handle resize
+        xterm.onResize(({ cols, rows }) => {
+          if (tab.ptyId && window.electronAPI?.resizePty) {
+            void window.electronAPI.resizePty(tab.ptyId, cols, rows);
+          }
+        });
+      } else {
+        // PTY creation failed, show error
+        xterm.writeln('\x1b[31mPTY not available. Using fallback mode.\x1b[0m');
+        xterm.writeln('Type commands and press Enter.');
+      }
+    }
+
+    // Resize on window resize
+    window.addEventListener('resize', () => {
+      fitAddon.fit();
+    });
+  }
+
+  // Handle PTY data events
+  private setupPtyListeners(): void {
+    if (window.electronAPI?.onTerminalData) {
+      window.electronAPI.onTerminalData((data) => {
+        const tab = this.terminalTabs.find(t => t.ptyId === data.id);
+        if (tab?.xterm) {
+          tab.xterm.write(data.data);
+        }
+      });
+    }
+
+    if (window.electronAPI?.onTerminalExit) {
+      window.electronAPI.onTerminalExit((data) => {
+        const tab = this.terminalTabs.find(t => t.ptyId === data.id);
+        if (tab?.xterm) {
+          tab.xterm.writeln(`\r\n\x1b[33m[Process exited with code ${data.exitCode}]\x1b[0m`);
+          tab.ptyId = null;
+        }
+      });
+    }
+  }
+
+
+
+  private async handleTerminalCommandV2(command: string): Promise<void> {
+    const raw = (command || '').trim();
+    if (!raw) return;
+
+    this.terminalHistory.push(raw);
+    this.terminalHistoryIndex = this.terminalHistory.length;
+
+    const prompt = (this.terminalCwd || 'C:/').replace(/</g, '').replace(/>/g, '') + '>';
+    this.terminalBuffer.push(`<div class="terminal-line">${escapeHtml(prompt)} ${escapeHtml(raw)}</div>`);
+
+    const parts = raw.split(/\s+/);
+    const base = (parts.shift() || '').toLowerCase();
+    const args = parts;
+
+    const print = (line: string, cls?: string) => {
+      const klass = cls ? ` ${cls}` : '';
+      this.terminalBuffer.push(`<div class="terminal-line${klass}">${ansiToHtml(line)}</div>`);
+    };
+
+    if (base === 'help') {
+      print('Built-ins:', 'system');
+      print('  help                Show this help', 'system');
+      print('  clear               Clear terminal', 'system');
+      print('  cd [path]           Change directory', 'system');
+      print('  pwd                 Print working directory', 'system');
+      print('  god                 Random Bible verse', 'system');
+      print('  hymn                Open Hymn Player (random)', 'system');
+      print('  time                Show current time', 'system');
+      print('  about               About TempleOS', 'system');
+      print('Tip: You can run Linux commands like ls, cat, grep, etc.', 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'clear') {
+      this.terminalBuffer = [];
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'pwd') {
+      print(this.terminalCwd || '', 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'cd') {
+      let target = args.join(' ').trim();
+      if (!target) {
+        if (window.electronAPI) {
+          try {
+            this.terminalCwd = await window.electronAPI.getHome();
+          } catch {
+            this.terminalCwd = '/';
+          }
+        } else {
+          this.terminalCwd = '/';
+        }
+        this.refreshTerminalWindow();
+        return;
+      }
+
+      if (target.startsWith('~') && window.electronAPI) {
+        try {
+          const home = await window.electronAPI.getHome();
+          target = home + target.slice(1);
+        } catch {
+          // ignore
+        }
+      }
+
+      const sep = (this.terminalCwd.includes('\\') || this.terminalCwd.match(/^[A-Z]:/i)) ? '\\' : '/';
+      if (!target.startsWith('/') && !target.match(/^[A-Z]:/i) && !target.startsWith('\\\\')) {
+        const basePath = this.terminalCwd || (sep === '\\' ? 'C:\\' : '/');
+        target = basePath.replace(/[\\/]+$/, '') + sep + target;
+      }
+
+      this.terminalCwd = target;
+      print(`CWD: ${this.terminalCwd}`, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'god') {
+      const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
+      this.terminalBuffer.push(`<div class="terminal-line gold">"${escapeHtml(verse.text)}"</div>`);
+      this.terminalBuffer.push(`<div class="terminal-line system">${escapeHtml(verse.ref)}</div>`);
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'hymn') {
+      print('Opening Divine Hymns...', 'success');
+      setTimeout(() => {
+        this.openApp('hymns');
+        setTimeout(() => this.playHymn(Math.floor(Math.random() * this.hymnList.length)), 200);
+      }, 50);
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'time') {
+      print(new Date().toLocaleString(), 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'about') {
+      print('TempleOS Remake (Giangero Studio)', 'gold');
+      print('A Modern OS with TempleOS Soul', 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (!window.electronAPI?.execTerminal) {
+      print(`Unknown command: ${raw}`, 'error');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    const res = await window.electronAPI.execTerminal(raw, this.terminalCwd || undefined);
+    if (res.success) {
+      const out = (res.stdout || '').split(/\r?\n/).filter(l => l.length);
+      const err = (res.stderr || '').split(/\r?\n/).filter(l => l.length);
+      out.forEach(l => print(l));
+      err.forEach(l => print(l, 'error'));
+    } else {
+      const msg = res.error || 'Command failed';
+      print(msg, 'error');
+      const out = (res.stdout || '').split(/\r?\n/).filter(l => l.length);
+      const err = (res.stderr || '').split(/\r?\n/).filter(l => l.length);
+      out.forEach(l => print(l));
+      err.forEach(l => print(l, 'error'));
+    }
+
+    this.refreshTerminalWindow();
   }
 
   private getWordOfGodContent(): string {
@@ -1664,9 +4055,510 @@ class TempleOS {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
+  private getTrashBrowserContentV2(): string {
+    const entries = this.trashEntries
+      .filter(t => !this.fileSearchQuery.trim() || t.name.toLowerCase().includes(this.fileSearchQuery.trim().toLowerCase()) || (t.originalPath || '').toLowerCase().includes(this.fileSearchQuery.trim().toLowerCase()))
+      .slice(0, 200);
+
+    const emptyState = this.trashEntries.length === 0
+      ? '<div style="padding: 20px; opacity: 0.7;">Trash is empty.</div>'
+      : (entries.length === 0 ? '<div style="padding: 20px; opacity: 0.7;">No items match your search.</div>' : '');
+
+    return `
+      <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">Home</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">Refresh</button>
+          <div style="flex:1;"></div>
+          <button class="trash-empty-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 4px 10px; cursor: pointer; border-radius: 6px;">Empty Trash</button>
+        </div>
+        <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
+          <span style="opacity: 0.7;">Trash</span>
+        </div>
+        <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.12); display:flex; gap: 10px; align-items:center;">
+          <input class="file-search-input" placeholder="Search trash..." value="${escapeHtml(this.fileSearchQuery)}" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
+        </div>
+        <div class="file-browser-content" style="flex: 1; overflow-y: auto; padding: 10px; min-width: 0;">
+          ${emptyState || `
+            <div style="display: grid; grid-template-columns: 26px 1fr 1.5fr 140px; gap: 10px; padding: 6px 10px; opacity: 0.7; font-size: 12px;">
+              <span></span><span>Name</span><span>Original Location</span><span>Deleted</span>
+            </div>
+            <div style="display:flex; flex-direction: column; gap: 6px;">
+              ${entries.map(t => `
+                <div class="file-item file-row" data-file-path="${escapeHtml(t.trashPath)}" data-is-dir="${t.isDirectory}" data-trash-path="${escapeHtml(t.trashPath)}" data-original-path="${escapeHtml(t.originalPath || '')}" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 1.5fr 140px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,0,0,0.15);">
+                  <span style="opacity: 0.85;">${getFileIcon(t.name, t.isDirectory)}</span>
+                  <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(t.name)}</span>
+                  <span style="opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(t.originalPath || '')}</span>
+                  <span style="opacity: 0.75;">${escapeHtml((t.deletionDate || '').replace('T', ' ').slice(0, 16))}</span>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  private getFileBrowserContentV2(): string {
+    if (this.currentPath === 'trash:') {
+      return this.getTrashBrowserContentV2();
+    }
+
+    const pathParts = this.currentPath.split(/[/\\]/).filter(p => p);
+    const isWindows = this.currentPath.includes('\\') || this.currentPath.match(/^[A-Z]:/i);
+    const separator = isWindows ? '\\' : '/';
+
+    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">This PC</span>`;
+    let cumulativePath = isWindows ? '' : '';
+    for (const part of pathParts) {
+      cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+    }
+
+    const query = this.fileSearchQuery.trim().toLowerCase();
+    const files = this.fileEntries
+      .filter(f => this.showHiddenFiles || !f.name.startsWith('.'))
+      .filter(f => !query || f.name.toLowerCase().includes(query))
+      .slice()
+      .sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        const dir = this.fileSortDir === 'desc' ? -1 : 1;
+        if (this.fileSortMode === 'size') return dir * ((a.size || 0) - (b.size || 0));
+        if (this.fileSortMode === 'modified') return dir * ((a.modified || '').localeCompare(b.modified || ''));
+        return dir * a.name.localeCompare(b.name);
+      });
+
+    const parentPath = (() => {
+      if (!this.currentPath) return null;
+      if (this.currentPath === '/' || this.currentPath.match(/^[A-Z]:\\?$/i)) return null;
+      return this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
+    })();
+
+    const sidebarItems = (() => {
+      const home = this.homePath || this.currentPath || (isWindows ? 'C:\\' : '/');
+      const docs = this.joinPath(home, 'Documents');
+      const downloads = this.joinPath(home, 'Downloads');
+      const pictures = this.joinPath(home, 'Pictures');
+      const music = this.joinPath(home, 'Music');
+      return [
+        { label: 'This PC', path: isWindows ? 'C:\\' : '/' },
+        { label: 'Home', path: home },
+        { label: 'Documents', path: docs },
+        { label: 'Downloads', path: downloads },
+        { label: 'Pictures', path: pictures },
+        { label: 'Music', path: music },
+        { label: 'Trash', path: 'trash:' },
+      ];
+    })();
+
+    const emptyState = this.fileEntries.length === 0 && this.currentPath
+      ? '<div style="padding: 20px; opacity: 0.6;">Loading...</div>'
+      : (files.length === 0 && this.fileEntries.length > 0 ? '<div style="padding: 20px; opacity: 0.6;">No files match your search.</div>' : '');
+
+    const gridHtml = `
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+        ${parentPath ? `
+          <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;" title="Parent folder">
+            <span class="icon">📁</span>
+            <span class="label" style="font-size: 12px;">..</span>
+          </div>
+        ` : ''}
+        ${files.map(file => {
+      const icon = getFileIcon(file.name, file.isDirectory);
+      const sizeStr = file.isDirectory ? '' : this.formatFileSize(file.size);
+      return `
+            <div class="file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer;" title="${file.name}${sizeStr ? ' - ' + sizeStr : ''}">
+              <span class="icon">${icon}</span>
+              <span class="label" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+            </div>
+          `;
+    }).join('')}
+      </div>
+    `;
+
+    const sortArrow = (key: 'name' | 'size' | 'modified') => {
+      if (this.fileSortMode !== key) return '';
+      return this.fileSortDir === 'asc' ? ' ▲' : ' ▼';
+    };
+
+    const listHtml = `
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 6px 10px; opacity: 0.7; font-size: 12px;">
+          <span></span>
+          <span class="file-col-header" data-sort-key="name" style="cursor: pointer;">Name${sortArrow('name')}</span>
+          <span class="file-col-header" data-sort-key="size" style="cursor: pointer;">Size${sortArrow('size')}</span>
+          <span class="file-col-header" data-sort-key="modified" style="cursor: pointer;">Modified${sortArrow('modified')}</span>
+        </div>
+        ${parentPath ? `
+          <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
+            <span class="icon">📁</span>
+            <span class="label">..</span>
+            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">—</span>
+          </div>
+        ` : ''}
+        ${files.map(file => {
+      const icon = getFileIcon(file.name, file.isDirectory);
+      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleString() : '—';
+      return `
+            <div class="file-row file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,0,0,0.15);">
+              <span class="icon">${icon}</span>
+              <span class="label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+              <span style="opacity: 0.8;">${sizeStr}</span>
+              <span style="opacity: 0.7; font-size: 12px;">${mod}</span>
+            </div>
+          `;
+    }).join('')}
+      </div>
+    `;
+
+    return `
+      <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⟵</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⌂</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">↻</button>
+
+          <input class="file-search-input" type="text" placeholder="Search this folder" value="${this.fileSearchQuery}"
+                 style="flex: 1; min-width: 180px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit; outline: none;">
+
+          <select class="file-sort-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+            <option value="name" ${this.fileSortMode === 'name' ? 'selected' : ''}>Name</option>
+            <option value="modified" ${this.fileSortMode === 'modified' ? 'selected' : ''}>Date</option>
+            <option value="size" ${this.fileSortMode === 'size' ? 'selected' : ''}>Size</option>
+          </select>
+
+          <button class="file-view-toggle" data-view="${this.fileViewMode === 'grid' ? 'list' : 'grid'}"
+                  style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+            ${this.fileViewMode === 'grid' ? 'List' : 'Grid'}
+          </button>
+
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.9; user-select: none;">
+            <input class="file-hidden-toggle" type="checkbox" ${this.showHiddenFiles ? 'checked' : ''} />
+            Hidden
+          </label>
+        </div>
+        <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
+          ${breadcrumbHtml}
+        </div>
+        <div style="flex: 1; display: flex; min-height: 0;">
+          <div class="file-browser-sidebar" style="width: 190px; border-right: 1px solid rgba(0,255,65,0.15); padding: 10px; background: rgba(0,0,0,0.12); overflow: auto;">
+            <div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Favorites</div>
+            ${sidebarItems.map(item => `
+              <div class="file-sidebar-link" data-path="${escapeHtml(item.path)}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; color: ${item.path === this.currentPath ? '#000' : '#00ff41'}; background: ${item.path === this.currentPath ? '#00ff41' : 'transparent'}; margin-bottom: 6px;">
+                ${escapeHtml(item.label)}
+              </div>
+            `).join('')}
+          </div>
+          <div class="file-browser-content" style="flex: 1; overflow-y: auto; padding: 10px; min-width: 0;">
+            ${emptyState || (this.fileViewMode === 'grid' ? gridHtml : listHtml)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // ============================================
   // SETTINGS PANEL (TIER 3.1)
   // ============================================
+  private getSettingsContentV2(): string {
+    const svgIcons: Record<string, string> = {
+      System: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
+      Personalization: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="19" cy="17" r="2"></circle></svg>',
+      Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
+      Devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="6"></rect><line x1="12" y1="7" x2="12" y2="11"></line></svg>',
+      About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+    };
+
+    const categories = [
+      { id: 'System', icon: svgIcons.System, label: 'System' },
+      { id: 'Personalization', icon: svgIcons.Personalization, label: 'Personalization' },
+      { id: 'Network', icon: svgIcons.Network, label: 'Network & Internet' },
+      { id: 'Devices', icon: svgIcons.Devices, label: 'Mouse & Input' },
+      { id: 'About', icon: svgIcons.About, label: 'About' },
+    ];
+
+    const renderSidebar = () => `
+      <div class="settings-sidebar" style="
+        width: 240px;
+        background: rgba(0, 0, 0, 0.3);
+        border-right: 1px solid rgba(0, 255, 65, 0.2);
+        display: flex;
+        flex-direction: column;
+        padding: 10px 0;
+      ">
+        ${categories.map(cat => `
+          <div class="settings-nav-item ${this.activeSettingsCategory === cat.id ? 'active' : ''}"
+               data-settings-cat="${cat.id}"
+               style="
+                 padding: 10px 20px;
+                 cursor: pointer;
+                 display: flex;
+                 align-items: center;
+                 gap: 12px;
+                 color: ${this.activeSettingsCategory === cat.id ? '#000' : '#00ff41'};
+                 background: ${this.activeSettingsCategory === cat.id ? '#00ff41' : 'transparent'};
+                 transition: all 0.2s;
+               ">
+            <span style="font-size: 18px; display: inline-flex;">${cat.icon}</span>
+            <span style="font-size: 14px;">${cat.label}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    const card = (title: string, inner: string) => `
+      <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 14px; margin-bottom: 14px; background: rgba(0,0,0,0.18);">
+        <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px;">${title}</div>
+        ${inner}
+      </div>
+    `;
+
+    const renderSystem = () => {
+      const sinkOptions = this.audioDevices.sinks.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSink ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
+      const sourceOptions = this.audioDevices.sources.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSource ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
+
+      const lockMinutes = this.lockTimeoutMs <= 0 ? 0 : Math.round(this.lockTimeoutMs / 60000);
+
+      const outputs = this.displayOutputs.slice(0, 10);
+      const selectedOutput = outputs.find(o => o.name === this.activeDisplayOutput) || outputs.find(o => o.active) || outputs[0] || null;
+      const modeList = selectedOutput ? selectedOutput.modes.slice() : [];
+      const modeKey = (m: { width: number; height: number; refreshHz: number | null }) => `${m.width}x${m.height}${m.refreshHz ? `@${m.refreshHz}` : ''}`;
+      const uniqueModes = [...new Map(modeList.map(m => [modeKey(m), m])).values()]
+        .sort((a, b) => (a.width * a.height) - (b.width * b.height) || ((a.refreshHz || 0) - (b.refreshHz || 0)));
+      const currentMode = selectedOutput?.currentMode || this.currentResolution;
+
+      return `
+        ${card('Sound', `
+          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center;">
+            <div>Volume</div>
+            <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" style="width: 100%; accent-color: #00ff41;">
+
+            <div>Output</div>
+            <select class="audio-sink-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+              ${sinkOptions || '<option value=\"\">(No devices)</option>'}
+            </select>
+
+            <div>Input</div>
+            <select class="audio-source-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+              ${sourceOptions || '<option value=\"\">(No devices)</option>'}
+            </select>
+          </div>
+          <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+            <button class="audio-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh devices</button>
+          </div>
+        `)}
+
+        ${card('Display', `
+          <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
+            <div>Monitor</div>
+            <select class="display-output-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+              ${outputs.map(o => `<option value="${escapeHtml(o.name)}" ${o.name === (selectedOutput?.name || '') ? 'selected' : ''}>${escapeHtml(o.name)}${o.active ? '' : ' (off)'}</option>`).join('') || '<option value=\"\">Display</option>'}
+            </select>
+
+            <div>Mode</div>
+            <select class="display-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+              ${(uniqueModes.length ? uniqueModes.map(m => {
+        const k = modeKey(m);
+        const label = `${m.width} x ${m.height}${m.refreshHz ? ` @ ${m.refreshHz}Hz` : ''}`;
+        const selected = currentMode && k === currentMode ? 'selected' : '';
+        return `<option value="${k}" ${selected}>${label}</option>`;
+      }).join('') : this.availableResolutions.map(r => `<option value="${r}" ${r === this.currentResolution ? 'selected' : ''}>${r.replace('x', ' x ')}</option>`).join(''))}
+            </select>
+
+            <div>Scale</div>
+            <input type="range" class="display-scale-slider" min="1" max="2" step="0.05" value="${selectedOutput ? selectedOutput.scale : 1}" style="width: 100%; accent-color: #00ff41;" ${selectedOutput ? '' : 'disabled'}>
+
+            <div>Orientation</div>
+            <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;" ${selectedOutput ? '' : 'disabled'}>
+              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}°`}</option>`).join('')}
+            </select>
+          </div>
+          <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="display-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh displays</button>
+          </div>
+          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Tip: scale works best on Wayland/Sway; on X11 some options may be limited.</div>
+        `)}
+
+        ${card('Lock Screen', `
+          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center;">
+            <div>Auto-lock</div>
+            <select class="lock-timeout-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+              ${[0, 1, 5, 10, 30].map(m => `<option value="${m}" ${m === lockMinutes ? 'selected' : ''}>${m === 0 ? 'Never' : `${m} min`}</option>`).join('')}
+            </select>
+          </div>
+          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed (\"god\").</div>
+        `)}
+      `;
+    };
+
+    const renderPersonalization = () => {
+      const wallpapers = [
+        { id: 'default', label: 'Default', path: './images/wallpaper.png' },
+      ];
+      return `
+        ${card('Theme', `
+          <div style="display: flex; gap: 10px;">
+            <button class="theme-btn" data-theme="dark" style="padding: 8px 16px; background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'}; color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'}; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Dark</button>
+            <button class="theme-btn" data-theme="light" style="padding: 8px 16px; background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'}; color: ${this.themeMode === 'light' ? '#000' : '#00ff41'}; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Light</button>
+          </div>
+          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
+        `)}
+
+        ${card('Wallpaper', `
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+            ${wallpapers.map(w => `
+              <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: ${this.wallpaperImage === w.path ? '2px solid #00ff41' : '1px solid rgba(0,255,65,0.3)'}; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
+            `).join('')}
+          </div>
+        `)}
+      `;
+    };
+
+    const renderNetwork = () => {
+      const connected = this.networkStatus.connected;
+      const ssid = this.networkStatus.wifi?.ssid;
+      const signal = this.networkStatus.wifi?.signal ?? 0;
+      const ip = this.networkStatus.ip4;
+
+      const savedWifi = this.savedNetworks.filter(n => (n.type || '').toLowerCase().includes('wifi') || (n.type || '').toLowerCase().includes('wireless')).slice(0, 12);
+      const savedOther = this.savedNetworks.filter(n => !savedWifi.includes(n)).slice(0, 8);
+
+      return `
+        ${card('Status', `
+          <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+              <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} />
+              <span style="opacity: 0.9;">Wi‑Fi</span>
+            </label>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+              <button class="net-btn" data-net-action="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
+              ${connected ? `<button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>` : ''}
+            </div>
+          </div>
+        `)}
+
+        ${card('Wi‑Fi Networks', `
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${window.electronAPI?.listWifiNetworks ? (this.wifiNetworks.slice(0, 10).map(n => `
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
+                <div style="min-width: 0;">
+                  <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
+                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+                </div>
+                ${n.inUse ? `
+                  <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>
+                ` : `
+                  <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
+                `}
+              </div>
+            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires Electron/Linux.</div>'}
+          </div>
+        `)}
+
+        ${card('Saved Networks', `
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require Electron/Linux.</div>' : ''}
+            ${window.electronAPI?.listSavedNetworks ? ([
+          ...savedWifi.map(n => ({ ...n, kind: 'Wi‑Fi' })),
+          ...savedOther.map(n => ({ ...n, kind: n.type || 'Connection' }))
+        ].slice(0, 14).map(n => `
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                <div style="min-width: 0;">
+                  <div style="font-weight: bold; color: #00ff41; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(n.name)}</div>
+                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` • ${escapeHtml(n.device)}` : ''}</div>
+                </div>
+                <div style="display:flex; gap: 8px; flex-shrink: 0;">
+                  <button class="saved-net-btn" data-action="connect" data-key="${escapeHtml(n.uuid)}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
+                  <button class="saved-net-btn" data-action="forget" data-key="${escapeHtml(n.uuid)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Forget</button>
+                </div>
+              </div>
+            `).join('') || '<div style=\"opacity: 0.6;\">No saved networks.</div>') : ''}
+          </div>
+        `)}
+      `;
+    };
+
+    const renderDevices = () => {
+      const values = this.mouseDpiValues.length ? this.mouseDpiValues : [400, 800, 1200, 1600];
+      const selectedDpi = this.mouseSettings.dpi ?? (values.includes(800) ? 800 : (values[0] ?? 800));
+
+      return `
+      ${card('Mouse', `
+        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
+          <div>Pointer speed</div>
+          <input type="range" class="mouse-speed-slider" min="-1" max="1" step="0.1" value="${this.mouseSettings.speed}" style="width: 100%; accent-color: #00ff41;">
+
+          <div>DPI</div>
+          <select class="mouse-dpi-select" ${this.mouseDpiSupported ? '' : 'disabled'} style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: ${this.mouseDpiSupported ? '#00ff41' : 'rgba(0,255,65,0.45)'}; padding: 6px 10px; border-radius: 6px; font-family: inherit; ${this.mouseDpiSupported ? '' : 'cursor: not-allowed;'}">
+            ${values.map(v => `<option value="${v}" ${v === selectedDpi ? 'selected' : ''}>${v} DPI</option>`).join('')}
+          </select>
+
+          <div>Raw input</div>
+          <label style="display: inline-flex; align-items: center; gap: 8px;">
+            <input type="checkbox" class="mouse-raw-toggle" ${this.mouseSettings.raw ? 'checked' : ''} />
+            <span style="opacity: 0.85;">Disable acceleration</span>
+          </label>
+
+          <div>Natural scroll</div>
+          <label style="display: inline-flex; align-items: center; gap: 8px;">
+            <input type="checkbox" class="mouse-natural-toggle" ${this.mouseSettings.naturalScroll ? 'checked' : ''} />
+            <span style="opacity: 0.85;">Reverse scroll direction</span>
+          </label>
+        </div>
+        <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">${this.mouseDpiSupported ? 'DPI control uses ratbagd/libratbag (ratbagctl) when available.' : 'DPI is hardware/driver-specific; install ratbagd/libratbag-tools to enable DPI control. Pointer speed + accel profile still work.'}</div>
+      `)}
+    `;
+    };
+
+    const renderAbout = () => {
+      const info = this.systemInfo;
+      return `
+        ${card('System', `
+          <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 14px;">
+            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || '—'}</div>
+            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
+            <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
+            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '—'}</div>
+            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : '—'}</div>
+            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : '—'}</div>
+          </div>
+          <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+            <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
+          </div>
+        `)}
+      `;
+    };
+
+    const renderPageContent = () => {
+      switch (this.activeSettingsCategory) {
+        case 'System': return renderSystem();
+        case 'Personalization': return renderPersonalization();
+        case 'Network': return renderNetwork();
+        case 'Devices': return renderDevices();
+        case 'About': return renderAbout();
+        default: return '<div style="padding: 20px; opacity: 0.6;">Select a category.</div>';
+      }
+    };
+
+    return `
+      <div class="settings-window" style="display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);">
+        ${renderSidebar()}
+        <div class="settings-content" style="flex: 1; padding: 20px; overflow-y: auto;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-bottom: 14px;">
+            <h2 style="margin: 0;">${this.activeSettingsCategory}</h2>
+            <div style="font-size: 12px; opacity: 0.65;">TempleOS Settings</div>
+          </div>
+          ${renderPageContent()}
+        </div>
+      </div>
+    `;
+  }
+
   private getSettingsContent(): string {
     // SVG icons for settings sidebar (emojis don't render properly in some VMs)
     const svgIcons: Record<string, string> = {
@@ -1829,9 +4721,15 @@ class TempleOS {
     try {
       // Get home directory if no path specified
       if (!path && !this.currentPath) {
-        this.currentPath = await window.electronAPI.getHome();
+        this.homePath = await window.electronAPI.getHome();
+        this.currentPath = this.homePath;
       } else if (path) {
         this.currentPath = path;
+      }
+
+      if (this.currentPath === 'trash:') {
+        await this.loadTrash();
+        return;
       }
 
       const result = await window.electronAPI.readDir(this.currentPath);
@@ -1849,32 +4747,209 @@ class TempleOS {
     }
   }
 
+  private async loadTrash(): Promise<void> {
+    if (!window.electronAPI?.listTrash) {
+      this.trashEntries = [];
+      this.fileEntries = [];
+      this.updateFileBrowserWindow();
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.listTrash();
+      if (res.success && Array.isArray(res.entries)) {
+        this.trashEntries = res.entries
+          .filter(e => e && typeof e.name === 'string' && typeof e.trashPath === 'string')
+          .map(e => ({
+            name: String(e.name),
+            trashPath: String(e.trashPath),
+            originalPath: String(e.originalPath || ''),
+            deletionDate: String(e.deletionDate || ''),
+            isDirectory: !!e.isDirectory,
+            size: typeof e.size === 'number' ? e.size : 0
+          }));
+      } else {
+        this.trashEntries = [];
+      }
+    } catch {
+      this.trashEntries = [];
+    }
+
+    // Mirror into fileEntries for reuse (open works on trashPath)
+    this.fileEntries = this.trashEntries.map(t => ({
+      name: t.name,
+      isDirectory: t.isDirectory,
+      path: t.trashPath,
+      size: t.size,
+      modified: t.deletionDate || null
+    }));
+
+    this.updateFileBrowserWindow();
+  }
+
   private updateFileBrowserWindow(): void {
     const filesWindow = this.windows.find(w => w.id.startsWith('files'));
     if (filesWindow) {
-      filesWindow.content = this.getFileBrowserContent();
+      filesWindow.content = this.getFileBrowserContentV2();
       this.render();
     }
   }
 
+  private refreshTerminalWindow(): void {
+    const terminalWindow = this.windows.find(w => w.id.startsWith('terminal'));
+    if (terminalWindow) {
+      terminalWindow.content = this.getTerminalContent();
+      this.render();
+      setTimeout(() => {
+        const input = document.querySelector('.terminal-input') as HTMLInputElement | null;
+        input?.focus();
+      }, 10);
+    }
+  }
+
+  private refreshEditorWindow(): void {
+    const editorWindow = this.windows.find(w => w.id.startsWith('editor'));
+    if (editorWindow) {
+      editorWindow.content = this.getEditorContent();
+      this.render();
+      setTimeout(() => {
+        const textarea = document.querySelector('.editor-content') as HTMLTextAreaElement | null;
+        textarea?.focus();
+      }, 10);
+    }
+  }
+
+  private editorUpdateFindMatches(): void {
+    const currentTab = this.editorTabs[this.activeEditorTab];
+    if (!currentTab || !this.editorFindQuery) {
+      this.editorFindMatches = [];
+      this.editorFindCurrentMatch = -1;
+      return;
+    }
+
+    const content = currentTab.content;
+    const query = this.editorFindQuery;
+    const matches: number[] = [];
+    let pos = 0;
+
+    while (pos < content.length) {
+      const idx = content.indexOf(query, pos);
+      if (idx === -1) break;
+      matches.push(idx);
+      pos = idx + 1;
+    }
+
+    this.editorFindMatches = matches;
+    if (matches.length > 0 && this.editorFindCurrentMatch < 0) {
+      this.editorFindCurrentMatch = 0;
+    } else if (matches.length === 0) {
+      this.editorFindCurrentMatch = -1;
+    }
+  }
+
+  private editorFindNext(): void {
+    if (this.editorFindMatches.length === 0) return;
+    this.editorFindCurrentMatch = (this.editorFindCurrentMatch + 1) % this.editorFindMatches.length;
+    this.editorScrollToMatch();
+    this.refreshEditorWindow();
+  }
+
+  private editorFindPrev(): void {
+    if (this.editorFindMatches.length === 0) return;
+    this.editorFindCurrentMatch = (this.editorFindCurrentMatch - 1 + this.editorFindMatches.length) % this.editorFindMatches.length;
+    this.editorScrollToMatch();
+    this.refreshEditorWindow();
+  }
+
+  private editorScrollToMatch(): void {
+    const textarea = document.querySelector('.editor-content') as HTMLTextAreaElement | null;
+    if (!textarea || this.editorFindCurrentMatch < 0) return;
+    const pos = this.editorFindMatches[this.editorFindCurrentMatch];
+    if (pos !== undefined) {
+      textarea.setSelectionRange(pos, pos + this.editorFindQuery.length);
+      textarea.focus();
+    }
+  }
+
+  private editorReplace(): void {
+    const currentTab = this.editorTabs[this.activeEditorTab];
+    if (!currentTab || this.editorFindCurrentMatch < 0) return;
+
+    const pos = this.editorFindMatches[this.editorFindCurrentMatch];
+    if (pos === undefined) return;
+
+    const before = currentTab.content.substring(0, pos);
+    const after = currentTab.content.substring(pos + this.editorFindQuery.length);
+    currentTab.content = before + this.editorReplaceQuery + after;
+    currentTab.modified = true;
+
+    this.editorUpdateFindMatches();
+    this.refreshEditorWindow();
+  }
+
+  private editorReplaceAll(): void {
+    const currentTab = this.editorTabs[this.activeEditorTab];
+    if (!currentTab || !this.editorFindQuery) return;
+
+    const regex = new RegExp(this.editorFindQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    currentTab.content = currentTab.content.replace(regex, this.editorReplaceQuery);
+    currentTab.modified = true;
+
+    this.editorUpdateFindMatches();
+    this.refreshEditorWindow();
+  }
+
   private getEditorContent(): string {
+
+    // Ensure at least one tab exists
+    if (this.editorTabs.length === 0) {
+      this.editorTabs.push({
+        id: `editor-${Date.now()}`,
+        path: null,
+        filename: 'untitled.hc',
+        content: '',
+        modified: false
+      });
+    }
+
+    const currentTab = this.editorTabs[this.activeEditorTab] || this.editorTabs[0];
+
+    const tabsHtml = this.editorTabs.map((tab, i) => `
+      <div class="editor-tab ${i === this.activeEditorTab ? 'active' : ''}" data-editor-tab="${i}">
+        ${tab.modified ? '<span class="editor-tab-modified">●</span>' : ''}
+        ${escapeHtml(tab.filename)}
+        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">×</span>` : ''}
+      </div>
+    `).join('');
+
+    const findBarHtml = this.editorFindOpen ? `
+      <div class="editor-find-bar">
+        <input type="text" class="editor-find-input" placeholder="Find..." 
+               value="${escapeHtml(this.editorFindQuery)}" data-editor-find-input />
+        ${this.editorFindMode === 'replace' ? `
+          <input type="text" class="editor-replace-input" placeholder="Replace..." 
+                 value="${escapeHtml(this.editorReplaceQuery)}" data-editor-replace-input />
+        ` : ''}
+        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">◀</button>
+        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">▶</button>
+        ${this.editorFindMode === 'replace' ? `
+          <button class="editor-find-btn" data-editor-action="replace" title="Replace">Replace</button>
+          <button class="editor-find-btn" data-editor-action="replace-all" title="Replace All">All</button>
+        ` : ''}
+        <span class="editor-find-count">${this.editorFindMatches.length > 0 ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}` : ''}</span>
+        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">×</button>
+      </div>
+    ` : '';
+
     return `
-      <div style="height: 100%; display: flex; flex-direction: column;">
-        <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.2); font-size: 14px;">
-          📄 untitled.hc
+      <div class="editor-container">
+        <div class="editor-tabs">
+          ${tabsHtml}
+          <div class="editor-tab-new" data-editor-new title="New File">+</div>
         </div>
-        <textarea style="
-          flex: 1;
-          background: #0d1117;
-          color: #00ff41;
-          border: none;
-          padding: 15px;
-          font-family: 'VT323', monospace;
-          font-size: 18px;
-          resize: none;
-          outline: none;
-        " placeholder="// HolyC Code - God's Programming Language
-          
+        ${findBarHtml}
+        <textarea class="editor-content" data-editor-textarea placeholder="// HolyC Code - God's Programming Language
+
 U0 Main()
 {
   Print(&quot;Hello, God's Temple!\\n&quot;);
@@ -1882,7 +4957,179 @@ U0 Main()
   // Speak to the Lord
   // He will answer through the Word
 }
-"></textarea>
+">${escapeHtml(currentTab.content)}</textarea>
+      </div>
+    `;
+  }
+
+
+  private formatDuration(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds || 0));
+    const days = Math.floor(s / 86400);
+    const hrs = Math.floor((s % 86400) / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const parts: string[] = [];
+    if (days) parts.push(`${days}d`);
+    if (days || hrs) parts.push(`${hrs}h`);
+    parts.push(`${mins}m`);
+    return parts.join(' ');
+  }
+
+  private refreshSystemMonitorWindowDom(): void {
+    const monitorWindow = this.windows.find(w => w.id.startsWith('system-monitor'));
+    if (!monitorWindow) return;
+    const content = this.getSystemMonitorContent();
+    monitorWindow.content = content;
+
+    const winEl = document.querySelector(`[data-window-id="${monitorWindow.id}"] .window-content`) as HTMLElement | null;
+    if (!winEl) {
+      this.render();
+      return;
+    }
+
+    const prevScroll = (winEl.querySelector('.system-monitor-processes') as HTMLElement | null)?.scrollTop ?? 0;
+    winEl.innerHTML = content;
+    const nextScrollEl = winEl.querySelector('.system-monitor-processes') as HTMLElement | null;
+    if (nextScrollEl) nextScrollEl.scrollTop = prevScroll;
+  }
+
+  private async refreshSystemMonitorData(force = false): Promise<void> {
+    if (!window.electronAPI) return;
+    if (this.monitorBusy && !force) return;
+    this.monitorBusy = true;
+    try {
+      if (window.electronAPI.getMonitorStats) {
+        const statsRes = await window.electronAPI.getMonitorStats();
+        if (statsRes.success && statsRes.stats) this.monitorStats = statsRes.stats;
+      }
+
+      if (window.electronAPI.listProcesses) {
+        const procRes = await window.electronAPI.listProcesses();
+        if (procRes.success) this.monitorProcesses = procRes.processes || [];
+      }
+    } catch {
+      // ignore
+    } finally {
+      this.monitorBusy = false;
+      this.refreshSystemMonitorWindowDom();
+    }
+  }
+
+  private stopSystemMonitorPolling(): void {
+    if (this.monitorTimer) {
+      window.clearInterval(this.monitorTimer);
+      this.monitorTimer = null;
+    }
+  }
+
+  private stopSystemMonitorPollingIfNeeded(): void {
+    if (!this.windows.some(w => w.id.startsWith('system-monitor'))) {
+      this.stopSystemMonitorPolling();
+    }
+  }
+
+  private async ensureSystemMonitorPolling(forceRefresh = false): Promise<void> {
+    if (forceRefresh) await this.refreshSystemMonitorData(true);
+    if (this.monitorTimer) return;
+    this.monitorTimer = window.setInterval(() => {
+      const win = this.windows.find(w => w.id.startsWith('system-monitor'));
+      if (!win) {
+        this.stopSystemMonitorPolling();
+        return;
+      }
+      if (win.minimized) return;
+      void this.refreshSystemMonitorData(false);
+    }, 2500);
+  }
+
+  private getSystemMonitorContent(): string {
+    const s = this.monitorStats;
+
+    const cpu = s?.cpuPercent;
+    const load1 = s?.loadavg?.[0];
+
+    const memTotal = s?.memory?.total ?? 0;
+    const memUsed = s?.memory?.used ?? 0;
+    const memPct = memTotal ? (memUsed / memTotal) * 100 : null;
+
+    const diskTotal = s?.disk?.total ?? 0;
+    const diskUsed = s?.disk?.used ?? 0;
+    const diskPct = s?.disk?.percent ?? (diskTotal ? Math.round((diskUsed / diskTotal) * 100) : null);
+
+    const rxBps = s?.network?.rxBps ?? 0;
+    const txBps = s?.network?.txBps ?? 0;
+
+    const q = this.monitorQuery.trim().toLowerCase();
+    const processes = this.monitorProcesses
+      .filter(p => !q || p.name.toLowerCase().includes(q) || (p.command || '').toLowerCase().includes(q) || String(p.pid).includes(q))
+      .slice()
+      .sort((a, b) => {
+        const dir = this.monitorSortDir === 'desc' ? -1 : 1;
+        if (this.monitorSort === 'name') return dir * a.name.localeCompare(b.name);
+        if (this.monitorSort === 'pid') return dir * (a.pid - b.pid);
+        if (this.monitorSort === 'mem') return dir * ((a.mem || 0) - (b.mem || 0));
+        return dir * ((a.cpu || 0) - (b.cpu || 0));
+      })
+      .slice(0, 250);
+
+    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+    const statCard = (title: string, primary: string, secondary: string, percent: number | null) => `
+      <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 10px; background: rgba(0,0,0,0.16);">
+        <div style="opacity: 0.75; font-size: 12px; margin-bottom: 6px;">${title}</div>
+        <div style="font-size: 22px; color: #ffd700; line-height: 1.1;">${primary}</div>
+        <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">${secondary}</div>
+        ${percent === null ? '' : `
+          <div style="margin-top: 8px; height: 8px; background: rgba(0,255,65,0.12); border-radius: 999px; overflow: hidden;">
+            <div style="height: 100%; width: ${Math.max(0, Math.min(100, percent)).toFixed(0)}%; background: rgba(0,255,65,0.65);"></div>
+          </div>
+        `}
+      </div>
+    `;
+
+    return `
+      <div class="system-monitor" style="height: 100%; display: flex; flex-direction: column; min-width: 0;">
+        <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+          <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
+          <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
+          <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
+            ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
+          </div>
+        </div>
+
+        <div style="padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} • ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
+          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : '—', memPct)}
+          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : '—', diskPct === null ? null : diskPct)}
+          ${statCard('Network', `${this.formatFileSize(rxBps)}/s ↓`, `${this.formatFileSize(txBps)}/s ↑`, null)}
+        </div>
+
+        <div class="system-monitor-processes" style="flex: 1; overflow: auto; padding: 10px; min-width: 0;">
+          <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; opacity: 0.8; font-size: 12px;">
+            <span></span>
+            <span class="monitor-col-header" data-sort-key="name" style="cursor: pointer;">Name${sortArrow('name')}</span>
+            <span class="monitor-col-header" data-sort-key="pid" style="cursor: pointer;">PID${sortArrow('pid')}</span>
+            <span class="monitor-col-header" data-sort-key="cpu" style="cursor: pointer;">CPU${sortArrow('cpu')}</span>
+            <span class="monitor-col-header" data-sort-key="mem" style="cursor: pointer;">MEM${sortArrow('mem')}</span>
+            <span>Time</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process list…'}</div>` : processes.map(p => `
+              <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; background: rgba(0,0,0,0.14); min-width: 0;">
+                <button class="proc-kill-btn" data-pid="${p.pid}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 8px; cursor: pointer;">End</button>
+                <div title="${escapeHtml(p.command || p.name)}" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  <span style="color: #ffd700;">${escapeHtml(p.name)}</span>
+                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` • ${escapeHtml(p.command)}` : ''}</span>
+                </div>
+                <div style="opacity: 0.85;">${p.pid}</div>
+                <div style="opacity: 0.85;">${(p.cpu || 0).toFixed(1)}%</div>
+                <div style="opacity: 0.85;">${(p.mem || 0).toFixed(1)}%</div>
+                <div style="opacity: 0.85;">${escapeHtml(p.etime || '')}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -2014,8 +5261,10 @@ U0 Main()
 
   private updateVolume(level: number): void {
     this.volumeLevel = level;
-    if (window.electronAPI) {
-      window.electronAPI.setSystemVolume(level);
+    if (window.electronAPI?.setAudioVolume) {
+      void window.electronAPI.setAudioVolume(level);
+    } else if (window.electronAPI) {
+      void window.electronAPI.setSystemVolume(level);
     }
 
     // Application-level volume control
@@ -2026,20 +5275,27 @@ U0 Main()
 
     // Sync tray and settings volume sliders
     this.refreshSettingsWindow();
+    this.queueSaveConfig();
   }
 
   private refreshSettingsWindow(): void {
     const settingsWindow = this.windows.find(w => w.id.startsWith('settings'));
     if (settingsWindow) {
-      settingsWindow.content = this.getSettingsContent();
+      settingsWindow.content = this.getSettingsContentV2();
       this.render();
     }
   }
 
-  private changeResolution(res: string): void {
+  private async changeResolution(res: string): Promise<void> {
     this.currentResolution = res;
-    if (window.electronAPI) {
-      window.electronAPI.setResolution(res);
+    this.queueSaveConfig();
+    if (window.electronAPI?.setResolution) {
+      try {
+        const result = await window.electronAPI.setResolution(res);
+        if (result && result.success === false) this.showNotification('Display', result.error || 'Failed to change resolution', 'warning');
+      } catch (e) {
+        this.showNotification('Display', String(e), 'warning');
+      }
     }
   }
 
@@ -2054,6 +5310,144 @@ U0 Main()
       } catch (e) {
         console.error('Failed to load resolutions:', e);
       }
+    }
+  }
+
+  // ============================================
+  // CONFIG (persist user settings)
+  // ============================================
+  private async loadConfig(): Promise<void> {
+    let cfg: TempleConfig = {};
+
+    try {
+      if (window.electronAPI?.loadConfig) {
+        const res = await window.electronAPI.loadConfig();
+        if (res?.success && res.config) cfg = res.config as TempleConfig;
+      } else {
+        const raw = localStorage.getItem('templeos.config');
+        if (raw) cfg = JSON.parse(raw) as TempleConfig;
+      }
+    } catch (e) {
+      console.warn('Failed to load config:', e);
+    }
+
+    if (typeof cfg.wallpaperImage === 'string') this.wallpaperImage = cfg.wallpaperImage;
+    if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.themeMode = cfg.themeMode;
+    if (typeof cfg.volumeLevel === 'number') this.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
+    if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
+    if (typeof cfg.lockTimeoutMs === 'number') {
+      this.lockTimeoutMs = cfg.lockTimeoutMs <= 0 ? 0 : Math.max(30_000, cfg.lockTimeoutMs);
+    }
+
+    if (cfg.mouse) {
+      if (typeof cfg.mouse.speed === 'number') this.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
+      if (typeof cfg.mouse.raw === 'boolean') this.mouseSettings.raw = cfg.mouse.raw;
+      if (typeof cfg.mouse.naturalScroll === 'boolean') this.mouseSettings.naturalScroll = cfg.mouse.naturalScroll;
+      if (typeof (cfg.mouse as any).dpi === 'number') this.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round((cfg.mouse as any).dpi)));
+    }
+
+    if (Array.isArray(cfg.pinnedStart)) {
+      this.pinnedStart = cfg.pinnedStart.filter(k => typeof k === 'string').slice(0, 24);
+    }
+    if (Array.isArray(cfg.pinnedTaskbar)) {
+      this.pinnedTaskbar = cfg.pinnedTaskbar.filter(k => typeof k === 'string').slice(0, 20);
+    }
+    if (Array.isArray(cfg.desktopShortcuts)) {
+      this.desktopShortcuts = cfg.desktopShortcuts
+        .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string')
+        .slice(0, 48)
+        .map(s => ({ key: s.key, label: s.label }));
+    }
+
+    if (Array.isArray(cfg.recentApps)) this.recentApps = cfg.recentApps.slice(0, 20).filter(x => typeof x === 'string');
+    if (cfg.appUsage && typeof cfg.appUsage === 'object') this.appUsage = cfg.appUsage as Record<string, number>;
+
+    // Start terminal in home directory (if available)
+    if (!this.terminalCwd && window.electronAPI) {
+      try {
+        this.terminalCwd = await window.electronAPI.getHome();
+      } catch {
+        this.terminalCwd = '/';
+      }
+    }
+
+    if (this.terminalBuffer.length === 0) {
+      this.terminalBuffer.push(`<div class="terminal-line system">TempleOS Terminal - Ready</div>`);
+      this.terminalBuffer.push(`<div class="terminal-line system">CWD: ${escapeHtml(this.terminalCwd || '')}</div>`);
+      this.terminalBuffer.push(`<div class="terminal-line system">Tips: cd, ls, pwd, cat, nano (non-interactive), help</div>`);
+      this.terminalBuffer.push(`<div class="terminal-line"></div>`);
+    }
+
+    // Apply audio preferences (best-effort)
+    if (cfg.audio?.defaultSink && window.electronAPI?.setDefaultSink) {
+      await window.electronAPI.setDefaultSink(cfg.audio.defaultSink);
+    }
+    if (cfg.audio?.defaultSource && window.electronAPI?.setDefaultSource) {
+      await window.electronAPI.setDefaultSource(cfg.audio.defaultSource);
+    }
+    if (window.electronAPI?.applyMouseSettings) {
+      await window.electronAPI.applyMouseSettings(this.mouseSettings);
+    }
+
+    // If user saved a resolution preference, apply it after we loaded available modes.
+    if (typeof cfg.currentResolution === 'string') {
+      this.currentResolution = cfg.currentResolution;
+      if (window.electronAPI) {
+        window.electronAPI.setResolution(cfg.currentResolution);
+      }
+    }
+
+    this.applyTheme();
+    this.applyWallpaper();
+    this.render();
+  }
+
+  private applyWallpaper(): void {
+    const desktop = document.getElementById('desktop') as HTMLElement | null;
+    if (desktop) {
+      desktop.style.backgroundImage = `url('${this.wallpaperImage}')`;
+      desktop.style.backgroundSize = '100% 100%';
+      desktop.style.backgroundPosition = 'center';
+    }
+  }
+
+  private applyTheme(): void {
+    document.documentElement.dataset.theme = this.themeMode;
+  }
+
+  private queueSaveConfig(): void {
+    if (this.configSaveTimer) window.clearTimeout(this.configSaveTimer);
+    this.configSaveTimer = window.setTimeout(() => {
+      this.configSaveTimer = null;
+      void this.saveConfigNow();
+    }, 250);
+  }
+
+  private async saveConfigNow(): Promise<void> {
+    const snapshot: TempleConfig = {
+      wallpaperImage: this.wallpaperImage,
+      themeMode: this.themeMode as 'dark' | 'light',
+      currentResolution: this.currentResolution,
+      volumeLevel: this.volumeLevel,
+      doNotDisturb: this.doNotDisturb,
+      lockTimeoutMs: this.lockTimeoutMs,
+      audio: { defaultSink: this.audioDevices.defaultSink, defaultSource: this.audioDevices.defaultSource },
+      mouse: { ...this.mouseSettings },
+      pinnedStart: this.pinnedStart.slice(0, 24),
+      pinnedTaskbar: this.pinnedTaskbar.slice(0, 20),
+      desktopShortcuts: this.desktopShortcuts.slice(0, 48),
+      recentApps: this.recentApps.slice(0, 20),
+      appUsage: this.appUsage
+    };
+
+    try {
+      if (window.electronAPI?.saveConfig) {
+        await window.electronAPI.saveConfig(snapshot);
+      } else {
+        localStorage.setItem('templeos.config', JSON.stringify(snapshot));
+      }
+    } catch (e) {
+      console.warn('Failed to save config:', e);
     }
   }
 
@@ -2226,11 +5620,7 @@ U0 Main()
       // Update Taskbar Only
       const taskbarApps = document.querySelector('.taskbar-apps');
       if (taskbarApps) {
-        taskbarApps.innerHTML = this.windows.map(w => `
-          <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-            ${w.icon} ${w.title}
-          </div>
-        `).join('');
+        taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
       }
     } else {
       // Fallback: full re-render if DOM element not found
@@ -2238,12 +5628,80 @@ U0 Main()
     }
   }
 
+  private stepAltTab(direction: number): void {
+    const visible = this.windows.filter(w => !w.minimized);
+    if (visible.length === 0) return;
+
+    // Build MRU order: active first, then previous windows.
+    const order = visible.slice().reverse().map(w => w.id);
+
+    if (!this.altTabOpen) {
+      this.altTabOpen = true;
+      this.altTabOrder = order;
+      this.altTabIndex = order.length > 1 ? 1 : 0; // first press selects previous window
+      this.render();
+      return;
+    }
+
+    // If windows changed while alt-tab is open, refresh order but keep current selection if possible.
+    this.altTabOrder = order;
+    const max = Math.max(0, this.altTabOrder.length - 1);
+    const next = this.altTabIndex + direction;
+    this.altTabIndex = ((next % (max + 1)) + (max + 1)) % (max + 1);
+    this.render();
+  }
+
+  private commitAltTab(): void {
+    const selectedId = this.altTabOrder[this.altTabIndex];
+    this.altTabOpen = false;
+    this.altTabOrder = [];
+    this.altTabIndex = 0;
+    if (selectedId) this.focusWindow(selectedId);
+    this.render();
+  }
+
+  private cancelAltTab(): void {
+    this.altTabOpen = false;
+    this.altTabOrder = [];
+    this.altTabIndex = 0;
+    this.render();
+  }
+
+  private renderAltTabOverlay(): string {
+    if (!this.altTabOpen) return '';
+
+    const items = this.altTabOrder
+      .map(id => this.windows.find(w => w.id === id))
+      .filter(Boolean) as WindowState[];
+
+    if (items.length === 0) return '';
+
+    return `
+      <div class="alt-tab-scrim">
+        <div class="alt-tab-panel">
+          ${items.map((w, idx) => `
+            <div class="alt-tab-item ${idx === this.altTabIndex ? 'active' : ''}">
+              <span class="alt-tab-icon">${w.icon}</span>
+              <div class="alt-tab-meta">
+                <div class="alt-tab-title">${w.title}</div>
+                <div class="alt-tab-sub">${w.minimized ? 'Minimized' : 'Window'}</div>
+              </div>
+            </div>
+          `).join('')}
+          <div class="alt-tab-hint">Alt+Tab to cycle • Release Alt to switch</div>
+        </div>
+      </div>
+    `;
+  }
+
   private closeWindow(windowId: string) {
+    const wasSystemMonitor = windowId.startsWith('system-monitor');
     this.windows = this.windows.filter(w => w.id !== windowId);
     if (this.windows.length > 0) {
       this.windows[this.windows.length - 1].active = true;
     }
     this.render();
+    if (wasSystemMonitor) this.stopSystemMonitorPollingIfNeeded();
   }
 
   private minimizeWindow(windowId: string) {
@@ -2280,11 +5738,7 @@ U0 Main()
         // Update Taskbar Only
         const taskbarApps = document.querySelector('.taskbar-apps');
         if (taskbarApps) {
-          taskbarApps.innerHTML = this.windows.map(w => `
-            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-              ${w.icon} ${w.title}
-            </div>
-          `).join('');
+          taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
         }
         return; // Skip full re-render
       }
@@ -2337,6 +5791,31 @@ U0 Main()
     }
   }
 
+  private toggleShowDesktop(): void {
+    if (!this.showDesktopMode) {
+      this.showDesktopMode = true;
+      this.showDesktopRestoreIds = this.windows.filter(w => !w.minimized).map(w => w.id);
+      for (const id of this.showDesktopRestoreIds) {
+        this.minimizeWindow(id);
+      }
+      return;
+    }
+
+    // Restore
+    this.showDesktopMode = false;
+    const restore = this.showDesktopRestoreIds.slice();
+    this.showDesktopRestoreIds = [];
+    for (const id of restore) {
+      const win = this.windows.find(w => w.id === id);
+      if (!win) continue;
+      win.minimized = false;
+    }
+    // Focus last restored if any
+    const last = restore.reverse().find(id => this.windows.some(w => w.id === id));
+    if (last) this.focusWindow(last);
+    else this.render();
+  }
+
   private focusWindow(windowId: string) {
     const win = this.windows.find(w => w.id === windowId);
     if (win) {
@@ -2366,11 +5845,7 @@ U0 Main()
         // Update Taskbar Only
         const taskbarApps = document.querySelector('.taskbar-apps');
         if (taskbarApps) {
-          taskbarApps.innerHTML = this.windows.map(w => `
-            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-              ${w.icon} ${w.title}
-            </div>
-          `).join('');
+          taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
         }
       } else if (container && winEl) {
         // OPTIMIZED UPDATE: Don't destroy DOM (keeps audio playing!)
@@ -2385,11 +5860,7 @@ U0 Main()
         // Update Taskbar Only
         const taskbarApps = document.querySelector('.taskbar-apps');
         if (taskbarApps) {
-          taskbarApps.innerHTML = this.windows.map(w => `
-            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-              ${w.icon} ${w.title}
-            </div>
-          `).join('');
+          taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
         }
       } else {
         // Fallback: full re-render if DOM element not found
@@ -2413,6 +5884,7 @@ U0 Main()
 
   private resetAutoLockTimer() {
     if (this.isLocked) return;
+    if (this.lockTimeoutMs <= 0) return;
 
     if (this.autoLockTimer) {
       clearTimeout(this.autoLockTimer);
@@ -2420,7 +5892,7 @@ U0 Main()
 
     this.autoLockTimer = window.setTimeout(() => {
       this.lock();
-    }, this.LOCK_TIMEOUT);
+    }, this.lockTimeoutMs);
   }
 
   private lock(): void {
@@ -2433,11 +5905,15 @@ U0 Main()
 
     const lockScreen = document.createElement('div');
     lockScreen.className = 'lock-screen';
+    lockScreen.style.backgroundImage = `linear-gradient(135deg, rgba(13,17,23,0.85) 0%, rgba(26,31,46,0.85) 50%, rgba(13,17,23,0.85) 100%), url('${this.wallpaperImage}')`;
+    lockScreen.style.backgroundSize = 'cover';
+    lockScreen.style.backgroundPosition = 'center';
     lockScreen.innerHTML = `
       <img src="${templeLogo}" draggable="false" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 30px rgba(0, 255, 65, 0.4);">
       <h1 style="font-size: 48px; margin: 0 0 10px 0; text-shadow: 0 0 10px rgba(0,255,65,0.5);">TEMPLE OS</h1>
       
       <div style="font-size: 64px; margin-bottom: 20px; font-weight: bold;" id="lock-clock"></div>
+      <div style="font-size: 18px; margin-top: -10px; margin-bottom: 22px; opacity: 0.85;" id="lock-date"></div>
       
       <div class="lock-input-container">
         <div class="lock-message" id="lock-message">Enter Password</div>
@@ -2458,8 +5934,12 @@ U0 Main()
     // Update clock
     const updateLockClock = () => {
       const lockClock = document.getElementById('lock-clock');
+      const lockDate = document.getElementById('lock-date');
       if (lockClock) {
         lockClock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      if (lockDate) {
+        lockDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       }
     };
     updateLockClock();
@@ -2521,7 +6001,7 @@ U0 Main()
   // ============================================
   // CONTEXT MENU SYSTEM
   // ============================================
-  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void; divider?: boolean }>): void {
+  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }>): void {
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.style.cssText = `
@@ -2584,35 +6064,215 @@ U0 Main()
     if (menu) menu.remove();
   }
 
-  private promptRename(filePath: string): void {
+  private async promptRename(filePath: string): Promise<void> {
     const fileName = filePath.split(/[/\\]/).pop() || '';
-    const newName = prompt('Enter new name:', fileName);
-    if (newName && newName !== fileName && window.electronAPI) {
-      const parentDir = filePath.substring(0, filePath.lastIndexOf(fileName));
-      const newPath = parentDir + newName;
-      window.electronAPI.rename(filePath, newPath).then(result => {
-        if (result.success) {
-          this.loadFiles(this.currentPath);
-        } else {
-          alert('Failed to rename: ' + result.error);
-        }
-      });
+    if (!window.electronAPI) return;
+
+    const newName = await this.openPromptModal({
+      title: 'Rename',
+      message: `Rename "${fileName}"`,
+      inputLabel: 'New name',
+      defaultValue: fileName,
+      confirmText: 'Rename',
+      cancelText: 'Cancel'
+    });
+    if (newName === null) return;
+
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === fileName || /[\\/]/.test(trimmed)) {
+      await this.openAlertModal({ title: 'Files', message: 'Invalid name.' });
+      return;
+    }
+
+    const parentDir = filePath.substring(0, filePath.lastIndexOf(fileName));
+    const newPath = parentDir + trimmed;
+    const result = await window.electronAPI.rename(filePath, newPath);
+    if (result.success) {
+      this.showNotification('Files', `Renamed to ${trimmed}`, 'divine');
+      void this.loadFiles(this.currentPath);
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Rename failed: ${result.error || 'Unknown error'}` });
     }
   }
 
-  private confirmDelete(filePath: string): void {
+  private async confirmDelete(filePath: string): Promise<void> {
     const fileName = filePath.split(/[/\\]/).pop() || '';
-    if (confirm(`Delete "${fileName}"?`)) {
-      if (window.electronAPI) {
-        window.electronAPI.deleteItem(filePath).then(result => {
-          if (result.success) {
-            this.loadFiles(this.currentPath);
-          } else {
-            alert('Failed to delete: ' + result.error);
-          }
-        });
+    if (!window.electronAPI) return;
+
+    const ok = await this.openConfirmModal({
+      title: 'Move to Trash',
+      message: `Move "${fileName}" to Trash?`,
+      confirmText: 'Trash',
+      cancelText: 'Cancel'
+    });
+    if (!ok) return;
+
+    if (window.electronAPI.trashItem) {
+      const res = await window.electronAPI.trashItem(filePath);
+      if (res.success) {
+        this.showNotification('Files', `Moved ${fileName} to Trash`, 'divine');
+        void this.loadFiles(this.currentPath);
+        return;
+      }
+      await this.openAlertModal({ title: 'Files', message: `Trash failed: ${res.error || 'Unknown error'}` });
+      return;
+    }
+
+    // Fallback: permanent delete
+    const result = await window.electronAPI.deleteItem(filePath);
+    if (result.success) {
+      this.showNotification('Files', `Deleted ${fileName}`, 'divine');
+      void this.loadFiles(this.currentPath);
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Delete failed: ${result.error || 'Unknown error'}` });
+    }
+  }
+
+  private async restoreTrashItem(trashPath: string, originalPath: string): Promise<void> {
+    if (!window.electronAPI?.restoreTrash) return;
+    const name = trashPath.split(/[/\\]/).pop() || 'item';
+    const res = await window.electronAPI.restoreTrash(trashPath, originalPath);
+    if (res.success) {
+      this.showNotification('Files', `Restored ${name}`, 'divine');
+      void this.loadFiles('trash:');
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Restore failed: ${res.error || 'Unknown error'}` });
+    }
+  }
+
+  private async confirmDeleteTrashItem(trashPath: string): Promise<void> {
+    if (!window.electronAPI?.deleteTrashItem) return;
+    const name = trashPath.split(/[/\\]/).pop() || 'item';
+    const ok = await this.openConfirmModal({
+      title: 'Delete Permanently',
+      message: `Permanently delete "${name}" from Trash?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+    if (!ok) return;
+    const res = await window.electronAPI.deleteTrashItem(trashPath);
+    if (res.success) {
+      this.showNotification('Files', `Deleted ${name}`, 'divine');
+      void this.loadFiles('trash:');
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Delete failed: ${res.error || 'Unknown error'}` });
+    }
+  }
+
+  private async promptNewFolder(): Promise<void> {
+    if (!window.electronAPI) return;
+    const name = await this.openPromptModal({
+      title: 'New Folder',
+      message: 'Create a new folder in the current directory.',
+      inputLabel: 'Folder name',
+      placeholder: 'New folder',
+      confirmText: 'Create',
+      cancelText: 'Cancel'
+    });
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed || /[\\/]/.test(trimmed)) {
+      await this.openAlertModal({ title: 'Files', message: 'Invalid folder name.' });
+      return;
+    }
+
+    const dest = this.joinPath(this.currentPath || '/', trimmed);
+    const result = await window.electronAPI.mkdir(dest);
+    if (result.success) {
+      this.showNotification('Files', `Created folder ${trimmed}`, 'divine');
+      void this.loadFiles(this.currentPath);
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Create folder failed: ${result.error || 'Unknown error'}` });
+    }
+  }
+
+  private async promptNewFile(): Promise<void> {
+    if (!window.electronAPI) return;
+    const name = await this.openPromptModal({
+      title: 'New File',
+      message: 'Create a new file in the current directory.',
+      inputLabel: 'File name',
+      placeholder: 'new.txt',
+      confirmText: 'Create',
+      cancelText: 'Cancel'
+    });
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed || /[\\/]/.test(trimmed)) {
+      await this.openAlertModal({ title: 'Files', message: 'Invalid file name.' });
+      return;
+    }
+
+    const dest = this.joinPath(this.currentPath || '/', trimmed);
+    const result = await window.electronAPI.writeFile(dest, '');
+    if (result.success) {
+      this.showNotification('Files', `Created file ${trimmed}`, 'divine');
+      void this.loadFiles(this.currentPath);
+    } else {
+      await this.openAlertModal({ title: 'Files', message: `Create file failed: ${result.error || 'Unknown error'}` });
+    }
+  }
+
+  private async pasteIntoCurrentFolder(): Promise<void> {
+    if (!window.electronAPI) return;
+    if (!this.fileClipboard) return;
+    if (!this.currentPath) return;
+
+    const src = this.fileClipboard.srcPath;
+    const baseName = getBaseName(src);
+    if (!baseName) return;
+
+    const dest = this.joinPath(this.currentPath, baseName);
+    const ok = await this.openConfirmModal({
+      title: this.fileClipboard.mode === 'copy' ? 'Copy Here' : 'Move Here',
+      message: `Paste "${baseName}" into this folder?\n\nDestination:\n${dest}`,
+      confirmText: this.fileClipboard.mode === 'copy' ? 'Copy' : 'Move',
+      cancelText: 'Cancel'
+    });
+    if (!ok) return;
+
+    if (this.fileClipboard.mode === 'copy') {
+      const res = window.electronAPI.copyItem
+        ? await window.electronAPI.copyItem(src, dest)
+        : await this.fallbackCopyFile(src, dest);
+      if (!res.success) {
+        await this.openAlertModal({ title: 'Files', message: `Paste failed: ${res.error || 'Unknown error'}` });
+        return;
+      }
+      this.showNotification('Files', `Copied ${baseName}`, 'divine');
+      this.loadFiles(this.currentPath);
+      return;
+    }
+
+    // cut
+    const moved = await window.electronAPI.rename(src, dest);
+    if (!moved.success) {
+      // fallback: copy+delete
+      const copied = window.electronAPI.copyItem
+        ? await window.electronAPI.copyItem(src, dest)
+        : await this.fallbackCopyFile(src, dest);
+      if (!copied.success) {
+        await this.openAlertModal({ title: 'Files', message: `Move failed: ${moved.error || copied.error || 'Unknown error'}` });
+        return;
+      }
+      const deleted = await window.electronAPI.deleteItem(src);
+      if (!deleted.success) {
+        this.showNotification('Files', `Moved ${baseName}, but failed to remove source`, 'warning');
       }
     }
+
+    this.fileClipboard = null;
+    this.showNotification('Files', `Moved ${baseName}`, 'divine');
+    this.loadFiles(this.currentPath);
+  }
+
+  private async fallbackCopyFile(src: string, dest: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const read = await window.electronAPI.readFile(src);
+    if (!read.success || typeof read.content !== 'string') return { success: false, error: read.error || 'Read failed' };
+    const write = await window.electronAPI.writeFile(dest, read.content);
+    if (!write.success) return { success: false, error: write.error || 'Write failed' };
+    return { success: true };
   }
 
   private handleTerminalCommand(command: string) {

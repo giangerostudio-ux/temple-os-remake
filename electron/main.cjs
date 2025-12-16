@@ -149,6 +149,7 @@ ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
 });
 
 ipcMain.handle('fs:getHome', () => os.homedir());
+ipcMain.handle('fs:getAppPath', () => app.getAppPath());
 
 ipcMain.handle('fs:openExternal', async (event, filePath) => {
     try {

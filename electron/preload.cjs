@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
     rename: (oldPath, newPath) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
     getHome: () => ipcRenderer.invoke('fs:getHome'),
+    getAppPath: () => ipcRenderer.invoke('fs:getAppPath'),
     openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
 
     // ============================================

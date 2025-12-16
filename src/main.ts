@@ -14,6 +14,7 @@ declare global {
       mkdir: (path: string) => Promise<{ success: boolean; error?: string }>;
       rename: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>;
       getHome: () => Promise<string>;
+      getAppPath: () => Promise<string>;
       openExternal: (path: string) => Promise<{ success: boolean; error?: string }>;
       // System
       shutdown: () => Promise<void>;
@@ -782,8 +783,15 @@ class TempleOS {
             if (window.electronAPI) window.electronAPI.getHome().then(p => this.loadFiles(p));
           } else if (path === 'root') {
             this.loadFiles('/');
+          } else if (path === 'Music') {
+            if (window.electronAPI) {
+              window.electronAPI.getAppPath().then(appPath => {
+                const sep = appPath.includes('\\') ? '\\' : '/';
+                this.loadFiles(`${appPath}${sep}music`);
+              });
+            }
           } else {
-            // For Docs/Downloads/Music/Pictures, we assume they are in User Home
+            // For Docs/Downloads/Pictures, we assume they are in User Home
             // This requires async, but we are in a sync handler.
             if (window.electronAPI) {
               window.electronAPI.getHome().then(home => {

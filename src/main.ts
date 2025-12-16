@@ -182,6 +182,7 @@ class TempleOS {
       { id: 'word-of-god', icon: '✝️', label: 'Word of God' },
       { id: 'files', icon: '📁', label: 'Files' },
       { id: 'editor', icon: '📝', label: 'HolyC Editor' },
+      { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
     ];
 
@@ -352,6 +353,14 @@ class TempleOS {
             if (input) input.focus();
           }, 10);
         }
+
+        // Focus editor textarea when clicking on editor window
+        if (windowEl.dataset.windowId?.startsWith('editor')) {
+          setTimeout(() => {
+            const textarea = windowEl.querySelector('textarea') as HTMLTextAreaElement;
+            if (textarea) textarea.focus();
+          }, 10);
+        }
       }
 
       // ============================================
@@ -412,6 +421,31 @@ class TempleOS {
           this.runUpdate();
         } else if (action === 'reboot' && window.electronAPI) {
           window.electronAPI.restart();
+        }
+        return;
+      }
+
+      // ============================================
+      // HYMN PLAYER HANDLERS
+      // ============================================
+      // Hymn item click (select from playlist)
+      const hymnItem = target.closest('.hymn-item') as HTMLElement;
+      if (hymnItem && hymnItem.dataset.hymnIndex) {
+        const idx = parseInt(hymnItem.dataset.hymnIndex, 10);
+        this.playHymn(idx);
+        return;
+      }
+
+      // Hymn control buttons
+      const hymnControl = target.closest('.hymn-control') as HTMLElement;
+      if (hymnControl && hymnControl.dataset.action) {
+        const action = hymnControl.dataset.action;
+        if (action === 'prev') {
+          this.playHymn(this.currentHymn - 1);
+        } else if (action === 'next') {
+          this.playHymn(this.currentHymn + 1);
+        } else if (action === 'random') {
+          this.playHymn(Math.floor(Math.random() * this.hymnList.length));
         }
         return;
       }
@@ -610,6 +644,15 @@ class TempleOS {
         // Check for updates when window opens
         setTimeout(() => this.checkForUpdates(), 100);
         break;
+      case 'hymns':
+        windowConfig = {
+          title: 'Hymn Player',
+          icon: '🎵',
+          width: 450,
+          height: 500,
+          content: this.getHymnPlayerContent()
+        };
+        break;
     }
 
     const newWindow: WindowState = {
@@ -805,6 +848,87 @@ U0 Main()
 "></textarea>
       </div>
     `;
+  }
+
+  // ============================================
+  // HYMN PLAYER
+  // ============================================
+  private hymnList = [
+    { file: '01_Blessing_Great_Synapse_Kyrie_eleison.mp3', title: 'Blessing - Kyrie Eleison' },
+    { file: '02_1st_Stanza__Psalm_102_103.mp3', title: '1st Stanza: Psalm 102-103' },
+    { file: '03_2nd_Stanza__Psalm_145_146.mp3', title: '2nd Stanza: Psalm 145-146' },
+    { file: '04_3rd_Stanza__The_Beatitudes.mp3', title: '3rd Stanza: The Beatitudes' },
+    { file: '05_Small_Introit_with_the_Gospel.mp3', title: 'Small Introit with Gospel' },
+    { file: '06_Trisagion_Dynamis.mp3', title: 'Trisagion Dynamis' },
+    { file: '07_Prokeimenon_Epistle.mp3', title: 'Prokeimenon Epistle' },
+    { file: '08_Alleluia_Gospel.mp3', title: 'Alleluia Gospel' },
+    { file: '09_Glory_Be_to_Thee_O_Lord.mp3', title: 'Glory Be to Thee, O Lord' },
+    { file: '10_Hymn_of_the_Cherubim_Great_Introit.mp3', title: 'Hymn of the Cherubim' },
+    { file: '11_Kiss_of_Peace_Symbol_of_Faith_Creed.mp3', title: 'Symbol of Faith (Creed)' },
+    { file: '12_Anaphora_Sanctus.mp3', title: 'Anaphora Sanctus' },
+    { file: '13_Megalymaire_Hymn_To_Our_Lady.mp3', title: 'Hymn to Our Lady' },
+    { file: '14_Ekphonese.mp3', title: 'Ekphonese' },
+    { file: '15_Sunday_Prayer.mp3', title: 'Sunday Prayer' },
+    { file: '16_Kinonikon.mp3', title: 'Kinonikon (Communion)' },
+    { file: '17_Ekphonese_We_Have_Seen_the_True_Light.mp3', title: 'We Have Seen the True Light' },
+    { file: '18_Final_Prayers_Let_the_Name_of_The_Lord.mp3', title: 'Let the Name of the Lord' },
+  ];
+
+  private currentHymn = 0;
+
+  private getHymnPlayerContent(): string {
+    const hymnItems = this.hymnList.map((h, i) => `
+      <div class="hymn-item ${i === this.currentHymn ? 'active' : ''}" data-hymn-index="${i}" style="
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(0,255,65,0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        ${i === this.currentHymn ? 'background: rgba(0,255,65,0.15); color: #ffd700;' : 'color: #00ff41;'}
+      ">
+        <span style="opacity: 0.5; font-size: 14px;">${(i + 1).toString().padStart(2, '0')}</span>
+        <span style="flex: 1; font-size: 15px;">${h.title}</span>
+        ${i === this.currentHymn ? '<span>▶</span>' : ''}
+      </div>
+    `).join('');
+
+    return `
+      <div class="hymn-player" style="height: 100%; display: flex; flex-direction: column;">
+        <div style="text-align: center; padding: 15px; border-bottom: 1px solid rgba(0,255,65,0.2);">
+          <div style="font-size: 24px; margin-bottom: 5px;">🎵 ✝️ 🎵</div>
+          <h2 style="font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ffd700; margin: 0;">DIVINE HYMNS</h2>
+          <p style="font-size: 12px; opacity: 0.6; margin-top: 5px;">Orthodox Liturgical Music</p>
+        </div>
+        
+        <div style="padding: 15px; border-bottom: 1px solid rgba(0,255,65,0.2);">
+          <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px; text-align: center;">${this.hymnList[this.currentHymn].title}</div>
+          <audio id="hymn-audio" controls style="width: 100%; filter: sepia(0.3) hue-rotate(80deg);" src="./music/${this.hymnList[this.currentHymn].file}"></audio>
+          <div style="display: flex; justify-content: center; gap: 15px; margin-top: 10px;">
+            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">⏮ Prev</button>
+            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">🎲 Random</button>
+            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next ⏭</button>
+          </div>
+        </div>
+        
+        <div style="flex: 1; overflow-y: auto;">
+          ${hymnItems}
+        </div>
+      </div>
+    `;
+  }
+
+  private playHymn(index: number): void {
+    this.currentHymn = Math.max(0, Math.min(index, this.hymnList.length - 1));
+    const hymnsWindow = this.windows.find(w => w.id.startsWith('hymns'));
+    if (hymnsWindow) {
+      hymnsWindow.content = this.getHymnPlayerContent();
+      this.render();
+      setTimeout(() => {
+        const audio = document.getElementById('hymn-audio') as HTMLAudioElement;
+        if (audio) audio.play();
+      }, 100);
+    }
   }
 
   // ============================================
@@ -1228,7 +1352,14 @@ U0 Main()
 <div class="terminal-line system">    — ${verse.ref}</div>`;
         break;
       case 'hymn':
-        response = `<div class="terminal-line success">♪ Playing "Amazing Grace"... ♪</div>`;
+        response = `<div class="terminal-line success">♪ Opening Divine Hymns... ♪</div>`;
+        // Open hymn player and play random hymn
+        setTimeout(() => {
+          this.openApp('hymns');
+          setTimeout(() => {
+            this.playHymn(Math.floor(Math.random() * this.hymnList.length));
+          }, 200);
+        }, 100);
         break;
       case 'time':
         response = `<div class="terminal-line">${new Date().toLocaleString()}</div>`;

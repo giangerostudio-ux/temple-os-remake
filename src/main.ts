@@ -148,7 +148,6 @@ class TempleOS {
   // Start Menu state
   private installedApps: InstalledApp[] = [];
   private startMenuSearchQuery = '';
-  private eventListenersAttached = false;
 
   constructor() {
     this.init();
@@ -603,10 +602,15 @@ class TempleOS {
 
 
   private setupEventListeners() {
-    if (this.eventListenersAttached) return;
-    this.eventListenersAttached = true;
-
     const app = document.getElementById('app')!;
+
+    // GUARD: Prevent multiple listeners on the same DOM element (handles HMR/reloads)
+    if (app.dataset.listenersAttached === 'true') {
+      console.log('Event listeners already attached to DOM - skipping');
+      return;
+    }
+    app.dataset.listenersAttached = 'true';
+    console.log('Attaching global event listeners');
 
     // Volume Slider Input
     app.addEventListener('input', (e) => {

@@ -22,6 +22,7 @@ declare global {
       getSystemInfo: () => Promise<SystemInfo>;
       setSystemVolume: (level: number) => Promise<void>;
       setResolution: (resolution: string) => Promise<void>;
+      getResolutions: () => Promise<{ success: boolean; resolutions: string[]; current: string }>;
       // Holy Updater
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
@@ -125,6 +126,8 @@ class TempleOS {
   private activeSettingsCategory = 'System';
   private wallpaperImage = './images/wallpaper.png'; // Default
   private themeMode = 'dark'; // 'dark' or 'light'
+  private availableResolutions: string[] = ['1920x1080', '1280x720', '1024x768', '800x600'];
+  private currentResolution = '1024x768';
 
   // File browser state
   private currentPath = '';
@@ -147,6 +150,9 @@ class TempleOS {
         bootScreen.style.display = 'none';
       }
     }, 4500);
+
+    // Fetch available resolutions
+    this.loadResolutions();
   }
 
   private renderInitial() {
@@ -1386,9 +1392,7 @@ class TempleOS {
                   font-family: inherit;
                   cursor: pointer;
                 ">
-                  <option value="800x600">800 x 600</option>
-                  <option value="1280x720">1280 x 720</option>
-                  <option value="1920x1080" selected>1920 x 1080</option>
+                  ${this.availableResolutions.map(r => `<option value="${r}" ${r === this.currentResolution ? 'selected' : ''}>${r.replace('x', ' x ')}</option>`).join('')}
                 </select>
               </div>
               <div class="settings-row" style="opacity: 0.6;">Refresh Rate: 60Hz (Auto)</div>
@@ -1686,8 +1690,23 @@ U0 Main()
   }
 
   private changeResolution(res: string): void {
+    this.currentResolution = res;
     if (window.electronAPI) {
       window.electronAPI.setResolution(res);
+    }
+  }
+
+  private async loadResolutions(): Promise<void> {
+    if (window.electronAPI) {
+      try {
+        const result = await window.electronAPI.getResolutions();
+        if (result.success) {
+          this.availableResolutions = result.resolutions;
+          this.currentResolution = result.current;
+        }
+      } catch (e) {
+        console.error('Failed to load resolutions:', e);
+      }
     }
   }
 

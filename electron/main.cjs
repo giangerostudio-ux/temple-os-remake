@@ -215,21 +215,83 @@ ipcMain.handle('system:setResolution', (event, resolution) => {
     const [width, height] = resolution.split('x').map(n => parseInt(n));
 
     if (process.platform === 'linux') {
-        // Use xrandr to set resolution
-        const command = `DISPLAY=:0 xrandr --output Virtual-1 --mode ${width}x${height}`;
-        exec(command, (error) => {
-            if (error) {
-                console.error(`Failed to set resolution: ${error.message}`);
-                // Try adding the mode first
-                const addModeCmd = `DISPLAY=:0 xrandr --newmode "${width}x${height}" 0 ${width} ${width + 100} ${width + 200} ${width + 300} ${height} ${height + 3} ${height + 8} ${height + 40} -hsync +vsync 2>/dev/null; DISPLAY=:0 xrandr --addmode Virtual-1 "${width}x${height}" 2>/dev/null; DISPLAY=:0 xrandr --output Virtual-1 --mode "${width}x${height}"`;
-                exec(addModeCmd, (e2) => {
-                    if (e2) console.error(`Resolution fallback failed: ${e2.message}`);
+        // Try Wayland first (swaymsg), then fall back to X11 (xrandr)
+        const waylandCmd = `SWAYSOCK=$(ls /run/user/1000/sway*.sock 2>/dev/null | head -1) swaymsg output '*' resolution ${width}x${height} 2>/dev/null`;
+
+        exec(waylandCmd, (waylandErr) => {
+            if (waylandErr) {
+                // Fallback to X11/xrandr
+                const xrandrCmd = `DISPLAY=:0 xrandr --output $(xrandr | grep ' connected' | head -1 | cut -d' ' -f1) --mode ${width}x${height} 2>/dev/null`;
+                exec(xrandrCmd, (xrandrErr) => {
+                    if (xrandrErr) {
+                        console.error(`Failed to set resolution: ${xrandrErr.message}`);
+                    }
                 });
             }
         });
     } else {
         console.log(`[Windows/Mac] Resolution change not supported: ${width}x${height}`);
     }
+});
+
+ipcMain.handle('system:getResolutions', async () => {
+    if (process.platform !== 'linux') {
+        // Return common resolutions for Windows/Mac
+        return { success: true, resolutions: ['1920x1080', '1280x720', '1024x768', '800x600'], current: '1920x1080' };
+    }
+
+    return new Promise((resolve) => {
+        // Try Wayland first
+        const waylandCmd = `SWAYSOCK=$(ls /run/user/1000/sway*.sock 2>/dev/null | head -1) swaymsg -t get_outputs 2>/dev/null`;
+
+        exec(waylandCmd, (err, stdout) => {
+            if (!err && stdout) {
+                try {
+                    const outputs = JSON.parse(stdout);
+                    if (outputs && outputs.length > 0) {
+                        const output = outputs[0];
+                        const modes = output.modes || [];
+                        const resolutions = modes.map(m => `${m.width}x${m.height}`);
+                        const current = output.current_mode ? `${output.current_mode.width}x${output.current_mode.height}` : '1024x768';
+
+                        // Add common resolutions if not present
+                        const common = ['1920x1080', '1280x720', '1024x768', '800x600'];
+                        common.forEach(r => { if (!resolutions.includes(r)) resolutions.push(r); });
+
+                        resolve({ success: true, resolutions: [...new Set(resolutions)].sort(), current });
+                        return;
+                    }
+                } catch (e) { /* JSON parse error, fall through to xrandr */ }
+            }
+
+            // Fallback to X11/xrandr
+            const xrandrCmd = `DISPLAY=:0 xrandr 2>/dev/null`;
+            exec(xrandrCmd, (xErr, xStdout) => {
+                if (!xErr && xStdout) {
+                    const lines = xStdout.split('\n');
+                    const resolutions = [];
+                    let current = '1024x768';
+
+                    for (const line of lines) {
+                        const match = line.match(/^\s+(\d+x\d+)/);
+                        if (match) {
+                            resolutions.push(match[1]);
+                            if (line.includes('*')) current = match[1];
+                        }
+                    }
+
+                    // Add common resolutions
+                    const common = ['1920x1080', '1280x720', '1024x768', '800x600'];
+                    common.forEach(r => { if (!resolutions.includes(r)) resolutions.push(r); });
+
+                    resolve({ success: true, resolutions: [...new Set(resolutions)].sort(), current });
+                } else {
+                    // Fallback to common resolutions
+                    resolve({ success: true, resolutions: ['1920x1080', '1280x720', '1024x768', '800x600'], current: '1024x768' });
+                }
+            });
+        });
+    });
 });
 
 const projectRoot = path.resolve(__dirname, '..');

@@ -21,6 +21,7 @@ declare global {
       lock: () => Promise<void>;
       getSystemInfo: () => Promise<SystemInfo>;
       setSystemVolume: (level: number) => Promise<void>;
+      setResolution: (resolution: string) => Promise<void>;
       // Holy Updater
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
@@ -462,6 +463,14 @@ class TempleOS {
       if (target.matches('.volume-slider')) {
         const val = parseInt(target.value, 10);
         this.updateVolume(val);
+      }
+    });
+
+    // Resolution Dropdown Change
+    app.addEventListener('change', (e) => {
+      const target = e.target as HTMLSelectElement;
+      if (target.matches('.resolution-select')) {
+        this.changeResolution(target.value);
       }
     });
 
@@ -1367,8 +1376,22 @@ class TempleOS {
                        style="width: 150px; accent-color: #00ff41;">
               </div>
               <h3>🖥️ Display</h3>
-              <div class="settings-row" style="opacity: 0.6; margin-bottom: 5px;">Resolution: 1920x1080 (Mock)</div>
-              <div class="settings-row" style="opacity: 0.6;">Refresh Rate: 60Hz (Mock)</div>
+              <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span>Resolution</span>
+                <select class="resolution-select" style="
+                  background: rgba(0,255,65,0.1);
+                  border: 1px solid #00ff41;
+                  color: #00ff41;
+                  padding: 5px 10px;
+                  font-family: inherit;
+                  cursor: pointer;
+                ">
+                  <option value="800x600">800 x 600</option>
+                  <option value="1280x720">1280 x 720</option>
+                  <option value="1920x1080" selected>1920 x 1080</option>
+                </select>
+              </div>
+              <div class="settings-row" style="opacity: 0.6;">Refresh Rate: 60Hz (Auto)</div>
             </div>
           `;
         case 'Personalization':
@@ -1650,7 +1673,22 @@ U0 Main()
       audioEl.volume = level / 100;
     }
 
-    // Update tray if it's visible (optional, but render() handles it)
+    // Sync tray and settings volume sliders
+    this.refreshSettingsWindow();
+  }
+
+  private refreshSettingsWindow(): void {
+    const settingsWindow = this.windows.find(w => w.id.startsWith('settings'));
+    if (settingsWindow) {
+      settingsWindow.content = this.getSettingsContent();
+      this.render();
+    }
+  }
+
+  private changeResolution(res: string): void {
+    if (window.electronAPI) {
+      window.electronAPI.setResolution(res);
+    }
   }
 
   // ============================================

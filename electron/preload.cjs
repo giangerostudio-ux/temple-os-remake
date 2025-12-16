@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     lock: () => ipcRenderer.invoke('system:lock'),
     getSystemInfo: () => ipcRenderer.invoke('system:info'),
     setSystemVolume: (level) => ipcRenderer.invoke('system:setVolume', level),
+    setResolution: (resolution) => ipcRenderer.invoke('system:setResolution', resolution),
 
     // ============================================
     // EVENT LISTENERS

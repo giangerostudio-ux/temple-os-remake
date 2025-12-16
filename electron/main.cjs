@@ -210,6 +210,28 @@ ipcMain.handle('system:setVolume', (event, level) => {
     });
 });
 
+ipcMain.handle('system:setResolution', (event, resolution) => {
+    // Parse resolution string (e.g., "1920x1080")
+    const [width, height] = resolution.split('x').map(n => parseInt(n));
+
+    if (process.platform === 'linux') {
+        // Use xrandr to set resolution
+        const command = `DISPLAY=:0 xrandr --output Virtual-1 --mode ${width}x${height}`;
+        exec(command, (error) => {
+            if (error) {
+                console.error(`Failed to set resolution: ${error.message}`);
+                // Try adding the mode first
+                const addModeCmd = `DISPLAY=:0 xrandr --newmode "${width}x${height}" 0 ${width} ${width + 100} ${width + 200} ${width + 300} ${height} ${height + 3} ${height + 8} ${height + 40} -hsync +vsync 2>/dev/null; DISPLAY=:0 xrandr --addmode Virtual-1 "${width}x${height}" 2>/dev/null; DISPLAY=:0 xrandr --output Virtual-1 --mode "${width}x${height}"`;
+                exec(addModeCmd, (e2) => {
+                    if (e2) console.error(`Resolution fallback failed: ${e2.message}`);
+                });
+            }
+        });
+    } else {
+        console.log(`[Windows/Mac] Resolution change not supported: ${width}x${height}`);
+    }
+});
+
 const projectRoot = path.resolve(__dirname, '..');
 
 // ============================================

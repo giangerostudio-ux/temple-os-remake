@@ -1808,12 +1808,46 @@ U0 Main()
   private focusWindow(windowId: string) {
     const win = this.windows.find(w => w.id === windowId);
     if (win) {
+      const wasMinimized = win.minimized;
       win.minimized = false;
       this.windows.forEach(w => w.active = w.id === windowId);
       this.windows = this.windows.filter(w => w.id !== windowId);
       this.windows.push(win);
+
+      if (wasMinimized) {
+        // If it was minimized, we DO need to render to create the DOM element
+        this.render();
+      } else {
+        // OPTIMIZED UPDATE: Don't destroy DOM (keeps audio playing!)
+        const container = document.getElementById('windows-container');
+        const winEl = document.querySelector(`[data-window-id="${windowId}"]`);
+
+        if (container && winEl) {
+          // Move to end (visual front)
+          container.appendChild(winEl);
+
+          // Update active styling
+          const allWindows = container.querySelectorAll('.window');
+          allWindows.forEach(el => el.classList.remove('active'));
+          winEl.classList.add('active');
+
+          // Update Taskbar Only
+          const taskbarApps = document.querySelector('.taskbar-apps');
+          if (taskbarApps) {
+            taskbarApps.innerHTML = this.windows.map(w => `
+              <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+                ${w.icon} ${w.title}
+              </div>
+            `).join('');
+          }
+        } else {
+          // Fallback if something is weird
+          this.render();
+        }
+      }
+    } else {
+      this.render();
     }
-    this.render();
   }
 
   // ============================================

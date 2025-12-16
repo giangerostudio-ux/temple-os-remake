@@ -152,7 +152,7 @@ class TempleOS {
     const app = document.getElementById('app')!;
     app.innerHTML = `
       ${this.renderBootScreen()}
-      <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: cover; background-position: center;">
+      <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;">
         ${this.renderDesktopIcons()}
         <div id="windows-container"></div>
       </div>

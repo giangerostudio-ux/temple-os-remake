@@ -38,6 +38,7 @@
 - [x] Fix Typescript Build Errors (Unused variables)
 - [x] Implement Real System Volume Control (`amixer` IPC)
 - [x] Fix Tray Icons Visibility (Replaced Emojis with SVGs)
+- [x] Fix Wallpaper Scaling on Desktop (Text Cutoff)
 
 ## 🔨 TIER 3: SIGNIFICANT EFFORT
 - [x] **3.1 Settings Panel** (`zorin-os-windows-ux.md`)

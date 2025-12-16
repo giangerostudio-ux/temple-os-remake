@@ -1,4 +1,4 @@
-import './style.css';
+﻿import './style.css';
 import templeLogo from './assets/temple-logo.jpg';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -187,6 +187,13 @@ interface TempleConfig {
   volumeLevel?: number;
   doNotDisturb?: boolean;
   lockTimeoutMs?: number;
+  terminal?: {
+    aliases?: Record<string, string>;
+    promptTemplate?: string;
+    uiTheme?: 'green' | 'cyan' | 'amber' | 'white';
+    fontFamily?: string;
+    fontSize?: number;
+  };
   audio?: { defaultSink?: string | null; defaultSource?: string | null };
   mouse?: Partial<MouseSettings>;
   pinnedStart?: string[];
@@ -200,26 +207,26 @@ interface TempleConfig {
 // FILE ICON HELPER
 // ============================================
 function getFileIcon(name: string, isDirectory: boolean): string {
-  if (isDirectory) return '📁';
+  if (isDirectory) return 'ðŸ“';
 
   const ext = name.split('.').pop()?.toLowerCase() || '';
   const iconMap: Record<string, string> = {
     // Documents
-    'txt': '📄', 'md': '📄', 'doc': '📄', 'docx': '📄', 'pdf': '📕',
+    'txt': 'ðŸ“„', 'md': 'ðŸ“„', 'doc': 'ðŸ“„', 'docx': 'ðŸ“„', 'pdf': 'ðŸ“•',
     // Code
-    'ts': '📜', 'js': '📜', 'py': '🐍', 'hc': '✝️', 'c': '📜', 'cpp': '📜', 'h': '📜',
-    'html': '🌐', 'css': '🎨', 'json': '📋', 'xml': '📋',
+    'ts': 'ðŸ“œ', 'js': 'ðŸ“œ', 'py': 'ðŸ', 'hc': 'âœï¸', 'c': 'ðŸ“œ', 'cpp': 'ðŸ“œ', 'h': 'ðŸ“œ',
+    'html': 'ðŸŒ', 'css': 'ðŸŽ¨', 'json': 'ðŸ“‹', 'xml': 'ðŸ“‹',
     // Media
-    'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
-    'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'flac': '🎵',
-    'mp4': '🎬', 'mkv': '🎬', 'avi': '🎬', 'webm': '🎬',
+    'jpg': 'ðŸ–¼ï¸', 'jpeg': 'ðŸ–¼ï¸', 'png': 'ðŸ–¼ï¸', 'gif': 'ðŸ–¼ï¸', 'svg': 'ðŸ–¼ï¸', 'webp': 'ðŸ–¼ï¸',
+    'mp3': 'ðŸŽµ', 'wav': 'ðŸŽµ', 'ogg': 'ðŸŽµ', 'flac': 'ðŸŽµ',
+    'mp4': 'ðŸŽ¬', 'mkv': 'ðŸŽ¬', 'avi': 'ðŸŽ¬', 'webm': 'ðŸŽ¬',
     // Archives
-    'zip': '📦', 'tar': '📦', 'gz': '📦', 'rar': '📦', '7z': '📦',
+    'zip': 'ðŸ“¦', 'tar': 'ðŸ“¦', 'gz': 'ðŸ“¦', 'rar': 'ðŸ“¦', '7z': 'ðŸ“¦',
     // Executables
-    'exe': '⚙️', 'sh': '⚙️', 'bin': '⚙️', 'AppImage': '⚙️',
+    'exe': 'âš™ï¸', 'sh': 'âš™ï¸', 'bin': 'âš™ï¸', 'AppImage': 'âš™ï¸',
   };
 
-  return iconMap[ext] || '📄';
+  return iconMap[ext] || 'ðŸ“„';
 }
 
 function escapeHtml(text: string): string {
@@ -351,6 +358,39 @@ const bibleVerses = [
   { text: "The LORD is my light and my salvation; whom shall I fear?", ref: "Psalm 27:1" },
 ];
 
+// TempleOS authenticity helpers (Tier 4 terminal + Tier 5 apps will reuse these)
+const oracleWordList = [
+  'DIVINE', 'GLORY', 'TEMPLE', 'ALTAR', 'PROPHET', 'WISDOM', 'COVENANT', 'CHERUB', 'SERAPH', 'JUBILEE',
+  'SABBATH', 'PSALM', 'GOSPEL', 'REVELATION', 'KINGDOM', 'RIGHTEOUS', 'HOLY', 'TRUTH', 'LIGHT', 'MERCY',
+  'FAITH', 'GRACE', 'PEACE', 'JUDGMENT', 'BREAD', 'WATER', 'VINE', 'LAMB', 'CROWN', 'SWORD',
+  'ORACLE', 'VISION', 'DREAM', 'VOICE', 'SIGN', 'SEAL', 'SCROLL', 'TRUMPET', 'THRONE', 'RIVER',
+  'STONE', 'PILLAR', 'GATE', 'CITY', 'GARDEN', 'PATH', 'STAR', 'FIRE', 'WIND', 'CLOUD',
+];
+
+const terryQuotes = [
+  'An idiot admires complexity, a genius admires simplicity.',
+  'I like doing big things. It feels like a calling.',
+  'The best programs are written when you are inspired.',
+  'Keep it simple and it will work better.',
+  'Computers are not about computers. They are about God.',
+];
+
+const prayers = [
+  'Lord, grant me wisdom today, and keep my heart humble.',
+  'Father, guide my steps and bless the work of my hands.',
+  'God of peace, calm my mind and strengthen my faith.',
+  'Lord Jesus Christ, have mercy on me and lead me in truth.',
+  'Holy God, make me bold for good and gentle with others.',
+];
+
+const fortunes = [
+  'Simplicity is divine.',
+  'Write code as if you will read it in 10 years.',
+  'A small, correct tool beats a large, broken one.',
+  'Blessed are the curious; they debug with patience.',
+  'Measure twice, cut once, and test always.',
+];
+
 interface WindowState {
   id: string;
   title: string;
@@ -420,7 +460,7 @@ class TempleOS {
   private isLocked = false;
   private lockInputMode: 'password' | 'pin' = 'password';
 
-  private readonly PASSWORD = 'god'; // Authentic TempleOS password
+  private readonly PASSWORD = 'temple'; // Authentic TempleOS password
   private readonly PIN = '7777';
 
   // Network State
@@ -477,6 +517,17 @@ class TempleOS {
   private terminalHistory: string[] = [];
   private terminalHistoryIndex = -1;
   private terminalBuffer: string[] = [];
+  private terminalAliases: Record<string, string> = {};
+  private terminalPromptTemplate = '{cwd}>';
+  private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
+  private terminalFontFamily = '"VT323", monospace';
+  private terminalFontSize = 18;
+  private terminalSearchOpen = false;
+  private terminalSearchQuery = '';
+  private terminalSearchMatches: number[] = [];
+  private terminalSearchMatchIndex = -1;
+  private terminalSplitMode: 'single' | 'split-v' | 'split-h' = 'single';
+  private terminalSplitSecondaryTabId: string | null = null;
 
   // Terminal Tabs State (PTY with xterm.js)
   private terminalTabs: Array<{
@@ -750,41 +801,53 @@ class TempleOS {
       modalOverlay.innerHTML = this.renderModal();
     }
 
-    // AUDIO PRESERVATION: Find any window with actively playing audio
-    // and preserve it instead of destroying/recreating it
-    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement;
-    const isAudioPlaying = audioEl && !audioEl.paused;
-    let preservedWindowEl: HTMLElement | null = null;
-    let preservedWindowId: string | null = null;
-
-    if (isAudioPlaying) {
-      // Find the parent window element containing the audio
-      preservedWindowEl = audioEl.closest('.window') as HTMLElement;
-      if (preservedWindowEl) {
-        preservedWindowId = preservedWindowEl.dataset.windowId || null;
-        // Temporarily detach from DOM to preserve it
-        preservedWindowEl.remove();
+    // PRESERVE HEAVY DOM WINDOWS:
+    // Keep xterm/audio alive across renders by detaching those window elements before
+    // we overwrite the windows container, then re-attach afterwards.
+    const preserved = new Map<string, HTMLElement>();
+    const preserveById = (id: string | null | undefined) => {
+      if (!id) return;
+      const el = document.querySelector(`[data-window-id="${id}"]`) as HTMLElement | null;
+      if (el) {
+        preserved.set(id, el);
+        el.remove();
       }
+    };
+
+    // Hymn player audio (keep playing even if a render happens)
+    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement | null;
+    if (audioEl && !audioEl.paused) {
+      const wEl = audioEl.closest('.window') as HTMLElement | null;
+      preserveById(wEl?.dataset.windowId);
     }
 
-    // Update windows (only show non-minimized), EXCEPT preserved audio window
-    const windowsToRender = this.windows.filter(w =>
-      !w.minimized && w.id !== preservedWindowId
-    );
+    // Terminal PTY/xterm (keep session DOM stable)
+    if (this.ptySupported) {
+      const termWin = this.windows.find(w => w.id.startsWith('terminal'));
+      preserveById(termWin?.id);
+    }
+
+    // Update windows (only show non-minimized), EXCEPT preserved windows
+    const windowsToRender = this.windows.filter(w => !w.minimized && !preserved.has(w.id));
     windowsContainer.innerHTML = windowsToRender.map(w => this.renderWindow(w)).join('');
 
-    // Re-attach preserved window if it exists
-    if (preservedWindowEl && preservedWindowId) {
-      const preservedWin = this.windows.find(w => w.id === preservedWindowId);
-      if (preservedWin && !preservedWin.minimized) {
-        windowsContainer.appendChild(preservedWindowEl);
-        // Update active styling
-        if (preservedWin.active) {
-          preservedWindowEl.classList.add('active');
-        } else {
-          preservedWindowEl.classList.remove('active');
-        }
-      }
+    // Re-attach preserved windows (including minimized ones; keep them hidden but alive)
+    for (const el of preserved.values()) {
+      windowsContainer.appendChild(el);
+    }
+
+    // Ensure correct stacking order + bounds + active state for all present windows
+    const presentOrder = this.windows.filter(w => !w.minimized || preserved.has(w.id));
+    for (const w of presentOrder) {
+      const el = windowsContainer.querySelector(`[data-window-id="${w.id}"]`) as HTMLElement | null;
+      if (!el) continue;
+      windowsContainer.appendChild(el);
+      el.style.left = `${w.x}px`;
+      el.style.top = `${w.y}px`;
+      el.style.width = `${w.width}px`;
+      el.style.height = `${w.height}px`;
+      el.classList.toggle('active', !!w.active);
+      el.style.display = w.minimized ? 'none' : 'flex';
     }
 
     // Update taskbar apps (pinned + running)
@@ -1030,7 +1093,7 @@ class TempleOS {
           Network Connections
         </div>
         <div style="display: flex; align-items: center; gap: 10px; padding: 5px; background: rgba(0,255,65,0.1); border-radius: 4px;">
-          <span>📶</span>
+          <span>ðŸ“¶</span>
           <div style="display: flex; flex-direction: column;">
             <span style="font-weight: bold;">TempleNet_5G</span>
             <span style="font-size: 12px; color: #bbb;">Connected, Secure</span>
@@ -1053,7 +1116,7 @@ class TempleOS {
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
         <div style="min-width: 0; display: flex; flex-direction: column;">
           <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} ΓÇó ${n.signal}%</div>
         </div>
         ${n.inUse ? `
           <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -1086,7 +1149,7 @@ class TempleOS {
 
         <div style="padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,255,65,0.08); margin-bottom: 10px;">
           <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` ΓÇó IP ${ip}` : ''}${ssid ? ` ΓÇó ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto;">
@@ -1116,7 +1179,7 @@ class TempleOS {
         <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
           <span>Notifications</span>
           <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '🔕' : '🔔'}
+            ${this.doNotDisturb ? '≡ƒöò' : '≡ƒöö'}
           </button>
         </div>
         <div style="padding: 5px; color: #fff;">
@@ -1157,7 +1220,7 @@ class TempleOS {
         <div style="border-bottom: 1px solid rgba(255,215,0,0.25); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
           <span>Notifications ${unread ? `(${unread})` : ''}</span>
           <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '🔕' : '🔔'}
+            ${this.doNotDisturb ? '≡ƒöò' : '≡ƒöö'}
           </button>
         </div>
 
@@ -1224,12 +1287,12 @@ class TempleOS {
 
   private renderDesktopIcons(): string {
     const icons = [
-      { id: 'terminal', icon: '💻', label: 'Terminal' },
-      { id: 'word-of-god', icon: '✝️', label: 'Word of God' },
-      { id: 'files', icon: '📁', label: 'Files' },
-      { id: 'editor', icon: '📝', label: 'HolyC Editor' },
-      { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
-      { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
+      { id: 'terminal', icon: '≡ƒÆ╗', label: 'Terminal' },
+      { id: 'word-of-god', icon: 'Γ£¥∩╕Å', label: 'Word of God' },
+      { id: 'files', icon: '≡ƒôü', label: 'Files' },
+      { id: 'editor', icon: '≡ƒô¥', label: 'HolyC Editor' },
+      { id: 'hymns', icon: '≡ƒÄ╡', label: 'Hymn Player' },
+      { id: 'updater', icon: 'Γ¼ç∩╕Å', label: 'Holy Updater' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -1240,7 +1303,7 @@ class TempleOS {
         const display = this.launcherDisplayForKey(s.key);
         return {
           key: s.key,
-          icon: display?.icon || '📄',
+          icon: display?.icon || '≡ƒôä',
           label: s.label
         };
       });
@@ -1393,12 +1456,12 @@ class TempleOS {
 
     // Built-in pinned apps
     const legacyPinnedApps = [
-      { id: 'terminal', icon: '💻', name: 'Terminal' },
-      { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
-      { id: 'files', icon: '📁', name: 'Files' },
-      { id: 'editor', icon: '📝', name: 'HolyC Editor' },
-      { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
-      { id: 'settings', icon: '⚙️', name: 'Settings' },
+      { id: 'terminal', icon: '≡ƒÆ╗', name: 'Terminal' },
+      { id: 'word-of-god', icon: 'Γ£¥∩╕Å', name: 'Word of God' },
+      { id: 'files', icon: '≡ƒôü', name: 'Files' },
+      { id: 'editor', icon: '≡ƒô¥', name: 'HolyC Editor' },
+      { id: 'hymns', icon: '≡ƒÄ╡', name: 'Hymn Player' },
+      { id: 'settings', icon: 'ΓÜÖ∩╕Å', name: 'Settings' },
     ];
 
     const pinnedAppsView = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
@@ -1458,7 +1521,7 @@ class TempleOS {
       <div class="start-menu">
         <div class="start-menu-left">
           <div class="start-search-container">
-            <input type="text" class="start-search-input" placeholder="🔍 Search apps..." value="${this.startMenuSearchQuery}">
+            <input type="text" class="start-search-input" placeholder="≡ƒöì Search apps..." value="${this.startMenuSearchQuery}">
           </div>
 
           <div style="display: flex; gap: 10px; padding: 0 20px 10px 20px;">
@@ -1493,7 +1556,7 @@ class TempleOS {
                 <div class="start-no-results">No apps found</div>
               ` : filteredApps.map(app => `
                 <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}'>
-                  <span class="app-icon">📦</span>
+                  <span class="app-icon">≡ƒôª</span>
                   <div class="app-info">
                     <span class="app-name">${app.name}</span>
                     ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
@@ -1513,19 +1576,19 @@ class TempleOS {
           </div>
           
           <div class="start-quick-links">
-            <div class="start-quick-link" data-path="root">💻 This PC</div>
-            <div class="start-quick-link" data-path="home">🏠 Home</div>
-            <div class="start-quick-link" data-path="Documents">📄 Documents</div>
-            <div class="start-quick-link" data-path="Downloads">⬇️ Downloads</div>
-            <div class="start-quick-link" data-path="Music">🎵 Music</div>
-            <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
-            <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
+            <div class="start-quick-link" data-path="root">≡ƒÆ╗ This PC</div>
+            <div class="start-quick-link" data-path="home">≡ƒÅá Home</div>
+            <div class="start-quick-link" data-path="Documents">≡ƒôä Documents</div>
+            <div class="start-quick-link" data-path="Downloads">Γ¼ç∩╕Å Downloads</div>
+            <div class="start-quick-link" data-path="Music">≡ƒÄ╡ Music</div>
+            <div class="start-quick-link" data-path="Pictures">≡ƒû╝∩╕Å Pictures</div>
+            <div class="start-quick-link" data-path="settings">ΓÜÖ∩╕Å Settings</div>
           </div>
           
           <div class="start-power-section">
-            <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
-            <button class="start-power-btn" data-power-action="restart">🔄 Restart</button>
-            <button class="start-power-btn" data-power-action="shutdown">🔴 Shutdown</button>
+            <button class="start-power-btn" data-power-action="lock">≡ƒöÆ Lock</button>
+            <button class="start-power-btn" data-power-action="restart">≡ƒöä Restart</button>
+            <button class="start-power-btn" data-power-action="shutdown">≡ƒö┤ Shutdown</button>
           </div>
         </div>
       </div>
@@ -1793,14 +1856,14 @@ class TempleOS {
 
   private builtinLauncherMeta(appId: string): { label: string; icon: string } | null {
     switch (appId) {
-      case 'terminal': return { label: 'Terminal', icon: '💻' };
-      case 'word-of-god': return { label: 'Word of God', icon: '✝️' };
-      case 'files': return { label: 'Files', icon: '📁' };
-      case 'editor': return { label: 'HolyC Editor', icon: '📝' };
-      case 'hymns': return { label: 'Hymn Player', icon: '🎵' };
-      case 'settings': return { label: 'Settings', icon: '⚙️' };
-      case 'updater': return { label: 'Holy Updater', icon: '⬇️' };
-      case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
+      case 'terminal': return { label: 'Terminal', icon: '≡ƒÆ╗' };
+      case 'word-of-god': return { label: 'Word of God', icon: 'Γ£¥∩╕Å' };
+      case 'files': return { label: 'Files', icon: '≡ƒôü' };
+      case 'editor': return { label: 'HolyC Editor', icon: '≡ƒô¥' };
+      case 'hymns': return { label: 'Hymn Player', icon: '≡ƒÄ╡' };
+      case 'settings': return { label: 'Settings', icon: 'ΓÜÖ∩╕Å' };
+      case 'updater': return { label: 'Holy Updater', icon: 'Γ¼ç∩╕Å' };
+      case 'system-monitor': return { label: 'Task Manager', icon: '≡ƒôè' };
       default: return null;
     }
   }
@@ -1830,7 +1893,7 @@ class TempleOS {
       return this.builtinLauncherMeta(raw.slice('builtin:'.length));
     }
     const installed = this.findInstalledAppByKey(raw);
-    if (installed) return { label: installed.name, icon: 'dY"Ý' };
+    if (installed) return { label: installed.name, icon: 'dY"├¥' };
     return null;
   }
 
@@ -1944,6 +2007,14 @@ class TempleOS {
       if (target.matches('.file-search-input')) {
         this.fileSearchQuery = target.value;
         this.updateFileBrowserWindow();
+      }
+
+      // Terminal search
+      if (target.matches('.terminal-search-input')) {
+        this.terminalSearchQuery = target.value;
+        this.updateTerminalSearchMatches();
+        this.updateTerminalSearchCountDom();
+        this.scrollTerminalToSearchMatch();
       }
     });
 
@@ -2073,7 +2144,7 @@ class TempleOS {
         this.queueSaveConfig();
         if (window.electronAPI?.setWifiEnabled) {
           void window.electronAPI.setWifiEnabled(this.wifiEnabled).then(res => {
-            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle Wi‑Fi', 'warning');
+            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle WiΓÇæFi', 'warning');
             void this.refreshNetworkStatus();
           });
         }
@@ -2373,6 +2444,82 @@ class TempleOS {
         this.activeTerminalTab = this.terminalTabs.length - 1;
         this.refreshTerminalWindow();
         return;
+      }
+
+      // Terminal tools (search / split / settings)
+      const terminalActionEl = target.closest('[data-terminal-action]') as HTMLElement;
+      if (terminalActionEl && terminalActionEl.dataset.terminalAction) {
+        const action = terminalActionEl.dataset.terminalAction;
+
+        if (action === 'search') {
+          this.terminalSearchOpen = !this.terminalSearchOpen;
+          if (!this.terminalSearchOpen) {
+            this.terminalSearchQuery = '';
+            this.terminalSearchMatches = [];
+            this.terminalSearchMatchIndex = -1;
+          } else {
+            this.updateTerminalSearchMatches();
+          }
+          this.refreshTerminalWindow();
+          return;
+        }
+
+        if (action === 'search-next') {
+          this.updateTerminalSearchMatches();
+          this.terminalSearchNext();
+          return;
+        }
+
+        if (action === 'search-prev') {
+          this.updateTerminalSearchMatches();
+          this.terminalSearchPrev();
+          return;
+        }
+
+        if (action === 'search-close') {
+          this.terminalSearchOpen = false;
+          this.terminalSearchQuery = '';
+          this.terminalSearchMatches = [];
+          this.terminalSearchMatchIndex = -1;
+          this.refreshTerminalWindow();
+          return;
+        }
+
+        if (action === 'split-v' || action === 'split-h') {
+          if (this.terminalTabs.length < 2) {
+            this.terminalTabs.push({
+              id: `tab-${Date.now() + 1}`,
+              ptyId: null,
+              title: `Terminal ${this.terminalTabs.length + 1}`,
+              buffer: [] as string[],
+              cwd: this.terminalCwd || '',
+              xterm: null,
+              fitAddon: null
+            });
+          }
+
+          const primary = this.terminalTabs[this.activeTerminalTab] || this.terminalTabs[0];
+          const secondary = this.terminalTabs.find(t => t.id !== primary?.id) || null;
+          this.terminalSplitMode = action === 'split-v' ? 'split-v' : 'split-h';
+          this.terminalSplitSecondaryTabId = secondary?.id || null;
+          this.refreshTerminalWindow();
+          return;
+        }
+
+        if (action === 'unsplit') {
+          this.terminalSplitMode = 'single';
+          this.terminalSplitSecondaryTabId = null;
+          this.refreshTerminalWindow();
+          return;
+        }
+
+        if (action === 'settings') {
+          void this.openAlertModal({
+            title: 'Terminal Settings',
+            message: "Use built-ins:\n- theme <green|cyan|amber|white>\n- fontsize <number>\n- prompt <template>\n- alias name='command'\n- unalias name\n\nExample: theme cyan"
+          });
+          return;
+        }
       }
 
       // Editor tab switching
@@ -3054,6 +3201,22 @@ class TempleOS {
           return;
         }
 
+        // Tab completion (fallback terminal only)
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          void this.terminalTabComplete(input);
+          return;
+        }
+
+        // Ctrl+F opens terminal search
+        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+          e.preventDefault();
+          this.terminalSearchOpen = true;
+          this.updateTerminalSearchMatches();
+          this.refreshTerminalWindow();
+          return;
+        }
+
         if (e.key === 'Enter') {
           void this.handleTerminalCommandV2(input.value);
           input.value = '';
@@ -3317,7 +3480,7 @@ class TempleOS {
             const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
             this.showContextMenu(e.clientX, e.clientY, [
               { label: 'dY", Restore/Focus', action: () => this.toggleWindow(windowId) },
-              { label: 'dY-`‹,? Close', action: () => this.closeWindow(windowId) },
+              { label: 'dY-`ΓÇ╣,? Close', action: () => this.closeWindow(windowId) },
               { divider: true },
               { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
             ]);
@@ -3361,7 +3524,7 @@ class TempleOS {
               { label: 'dY", Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
               { divider: true },
               { label: 'dY", Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
-              { label: 'dY-`‹,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
+              { label: 'dY-`ΓÇ╣,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
               { divider: true },
               ...(originalPath ? [{ label: 'dY"< Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
               ...(originalPath ? [{ label: 'dY", Open Original Folder', action: () => openOriginalFolder() }] : []),
@@ -3369,42 +3532,42 @@ class TempleOS {
             return;
           }
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
-            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
-            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
-            { label: '✏️ Rename', action: () => this.promptRename(filePath) },
-            { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
+            { label: '≡ƒôé Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: '≡ƒôï Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
+            { label: 'Γ£é∩╕Å Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
+            { label: 'Γ£Å∩╕Å Rename', action: () => this.promptRename(filePath) },
+            { label: '≡ƒùæ∩╕Å Delete', action: () => this.confirmDelete(filePath) },
             { divider: true },
-            { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+            { label: '≡ƒôï Copy Path', action: () => navigator.clipboard.writeText(filePath) },
           ]);
         } else if (fileBrowserEl && !target.closest('.taskbar')) {
           if (this.currentPath === 'trash:') {
             this.showContextMenu(e.clientX, e.clientY, [
               { label: 'dY", Refresh', action: () => this.loadFiles('trash:') },
               { divider: true },
-              { label: 'dY-`‹,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
+              { label: 'dY-`ΓÇ╣,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
             ]);
             return;
           }
           const canPaste = !!this.fileClipboard && !!this.currentPath;
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📁 New Folder', action: () => this.promptNewFolder() },
-            { label: '📄 New File', action: () => this.promptNewFile() },
+            { label: '≡ƒôü New Folder', action: () => this.promptNewFolder() },
+            { label: '≡ƒôä New File', action: () => this.promptNewFile() },
             { divider: true },
-            ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
+            ...(canPaste ? [{ label: '≡ƒôï Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
             { divider: true },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '≡ƒöä Refresh', action: () => this.loadFiles(this.currentPath) },
           ]);
         } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
           // Desktop context menu
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📁 Open Files', action: () => this.openApp('files') },
-            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+            { label: '≡ƒôü Open Files', action: () => this.openApp('files') },
+            { label: '≡ƒÆ╗ Open Terminal', action: () => this.openApp('terminal') },
             { divider: true },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-            { label: '⚙️ Settings', action: () => this.openApp('settings') },
+            { label: '≡ƒöä Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: 'ΓÜÖ∩╕Å Settings', action: () => this.openApp('settings') },
             { divider: true },
-            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+            { label: 'Γä╣∩╕Å About TempleOS', action: () => this.openSettingsToAbout() },
           ]);
         }
       });
@@ -3456,7 +3619,7 @@ class TempleOS {
             if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
               const modSpan = document.createElement('span');
               modSpan.className = 'editor-tab-modified';
-              modSpan.textContent = '●';
+              modSpan.textContent = 'ΓùÅ';
               tabEl.insertBefore(modSpan, tabEl.firstChild);
             }
           }
@@ -3499,6 +3662,7 @@ class TempleOS {
   }
 
   // Open Settings directly to About tab
+  // Open Settings directly to About tab
   private openSettingsToAbout() {
     this.activeSettingsCategory = 'About';
     this.openApp('settings');
@@ -3530,7 +3694,7 @@ class TempleOS {
       case 'terminal':
         windowConfig = {
           title: 'Terminal',
-          icon: '💻',
+          icon: 'ðŸ’»',
           width: 600,
           height: 400,
           content: this.getTerminalContent()
@@ -3539,7 +3703,7 @@ class TempleOS {
       case 'word-of-god':
         windowConfig = {
           title: 'Word of God',
-          icon: '✝️',
+          icon: 'âœï¸',
           width: 550,
           height: 400,
           content: this.getWordOfGodContent()
@@ -3548,7 +3712,7 @@ class TempleOS {
       case 'files':
         windowConfig = {
           title: 'File Browser',
-          icon: '📁',
+          icon: 'ðŸ“',
           width: 600,
           height: 450,
           content: this.getFileBrowserContentV2()
@@ -3559,7 +3723,7 @@ class TempleOS {
       case 'editor':
         windowConfig = {
           title: 'HolyC Editor',
-          icon: '📝',
+          icon: 'ðŸ“',
           width: 600,
           height: 450,
           content: this.getEditorContent()
@@ -3568,7 +3732,7 @@ class TempleOS {
       case 'updater':
         windowConfig = {
           title: 'Holy Updater',
-          icon: '⬇️',
+          icon: 'â¬‡ï¸',
           width: 500,
           height: 350,
           content: this.getUpdaterContent()
@@ -3579,7 +3743,7 @@ class TempleOS {
       case 'hymns':
         windowConfig = {
           title: 'Hymn Player',
-          icon: '🎵',
+          icon: 'ðŸŽµ',
           width: 450,
           height: 500,
           content: this.getHymnPlayerContent()
@@ -3588,7 +3752,7 @@ class TempleOS {
       case 'system-monitor':
         windowConfig = {
           title: 'Task Manager',
-          icon: 'dY-ЭЛ,?',
+          icon: 'dY-Ð­Ð›,?',
           width: 900,
           height: 600,
           content: this.getSystemMonitorContent()
@@ -3598,7 +3762,7 @@ class TempleOS {
       case 'settings':
         windowConfig = {
           title: 'Settings',
-          icon: '⚙️',
+          icon: 'âš™ï¸',
           width: 800,
           height: 600,
           content: this.getSettingsContentV2()
@@ -3609,7 +3773,7 @@ class TempleOS {
     const newWindow: WindowState = {
       id: `${appId}-${++this.windowIdCounter}`,
       title: windowConfig.title || 'Window',
-      icon: windowConfig.icon || '📄',
+      icon: windowConfig.icon || 'ðŸ“„',
       x: 100 + (this.windows.length * 30),
       y: 50 + (this.windows.length * 30),
       width: windowConfig.width || 400,
@@ -3628,8 +3792,8 @@ class TempleOS {
     if (appId === 'terminal') {
       setTimeout(() => {
         if (this.ptySupported) {
-          // Initialize xterm.js for PTY mode
-          void this.initXtermForTab(this.activeTerminalTab);
+          // Initialize xterm.js for visible panes
+          this.ensureVisibleTerminalXterms();
         } else {
           // Fallback: focus basic terminal input
           const input = document.querySelector('.terminal-input') as HTMLInputElement;
@@ -3660,25 +3824,62 @@ class TempleOS {
     const tabsHtml = this.terminalTabs.map((tab, i) => `
       <div class="terminal-tab ${i === this.activeTerminalTab ? 'active' : ''}" data-terminal-tab="${i}">
         ${escapeHtml(tab.title)}
-        ${this.terminalTabs.length > 1 ? `<span class="terminal-tab-close" data-terminal-close="${i}">×</span>` : ''}
+        ${this.terminalTabs.length > 1 ? `<span class="terminal-tab-close" data-terminal-close="${i}">&times;</span>` : ''}
       </div>
     `).join('');
 
+    const searchQuery = this.terminalSearchQuery.trim();
+    const searchCountText = searchQuery
+      ? (this.terminalSearchMatches.length > 0 && this.terminalSearchMatchIndex >= 0
+        ? `${this.terminalSearchMatchIndex + 1}/${this.terminalSearchMatches.length}`
+        : '0/0')
+      : '';
+
+    const searchBarHtml = this.terminalSearchOpen ? `
+      <div class="terminal-search-bar">
+        <input class="terminal-search-input" type="text" placeholder="Search output..." value="${escapeHtml(this.terminalSearchQuery)}" />
+        <button class="terminal-search-btn" data-terminal-action="search-prev" title="Previous (Shift+Enter)">Prev</button>
+        <button class="terminal-search-btn" data-terminal-action="search-next" title="Next (Enter)">Next</button>
+        <div class="terminal-search-count">${searchCountText}</div>
+        <button class="terminal-search-btn terminal-search-close" data-terminal-action="search-close" title="Close (Esc)">&times;</button>
+      </div>
+    ` : '';
+
     // Use xterm.js container if PTY is supported, otherwise fallback to basic terminal
     if (this.ptySupported && currentTab) {
+      const primaryId = currentTab.id;
+      const secondaryId = (this.terminalSplitMode !== 'single' && this.terminalSplitSecondaryTabId && this.terminalSplitSecondaryTabId !== primaryId && this.terminalTabs.some(t => t.id === this.terminalSplitSecondaryTabId))
+        ? this.terminalSplitSecondaryTabId
+        : null;
+
       return `
-        <div class="terminal-container">
+        <div class="terminal-container" data-terminal-theme="${this.terminalUiTheme}">
           <div class="terminal-tabs">
             ${tabsHtml}
             <div class="terminal-tab-new" data-terminal-new title="New Tab">+</div>
+            <div class="terminal-tab-tools">
+              <button class="terminal-tool" data-terminal-action="search" title="Search (Ctrl+F)">Find</button>
+              ${this.terminalSplitMode === 'single' ? `
+                <button class="terminal-tool" data-terminal-action="split-v" title="Split Vertical">Split V</button>
+                <button class="terminal-tool" data-terminal-action="split-h" title="Split Horizontal">Split H</button>
+              ` : `
+                <button class="terminal-tool active" data-terminal-action="unsplit" title="Close Split">Unsplit</button>
+              `}
+              <button class="terminal-tool" data-terminal-action="settings" title="Terminal Settings">Settings</button>
+            </div>
           </div>
-          <div class="xterm-container" id="xterm-container-${this.activeTerminalTab}"></div>
+          ${searchBarHtml}
+          <div class="xterm-layout ${this.terminalSplitMode}">
+            ${this.terminalTabs.map((tab) => `
+              <div class="xterm-container ${tab.id === primaryId ? 'pane-primary' : ''} ${secondaryId && tab.id === secondaryId ? 'pane-secondary' : ''}" id="xterm-container-${tab.id}"></div>
+            `).join('')}
+          </div>
         </div>
       `;
     }
 
     // Fallback: Basic HTML terminal (no PTY)
-    const prompt = (currentTab?.cwd || this.terminalCwd || 'C:/').replace(/</g, '').replace(/>/g, '') + '>';
+    const prompt = this.formatTerminalPrompt((currentTab?.cwd || this.terminalCwd || 'C:/'));
     const bufferContent = currentTab?.buffer.length > 0
       ? currentTab.buffer.join('')
       : (this.terminalBuffer.length > 0
@@ -3690,11 +3891,16 @@ class TempleOS {
           `);
 
     return `
-      <div class="terminal-container">
+      <div class="terminal-container" data-terminal-theme="${this.terminalUiTheme}">
         <div class="terminal-tabs">
           ${tabsHtml}
           <div class="terminal-tab-new" data-terminal-new title="New Tab">+</div>
+          <div class="terminal-tab-tools">
+            <button class="terminal-tool" data-terminal-action="search" title="Search (Ctrl+F)">Find</button>
+            <button class="terminal-tool" data-terminal-action="settings" title="Terminal Settings">Settings</button>
+          </div>
         </div>
+        ${searchBarHtml}
         <div class="terminal">
           <div class="terminal-output" id="terminal-output">
             ${bufferContent}
@@ -3708,22 +3914,59 @@ class TempleOS {
     `;
   }
 
+  private formatTerminalPrompt(cwd: string): string {
+    const safeCwd = String(cwd || '').replace(/</g, '').replace(/>/g, '');
+    const user = (this.systemInfo?.user || 'user').replace(/</g, '').replace(/>/g, '');
+    const host = (this.systemInfo?.hostname || 'temple').replace(/</g, '').replace(/>/g, '');
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return String(this.terminalPromptTemplate || '{cwd}>')
+      .replaceAll('{cwd}', safeCwd)
+      .replaceAll('{user}', user)
+      .replaceAll('{host}', host)
+      .replaceAll('{time}', time);
+  }
+
+  private getTerminalThemeForeground(): string {
+    switch (this.terminalUiTheme) {
+      case 'cyan': return '#00d4ff';
+      case 'amber': return '#ffd700';
+      case 'white': return '#c9d1d9';
+      default: return '#00ff41';
+    }
+  }
+
+  private getTerminalThemeSelection(): string {
+    const fg = this.getTerminalThemeForeground();
+    const m = fg.match(/^#([0-9a-f]{6})$/i);
+    if (m) {
+      const hex = m[1];
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, 0.28)`;
+    }
+    return 'rgba(0, 255, 65, 0.28)';
+  }
+
   // Initialize xterm.js for the current terminal tab
   private async initXtermForTab(tabIndex: number): Promise<void> {
     const tab = this.terminalTabs[tabIndex];
     if (!tab || tab.xterm) return; // Already initialized
 
-    const container = document.getElementById(`xterm-container-${tabIndex}`);
+    const container = document.getElementById(`xterm-container-${tab.id}`);
     if (!container) return;
+
+    const fg = this.getTerminalThemeForeground();
 
     // Create xterm instance
     const xterm = new Terminal({
       theme: {
         background: '#0d1117',
-        foreground: '#00ff41',
-        cursor: '#00ff41',
+        foreground: fg,
+        cursor: fg,
         cursorAccent: '#0d1117',
-        selectionBackground: 'rgba(0, 255, 65, 0.3)',
+        selectionBackground: this.getTerminalThemeSelection(),
         black: '#0a0a0f',
         red: '#ff3366',
         green: '#00ff41',
@@ -3741,8 +3984,8 @@ class TempleOS {
         brightCyan: '#7fffff',
         brightWhite: '#ffffff'
       },
-      fontFamily: '"VT323", monospace',
-      fontSize: 18,
+      fontFamily: this.terminalFontFamily,
+      fontSize: this.terminalFontSize,
       cursorBlink: true,
       scrollback: 10000
     });
@@ -3792,6 +4035,33 @@ class TempleOS {
     });
   }
 
+  private ensureVisibleTerminalXterms(): void {
+    if (!this.ptySupported) return;
+    if (this.terminalTabs.length === 0) return;
+
+    const primaryIdx = Math.max(0, Math.min(this.activeTerminalTab, this.terminalTabs.length - 1));
+    void this.initXtermForTab(primaryIdx);
+
+    if (this.terminalSplitMode !== 'single' && this.terminalSplitSecondaryTabId) {
+      const secondaryIdx = this.terminalTabs.findIndex(t => t.id === this.terminalSplitSecondaryTabId);
+      if (secondaryIdx >= 0 && secondaryIdx !== primaryIdx) {
+        void this.initXtermForTab(secondaryIdx);
+      }
+    }
+
+    // Fit visible panes after any DOM/layout changes
+    window.setTimeout(() => {
+      const primary = this.terminalTabs[primaryIdx];
+      primary?.fitAddon?.fit();
+      if (this.terminalSplitMode !== 'single' && this.terminalSplitSecondaryTabId) {
+        const secondaryIdx = this.terminalTabs.findIndex(t => t.id === this.terminalSplitSecondaryTabId);
+        if (secondaryIdx >= 0 && secondaryIdx !== primaryIdx) {
+          this.terminalTabs[secondaryIdx]?.fitAddon?.fit();
+        }
+      }
+    }, 0);
+  }
+
   // Handle PTY data events
   private setupPtyListeners(): void {
     if (window.electronAPI?.onTerminalData) {
@@ -3814,50 +4084,302 @@ class TempleOS {
     }
   }
 
+  private updateTerminalSearchMatches(): void {
+    const q = this.terminalSearchQuery.trim();
+    if (!q) {
+      this.terminalSearchMatches = [];
+      this.terminalSearchMatchIndex = -1;
+      return;
+    }
+
+    const qLower = q.toLowerCase();
+    const matches: number[] = [];
+
+    if (this.ptySupported) {
+      const tab = this.terminalTabs[this.activeTerminalTab];
+      const xterm = tab?.xterm as any;
+      const active = xterm?.buffer?.active as any;
+      const len = typeof active?.length === 'number' ? active.length : 0;
+      const start = Math.max(0, len - 5000);
+      for (let i = start; i < len; i++) {
+        const line = active?.getLine?.(i);
+        if (!line) continue;
+        const text = String(line.translateToString?.(true) || '');
+        if (text.toLowerCase().includes(qLower)) matches.push(i);
+      }
+    } else {
+      const tab = this.terminalTabs[this.activeTerminalTab];
+      const source = (tab?.buffer?.length ? tab.buffer : this.terminalBuffer);
+      for (let i = 0; i < source.length; i++) {
+        const text = source[i].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+        if (text.includes(qLower)) matches.push(i);
+      }
+    }
+
+    this.terminalSearchMatches = matches;
+    this.terminalSearchMatchIndex = matches.length ? 0 : -1;
+  }
+
+  private terminalSearchNext(): void {
+    if (this.terminalSearchMatches.length === 0) return;
+    this.terminalSearchMatchIndex = (this.terminalSearchMatchIndex + 1) % this.terminalSearchMatches.length;
+    this.updateTerminalSearchCountDom();
+    this.scrollTerminalToSearchMatch();
+  }
+
+  private terminalSearchPrev(): void {
+    if (this.terminalSearchMatches.length === 0) return;
+    this.terminalSearchMatchIndex = (this.terminalSearchMatchIndex - 1 + this.terminalSearchMatches.length) % this.terminalSearchMatches.length;
+    this.updateTerminalSearchCountDom();
+    this.scrollTerminalToSearchMatch();
+  }
+
+  private updateTerminalSearchCountDom(): void {
+    const el = document.querySelector('.terminal-search-count') as HTMLElement | null;
+    if (!el) return;
+    const q = this.terminalSearchQuery.trim();
+    if (!q) {
+      el.textContent = '';
+      return;
+    }
+    el.textContent = this.terminalSearchMatches.length > 0 && this.terminalSearchMatchIndex >= 0
+      ? `${this.terminalSearchMatchIndex + 1}/${this.terminalSearchMatches.length}`
+      : '0/0';
+  }
+
+  private scrollTerminalToSearchMatch(): void {
+    if (this.terminalSearchMatchIndex < 0) return;
+    const lineIndex = this.terminalSearchMatches[this.terminalSearchMatchIndex];
+    if (typeof lineIndex !== 'number') return;
+
+    if (this.ptySupported) {
+      const tab = this.terminalTabs[this.activeTerminalTab];
+      const xterm = tab?.xterm as any;
+      if (xterm && typeof xterm.scrollToLine === 'function') {
+        xterm.scrollToLine(lineIndex);
+      }
+      return;
+    }
+
+    const output = document.getElementById('terminal-output') as HTMLElement | null;
+    if (!output) return;
+    const lines = output.querySelectorAll('.terminal-line');
+    const lineEl = lines.item(lineIndex) as HTMLElement | null;
+    if (!lineEl) return;
+    lineEl.scrollIntoView({ block: 'center' });
+    lineEl.classList.add('terminal-search-hit');
+    window.setTimeout(() => lineEl.classList.remove('terminal-search-hit'), 450);
+  }
+
+  private terminalBuiltinCommands(): string[] {
+    return [
+      'help', 'clear', 'confess',
+      'cd', 'pwd',
+      'alias', 'unalias', 'prompt',
+      'god', 'oracle', 'hymn', 'terry', 'neofetch', 'pray', 'psalm',
+      'cowsay', 'fortune', 'matrix', 'figlet', 'sl',
+      'time', 'about',
+    ];
+  }
+
+  private async terminalTabComplete(input: HTMLInputElement): Promise<void> {
+    const full = input.value;
+    const pos = input.selectionStart ?? full.length;
+    const left = full.slice(0, pos);
+    const right = full.slice(pos);
+
+    const m = left.match(/(?:^|\s)([^\s]*)$/);
+    const token = m?.[1] ?? '';
+    const tokenStart = m ? (left.length - token.length) : pos;
+    if (!token) return;
+
+    const isCommandToken = tokenStart === 0;
+    const tokenLower = token.toLowerCase();
+    const tab = this.terminalTabs[this.activeTerminalTab] || this.terminalTabs[0];
+    const cwd = tab?.cwd || this.terminalCwd || '';
+
+    const apply = (replacement: string, addSpace: boolean) => {
+      const next = full.slice(0, tokenStart) + replacement + (addSpace ? ' ' : '') + right;
+      input.value = next;
+      const nextPos = tokenStart + replacement.length + (addSpace ? 1 : 0);
+      input.setSelectionRange(nextPos, nextPos);
+    };
+
+    const printSuggestions = (items: string[]) => {
+      const list = items.slice(0, 40).join('  ');
+      if (tab) {
+        tab.buffer.push(`<div class="terminal-line system">${escapeHtml(list)}</div>`);
+      } else {
+        this.terminalBuffer.push(`<div class="terminal-line system">${escapeHtml(list)}</div>`);
+      }
+      this.refreshTerminalWindow();
+    };
+
+    const commonPrefix = (arr: string[]) => {
+      if (arr.length === 0) return '';
+      let p = arr[0];
+      for (let i = 1; i < arr.length; i++) {
+        const s = arr[i];
+        let j = 0;
+        while (j < p.length && j < s.length && p[j].toLowerCase() === s[j].toLowerCase()) j++;
+        p = p.slice(0, j);
+        if (!p) break;
+      }
+      return p;
+    };
+
+    const isPathLike = /[\\/]/.test(token) || token.startsWith('.') || token.startsWith('~') || token.match(/^[A-Za-z]:/);
+
+    // Command completion
+    if (isCommandToken && !isPathLike) {
+      const candidates = Array.from(new Set([...this.terminalBuiltinCommands(), ...Object.keys(this.terminalAliases)])).sort();
+      const matches = candidates.filter(c => c.toLowerCase().startsWith(tokenLower));
+      if (matches.length === 0) return;
+      if (matches.length === 1) {
+        apply(matches[0], true);
+        return;
+      }
+      const cp = commonPrefix(matches);
+      if (cp && cp.length > token.length) {
+        apply(cp, false);
+        return;
+      }
+      printSuggestions(matches);
+      return;
+    }
+
+    // Path completion (best-effort; requires Electron FS bridge)
+    if (!window.electronAPI?.readDir) return;
+
+    let tokenExpanded = token;
+    if (tokenExpanded.startsWith('~') && this.homePath) {
+      tokenExpanded = this.homePath + tokenExpanded.slice(1);
+    }
+
+    const lastSlash = Math.max(tokenExpanded.lastIndexOf('/'), tokenExpanded.lastIndexOf('\\\\'));
+    const dirPart = lastSlash >= 0 ? tokenExpanded.slice(0, lastSlash + 1) : '';
+    const basePart = lastSlash >= 0 ? tokenExpanded.slice(lastSlash + 1) : tokenExpanded;
+    const baseLower = basePart.toLowerCase();
+
+    const sep = this.getPathSeparator(tokenExpanded || cwd || '/');
+    const isAbs = dirPart.startsWith('/') || dirPart.startsWith('\\\\') || dirPart.startsWith('//') || /^[A-Za-z]:[\\\\/]/.test(dirPart);
+    const dirToList = (() => {
+      const rawDir = dirPart.replace(/[\\/]+$/, '');
+      if (!rawDir) return cwd || (sep === '\\' ? 'C:\\' : '/');
+      if (isAbs) return rawDir;
+      const base = cwd || (sep === '\\' ? 'C:\\' : '/');
+      return this.joinPath(base, rawDir);
+    })();
+
+    const res = await window.electronAPI.readDir(dirToList);
+    if (!res.success || !Array.isArray(res.entries)) return;
+
+    const entries = res.entries
+      .filter(e => e && typeof e.name === 'string')
+      .map(e => ({ name: e.name, isDirectory: !!e.isDirectory }))
+      .filter(e => e.name.toLowerCase().startsWith(baseLower))
+      .map(e => e.isDirectory ? (e.name + sep) : e.name);
+
+    if (entries.length === 0) return;
+    if (entries.length === 1) {
+      apply(dirPart + entries[0], false);
+      return;
+    }
+    const cp = commonPrefix(entries);
+    if (cp && cp.length > basePart.length) {
+      apply(dirPart + cp, false);
+      return;
+    }
+    printSuggestions(entries);
+  }
+
 
 
   private async handleTerminalCommandV2(command: string): Promise<void> {
-    const raw = (command || '').trim();
-    if (!raw) return;
+    const typed = (command || '').trim();
+    if (!typed) return;
 
-    this.terminalHistory.push(raw);
+    const tab = this.terminalTabs[this.activeTerminalTab] || this.terminalTabs[0];
+    if (!tab) return;
+    const buf = tab.buffer;
+
+    if (buf.length === 0 && this.terminalBuffer.length) {
+      buf.push(...this.terminalBuffer);
+    }
+
+    if (!tab.cwd) tab.cwd = this.terminalCwd || this.homePath || '/';
+    if (!this.terminalCwd) this.terminalCwd = tab.cwd;
+
+    this.terminalHistory.push(typed);
     this.terminalHistoryIndex = this.terminalHistory.length;
 
-    const prompt = (this.terminalCwd || 'C:/').replace(/</g, '').replace(/>/g, '') + '>';
-    this.terminalBuffer.push(`<div class="terminal-line">${escapeHtml(prompt)} ${escapeHtml(raw)}</div>`);
+    const prompt = this.formatTerminalPrompt(tab.cwd || this.terminalCwd || 'C:/');
+    buf.push(`<div class="terminal-line">${escapeHtml(prompt)} ${escapeHtml(typed)}</div>`);
 
-    const parts = raw.split(/\s+/);
+    // Alias expansion (first token only)
+    let expanded = typed;
+    const firstToken = typed.split(/\s+/)[0]?.toLowerCase() || '';
+    const alias = firstToken ? this.terminalAliases[firstToken] : undefined;
+    if (alias) {
+      const rest = typed.slice(firstToken.length).trim();
+      expanded = alias + (rest ? ` ${rest}` : '');
+    }
+
+    const parts = expanded.split(/\s+/);
     const base = (parts.shift() || '').toLowerCase();
     const args = parts;
 
     const print = (line: string, cls?: string) => {
       const klass = cls ? ` ${cls}` : '';
-      this.terminalBuffer.push(`<div class="terminal-line${klass}">${ansiToHtml(line)}</div>`);
+      buf.push(`<div class="terminal-line${klass}">${ansiToHtml(line)}</div>`);
     };
 
     if (base === 'help') {
       print('Built-ins:', 'system');
-      print('  help                Show this help', 'system');
-      print('  clear               Clear terminal', 'system');
-      print('  cd [path]           Change directory', 'system');
-      print('  pwd                 Print working directory', 'system');
-      print('  god                 Random Bible verse', 'system');
-      print('  hymn                Open Hymn Player (random)', 'system');
-      print('  time                Show current time', 'system');
-      print('  about               About TempleOS', 'system');
-      print('Tip: You can run Linux commands like ls, cat, grep, etc.', 'system');
+      print('  help                  Show this help', 'system');
+      print('  clear                 Clear output', 'system');
+      print('  confess               Clear history ("sins")', 'system');
+      print('  cd [path]             Change directory', 'system');
+      print('  pwd                   Print working directory', 'system');
+      print('  alias [k=v]           Set/list aliases', 'system');
+      print('  unalias <k>           Remove alias', 'system');
+      print('  prompt [template]     Set prompt ({cwd} {user} {host} {time})', 'system');
+      print('  theme <name>          green|cyan|amber|white', 'system');
+      print('  fontsize <n>          10-32', 'system');
+      print('  god                   Random Bible verse', 'system');
+      print('  oracle                Random word(s)', 'system');
+      print('  terry                 Random Terry quote', 'system');
+      print('  neofetch              System info (Temple styled)', 'system');
+      print('  pray                  Random prayer', 'system');
+      print('  psalm                 Random psalm', 'system');
+      print('  cowsay [msg]          ASCII cow', 'system');
+      print('  fortune               Random wisdom', 'system');
+      print('  matrix                Matrix rain (static)', 'system');
+      print('  figlet <text>         ASCII banner', 'system');
+      print('  sl                    Steam locomotive', 'system');
+      print('  hymn                  Open Hymn Player (random)', 'system');
+      print('Tip: You can run OS commands too (non-interactive).', 'system');
       this.refreshTerminalWindow();
       return;
     }
 
     if (base === 'clear') {
-      this.terminalBuffer = [];
+      buf.length = 0;
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'confess') {
+      this.terminalHistory = [];
+      this.terminalHistoryIndex = -1;
+      buf.length = 0;
+      print('Sins forgiven. History cleared.', 'gold');
       this.refreshTerminalWindow();
       return;
     }
 
     if (base === 'pwd') {
-      print(this.terminalCwd || '', 'system');
+      print(tab.cwd || this.terminalCwd || '', 'system');
       this.refreshTerminalWindow();
       return;
     }
@@ -3865,44 +4387,323 @@ class TempleOS {
     if (base === 'cd') {
       let target = args.join(' ').trim();
       if (!target) {
-        if (window.electronAPI) {
+        if (this.homePath) {
+          tab.cwd = this.homePath;
+        } else if (window.electronAPI?.getHome) {
           try {
-            this.terminalCwd = await window.electronAPI.getHome();
+            tab.cwd = await window.electronAPI.getHome();
+            this.homePath = tab.cwd;
           } catch {
-            this.terminalCwd = '/';
+            tab.cwd = '/';
           }
         } else {
-          this.terminalCwd = '/';
+          tab.cwd = '/';
+        }
+        this.terminalCwd = tab.cwd;
+        this.refreshTerminalWindow();
+        return;
+      }
+
+      if (target.startsWith('~')) {
+        if (this.homePath) {
+          target = this.homePath + target.slice(1);
+        } else if (window.electronAPI?.getHome) {
+          try {
+            const home = await window.electronAPI.getHome();
+            this.homePath = home;
+            target = home + target.slice(1);
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      const sep = this.getPathSeparator(tab.cwd || target);
+      const isAbs = target.startsWith('/') || target.startsWith('\\\\') || target.startsWith('//') || target.match(/^[A-Za-z]:/i);
+      if (!isAbs) {
+        const basePath = tab.cwd || this.terminalCwd || (sep === '\\' ? 'C:\\' : '/');
+        target = this.joinPath(basePath, target);
+      }
+
+      tab.cwd = target;
+      this.terminalCwd = target;
+      print(`CWD: ${tab.cwd}`, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'alias') {
+      if (args.length === 0) {
+        const keys = Object.keys(this.terminalAliases).sort();
+        if (keys.length === 0) {
+          print('No aliases set.', 'system');
+        } else {
+          for (const k of keys) {
+            print(`alias ${k}='${this.terminalAliases[k]}'`, 'system');
+          }
         }
         this.refreshTerminalWindow();
         return;
       }
 
-      if (target.startsWith('~') && window.electronAPI) {
-        try {
-          const home = await window.electronAPI.getHome();
-          target = home + target.slice(1);
-        } catch {
-          // ignore
+      const rest = typed.slice('alias'.length).trim();
+      const eq = rest.indexOf('=');
+      if (eq !== -1) {
+        const name = rest.slice(0, eq).trim().toLowerCase();
+        let value = rest.slice(eq + 1).trim();
+        if (!/^[a-z0-9_\\-]+$/.test(name)) {
+          print('Invalid alias name.', 'error');
+          this.refreshTerminalWindow();
+          return;
+        }
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        this.terminalAliases[name] = value;
+        this.queueSaveConfig();
+        print(`alias ${name}='${value}'`, 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+
+      if (args.length === 1) {
+        const name = args[0].toLowerCase();
+        const value = this.terminalAliases[name];
+        if (!value) print('Alias not found.', 'error');
+        else print(`alias ${name}='${value}'`, 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+
+      const name = args[0].toLowerCase();
+      const value = args.slice(1).join(' ');
+      if (!/^[a-z0-9_\\-]+$/.test(name)) {
+        print('Invalid alias name.', 'error');
+        this.refreshTerminalWindow();
+        return;
+      }
+      this.terminalAliases[name] = value;
+      this.queueSaveConfig();
+      print(`alias ${name}='${value}'`, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'unalias') {
+      const name = (args[0] || '').toLowerCase();
+      if (!name) {
+        print('Usage: unalias <name>', 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+      if (this.terminalAliases[name] !== undefined) {
+        delete this.terminalAliases[name];
+        this.queueSaveConfig();
+        print(`Removed alias: ${name}`, 'system');
+      } else {
+        print('Alias not found.', 'error');
+      }
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'prompt') {
+      const next = args.join(' ').trim();
+      if (!next) {
+        print(`Prompt: ${this.terminalPromptTemplate}`, 'system');
+      } else {
+        this.terminalPromptTemplate = next;
+        this.queueSaveConfig();
+        print('Prompt updated.', 'system');
+      }
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'theme') {
+      const next = (args[0] || '').toLowerCase();
+      if (!next) {
+        print(`Theme: ${this.terminalUiTheme}`, 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+      const allowed = ['green', 'cyan', 'amber', 'white'] as const;
+      if (!allowed.includes(next as any)) {
+        print('Usage: theme green|cyan|amber|white', 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+      this.terminalUiTheme = next as any;
+      this.queueSaveConfig();
+      if (this.ptySupported) {
+        const fg = this.getTerminalThemeForeground();
+        const selection = this.getTerminalThemeSelection();
+        for (const t of this.terminalTabs) {
+          if (!t.xterm) continue;
+          t.xterm.options.theme = {
+            ...(t.xterm.options.theme || {}),
+            foreground: fg,
+            cursor: fg,
+            selectionBackground: selection,
+          };
+          t.fitAddon?.fit();
         }
       }
+      print(`Theme set: ${this.terminalUiTheme}`, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
 
-      const sep = (this.terminalCwd.includes('\\') || this.terminalCwd.match(/^[A-Z]:/i)) ? '\\' : '/';
-      if (!target.startsWith('/') && !target.match(/^[A-Z]:/i) && !target.startsWith('\\\\')) {
-        const basePath = this.terminalCwd || (sep === '\\' ? 'C:\\' : '/');
-        target = basePath.replace(/[\\/]+$/, '') + sep + target;
+    if (base === 'fontsize') {
+      const n = parseInt(args[0] || '', 10);
+      if (!Number.isFinite(n)) {
+        print('Usage: fontsize <10-32>', 'system');
+        this.refreshTerminalWindow();
+        return;
       }
+      this.terminalFontSize = Math.max(10, Math.min(32, Math.round(n)));
+      this.queueSaveConfig();
+      if (this.ptySupported) {
+        for (const t of this.terminalTabs) {
+          if (!t.xterm) continue;
+          t.xterm.options.fontSize = this.terminalFontSize;
+          t.fitAddon?.fit();
+        }
+      }
+      print(`Font size: ${this.terminalFontSize}`, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
 
-      this.terminalCwd = target;
-      print(`CWD: ${this.terminalCwd}`, 'system');
+    if (base === 'oracle') {
+      const count = Math.max(1, Math.min(12, parseInt(args[0] || '1', 10) || 1));
+      const words: string[] = [];
+      for (let i = 0; i < count; i++) {
+        words.push(oracleWordList[Math.floor(Math.random() * oracleWordList.length)]);
+      }
+      print(`ORACLE: ${words.join(' ')}`, 'gold');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'terry') {
+      const q = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+      print(q, 'gold');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'pray') {
+      const p = prayers[Math.floor(Math.random() * prayers.length)];
+      print(p, 'gold');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'psalm') {
+      const psalms = bibleVerses.filter(v => v.ref.toLowerCase().startsWith('psalm'));
+      const verse = (psalms.length ? psalms : bibleVerses)[Math.floor(Math.random() * (psalms.length ? psalms.length : bibleVerses.length))];
+      print(`"${verse.text}"`, 'gold');
+      print(verse.ref, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'fortune') {
+      const pick = Math.random() < 0.35
+        ? bibleVerses[Math.floor(Math.random() * bibleVerses.length)].text
+        : fortunes[Math.floor(Math.random() * fortunes.length)];
+      print(pick, 'gold');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'cowsay') {
+      const msg = (args.join(' ') || 'Moo').slice(0, 120);
+      const top = ' ' + '_'.repeat(msg.length + 2);
+      const mid = `< ${msg} >`;
+      const bot = ' ' + '-'.repeat(msg.length + 2);
+      [top, mid, bot,
+        '        \\\\   ^__^',
+        '         \\\\  (oo)\\\\_______',
+        '            (__)\\\\       )\\\\/\\\\',
+        '                ||----w |',
+        '                ||     ||',
+      ].forEach(l => print(l, 'system'));
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'matrix') {
+      const chars = '01abcdef';
+      for (let r = 0; r < 18; r++) {
+        let line = '';
+        for (let c = 0; c < 64; c++) line += chars[Math.floor(Math.random() * chars.length)];
+        print(line, 'system');
+      }
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'figlet') {
+      const text = args.join(' ').trim();
+      if (!text) {
+        print('Usage: figlet <text>', 'system');
+        this.refreshTerminalWindow();
+        return;
+      }
+      const up = text.toUpperCase().slice(0, 48);
+      const border = '='.repeat(up.length + 4);
+      print(border, 'system');
+      print(`| ${up} |`, 'system');
+      print(border, 'system');
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'sl') {
+      [
+        '      ====        ________                ___________ ',
+        '  _D _|  |_______/        \\\\__I_I_____===__|_________| ',
+        '   |(_)---  |   H\\\\________/ |   |        =|___ ___|   ',
+        '   /     |  |   H  |  |     |   |         ||_| |_||   ',
+        '  |      |  |   H  |__--------------------| [___] |   ',
+        '  | ________|___H__/__|_____/[][]~\\\\_______|       |   ',
+        '  |/ |   |-----------I_____I [][] []  D   |=======|__ ',
+      ].forEach(l => print(l, 'system'));
+      this.refreshTerminalWindow();
+      return;
+    }
+
+    if (base === 'neofetch') {
+      const info = this.systemInfo;
+      const art = [
+        'â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—',
+        'â•‘  T E M P L E  O S    â•‘',
+        'â•‘      R E M A K E     â•‘',
+        'â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•',
+      ];
+      art.forEach(l => print(l, 'gold'));
+      print(`OS: TempleOS Remake`, 'system');
+      if (info) {
+        print(`User: ${info.user}`, 'system');
+        print(`Host: ${info.hostname}`, 'system');
+        print(`Platform: ${info.platform}`, 'system');
+        print(`Uptime: ${this.formatDuration(info.uptime)}`, 'system');
+        print(`CPU: ${info.cpus} cores`, 'system');
+        const used = Math.max(0, info.memory.total - info.memory.free);
+        print(`Memory: ${this.formatFileSize(used)} / ${this.formatFileSize(info.memory.total)}`, 'system');
+      }
+      print(`Theme: ${this.themeMode}/${this.terminalUiTheme}`, 'system');
+      print(`Quote: ${fortunes[Math.floor(Math.random() * fortunes.length)]}`, 'gold');
       this.refreshTerminalWindow();
       return;
     }
 
     if (base === 'god') {
       const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
-      this.terminalBuffer.push(`<div class="terminal-line gold">"${escapeHtml(verse.text)}"</div>`);
-      this.terminalBuffer.push(`<div class="terminal-line system">${escapeHtml(verse.ref)}</div>`);
+      print(`"${verse.text}"`, 'gold');
+      print(verse.ref, 'system');
       this.refreshTerminalWindow();
       return;
     }
@@ -3931,12 +4732,12 @@ class TempleOS {
     }
 
     if (!window.electronAPI?.execTerminal) {
-      print(`Unknown command: ${raw}`, 'error');
+      print(`Unknown command: ${typed}`, 'error');
       this.refreshTerminalWindow();
       return;
     }
 
-    const res = await window.electronAPI.execTerminal(raw, this.terminalCwd || undefined);
+    const res = await window.electronAPI.execTerminal(expanded, tab.cwd || undefined);
     if (res.success) {
       const out = (res.stdout || '').split(/\r?\n/).filter(l => l.length);
       const err = (res.stderr || '').split(/\r?\n/).filter(l => l.length);
@@ -3958,10 +4759,10 @@ class TempleOS {
     const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
     return `
       <div class="word-of-god">
-        <h2>✝ WORD OF GOD ✝</h2>
+        <h2>âœ WORD OF GOD âœ</h2>
         <p class="verse-text">"${verse.text}"</p>
-        <p class="verse-reference">— ${verse.ref}</p>
-        <p class="click-hint">🙏 Click anywhere for new word</p>
+        <p class="verse-reference">â€” ${verse.ref}</p>
+        <p class="click-hint">ðŸ™ Click anywhere for new word</p>
       </div>
     `;
   }
@@ -3973,12 +4774,12 @@ class TempleOS {
     const separator = isWindows ? '\\' : '/';
 
     // Build breadcrumb HTML
-    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">🏠 Root</span>`;
+    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">ðŸ  Root</span>`;
     let cumulativePath = isWindows ? '' : '';
 
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">â€º</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     // Build file list HTML
@@ -3994,7 +4795,7 @@ class TempleOS {
         const parentPath = this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
         filesHtml += `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;">
-            <span class="icon">📂</span>
+            <span class="icon">ðŸ“‚</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         `;
@@ -4015,9 +4816,9 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">← Back</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">⌂ Home</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">↻ Refresh</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">â† Back</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">âŒ‚ Home</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">â†» Refresh</button>
         </div>
         <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
           ${breadcrumbHtml}
@@ -4096,7 +4897,7 @@ class TempleOS {
     let cumulativePath = isWindows ? '' : '';
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">â€º</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     const query = this.fileSearchQuery.trim().toLowerCase();
@@ -4144,7 +4945,7 @@ class TempleOS {
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
         ${parentPath ? `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;" title="Parent folder">
-            <span class="icon">📁</span>
+            <span class="icon">ðŸ“</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         ` : ''}
@@ -4163,7 +4964,7 @@ class TempleOS {
 
     const sortArrow = (key: 'name' | 'size' | 'modified') => {
       if (this.fileSortMode !== key) return '';
-      return this.fileSortDir === 'asc' ? ' ▲' : ' ▼';
+      return this.fileSortDir === 'asc' ? ' â–²' : ' â–¼';
     };
 
     const listHtml = `
@@ -4176,16 +4977,16 @@ class TempleOS {
         </div>
         ${parentPath ? `
           <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
-            <span class="icon">📁</span>
+            <span class="icon">ðŸ“</span>
             <span class="label">..</span>
-            <span style="opacity: 0.6;">—</span>
-            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">â€”</span>
+            <span style="opacity: 0.6;">â€”</span>
           </div>
         ` : ''}
         ${files.map(file => {
       const icon = getFileIcon(file.name, file.isDirectory);
-      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
-      const mod = file.modified ? new Date(file.modified).toLocaleString() : '—';
+      const sizeStr = file.isDirectory ? 'â€”' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleString() : 'â€”';
       return `
             <div class="file-row file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,0,0,0.15);">
               <span class="icon">${icon}</span>
@@ -4201,9 +5002,9 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⟵</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⌂</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">↻</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">âŸµ</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">âŒ‚</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">â†»</button>
 
           <input class="file-search-input" type="text" placeholder="Search this folder" value="${this.fileSearchQuery}"
                  style="flex: 1; min-width: 180px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit; outline: none;">
@@ -4357,7 +5158,7 @@ class TempleOS {
 
             <div>Orientation</div>
             <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;" ${selectedOutput ? '' : 'disabled'}>
-              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}°`}</option>`).join('')}
+              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}Â°`}</option>`).join('')}
             </select>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px;">
@@ -4367,7 +5168,7 @@ class TempleOS {
         `)}
 
         ${card('Lock Screen', `
-          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed (\"god\").</div>
+          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed (\"temple\").</div>
         `)}
       `;
     };
@@ -4407,11 +5208,11 @@ class TempleOS {
       return `
         ${card('Status', `
           <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` â€¢ IP ${ip}` : ''}${ssid ? ` â€¢ ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
           <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
             <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
               <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} />
-              <span style="opacity: 0.9;">Wi‑Fi</span>
+              <span style="opacity: 0.9;">Wiâ€‘Fi</span>
             </label>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
               <button class="net-btn" data-net-action="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
@@ -4420,13 +5221,13 @@ class TempleOS {
           </div>
         `)}
 
-        ${card('Wi‑Fi Networks', `
+        ${card('Wiâ€‘Fi Networks', `
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${window.electronAPI?.listWifiNetworks ? (this.wifiNetworks.slice(0, 10).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} â€¢ ${n.signal}%</div>
                 </div>
                 ${n.inUse ? `
                   <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -4434,7 +5235,7 @@ class TempleOS {
                   <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
                 `}
               </div>
-            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires Electron/Linux.</div>'}
+            `).join('') || '<div style=\"opacity: 0.6;\">No Wiâ€‘Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wiâ€‘Fi management requires Electron/Linux.</div>'}
           </div>
         `)}
 
@@ -4442,13 +5243,13 @@ class TempleOS {
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require Electron/Linux.</div>' : ''}
             ${window.electronAPI?.listSavedNetworks ? ([
-          ...savedWifi.map(n => ({ ...n, kind: 'Wi‑Fi' })),
+          ...savedWifi.map(n => ({ ...n, kind: 'Wiâ€‘Fi' })),
           ...savedOther.map(n => ({ ...n, kind: n.type || 'Connection' }))
         ].slice(0, 14).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: #00ff41; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(n.name)}</div>
-                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` • ${escapeHtml(n.device)}` : ''}</div>
+                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` â€¢ ${escapeHtml(n.device)}` : ''}</div>
                 </div>
                 <div style="display:flex; gap: 8px; flex-shrink: 0;">
                   <button class="saved-net-btn" data-action="connect" data-key="${escapeHtml(n.uuid)}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
@@ -4490,7 +5291,7 @@ class TempleOS {
       const info = this.systemInfo;
       return `
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">âœ</div>
           <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
           <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>
@@ -4503,20 +5304,20 @@ class TempleOS {
           </div>
           <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
-            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || '—'}</div>
-            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
-            <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
-            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '—'}</div>
-            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : '—'}</div>
-            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : '—'}</div>
+            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || 'â€”'}</div>
+            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || 'â€”'}</div>
+            <div style="opacity: 0.7;">User</div><div>${info?.user || 'â€”'}</div>
+            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? 'â€”'}</div>
+            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : 'â€”'}</div>
+            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : 'â€”'}</div>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
             <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
           </div>
         `)}
         <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
-          Made with HolyC 💚 by Giangero Studio<br>
-          © 2025 Giangero Studio
+          Made with HolyC ðŸ’š by Giangero Studio<br>
+          Â© 2025 Giangero Studio
         </div>
       `;
     };
@@ -4601,13 +5402,13 @@ class TempleOS {
         case 'System':
           return `
             <div class="settings-section">
-              <h3>🔊 Sound</h3>
+              <h3>ðŸ”Š Sound</h3>
               <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span>Volume</span>
                 <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
                        style="width: 150px; accent-color: #00ff41;">
               </div>
-              <h3>🖥️ Display</h3>
+              <h3>ðŸ–¥ï¸ Display</h3>
               <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span>Resolution</span>
                 <select class="resolution-select" style="
@@ -4627,7 +5428,7 @@ class TempleOS {
         case 'Personalization':
           return `
             <div class="settings-section">
-              <h3>🎨 Theme</h3>
+              <h3>ðŸŽ¨ Theme</h3>
               <div class="settings-row" style="margin-bottom: 20px;">
                 <button style="
                   padding: 8px 16px;
@@ -4646,7 +5447,7 @@ class TempleOS {
                   opacity: 0.5;
                 " title="Not implemented yet">Light</button>
               </div>
-              <h3>🖼️ Background</h3>
+              <h3>ðŸ–¼ï¸ Background</h3>
               <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                 <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;">Default</div>
                 <div style="aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Solid</div>
@@ -4657,7 +5458,7 @@ class TempleOS {
         case 'Network':
           return `
             <div class="settings-section">
-              <h3>📡 Wi-Fi</h3>
+              <h3>ðŸ“¡ Wi-Fi</h3>
               <div class="settings-row" style="padding: 10px; border: 1px solid #00ff41; margin-bottom: 10px;">
                 <div style="font-weight: bold;">TempleNet_5G</div>
                 <div style="font-size: 12px; color: #00ff41;">Connected, Secure</div>
@@ -4671,7 +5472,7 @@ class TempleOS {
         case 'About':
           return `
             <div class="settings-section" style="text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
+              <div style="font-size: 48px; margin-bottom: 10px;">âœï¸</div>
               <h2 style="color: #ffd700;">TempleOS Remake</h2>
               <p>Version 2.4.0 (Divine Intellect)</p>
               <div style="margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);">
@@ -4680,7 +5481,7 @@ class TempleOS {
                 <div><strong>System Type:</strong> 64-bit Operating System</div>
                 <div><strong>Registered to:</strong> Terry A. Davis</div>
               </div>
-              <p style="font-size: 12px; opacity: 0.6;">© 2025 Giangero Studio</p>
+              <p style="font-size: 12px; opacity: 0.6;">Â© 2025 Giangero Studio</p>
             </div>
           `;
         default:
@@ -4786,10 +5587,60 @@ class TempleOS {
     const terminalWindow = this.windows.find(w => w.id.startsWith('terminal'));
     if (terminalWindow) {
       terminalWindow.content = this.getTerminalContent();
-      this.render();
+      if (!this.ptySupported) {
+        this.render();
+        setTimeout(() => {
+          const input = document.querySelector('.terminal-input') as HTMLInputElement | null;
+          if (this.terminalSearchOpen) {
+            const s = document.querySelector('.terminal-search-input') as HTMLInputElement | null;
+            s?.focus();
+            if (s) s.setSelectionRange(s.value.length, s.value.length);
+            this.scrollTerminalToSearchMatch();
+          } else {
+            input?.focus();
+          }
+        }, 10);
+        return;
+      }
+
+      const contentEl = document.querySelector(`[data-window-id="${terminalWindow.id}"] .window-content`) as HTMLElement | null;
+      if (!contentEl) {
+        // Fallback: if terminal DOM is missing, do a full render
+        this.render();
+        setTimeout(() => this.ensureVisibleTerminalXterms(), 50);
+        return;
+      }
+
+      // Preserve existing xterm host elements (they contain the xterm DOM)
+      const hostMap = new Map<string, HTMLElement>();
+      contentEl.querySelectorAll('.xterm-container[id^="xterm-container-"]').forEach((el) => {
+        const host = el as HTMLElement;
+        if (!host.id) return;
+        hostMap.set(host.id, host);
+        host.remove();
+      });
+
+      // Re-render just the terminal window content
+      contentEl.innerHTML = terminalWindow.content;
+
+      // Replace placeholders with the preserved hosts where possible
+      for (const [id, host] of hostMap) {
+        const placeholder = contentEl.querySelector(`#${CSS.escape(id)}`) as HTMLElement | null;
+        if (placeholder) placeholder.replaceWith(host);
+      }
+
+      // Init any newly created panes and refit visible terminals
       setTimeout(() => {
-        const input = document.querySelector('.terminal-input') as HTMLInputElement | null;
-        input?.focus();
+        this.ensureVisibleTerminalXterms();
+        if (this.terminalSearchOpen) {
+          const s = document.querySelector('.terminal-search-input') as HTMLInputElement | null;
+          s?.focus();
+          if (s) s.setSelectionRange(s.value.length, s.value.length);
+          this.scrollTerminalToSearchMatch();
+        } else {
+          const tab = this.terminalTabs[this.activeTerminalTab];
+          tab?.xterm?.focus();
+        }
       }, 10);
     }
   }
@@ -4903,9 +5754,9 @@ class TempleOS {
 
     const tabsHtml = this.editorTabs.map((tab, i) => `
       <div class="editor-tab ${i === this.activeEditorTab ? 'active' : ''}" data-editor-tab="${i}">
-        ${tab.modified ? '<span class="editor-tab-modified">●</span>' : ''}
+        ${tab.modified ? '<span class="editor-tab-modified">â—</span>' : ''}
         ${escapeHtml(tab.filename)}
-        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">×</span>` : ''}
+        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">Ã—</span>` : ''}
       </div>
     `).join('');
 
@@ -4917,14 +5768,14 @@ class TempleOS {
           <input type="text" class="editor-replace-input" placeholder="Replace..." 
                  value="${escapeHtml(this.editorReplaceQuery)}" data-editor-replace-input />
         ` : ''}
-        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">◀</button>
-        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">▶</button>
+        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">â—€</button>
+        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">â–¶</button>
         ${this.editorFindMode === 'replace' ? `
           <button class="editor-find-btn" data-editor-action="replace" title="Replace">Replace</button>
           <button class="editor-find-btn" data-editor-action="replace-all" title="Replace All">All</button>
         ` : ''}
         <span class="editor-find-count">${this.editorFindMatches.length > 0 ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}` : ''}</span>
-        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">×</button>
+        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">Ã—</button>
       </div>
     ` : '';
 
@@ -5059,7 +5910,7 @@ U0 Main()
       })
       .slice(0, 250);
 
-    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' â–²' : ' â–¼') : '';
 
     const statCard = (title: string, primary: string, secondary: string, percent: number | null) => `
       <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 10px; background: rgba(0,0,0,0.16);">
@@ -5080,15 +5931,15 @@ U0 Main()
           <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
           <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
           <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
-            ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
+            ${s ? `Uptime ${this.formatDuration(s.uptime)} â€¢ ${escapeHtml(s.hostname)}` : 'Loadingâ€¦'}
           </div>
         </div>
 
         <div style="padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
-          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} • ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
-          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : '—', memPct)}
-          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : '—', diskPct === null ? null : diskPct)}
-          ${statCard('Network', `${this.formatFileSize(rxBps)}/s ↓`, `${this.formatFileSize(txBps)}/s ↑`, null)}
+          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} â€¢ ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
+          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : 'â€”', memPct)}
+          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : 'â€”', diskPct === null ? null : diskPct)}
+          ${statCard('Network', `${this.formatFileSize(rxBps)}/s â†“`, `${this.formatFileSize(txBps)}/s â†‘`, null)}
         </div>
 
         <div class="system-monitor-processes" style="flex: 1; overflow: auto; padding: 10px; min-width: 0;">
@@ -5102,12 +5953,12 @@ U0 Main()
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process list…'}</div>` : processes.map(p => `
+            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process listâ€¦'}</div>` : processes.map(p => `
               <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; background: rgba(0,0,0,0.14); min-width: 0;">
                 <button class="proc-kill-btn" data-pid="${p.pid}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 8px; cursor: pointer;">End</button>
                 <div title="${escapeHtml(p.command || p.name)}" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <span style="color: #ffd700;">${escapeHtml(p.name)}</span>
-                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` • ${escapeHtml(p.command)}` : ''}</span>
+                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` â€¢ ${escapeHtml(p.command)}` : ''}</span>
                 </div>
                 <div style="opacity: 0.85;">${p.pid}</div>
                 <div style="opacity: 0.85;">${(p.cpu || 0).toFixed(1)}%</div>
@@ -5160,14 +6011,14 @@ U0 Main()
       ">
         <span style="opacity: 0.5; font-size: 14px;">${(i + 1).toString().padStart(2, '0')}</span>
         <span style="flex: 1; font-size: 15px;">${h.title}</span>
-        ${i === this.currentHymn ? '<span>▶</span>' : ''}
+        ${i === this.currentHymn ? '<span>â–¶</span>' : ''}
       </div>
     `).join('');
 
     return `
       <div class="hymn-player" style="height: 100%; display: flex; flex-direction: column;">
         <div style="text-align: center; padding: 15px; border-bottom: 1px solid rgba(0,255,65,0.2);">
-          <div style="font-size: 24px; margin-bottom: 5px;">🎵 ✝️ 🎵</div>
+          <div style="font-size: 24px; margin-bottom: 5px;">ðŸŽµ âœï¸ ðŸŽµ</div>
           <h2 style="font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ffd700; margin: 0;">DIVINE HYMNS</h2>
           <p style="font-size: 12px; opacity: 0.6; margin-top: 5px;">Orthodox Liturgical Music</p>
         </div>
@@ -5176,9 +6027,9 @@ U0 Main()
           <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px; text-align: center;">${this.hymnList[this.currentHymn].title}</div>
           <audio id="hymn-audio" controls style="width: 100%; filter: sepia(0.3) hue-rotate(80deg);" src="./music/${this.hymnList[this.currentHymn].file}"></audio>
           <div style="display: flex; justify-content: center; gap: 15px; margin-top: 10px;">
-            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">⏮ Prev</button>
-            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">🎲 Random</button>
-            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next ⏭</button>
+            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">â® Prev</button>
+            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">ðŸŽ² Random</button>
+            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next â­</button>
           </div>
         </div>
         
@@ -5223,7 +6074,7 @@ U0 Main()
             item.setAttribute('style', `padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(0,255,65,0.1); display: flex; align-items: center; gap: 10px; background: rgba(0,255,65,0.15); color: #ffd700;`);
             // Add play icon if missing
             if (!item.querySelector('span:nth-child(3)')) {
-              item.insertAdjacentHTML('beforeend', '<span>▶</span>');
+              item.insertAdjacentHTML('beforeend', '<span>â–¶</span>');
             }
           } else {
             item.classList.remove('active');
@@ -5335,6 +6186,25 @@ U0 Main()
     if (typeof cfg.volumeLevel === 'number') this.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
     if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
 
+    if (cfg.terminal) {
+      const t = cfg.terminal;
+      if (t.uiTheme === 'green' || t.uiTheme === 'cyan' || t.uiTheme === 'amber' || t.uiTheme === 'white') this.terminalUiTheme = t.uiTheme;
+      if (typeof t.fontFamily === 'string' && t.fontFamily.trim()) this.terminalFontFamily = t.fontFamily;
+      if (typeof t.fontSize === 'number') this.terminalFontSize = Math.max(10, Math.min(32, Math.round(t.fontSize)));
+      if (typeof t.promptTemplate === 'string' && t.promptTemplate.trim()) this.terminalPromptTemplate = t.promptTemplate;
+      if (t.aliases && typeof t.aliases === 'object') {
+        const next: Record<string, string> = {};
+        for (const [k, v] of Object.entries(t.aliases)) {
+          const key = String(k || '').trim().toLowerCase();
+          if (!key || !/^[a-z0-9_\\-]+$/.test(key)) continue;
+          if (typeof v !== 'string') continue;
+          next[key] = v;
+          if (Object.keys(next).length >= 64) break;
+        }
+        this.terminalAliases = next;
+      }
+    }
+
 
     if (cfg.mouse) {
       if (typeof cfg.mouse.speed === 'number') this.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
@@ -5428,6 +6298,14 @@ U0 Main()
       volumeLevel: this.volumeLevel,
       doNotDisturb: this.doNotDisturb,
 
+      terminal: {
+        aliases: this.terminalAliases,
+        promptTemplate: this.terminalPromptTemplate,
+        uiTheme: this.terminalUiTheme,
+        fontFamily: this.terminalFontFamily,
+        fontSize: this.terminalFontSize
+      },
+
       audio: { defaultSink: this.audioDevices.defaultSink, defaultSource: this.audioDevices.defaultSource },
       mouse: { ...this.mouseSettings },
       pinnedStart: this.pinnedStart.slice(0, 24),
@@ -5458,15 +6336,15 @@ U0 Main()
   };
 
   private getUpdaterContent(): string {
-    const statusIcon = this.updaterState.status === 'success' ? '✅' :
-      this.updaterState.status === 'error' ? '❌' :
-        this.updaterState.status === 'updating' ? '⏳' :
-          this.updaterState.status === 'available' ? '🆕' : '🔍';
+    const statusIcon = this.updaterState.status === 'success' ? 'âœ…' :
+      this.updaterState.status === 'error' ? 'âŒ' :
+        this.updaterState.status === 'updating' ? 'â³' :
+          this.updaterState.status === 'available' ? 'ðŸ†•' : 'ðŸ”';
 
     return `
       <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
-        <div style="font-size: 48px; margin-bottom: 15px;">⬇️</div>
-        <h2 style="margin: 0 0 10px 0; color: #ffd700;">✝ HOLY UPDATER ✝</h2>
+        <div style="font-size: 48px; margin-bottom: 15px;">â¬‡ï¸</div>
+        <h2 style="margin: 0 0 10px 0; color: #ffd700;">âœ HOLY UPDATER âœ</h2>
         <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
         
         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
@@ -5478,17 +6356,17 @@ U0 Main()
           <button class="updater-btn" data-updater-action="check" 
                   style="background: rgba(0,255,65,0.2); border: 1px solid #00ff41; color: #00ff41; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating ? 'disabled' : ''}>
-            🔍 Check for Updates
+            ðŸ” Check for Updates
           </button>
           <button class="updater-btn" data-updater-action="update" 
                   style="background: rgba(255,215,0,0.2); border: 1px solid #ffd700; color: #ffd700; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating || this.updaterState.status !== 'available' ? 'disabled' : ''}>
-            ⬇️ Download & Install
+            â¬‡ï¸ Download & Install
           </button>
           ${this.updaterState.status === 'success' ? `
           <button class="updater-btn" data-updater-action="reboot" 
                   style="background: rgba(255,100,100,0.2); border: 1px solid #ff6464; color: #ff6464; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;">
-            🔄 Reboot Now
+            ðŸ”„ Reboot Now
           </button>
           ` : ''}
         </div>
@@ -5512,13 +6390,13 @@ U0 Main()
         if (result.updatesAvailable) {
           this.updaterState = {
             status: 'available',
-            message: `🆕 ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
+            message: `ðŸ†• ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
             isUpdating: false
           };
         } else {
           this.updaterState = {
             status: 'idle',
-            message: '✨ Your temple is blessed with the latest version!',
+            message: 'âœ¨ Your temple is blessed with the latest version!',
             isUpdating: false
           };
         }
@@ -5535,7 +6413,7 @@ U0 Main()
   private async runUpdate(): Promise<void> {
     if (!window.electronAPI) return;
 
-    this.updaterState = { status: 'updating', message: '📥 Downloading divine updates...', isUpdating: true };
+    this.updaterState = { status: 'updating', message: 'ðŸ“¥ Downloading divine updates...', isUpdating: true };
     this.updateUpdaterWindow();
 
     try {
@@ -5543,7 +6421,7 @@ U0 Main()
       if (result.success) {
         this.updaterState = {
           status: 'success',
-          message: '✅ Update complete! Reboot to apply the new blessings.',
+          message: 'âœ… Update complete! Reboot to apply the new blessings.',
           isUpdating: false
         };
       } else {
@@ -5701,12 +6579,12 @@ U0 Main()
               </div>
               <div class="alt-tab-preview-body">
                 ${previewLines.length
-                  ? previewLines.map(l => `<div class="alt-tab-preview-line">${escapeHtml(l)}</div>`).join('')
-                  : `<div class="alt-tab-preview-empty">No preview available.</div>`}
+        ? previewLines.map(l => `<div class="alt-tab-preview-line">${escapeHtml(l)}</div>`).join('')
+        : `<div class="alt-tab-preview-empty">No preview available.</div>`}
               </div>
             </div>
           </div>
-          <div class="alt-tab-hint">Alt+Tab to cycle • Release Alt to switch</div>
+          <div class="alt-tab-hint">Alt+Tab to cycle â€¢ Release Alt to switch</div>
         </div>
       </div>
     `;
@@ -5750,7 +6628,7 @@ U0 Main()
       const stats = this.monitorStats;
       const cpu = typeof stats?.cpuPercent === 'number' ? `${stats.cpuPercent.toFixed(0)}% CPU` : '';
       const mem = stats?.memory?.total ? `${this.formatFileSize(stats.memory.used)} / ${this.formatFileSize(stats.memory.total)} RAM` : '';
-      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s ↓ • ${this.formatFileSize(stats.network.txBps)}/s ↑` : '';
+      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s â†“ â€¢ ${this.formatFileSize(stats.network.txBps)}/s â†‘` : '';
       return ['Task Manager', cpu, mem, net].filter(Boolean);
     }
 
@@ -5776,6 +6654,23 @@ U0 Main()
 
   private closeWindow(windowId: string) {
     const wasSystemMonitor = windowId.startsWith('system-monitor');
+    const wasTerminal = windowId.startsWith('terminal');
+    if (wasTerminal) {
+      for (const tab of this.terminalTabs) {
+        if (tab?.ptyId && window.electronAPI?.destroyPty) {
+          void window.electronAPI.destroyPty(tab.ptyId);
+        }
+        tab.xterm?.dispose();
+      }
+      this.terminalTabs = [];
+      this.activeTerminalTab = 0;
+      this.terminalSplitMode = 'single';
+      this.terminalSplitSecondaryTabId = null;
+      this.terminalSearchOpen = false;
+      this.terminalSearchQuery = '';
+      this.terminalSearchMatches = [];
+      this.terminalSearchMatchIndex = -1;
+    }
     this.windows = this.windows.filter(w => w.id !== windowId);
     if (this.windows.length > 0) {
       this.windows[this.windows.length - 1].active = true;
@@ -5988,7 +6883,7 @@ U0 Main()
 
           <div class="lock-input-row">
             <input type="password" class="lock-password-input" placeholder="${this.lockInputMode === 'pin' ? 'PIN' : 'Password'}" inputmode="${this.lockInputMode === 'pin' ? 'numeric' : 'text'}" autocomplete="off">
-            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>👁</button>
+            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>ðŸ‘</button>
           </div>
 
           <div class="lock-caps" id="lock-caps">Caps Lock is ON</div>
@@ -5998,7 +6893,7 @@ U0 Main()
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="lock-pin-btn" data-pin-key="${n}">${n}</button>`).join('')}
             <button class="lock-pin-btn alt" data-pin-key="clear">CLR</button>
             <button class="lock-pin-btn" data-pin-key="0">0</button>
-            <button class="lock-pin-btn alt" data-pin-key="back">⌫</button>
+            <button class="lock-pin-btn alt" data-pin-key="back">âŒ«</button>
             <button class="lock-pin-enter" data-pin-key="enter">ENTER</button>
           </div>
 
@@ -6112,7 +7007,7 @@ U0 Main()
       const reveal = lockScreen.querySelector('[data-lock-action="reveal"]') as HTMLButtonElement | null;
       if (reveal) {
         reveal.disabled = mode === 'pin';
-        reveal.textContent = '👁';
+        reveal.textContent = 'ðŸ‘';
       }
 
       lockScreen.querySelectorAll('[data-lock-mode]').forEach((el) => {
@@ -6137,7 +7032,7 @@ U0 Main()
         e.preventDefault();
         if (this.lockInputMode === 'pin') return;
         input.type = input.type === 'password' ? 'text' : 'password';
-        revealBtn.textContent = input.type === 'password' ? '👁' : '🙈';
+        revealBtn.textContent = input.type === 'password' ? 'ðŸ‘' : 'ðŸ™ˆ';
         input.focus();
       });
     }
@@ -6521,10 +7416,10 @@ U0 Main()
         const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
         response = `
 <div class="terminal-line gold">"${verse.text}"</div>
-<div class="terminal-line system">    — ${verse.ref}</div>`;
+<div class="terminal-line system">    â€” ${verse.ref}</div>`;
         break;
       case 'hymn':
-        response = `<div class="terminal-line success">♪ Opening Divine Hymns... ♪</div>`;
+        response = `<div class="terminal-line success">â™ª Opening Divine Hymns... â™ª</div>`;
         // Open hymn player and play random hymn
         setTimeout(() => {
           this.openApp('hymns');
@@ -6538,15 +7433,15 @@ U0 Main()
         break;
       case 'about':
         response = `
-<div class="terminal-line gold">╔════════════════════════════════════════╗</div>
-<div class="terminal-line gold">║          T E M P L E   O S             ║</div>
-<div class="terminal-line gold">╠════════════════════════════════════════╣</div>
-<div class="terminal-line">║  God's Operating System                ║</div>
-<div class="terminal-line">║  Written in HolyC - God's Language     ║</div>
-<div class="terminal-line">║  In memory of Terry A. Davis           ║</div>
-<div class="terminal-line gold">╠════════════════════════════════════════╣</div>
-<div class="terminal-line system">║  Remake by Giangero Studio             ║</div>
-<div class="terminal-line gold">╚════════════════════════════════════════╝</div>`;
+<div class="terminal-line gold">â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—</div>
+<div class="terminal-line gold">â•‘          T E M P L E   O S             â•‘</div>
+<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
+<div class="terminal-line">â•‘  God's Operating System                â•‘</div>
+<div class="terminal-line">â•‘  Written in HolyC - God's Language     â•‘</div>
+<div class="terminal-line">â•‘  In memory of Terry A. Davis           â•‘</div>
+<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
+<div class="terminal-line system">â•‘  Remake by Giangero Studio             â•‘</div>
+<div class="terminal-line gold">â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•</div>`;
         break;
       default:
         if (cmd) {

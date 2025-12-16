@@ -108,36 +108,36 @@
 ## 💪 TIER 4: CORE APPS & FUNCTIONALITY
 
 ### 4.1 Real Terminal (PTY Shell)
-- [/] Real shell (bash/zsh via pty.js) (non-PTY exec implemented; PTY backend ready)
+- [x] Real shell (node-pty + xterm.js; fallback exec still supported)
 - [x] Command history (up/down arrows)
-- [ ] Tab completion
+- [x] Tab completion
 - [x] ANSI color support
 - [x] Copy/paste
 - [x] Multiple tabs
-- [ ] Split panes (like tmux)
+- [x] Split panes (like tmux)
 - [x] Scrollback buffer
-- [ ] Search in output
+- [x] Search in output
 - [x] Clickable URLs
-- [ ] Custom fonts/colors
-- [ ] Alias support
-- [ ] Custom prompts
+- [x] Custom fonts/colors
+- [x] Alias support
+- [x] Custom prompts
 
 #### Special TempleOS Commands:
-- [ ] `god` - Random Bible verse
-- [ ] `oracle` - Random word generator
-- [ ] `hymn` - Play random hymn
-- [ ] `terry` - Terry Davis quote
-- [ ] `neofetch` - System info (TempleOS styled)
-- [ ] `pray` - Random prayer
-- [ ] `psalm` - Random psalm
-- [ ] `confess` - Clear terminal history ("sins")
+- [x] `god` - Random Bible verse
+- [x] `oracle` - Random word generator
+- [x] `hymn` - Play random hymn
+- [x] `terry` - Terry Davis quote
+- [x] `neofetch` - System info (TempleOS styled)
+- [x] `pray` - Random prayer
+- [x] `psalm` - Random psalm
+- [x] `confess` - Clear terminal history ("sins")
 
 #### Fun Terminal Commands:
-- [ ] `cowsay` - ASCII cow with message
-- [ ] `fortune` - Random quote/wisdom
-- [ ] `matrix` - Matrix rain animation
-- [ ] `figlet` - ASCII text art
-- [ ] `sl` - Steam locomotive (for typos)
+- [x] `cowsay` - ASCII cow with message
+- [x] `fortune` - Random quote/wisdom
+- [x] `matrix` - Matrix rain animation
+- [x] `figlet` - ASCII text art
+- [x] `sl` - Steam locomotive (for typos)
 
 ### 4.2 Text Editor Enhancements
 - [ ] Syntax highlighting (HolyC, Python, JS, etc.)

@@ -545,7 +545,7 @@ class TempleOS {
         <div class="start-menu-right">
           <div class="start-user-section">
             <div class="start-user-avatar">
-              <img src="${templeLogo}" alt="Temple" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+              <img src="${templeLogo}" draggable="false" alt="Temple" style="width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 50%;">
             </div>
             <div class="start-user-name">temple</div>
           </div>
@@ -2241,7 +2241,7 @@ U0 Main()
         font-family: 'VT323', monospace;
         color: #00ff41;
       ">
-        <img src="${templeLogo}" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);">
+        <img src="${templeLogo}" draggable="false" style="width: 100px; height: 100px; object-fit: contain; background: #000; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);">
         <h1 style="font-size: 48px; margin: 0 0 10px 0;">TEMPLE OS</h1>
         <p style="opacity: 0.7; margin-bottom: 40px;">Click anywhere to unlock</p>
         <div style="font-size: 72px;" id="lock-clock"></div>

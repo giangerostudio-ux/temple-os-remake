@@ -863,8 +863,9 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .start-user-avatar {
-  font-size: 48px;
-  margin-bottom: 8px;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 8px auto;
 }
 
 .start-user-name {

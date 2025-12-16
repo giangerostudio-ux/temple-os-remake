@@ -217,27 +217,28 @@ class TempleOS {
     return `
       <div class="tray-popup volume-popup" style="
         position: absolute; 
-        bottom: 30px; 
-        left: -12px; 
-        width: 40px; 
-        height: 120px; 
+        bottom: 45px; /* Moved up slightly */
+        left: -15px; 
+        width: 50px; 
+        height: 140px; 
         background: rgba(13,17,23,0.95); 
-        border: 2px solid #555; 
+        border: 1px solid #00ff41; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.8);
         z-index: 10000; 
         display: flex; 
         flex-direction: column; 
         align-items: center; 
         justify-content: center; 
-        padding: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        border-radius: 6px;
       ">
         <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
                style="
-                 writing-mode: bt-lr; /* IE */
-                 -webkit-appearance: slider-vertical; /* WebKit */
-                 width: 8px; 
-                 height: 100px; 
+                 width: 100px; 
+                 height: 20px; 
                  cursor: pointer;
+                 transform: rotate(-90deg);
+                 accent-color: #00ff41;
+                 margin: 0;
                ">
       </div>
     `;
@@ -1018,7 +1019,7 @@ class TempleOS {
       // Volume Slider
       if (target.classList.contains('volume-slider')) {
         this.volumeLevel = parseInt(target.value);
-        
+
         // Call system volume API
         if (window.electronAPI) {
           window.electronAPI.setSystemVolume(this.volumeLevel).catch(console.error);

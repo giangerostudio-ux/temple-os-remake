@@ -3827,6 +3827,19 @@ class TempleOS {
         const desktopEl = target.closest('.desktop') as HTMLElement;
         const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
 
+        // DEBUG: Log what's being matched
+        console.log('Context menu debug:', {
+          target: target.className,
+          startAppItem: !!startAppItem,
+          taskbarItem: !!taskbarItem,
+          desktopIcon: !!desktopIcon,
+          fileItem: !!fileItem,
+          desktopEl: !!desktopEl,
+          fileBrowserEl: !!fileBrowserEl,
+          inWindow: !!target.closest('.window'),
+          inTaskbar: !!target.closest('.taskbar')
+        });
+
         if (startAppItem) {
           const key =
             startAppItem.dataset.launchKey ||

@@ -1875,7 +1875,7 @@ class TempleOS {
       const result = await window.electronAPI.getInstalledApps();
       if (result.success) {
         this.installedApps = result.apps;
-        console.log(`Loaded ${this.installedApps.length} installed apps`);
+
       }
     } catch (error) {
       console.error('Error loading installed apps:', error);
@@ -2244,11 +2244,11 @@ class TempleOS {
 
     // GUARD: Prevent multiple listeners on the same DOM element (handles HMR/reloads)
     if (app.dataset.listenersAttached === 'true') {
-      console.log('Event listeners already attached to DOM - skipping');
+
       return;
     }
     app.dataset.listenersAttached = 'true';
-    console.log('Attaching global event listeners');
+
 
     // Volume Slider Input
     app.addEventListener('input', (e) => {
@@ -3841,26 +3841,17 @@ class TempleOS {
             e.stopPropagation(); // Stop bubbling (don't trigger app listener)
             this.closeContextMenu();
 
-            // VISIBLE DEBUG (Keep enabled until fixed)
-            // It seems this notification is REQUIRED for the menu to show up in the user's VM environment.
-            // Likely a focus/layout race condition. We will keep it but maybe we can make hidden?
-            this.showNotification('System', 'Menu Active', 'info');
 
-            console.log('Desktop context menu triggered');
 
-            // Wrap in requestAnimationFrame to ensure DOM is ready/reflow happens
-            // This mimics the slight delay the debug notification might have provided
-            requestAnimationFrame(() => {
-              this.showContextMenu(e.clientX, e.clientY, [
-                { label: '📁 Open Files', action: () => this.openApp('files') },
-                { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
-                { divider: true },
-                { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-                { label: '⚙️ Settings', action: () => this.openApp('settings') },
-                { divider: true },
-                { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
-              ]);
-            });
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: '📁 Open Files', action: () => this.openApp('files') },
+              { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+              { divider: true },
+              { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+              { label: '⚙️ Settings', action: () => this.openApp('settings') },
+              { divider: true },
+              { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+            ]);
           }
         });
       }

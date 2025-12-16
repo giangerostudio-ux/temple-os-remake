@@ -946,3 +946,96 @@ input[type=range]::-webkit-slider-thumb {
   background: rgba(0, 255, 65, 0.15);
   color: #00ff41;
 }
+/* Notifications & Toasts */
+.toast-container {
+  position: fixed;
+  bottom: 80px; /* Above taskbar */
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10001;
+  pointer-events: none; /* Let clicks pass through container */
+}
+
+.toast {
+  background: rgba(13, 17, 23, 0.95);
+  border: 2px solid #ffd700;
+  padding: 12px;
+  width: 300px;
+  color: #fff;
+  font-family: 'VT323', monospace;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.3s ease-out;
+  pointer-events: auto; /* Re-enable clicks on toast */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.toast.divine {
+  border-color: #00ff41;
+  background: rgba(0, 20, 0, 0.95);
+}
+
+.toast.error {
+  border-color: #ff0000;
+  background: rgba(20, 0, 0, 0.95);
+}
+
+.toast.warning {
+  border-color: #ffff00;
+}
+
+.toast-header {
+  font-weight: bold;
+  font-size: 1.1em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.toast-body {
+  font-size: 1.0em;
+  line-height: 1.4;
+}
+
+.toast-close {
+  cursor: pointer;
+  color: #888;
+}
+.toast-close:hover {
+  color: #fff;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.notification-item {
+  border-bottom: 1px solid #333;
+  padding: 8px;
+  margin-bottom: 5px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.notification-item:last-child {
+  border-bottom: none;
+}
+.notification-item.unread {
+  border-left: 3px solid #ffd700;
+}
+.notification-time {
+  font-size: 0.8em;
+  color: #888;
+  margin-top: 4px;
+  display: block;
+}
+

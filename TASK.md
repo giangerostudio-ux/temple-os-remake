@@ -80,13 +80,13 @@
 - [x] Integrate with Start Menu & Tray
 
 ### 3.2 Notifications System 🔄
-- [ ] Toast notification component (pop up in corner)
-- [ ] Notification history panel
-- [ ] Do Not Disturb mode
-- [ ] App-specific notifications
+- [x] Toast notification component (pop up in corner)
+- [x] Notification history panel
+- [x] Do Not Disturb mode
+- [x] App-specific notifications
 - [ ] Actions in notifications
-- [ ] Sound on notification
-- [ ] Notification indicator badge
+- [x] Sound on notification
+- [x] Notification indicator badge
 
 ### 3.3 Lock Screen
 - [ ] Password/PIN entry UI

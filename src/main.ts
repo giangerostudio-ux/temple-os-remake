@@ -65,6 +65,15 @@ interface InstalledApp {
   desktopFile?: string;
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+  type: 'info' | 'warning' | 'error' | 'divine';
+}
+
 // ============================================
 // FILE ICON HELPER
 // ============================================
@@ -150,6 +159,14 @@ class TempleOS {
   private installedApps: InstalledApp[] = [];
   private startMenuSearchQuery = '';
 
+  // Notifications State
+  private notifications: Notification[] = [];
+  private activeToasts: Notification[] = [];
+  private audioContext: AudioContext | null = null;
+  private doNotDisturb = false;
+
+
+
   constructor() {
     this.init();
   }
@@ -173,6 +190,93 @@ class TempleOS {
 
     // Load installed apps for Start Menu
     this.loadInstalledApps();
+
+    // Welcome Notification
+    setTimeout(() => {
+      this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine');
+    }, 2000);
+  }
+
+  // ============================================
+  // NOTIFICATIONS SYSTEM
+  // ============================================
+  private showNotification(title: string, message: string, type: 'info' | 'warning' | 'error' | 'divine' = 'info') {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const notification: Notification = {
+      id,
+      title,
+      message,
+      timestamp: Date.now(),
+      read: false,
+      type
+    };
+
+    // Add to history
+    this.notifications.unshift(notification);
+
+    if (!this.doNotDisturb) {
+      // Add to active toasts
+      this.activeToasts.push(notification);
+
+      // Play sound
+      this.playNotificationSound(type);
+
+      // Auto dismiss toast after 5 seconds
+      setTimeout(() => {
+        this.activeToasts = this.activeToasts.filter(t => t.id !== id);
+        this.render();
+      }, 5000);
+    }
+
+    this.render();
+  }
+
+  private playNotificationSound(type: string) {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    // TempleOS style beeps
+    const now = this.audioContext.currentTime;
+
+    if (type === 'divine') {
+      // Angelic chord
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(523.25, now); // C5
+      oscillator.frequency.setValueAtTime(659.25, now + 0.1); // E5
+      oscillator.frequency.setValueAtTime(783.99, now + 0.2); // G5
+      gainNode.gain.setValueAtTime(0.1, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+      oscillator.start(now);
+      oscillator.stop(now + 1.0);
+    } else if (type === 'error') {
+      // Error buzz
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(110, now);
+      oscillator.frequency.linearRampToValueAtTime(55, now + 0.3);
+      gainNode.gain.setValueAtTime(0.1, now);
+      gainNode.gain.linearRampToValueAtTime(0.01, now + 0.3);
+      oscillator.start(now);
+      oscillator.stop(now + 0.3);
+    } else {
+      // Standard beep
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, now);
+      gainNode.gain.setValueAtTime(0.05, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      oscillator.start(now);
+      oscillator.stop(now + 0.1);
+    }
   }
 
   private renderInitial() {
@@ -193,6 +297,7 @@ class TempleOS {
         pointer-events: none;
         transition: all 0.1s;
       "></div>
+      <div id="toast-container" class="toast-container"></div>
       ${this.renderTaskbar()}
     `;
   }
@@ -201,6 +306,12 @@ class TempleOS {
   private render() {
     const windowsContainer = document.getElementById('windows-container')!;
     const taskbarApps = document.querySelector('.taskbar-apps')!;
+    const toastContainer = document.getElementById('toast-container');
+
+    // Update toasts
+    if (toastContainer) {
+      toastContainer.innerHTML = this.renderToasts();
+    }
 
     // Update windows (only show non-minimized)
     windowsContainer.innerHTML = this.windows
@@ -348,7 +459,9 @@ class TempleOS {
         position: absolute; 
         bottom: 40px; 
         right: 40px; 
-        width: 250px; 
+        width: 300px;
+        max-height: 400px;
+        overflow-y: auto; 
         background: rgba(13,17,23,0.95); 
         border: 2px solid #ffd700; 
         z-index: 10000; 
@@ -356,15 +469,52 @@ class TempleOS {
         font-family: 'VT323', monospace; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       ">
-        <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700;">
-          Notifications
+      ">
+        <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
+          <span>Notifications</span>
+          <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
+            ${this.doNotDisturb ? '🔕' : '🔔'}
+          </button>
         </div>
-        <div style="padding: 10px; text-align: center; color: #fff;">
-          <div style="font-size: 14px; margin-bottom: 5px;">No new earthly notifications.</div>
-          <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
+        <div style="padding: 5px; color: #fff;">
+          ${this.notifications.length === 0 ? `
+            <div style="text-align: center; margin: 20px 0;">
+              <div style="font-size: 14px; margin-bottom: 5px;">No new earthly notifications.</div>
+              <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
+            </div>
+          ` : this.notifications.map(n => `
+            <div class="notification-item ${!n.read ? 'unread' : ''}">
+              <div style="font-weight: bold; color: ${this.getNotificationColor(n.type)}">${n.title}</div>
+              <div style="font-size: 14px;">${n.message}</div>
+              <span class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</span>
+            </div>
+          `).join('')}
         </div>
       </div>
     `;
+  }
+
+  private renderToasts() {
+    if (this.activeToasts.length === 0) return '';
+
+    return this.activeToasts.map(toast => `
+      <div class="toast ${toast.type}">
+        <div class="toast-header">
+          <span style="color: ${this.getNotificationColor(toast.type)}">${toast.title}</span>
+          <span class="toast-close" onclick="console.log('Dismiss toast')">x</span> 
+        </div>
+        <div class="toast-body">${toast.message}</div>
+      </div>
+    `).join('');
+  }
+
+  private getNotificationColor(type: string): string {
+    switch (type) {
+      case 'divine': return '#00ff41';
+      case 'error': return '#ff0000';
+      case 'warning': return '#ffff00';
+      default: return '#fff';
+    }
   }
 
   private formatTime() {
@@ -725,6 +875,14 @@ class TempleOS {
         this.showCalendarPopup = false;
         this.showNetworkPopup = false;
         this.showNetworkPopup = false;
+        this.render();
+        return;
+      }
+
+      // DND Toggle
+      const dndBtn = target.closest('.dnd-btn');
+      if (dndBtn) {
+        this.doNotDisturb = !this.doNotDisturb;
         this.render();
         return;
       }
@@ -2466,4 +2624,4 @@ U0 Main()
 }
 
 // Initialize TempleOS
-new TempleOS();
+(window as any).templeOS = new TempleOS();

@@ -131,7 +131,6 @@ class TempleOS {
   private showCalendarPopup = false;
   private showNetworkPopup = false;
   private showNotificationPopup = false;
-  private showPowerMenu = false;
   private showStartMenu = false;
   private volumeLevel = 50;
 
@@ -249,15 +248,6 @@ class TempleOS {
     `;
   }
 
-  private renderPowerMenu() {
-    return `
-      <div class="power-menu" style="bottom: 50px; right: 10px;">
-        <div class="power-menu-item" data-power-action="lock">🔒 Lock</div>
-        <div class="power-menu-item" data-power-action="restart">🔄 Restart</div>
-        <div class="power-menu-item" data-power-action="shutdown">⏻ Shutdown</div>
-      </div>
-    `;
-  }
 
   private renderVolumePopup() {
     return `
@@ -477,13 +467,7 @@ class TempleOS {
          ${this.showNotificationPopup ? this.renderNotificationPopup() : ''}
       </div>
  
-      <button class="power-btn" title="Power Options">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-          <line x1="12" y1="2" x2="12" y2="12"></line>
-        </svg>
-      </button>
-      ${this.showPowerMenu ? this.renderPowerMenu() : ''}
+
 
       <div class="taskbar-clock" id="clock-container" style="cursor: pointer; position: relative;">
         <span id="clock-text">${this.formatTime()}</span>
@@ -679,7 +663,7 @@ class TempleOS {
         if (!this.showStartMenu) {
           this.startMenuSearchQuery = ''; // Reset search when closing
         }
-        this.showPowerMenu = false; // Close power menu if open
+
         this.render();
         return;
       }
@@ -689,7 +673,8 @@ class TempleOS {
       if (volIcon) {
         this.showVolumePopup = !this.showVolumePopup;
         this.showCalendarPopup = false;
-        this.showPowerMenu = false;
+        this.showCalendarPopup = false;
+        this.showNetworkPopup = false;
         this.showNetworkPopup = false;
         this.showNotificationPopup = false;
         this.render();
@@ -709,7 +694,8 @@ class TempleOS {
       if (clock) {
         this.showCalendarPopup = !this.showCalendarPopup;
         this.showVolumePopup = false;
-        this.showPowerMenu = false;
+        this.showVolumePopup = false;
+        this.showNetworkPopup = false;
         this.showNetworkPopup = false;
         this.showNotificationPopup = false;
         this.render();
@@ -722,7 +708,8 @@ class TempleOS {
         this.showNetworkPopup = !this.showNetworkPopup;
         this.showVolumePopup = false;
         this.showCalendarPopup = false;
-        this.showPowerMenu = false;
+        this.showCalendarPopup = false;
+        this.showNotificationPopup = false;
         this.showNotificationPopup = false;
         this.render();
         return;
@@ -734,7 +721,8 @@ class TempleOS {
         this.showNotificationPopup = !this.showNotificationPopup;
         this.showVolumePopup = false;
         this.showCalendarPopup = false;
-        this.showPowerMenu = false;
+        this.showCalendarPopup = false;
+        this.showNetworkPopup = false;
         this.showNetworkPopup = false;
         this.render();
         return;
@@ -827,35 +815,9 @@ class TempleOS {
         this.render();
       }
 
-      // Power button click - toggle power menu
-      const powerBtn = target.closest('.power-btn') as HTMLElement;
-      if (powerBtn) {
-        this.showPowerMenu = !this.showPowerMenu;
-        this.render();
-        return;
-      }
 
-      // Power menu item click
-      const powerMenuItem = target.closest('.power-menu-item') as HTMLElement;
-      if (powerMenuItem && powerMenuItem.dataset.powerAction) {
-        const action = powerMenuItem.dataset.powerAction;
-        this.showPowerMenu = false;
 
-        if (action === 'shutdown' && window.electronAPI) {
-          window.electronAPI.shutdown();
-        } else if (action === 'restart' && window.electronAPI) {
-          window.electronAPI.restart();
-        } else if (action === 'lock') {
-          this.showLockScreen();
-        }
-        return;
-      }
 
-      // Click outside power menu closes it
-      if (this.showPowerMenu && !target.closest('.power-menu') && !target.closest('.power-btn')) {
-        this.showPowerMenu = false;
-        this.render();
-      }
 
       // Refresh Word of God - click anywhere in the word-of-god container
       const wogContent = target.closest('.word-of-god') as HTMLElement;
@@ -2257,7 +2219,7 @@ U0 Main()
   // LOCK SCREEN
   // ============================================
   private showLockScreen(): void {
-    this.showPowerMenu = false;
+
 
     // Create lock screen overlay
     const existingLock = document.querySelector('.lock-screen');

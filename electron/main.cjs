@@ -183,25 +183,39 @@ ipcMain.handle('system:info', () => ({
     user: os.userInfo().username
 }));
 
+const projectRoot = path.resolve(__dirname, '..');
+
 // ============================================
 // HOLY UPDATER IPC
 // ============================================
 ipcMain.handle('updater:check', async () => {
     return new Promise((resolve) => {
         // Check for updates by doing git fetch and comparing
-        exec('cd /opt/templeos && git fetch origin main && git rev-list HEAD...origin/main --count',
-            (error, stdout, stderr) => {
-                if (error) {
-                    resolve({ success: false, error: error.message });
+        // On Windows, use 'git fetch' then check rev-list
+        const command = `cd "${projectRoot}" && git fetch origin main && git rev-list HEAD...origin/main --count`;
+
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                // If dev environment or no git, just mock success for now to avoid crashing user experience
+                if (process.env.NODE_ENV === 'development') {
+                    resolve({
+                        success: true,
+                        updatesAvailable: false,
+                        behindCount: 0,
+                        message: "Dev Mode: No updates"
+                    });
                     return;
                 }
-                const behindCount = parseInt(stdout.trim()) || 0;
-                resolve({
-                    success: true,
-                    updatesAvailable: behindCount > 0,
-                    behindCount
-                });
+                resolve({ success: false, error: error.message });
+                return;
             }
+            const behindCount = parseInt(stdout.trim()) || 0;
+            resolve({
+                success: true,
+                updatesAvailable: behindCount > 0,
+                behindCount
+            });
+        }
         );
     });
 });
@@ -209,11 +223,9 @@ ipcMain.handle('updater:check', async () => {
 ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
         // Pull updates, rebuild, and prepare for reboot
-        const updateScript = `
-            cd /opt/templeos && 
-            git pull origin main && 
-            npm run build -- --base=./
-        `;
+        // Use npm.cmd on Windows if needed, but 'npm' usually works
+        const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        const updateScript = `cd "${projectRoot}" && git pull origin main && ${npmCmd} run build -- --base=./`;
 
         exec(updateScript, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {

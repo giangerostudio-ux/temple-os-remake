@@ -1240,7 +1240,7 @@ class TempleOS {
         const display = this.launcherDisplayForKey(s.key);
         return {
           key: s.key,
-          icon: display?.icon || 'dY"Ý',
+          icon: display?.icon || '📄',
           label: s.label
         };
       });
@@ -1793,14 +1793,14 @@ class TempleOS {
 
   private builtinLauncherMeta(appId: string): { label: string; icon: string } | null {
     switch (appId) {
-      case 'terminal': return { label: 'Terminal', icon: `dY'¯` };
-      case 'word-of-god': return { label: 'Word of God', icon: 'ƒo?‹,?' };
-      case 'files': return { label: 'Files', icon: 'dY"?' };
-      case 'editor': return { label: 'HolyC Editor', icon: 'dY"?' };
-      case 'hymns': return { label: 'Hymn Player', icon: 'dYZæ' };
-      case 'settings': return { label: 'Settings', icon: 'ƒsT‹,?' };
-      case 'updater': return { label: 'Holy Updater', icon: 'ƒªØ‹,?' };
-      case 'system-monitor': return { label: 'Task Manager', icon: 'dY-ЭЛ,?' };
+      case 'terminal': return { label: 'Terminal', icon: '💻' };
+      case 'word-of-god': return { label: 'Word of God', icon: '✝️' };
+      case 'files': return { label: 'Files', icon: '📁' };
+      case 'editor': return { label: 'HolyC Editor', icon: '📝' };
+      case 'hymns': return { label: 'Hymn Player', icon: '🎵' };
+      case 'settings': return { label: 'Settings', icon: '⚙️' };
+      case 'updater': return { label: 'Holy Updater', icon: '⬇️' };
+      case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
       default: return null;
     }
   }
@@ -2327,6 +2327,30 @@ class TempleOS {
         return;
       }
 
+      // Terminal tab close (must be before tab switch!)
+      const terminalClose = target.closest('.terminal-tab-close') as HTMLElement;
+      if (terminalClose && terminalClose.dataset.terminalClose !== undefined) {
+        e.stopPropagation(); // Prevent tab switch
+        const tabIndex = parseInt(terminalClose.dataset.terminalClose);
+        if (!isNaN(tabIndex) && this.terminalTabs.length > 1) {
+          const tab = this.terminalTabs[tabIndex];
+          // Destroy PTY if exists
+          if (tab?.ptyId && window.electronAPI?.destroyPty) {
+            void window.electronAPI.destroyPty(tab.ptyId);
+          }
+          // Dispose xterm if exists
+          if (tab?.xterm) {
+            tab.xterm.dispose();
+          }
+          this.terminalTabs.splice(tabIndex, 1);
+          if (this.activeTerminalTab >= this.terminalTabs.length) {
+            this.activeTerminalTab = this.terminalTabs.length - 1;
+          }
+          this.refreshTerminalWindow();
+        }
+        return;
+      }
+
       // Terminal tab switching
       const terminalTab = target.closest('.terminal-tab') as HTMLElement;
       if (terminalTab && terminalTab.dataset.terminalTab !== undefined) {
@@ -2338,24 +2362,6 @@ class TempleOS {
         return;
       }
 
-      // Terminal tab close
-      const terminalClose = target.closest('.terminal-tab-close') as HTMLElement;
-      if (terminalClose && terminalClose.dataset.terminalClose !== undefined) {
-        const tabIndex = parseInt(terminalClose.dataset.terminalClose);
-        if (!isNaN(tabIndex) && this.terminalTabs.length > 1) {
-          const tab = this.terminalTabs[tabIndex];
-          // Destroy PTY if exists
-          if (tab?.ptyId && window.electronAPI?.destroyPty) {
-            void window.electronAPI.destroyPty(tab.ptyId);
-          }
-          this.terminalTabs.splice(tabIndex, 1);
-          if (this.activeTerminalTab >= this.terminalTabs.length) {
-            this.activeTerminalTab = this.terminalTabs.length - 1;
-          }
-          this.refreshTerminalWindow();
-        }
-        return;
-      }
 
       // Terminal new tab
       const terminalNew = target.closest('.terminal-tab-new') as HTMLElement;

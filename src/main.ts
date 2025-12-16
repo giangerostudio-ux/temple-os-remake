@@ -550,6 +550,7 @@ class TempleOS {
           </div>
           
           <div class="start-quick-links">
+            <div class="start-quick-link" data-path="root">💻 This PC</div>
             <div class="start-quick-link" data-path="home">🏠 Home</div>
             <div class="start-quick-link" data-path="Documents">📄 Documents</div>
             <div class="start-quick-link" data-path="Downloads">⬇️ Downloads</div>
@@ -560,6 +561,7 @@ class TempleOS {
           
           <div class="start-power-section">
             <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
+            <button class="start-power-btn" data-power-action="restart">🔄 Restart</button>
             <button class="start-power-btn" data-power-action="shutdown">⏻ Shutdown</button>
           </div>
         </div>
@@ -681,6 +683,7 @@ class TempleOS {
       // Tray: Clock/Calendar
       const clock = target.closest('#clock');
       if (clock) {
+        e.stopPropagation(); // prevent immediate close checks
         this.showCalendarPopup = !this.showCalendarPopup;
         this.showVolumePopup = false;
         this.showPowerMenu = false;
@@ -757,6 +760,8 @@ class TempleOS {
           // Determine path - simple mapping for now
           if (path === 'home') {
             if (window.electronAPI) window.electronAPI.getHome().then(p => this.loadFiles(p));
+          } else if (path === 'root') {
+            this.loadFiles('/');
           } else {
             // For Docs/Downloads/Music/Pictures, we assume they are in User Home
             // This requires async, but we are in a sync handler.
@@ -779,6 +784,7 @@ class TempleOS {
       if (startPowerBtn && startPowerBtn.dataset.powerAction) {
         const action = startPowerBtn.dataset.powerAction;
         if (action === 'shutdown' && window.electronAPI) window.electronAPI.shutdown();
+        if (action === 'restart' && window.electronAPI) window.electronAPI.restart();
         if (action === 'lock') this.showLockScreen();
         this.showStartMenu = false;
         return;

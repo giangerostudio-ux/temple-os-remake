@@ -26,6 +26,9 @@ declare global {
       // Holy Updater
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
+      // App Discovery (Start Menu)
+      getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[] }>;
+      launchApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
       // Window
       closeWindow: () => Promise<void>;
       minimizeWindow: () => Promise<void>;
@@ -49,6 +52,15 @@ interface SystemInfo {
   memory: { total: number; free: number };
   cpus: number;
   user: string;
+}
+
+interface InstalledApp {
+  name: string;
+  icon: string;
+  exec: string;
+  categories: string[];
+  comment?: string;
+  desktopFile?: string;
 }
 
 // ============================================
@@ -133,6 +145,10 @@ class TempleOS {
   private currentPath = '';
   private fileEntries: FileEntry[] = [];
 
+  // Start Menu state
+  private installedApps: InstalledApp[] = [];
+  private startMenuSearchQuery = '';
+
   constructor() {
     this.init();
   }
@@ -153,6 +169,9 @@ class TempleOS {
 
     // Fetch available resolutions
     this.loadResolutions();
+
+    // Load installed apps for Start Menu
+    this.loadInstalledApps();
   }
 
   private renderInitial() {
@@ -218,10 +237,10 @@ class TempleOS {
 
   private renderPowerMenu() {
     return `
-      <div class="power-menu start-power-menu-overlay" style="bottom: 50px; right: 10px;">
-        <div class="power-item" data-action="lock">🔒 Lock</div>
-        <div class="power-item" data-action="restart">🔄 Restart</div>
-        <div class="power-item" data-action="shutdown">⏻ Shutdown</div>
+      <div class="power-menu" style="bottom: 50px; right: 10px;">
+        <div class="power-menu-item" data-power-action="lock">🔒 Lock</div>
+        <div class="power-menu-item" data-power-action="restart">🔄 Restart</div>
+        <div class="power-menu-item" data-power-action="shutdown">⏻ Shutdown</div>
       </div>
     `;
   }
@@ -400,6 +419,7 @@ class TempleOS {
 
   private renderTaskbar(): string {
     return `
+      ${this.renderStartMenu()}
       <div class="taskbar">
         <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
         <div class="taskbar-apps">
@@ -458,6 +478,125 @@ class TempleOS {
     `;
   }
 
+  // ============================================
+  // START MENU
+  // ============================================
+  private renderStartMenu(): string {
+    if (!this.showStartMenu) return '';
+
+    // Built-in pinned apps
+    const pinnedApps = [
+      { id: 'terminal', icon: '💻', name: 'Terminal' },
+      { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
+      { id: 'files', icon: '📁', name: 'Files' },
+      { id: 'editor', icon: '📝', name: 'HolyC Editor' },
+      { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
+      { id: 'settings', icon: '⚙️', name: 'Settings' },
+    ];
+
+    // Filter installed apps based on search query
+    const query = this.startMenuSearchQuery.toLowerCase();
+    const filteredApps = query
+      ? this.installedApps.filter(app =>
+        app.name.toLowerCase().includes(query) ||
+        app.comment?.toLowerCase().includes(query) ||
+        app.categories.some(c => c.toLowerCase().includes(query))
+      )
+      : this.installedApps.slice(0, 20); // Show first 20 when not searching
+
+    return `
+      <div class="start-menu">
+        <div class="start-menu-left">
+          <div class="start-search-container">
+            <input type="text" class="start-search-input" placeholder="🔍 Search apps..." value="${this.startMenuSearchQuery}">
+          </div>
+          
+          ${!query ? `
+          <div class="start-section">
+            <h3>Pinned</h3>
+            <div class="start-pinned-grid">
+              ${pinnedApps.map(app => `
+                <div class="start-app-item pinned" data-app="${app.id}">
+                  <span class="app-icon">${app.icon}</span>
+                  <span class="app-name">${app.name}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+          
+          <div class="start-section">
+            <h3>${query ? `Results for "${query}"` : 'All Apps'}</h3>
+            <div class="start-apps-list">
+              ${filteredApps.length === 0 ? `
+                <div class="start-no-results">No apps found</div>
+              ` : filteredApps.map(app => `
+                <div class="start-app-item installed" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}'>
+                  <span class="app-icon">📦</span>
+                  <div class="app-info">
+                    <span class="app-name">${app.name}</span>
+                    ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        
+        <div class="start-menu-right">
+          <div class="start-user-section">
+            <div class="start-user-avatar">👤</div>
+            <div class="start-user-name">temple</div>
+          </div>
+          
+          <div class="start-quick-links">
+            <div class="start-quick-link" data-path="home">🏠 Home</div>
+            <div class="start-quick-link" data-path="Documents">📄 Documents</div>
+            <div class="start-quick-link" data-path="Downloads">⬇️ Downloads</div>
+            <div class="start-quick-link" data-path="Music">🎵 Music</div>
+            <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
+            <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
+          </div>
+          
+          <div class="start-power-section">
+            <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
+            <button class="start-power-btn" data-power-action="shutdown">⏻ Shutdown</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private async loadInstalledApps(): Promise<void> {
+    if (!window.electronAPI) {
+      console.warn('electronAPI not available - cannot load installed apps');
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.getInstalledApps();
+      if (result.success) {
+        this.installedApps = result.apps;
+        console.log(`Loaded ${this.installedApps.length} installed apps`);
+      }
+    } catch (error) {
+      console.error('Error loading installed apps:', error);
+    }
+  }
+
+  private launchInstalledApp(appData: string): void {
+    try {
+      const app = JSON.parse(appData);
+      if (window.electronAPI) {
+        window.electronAPI.launchApp(app);
+      }
+      this.showStartMenu = false;
+      this.render();
+    } catch (error) {
+      console.error('Error launching app:', error);
+    }
+  }
+
 
 
   private setupEventListeners() {
@@ -511,6 +650,9 @@ class TempleOS {
       const startBtn = target.closest('.start-btn') as HTMLElement;
       if (startBtn) {
         this.showStartMenu = !this.showStartMenu;
+        if (!this.showStartMenu) {
+          this.startMenuSearchQuery = ''; // Reset search when closing
+        }
         this.showPowerMenu = false; // Close power menu if open
         this.render();
         return;
@@ -590,12 +732,18 @@ class TempleOS {
         this.render();
       }
 
-      // Start menu item click
+      // Start menu item click (pinned apps)
       const startAppItem = target.closest('.start-app-item') as HTMLElement;
       if (startAppItem && startAppItem.dataset.app) {
         this.openApp(startAppItem.dataset.app);
         this.showStartMenu = false;
         this.render();
+        return;
+      }
+
+      // Start menu installed app click
+      if (startAppItem && startAppItem.dataset.installedApp) {
+        this.launchInstalledApp(startAppItem.dataset.installedApp);
         return;
       }
 
@@ -639,6 +787,7 @@ class TempleOS {
       // Click outside start menu closes it
       if (this.showStartMenu && !target.closest('.start-menu') && !target.closest('.start-btn')) {
         this.showStartMenu = false;
+        this.startMenuSearchQuery = ''; // Reset search when closing
         this.render();
       }
 
@@ -1087,19 +1236,20 @@ class TempleOS {
       }
 
       if (target.classList.contains('start-search-input')) {
-        const query = target.value.toLowerCase();
-        const appItems = document.querySelectorAll('.start-app-item') as NodeListOf<HTMLElement>;
-
-        appItems.forEach(item => {
-          const label = item.querySelector('div:nth-child(2)')?.textContent?.toLowerCase() || '';
-          const desc = item.querySelector('div:nth-child(3)')?.textContent?.toLowerCase() || '';
-
-          if (label.includes(query) || desc.includes(query)) {
-            item.style.display = 'flex';
-          } else {
-            item.style.display = 'none';
+        this.startMenuSearchQuery = target.value;
+        // Re-render Start Menu with filtered results
+        const startMenuEl = document.querySelector('.start-menu');
+        if (startMenuEl) {
+          // Get new HTML and replace
+          const newHTML = this.renderStartMenu();
+          startMenuEl.outerHTML = newHTML;
+          // Re-focus input and restore cursor position
+          const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
+          if (newInput) {
+            newInput.focus();
+            newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
           }
-        });
+        }
       }
     });
 
@@ -1863,14 +2013,46 @@ U0 Main()
     }
 
     // Activate and restore if minimized
-    this.windows[nextIndex].active = true;
-    this.windows[nextIndex].minimized = false;
+    const nextWin = this.windows[nextIndex];
+    nextWin.active = true;
+    const wasMinimized = nextWin.minimized;
+    nextWin.minimized = false;
 
     // Move to end of array (bring to front)
-    const win = this.windows.splice(nextIndex, 1)[0];
-    this.windows.push(win);
+    this.windows.splice(nextIndex, 1);
+    this.windows.push(nextWin);
 
-    this.render();
+    // OPTIMIZED: Update DOM without full re-render (preserves audio!)
+    const container = document.getElementById('windows-container');
+    const winEl = document.querySelector(`[data-window-id="${nextWin.id}"]`) as HTMLElement;
+
+    if (container && winEl) {
+      // Show if was minimized
+      if (wasMinimized) {
+        winEl.style.display = 'flex';
+      }
+
+      // Move to end (visual front)
+      container.appendChild(winEl);
+
+      // Update active styling
+      const allWindows = container.querySelectorAll('.window');
+      allWindows.forEach(el => el.classList.remove('active'));
+      winEl.classList.add('active');
+
+      // Update Taskbar Only
+      const taskbarApps = document.querySelector('.taskbar-apps');
+      if (taskbarApps) {
+        taskbarApps.innerHTML = this.windows.map(w => `
+          <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+            ${w.icon} ${w.title}
+          </div>
+        `).join('');
+      }
+    } else {
+      // Fallback: full re-render if DOM element not found
+      this.render();
+    }
   }
 
   private closeWindow(windowId: string) {

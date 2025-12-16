@@ -41,4 +41,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ============================================
     checkForUpdates: () => ipcRenderer.invoke('updater:check'),
     runUpdate: () => ipcRenderer.invoke('updater:update'),
+
+    // ============================================
+    // APP DISCOVERY (Start Menu)
+    // ============================================
+    getInstalledApps: () => ipcRenderer.invoke('apps:getInstalled'),
+    launchApp: (app) => ipcRenderer.invoke('apps:launch', app),
 });

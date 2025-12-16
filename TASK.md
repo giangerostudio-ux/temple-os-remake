@@ -25,14 +25,17 @@
 
 ---
 
-## ✅ TIER 2: MEDIUM EFFORT (Completed)
+## ✅ TIER 2: MEDIUM EFFORT (Complete)
 - [x] **2.1 Start Menu (TEMPLE Button)**
     - [x] Open/Close toggling
+    - [x] Render Start Menu overlay panel
     - [x] Search bar (filter apps)
     - [x] Pinned apps grid
     - [x] Quick folders (Home, Documents, etc.)
     - [x] User profile display
     - [x] Integrated Power options
+    - [x] **Real App Search** (scan .desktop files from /usr/share/applications)
+    - [ ] Super key opens Start Menu
 - [x] **2.2 Window Snapping**
     - [x] Drag to edges (Left, Right, Top)
     - [x] Corner snapping (Quarter screen)

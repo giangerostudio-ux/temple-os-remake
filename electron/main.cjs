@@ -297,6 +297,123 @@ ipcMain.handle('system:getResolutions', async () => {
 const projectRoot = path.resolve(__dirname, '..');
 
 // ============================================
+// APP DISCOVERY IPC (for Start Menu)
+// ============================================
+
+// Simple INI-style parser for .desktop files
+function parseDesktopFile(content) {
+    const result = {};
+    let currentSection = null;
+
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        // Section header [Desktop Entry]
+        const sectionMatch = trimmed.match(/^\[(.+)\]$/);
+        if (sectionMatch) {
+            currentSection = sectionMatch[1];
+            continue;
+        }
+
+        // Key=Value
+        const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
+        if (kvMatch && currentSection === 'Desktop Entry') {
+            result[kvMatch[1].trim()] = kvMatch[2].trim();
+        }
+    }
+
+    return result;
+}
+
+ipcMain.handle('apps:getInstalled', async () => {
+    if (process.platform !== 'linux') {
+        // On Windows/Mac, return mock apps
+        return {
+            success: true,
+            apps: [
+                { name: 'Firefox', icon: 'firefox', exec: 'firefox', categories: ['Network', 'WebBrowser'] },
+                { name: 'Terminal', icon: 'terminal', exec: 'gnome-terminal', categories: ['System', 'TerminalEmulator'] },
+            ]
+        };
+    }
+
+    const appDirs = [
+        '/usr/share/applications',
+        path.join(os.homedir(), '.local/share/applications')
+    ];
+
+    const apps = [];
+    const seenNames = new Set();
+
+    for (const dir of appDirs) {
+        try {
+            const files = await fs.promises.readdir(dir);
+
+            for (const file of files) {
+                if (!file.endsWith('.desktop')) continue;
+
+                try {
+                    const content = await fs.promises.readFile(path.join(dir, file), 'utf-8');
+                    const parsed = parseDesktopFile(content);
+
+                    // Skip hidden apps and those without names
+                    if (!parsed.Name || parsed.NoDisplay === 'true' || parsed.Hidden === 'true') continue;
+
+                    // Skip duplicate names
+                    if (seenNames.has(parsed.Name)) continue;
+                    seenNames.add(parsed.Name);
+
+                    apps.push({
+                        name: parsed.Name,
+                        icon: parsed.Icon || 'application-x-executable',
+                        exec: parsed.Exec ? parsed.Exec.replace(/%[a-zA-Z]/g, '').trim() : '',
+                        categories: parsed.Categories ? parsed.Categories.split(';').filter(c => c) : [],
+                        comment: parsed.Comment || '',
+                        desktopFile: path.join(dir, file)
+                    });
+                } catch (e) {
+                    // Skip files we can't read
+                }
+            }
+        } catch (e) {
+            // Directory doesn't exist or can't be read
+        }
+    }
+
+    // Sort alphabetically
+    apps.sort((a, b) => a.name.localeCompare(b.name));
+
+    return { success: true, apps };
+});
+
+// Launch an application by its .desktop file or exec command
+ipcMain.handle('apps:launch', async (event, app) => {
+    if (process.platform !== 'linux') {
+        console.log(`[Windows/Mac] Would launch: ${app.name}`);
+        return { success: true };
+    }
+
+    try {
+        // Use gtk-launch if we have the desktop file, otherwise exec directly
+        let command;
+        if (app.desktopFile) {
+            const baseName = path.basename(app.desktopFile);
+            command = `gtk-launch ${baseName}`;
+        } else if (app.exec) {
+            command = app.exec;
+        } else {
+            return { success: false, error: 'No executable found' };
+        }
+
+        exec(command, { detached: true, stdio: 'ignore' });
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// ============================================
 // HOLY UPDATER IPC
 // ============================================
 ipcMain.handle('updater:check', async () => {

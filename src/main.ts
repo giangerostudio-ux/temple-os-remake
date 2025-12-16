@@ -559,7 +559,9 @@ class TempleOS {
         
         <div class="start-menu-right">
           <div class="start-user-section">
-            <div class="start-user-avatar">👤</div>
+            <div class="start-user-avatar">
+              <img src="/temple-logo.jpg" alt="Temple" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+            </div>
             <div class="start-user-name">temple</div>
           </div>
           

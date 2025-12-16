@@ -852,10 +852,24 @@ class TempleOS {
     };
 
     // Hymn player audio (keep playing even if a render happens)
-    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement | null;
-    if (audioEl && !audioEl.paused) {
-      const wEl = audioEl.closest('.window') as HTMLElement | null;
-      preserveById(wEl?.dataset.windowId);
+    try {
+      const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement | null;
+      if (audioEl && !audioEl.paused) {
+        const wEl = audioEl.closest('.window') as HTMLElement | null;
+        const wid = wEl?.dataset.windowId;
+        // Only preserve if the window is arguably still "open" in our state
+        if (wid && this.windows.some(w => w.id === wid)) {
+          preserveById(wid);
+        } else {
+          // Window is closing/gone, but audio is playing.
+          // Explicitly stop it to prevent "ghost audio" or zombie process
+          audioEl.pause();
+          audioEl.src = '';
+          audioEl.load();
+        }
+      }
+    } catch (e) {
+      console.warn('Preservation error:', e);
     }
 
     // Terminal PTY/xterm (keep session DOM stable)
@@ -7611,19 +7625,32 @@ class TempleOS {
   }
 
   private focusWindow(windowId: string) {
-    const win = this.windows.find(w => w.id === windowId);
-    if (win) {
+    const winIndex = this.windows.findIndex(w => w.id === windowId);
+    if (winIndex !== -1) {
+      const win = this.windows[winIndex];
+
+      // OPTIMIZATION: If already active, topmost, and visible, do nothing.
+      // This is critical for dragging: re-appending the element destroys the drag operation.
+      const isTopmost = winIndex === this.windows.length - 1;
+      if (win.active && isTopmost && !win.minimized) {
+        return;
+      }
+
       const wasMinimized = win.minimized;
       win.minimized = false;
       this.windows.forEach(w => w.active = w.id === windowId);
-      this.windows = this.windows.filter(w => w.id !== windowId);
-      this.windows.push(win);
+
+      // Move to end of array (z-index top)
+      if (!isTopmost) {
+        this.windows.splice(winIndex, 1);
+        this.windows.push(win);
+      }
 
       const container = document.getElementById('windows-container');
       const winEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
 
       if (wasMinimized && winEl) {
-        // OPTIMIZED: Just show the hidden element (preserves audio playback!)
+        // Just show the hidden element (preserves audio playback!)
         winEl.style.display = 'flex';
 
         // Move to end (visual front)

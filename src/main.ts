@@ -1330,12 +1330,12 @@ class TempleOS {
 
   private renderDesktopIcons(): string {
     const icons = [
-      { id: 'terminal', icon: '≡ƒÆ╗', label: 'Terminal' },
-      { id: 'word-of-god', icon: 'Γ£¥∩╕Å', label: 'Word of God' },
-      { id: 'files', icon: '≡ƒôü', label: 'Files' },
-      { id: 'editor', icon: '≡ƒô¥', label: 'HolyC Editor' },
-      { id: 'hymns', icon: '≡ƒÄ╡', label: 'Hymn Player' },
-      { id: 'updater', icon: 'Γ¼ç∩╕Å', label: 'Holy Updater' },
+      { id: 'terminal', icon: '💻', label: 'Terminal' },
+      { id: 'word-of-god', icon: '✝️', label: 'Word of God' },
+      { id: 'files', icon: '📁', label: 'Files' },
+      { id: 'editor', icon: '📝', label: 'HolyC Editor' },
+      { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
+      { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -1499,12 +1499,12 @@ class TempleOS {
 
     // Built-in pinned apps
     const legacyPinnedApps = [
-      { id: 'terminal', icon: '≡ƒÆ╗', name: 'Terminal' },
-      { id: 'word-of-god', icon: 'Γ£¥∩╕Å', name: 'Word of God' },
-      { id: 'files', icon: '≡ƒôü', name: 'Files' },
-      { id: 'editor', icon: '≡ƒô¥', name: 'HolyC Editor' },
-      { id: 'hymns', icon: '≡ƒÄ╡', name: 'Hymn Player' },
-      { id: 'settings', icon: 'ΓÜÖ∩╕Å', name: 'Settings' },
+      { id: 'terminal', icon: '💻', name: 'Terminal' },
+      { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
+      { id: 'files', icon: '📁', name: 'Files' },
+      { id: 'editor', icon: '📝', name: 'HolyC Editor' },
+      { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
+      { id: 'settings', icon: '⚙️', name: 'Settings' },
     ];
 
     const pinnedAppsView = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
@@ -2112,14 +2112,14 @@ class TempleOS {
 
   private builtinLauncherMeta(appId: string): { label: string; icon: string } | null {
     switch (appId) {
-      case 'terminal': return { label: 'Terminal', icon: '≡ƒÆ╗' };
-      case 'word-of-god': return { label: 'Word of God', icon: 'Γ£¥∩╕Å' };
-      case 'files': return { label: 'Files', icon: '≡ƒôü' };
-      case 'editor': return { label: 'HolyC Editor', icon: '≡ƒô¥' };
-      case 'hymns': return { label: 'Hymn Player', icon: '≡ƒÄ╡' };
-      case 'settings': return { label: 'Settings', icon: 'ΓÜÖ∩╕Å' };
-      case 'updater': return { label: 'Holy Updater', icon: 'Γ¼ç∩╕Å' };
-      case 'system-monitor': return { label: 'Task Manager', icon: '≡ƒôè' };
+      case 'terminal': return { label: 'Terminal', icon: '💻' };
+      case 'word-of-god': return { label: 'Word of God', icon: '✝️' };
+      case 'files': return { label: 'Files', icon: '📁' };
+      case 'editor': return { label: 'HolyC Editor', icon: '📝' };
+      case 'hymns': return { label: 'Hymn Player', icon: '🎵' };
+      case 'settings': return { label: 'Settings', icon: '⚙️' };
+      case 'updater': return { label: 'Holy Updater', icon: '⬇️' };
+      case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
       default: return null;
     }
   }
@@ -4075,7 +4075,7 @@ class TempleOS {
       case 'terminal':
         windowConfig = {
           title: 'Terminal',
-          icon: 'ðŸ’»',
+          icon: '💻',
           width: 600,
           height: 400,
           content: this.getTerminalContent()
@@ -4084,7 +4084,7 @@ class TempleOS {
       case 'word-of-god':
         windowConfig = {
           title: 'Word of God',
-          icon: 'âœï¸',
+          icon: '✝️',
           width: 550,
           height: 400,
           content: this.getWordOfGodContent()
@@ -4093,7 +4093,7 @@ class TempleOS {
       case 'files':
         windowConfig = {
           title: 'File Browser',
-          icon: 'ðŸ“',
+          icon: '📁',
           width: 600,
           height: 450,
           content: this.getFileBrowserContentV2()
@@ -4104,7 +4104,7 @@ class TempleOS {
       case 'editor':
         windowConfig = {
           title: 'HolyC Editor',
-          icon: 'ðŸ“',
+          icon: '📝',
           width: 600,
           height: 450,
           content: this.getEditorContent()
@@ -4113,7 +4113,7 @@ class TempleOS {
       case 'updater':
         windowConfig = {
           title: 'Holy Updater',
-          icon: 'â¬‡ï¸',
+          icon: '⬇️',
           width: 500,
           height: 350,
           content: this.getUpdaterContent()
@@ -4124,7 +4124,7 @@ class TempleOS {
       case 'hymns':
         windowConfig = {
           title: 'Hymn Player',
-          icon: 'ðŸŽµ',
+          icon: '🎵',
           width: 450,
           height: 500,
           content: this.getHymnPlayerContent()
@@ -4133,7 +4133,7 @@ class TempleOS {
       case 'system-monitor':
         windowConfig = {
           title: 'Task Manager',
-          icon: 'dY-Ð­Ð›,?',
+          icon: '📊',
           width: 900,
           height: 600,
           content: this.getSystemMonitorContent()
@@ -4143,7 +4143,7 @@ class TempleOS {
       case 'settings':
         windowConfig = {
           title: 'Settings',
-          icon: 'âš™ï¸',
+          icon: '⚙️',
           width: 800,
           height: 600,
           content: this.getSettingsContentV2()
@@ -4154,7 +4154,7 @@ class TempleOS {
     const newWindow: WindowState = {
       id: `${appId}-${++this.windowIdCounter}`,
       title: windowConfig.title || 'Window',
-      icon: windowConfig.icon || 'ðŸ“„',
+      icon: windowConfig.icon || '📄',
       x: 100 + (this.windows.length * 30),
       y: 50 + (this.windows.length * 30),
       width: windowConfig.width || 400,

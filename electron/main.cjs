@@ -360,6 +360,15 @@ ipcMain.handle('apps:getInstalled', async () => {
                     // Skip hidden apps and those without names
                     if (!parsed.Name || parsed.NoDisplay === 'true' || parsed.Hidden === 'true') continue;
 
+                    // Blacklist confusing system apps/terminals
+                    const blacklist = new Set([
+                        'Foot', 'Foot Client', 'Foot Server', 'Zutty',
+                        'XTerm', 'UXTerm', 'Debian Info', 'Debian HTML',
+                        'Avahi SSH Server Browser', 'Avahi VNC Server Browser',
+                        'Bvs' // various x11 utils
+                    ]);
+                    if (blacklist.has(parsed.Name)) continue;
+
                     // Skip duplicate names
                     if (seenNames.has(parsed.Name)) continue;
                     seenNames.add(parsed.Name);

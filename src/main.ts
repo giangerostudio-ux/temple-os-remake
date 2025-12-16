@@ -3939,23 +3939,23 @@ class TempleOS {
           }
           const canPaste = !!this.fileClipboard && !!this.currentPath;
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '≡ƒôü New Folder', action: () => this.promptNewFolder() },
-            { label: '≡ƒôä New File', action: () => this.promptNewFile() },
+            { label: '📁 New Folder', action: () => this.promptNewFolder() },
+            { label: '📄 New File', action: () => this.promptNewFile() },
             { divider: true },
-            ...(canPaste ? [{ label: '≡ƒôï Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
+            ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
             { divider: true },
-            { label: '≡ƒöä Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
           ]);
         } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
           // Desktop context menu
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '≡ƒôü Open Files', action: () => this.openApp('files') },
-            { label: '≡ƒÆ╗ Open Terminal', action: () => this.openApp('terminal') },
+            { label: '📁 Open Files', action: () => this.openApp('files') },
+            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
             { divider: true },
-            { label: '≡ƒöä Refresh', action: () => this.loadFiles(this.currentPath) },
-            { label: 'ΓÜÖ∩╕Å Settings', action: () => this.openApp('settings') },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '⚙️ Settings', action: () => this.openApp('settings') },
             { divider: true },
-            { label: 'Γä╣∩╕Å About TempleOS', action: () => this.openSettingsToAbout() },
+            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
           ]);
         }
       });

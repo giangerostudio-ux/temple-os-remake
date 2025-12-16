@@ -110,6 +110,8 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
+  position: relative;
+  z-index: 1;
 }
 
 .desktop-icon:hover {
@@ -142,6 +144,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  z-index: 50;
 }
 
 .window.active {
@@ -993,6 +996,220 @@ input[type=range]::-webkit-slider-thumb {
   color: #00ff41;
 }
 
+.lock-panel {
+  width: min(680px, 92vw);
+  padding: 26px 22px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  background: rgba(13, 17, 23, 0.72);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    0 0 40px rgba(0, 255, 65, 0.12),
+    0 20px 60px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-avatar {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid #00ff41;
+  box-shadow: 0 0 30px rgba(0, 255, 65, 0.4);
+}
+
+.lock-brand-title {
+  font-size: 48px;
+  margin: 2px 0 0;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.lock-brand-sub {
+  font-size: 14px;
+  opacity: 0.75;
+  margin-top: -6px;
+}
+
+.lock-clock {
+  font-size: 64px;
+  font-weight: bold;
+  margin-top: 6px;
+  line-height: 1;
+}
+
+.lock-date {
+  font-size: 18px;
+  opacity: 0.85;
+  margin-top: -8px;
+  margin-bottom: 6px;
+}
+
+.lock-user-name {
+  font-size: 18px;
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.lock-mode-toggle {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0 2px;
+}
+
+.lock-mode-btn {
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  color: #00ff41;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.lock-mode-btn:hover {
+  background: rgba(0, 255, 65, 0.14);
+}
+
+.lock-mode-btn.active {
+  background: #00ff41;
+  color: #000;
+  border-color: #00ff41;
+}
+
+.lock-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lock-reveal-btn {
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  color: #00ff41;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 18px;
+  transition: all 0.15s ease;
+}
+
+.lock-reveal-btn:hover {
+  background: rgba(0, 255, 65, 0.14);
+}
+
+.lock-reveal-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lock-caps {
+  font-size: 12px;
+  color: #ffff00;
+  opacity: 0.85;
+  display: none;
+}
+
+.lock-caps.show {
+  display: block;
+}
+
+.lock-pin-pad {
+  width: 290px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.lock-pin-pad.hidden {
+  display: none;
+}
+
+.lock-pin-btn,
+.lock-pin-enter {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
+  padding: 10px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 20px;
+  transition: all 0.15s ease;
+}
+
+.lock-pin-btn:hover {
+  background: rgba(0, 255, 65, 0.12);
+  border-color: rgba(0, 255, 65, 0.55);
+}
+
+.lock-pin-btn.alt {
+  color: #ffd700;
+  border-color: rgba(255, 215, 0, 0.35);
+}
+
+.lock-pin-btn.alt:hover {
+  background: rgba(255, 215, 0, 0.1);
+  border-color: rgba(255, 215, 0, 0.6);
+}
+
+.lock-pin-enter {
+  grid-column: 1 / span 3;
+  background: rgba(0, 212, 255, 0.18);
+  border-color: rgba(0, 212, 255, 0.45);
+  color: #00d4ff;
+  font-size: 18px;
+}
+
+.lock-pin-enter:hover {
+  background: rgba(0, 212, 255, 0.26);
+  border-color: rgba(0, 212, 255, 0.65);
+}
+
+.lock-hint {
+  font-size: 14px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.lock-power {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.lock-power-btn {
+  background: none;
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  color: #00ff41;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.lock-power-btn:hover {
+  background: rgba(0, 255, 65, 0.12);
+}
+
+.lock-power-btn.danger {
+  border-color: rgba(255, 51, 102, 0.65);
+  color: #ff3366;
+}
+
+.lock-power-btn.danger:hover {
+  background: rgba(255, 51, 102, 0.12);
+}
+
 .lock-input-container {
   display: flex;
   flex-direction: column;
@@ -1010,11 +1227,12 @@ input[type=range]::-webkit-slider-thumb {
   padding: 10px 15px;
   font-family: inherit;
   font-size: 20px;
-  width: 250px;
+  width: 260px;
   text-align: center;
   border-radius: 4px;
   outline: none;
   transition: all 0.3s ease;
+  font-variant-numeric: tabular-nums;
 }
 
 .lock-password-input:focus {
@@ -1160,14 +1378,90 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .alt-tab-panel {
-  width: min(560px, 90vw);
-  max-height: min(360px, 70vh);
-  overflow: auto;
+  width: min(820px, 92vw);
+  max-height: min(440px, 78vh);
+  overflow: hidden;
   background: rgba(13, 17, 23, 0.96);
   border: 1px solid rgba(0, 255, 65, 0.35);
   border-radius: 10px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alt-tab-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.alt-tab-list {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 6px;
+}
+
+.alt-tab-preview {
+  border: 1px solid rgba(0, 255, 65, 0.25);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 10px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.alt-tab-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.18);
+}
+
+.alt-tab-preview-icon {
+  font-size: 28px;
+  width: 34px;
+  text-align: center;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.35));
+}
+
+.alt-tab-preview-title {
+  color: #00ff41;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.alt-tab-preview-sub {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.alt-tab-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 8px;
+  font-size: 14px;
+  line-height: 1.25;
+  opacity: 0.9;
+}
+
+.alt-tab-preview-line {
+  padding: 2px 0;
+  border-bottom: 1px dashed rgba(0, 255, 65, 0.08);
+}
+
+.alt-tab-preview-line:last-child {
+  border-bottom: none;
+}
+
+.alt-tab-preview-empty {
+  opacity: 0.6;
+  font-size: 13px;
 }
 
 .alt-tab-item {

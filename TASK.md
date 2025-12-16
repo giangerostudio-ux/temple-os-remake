@@ -12,7 +12,7 @@
 |------|--------|----------|
 | TIER 1: Quick Wins | ✅ Complete | 4/4 items |
 | TIER 2: Medium Effort | ✅ Complete | 4/4 items |
-| TIER 3: Significant Effort | 🔄 In Progress | 1/4 items |
+| TIER 3: Significant Effort | ✅ Complete | 4/4 items |
 | TIER 4-12 | ⬜ Not Started | Planning phase |
 
 ---
@@ -89,7 +89,7 @@
 - [x] Notification indicator badge
 
 ### 3.3 Lock Screen
-- [/] Password/PIN entry UI (password done; PIN later)
+- [x] Password/PIN entry UI (Password + PIN keypad)
 - [x] Clock display with date
 - [x] Custom wallpaper support
 - [x] Auto-lock after timeout (settings configurable)
@@ -97,7 +97,7 @@
 
 ### 3.4 Alt+Tab Window Switcher (Visual)
 - [x] Alt+Tab triggers window switcher overlay
-- [/] Show app icons and window previews (icons done; previews later)
+- [x] Show app icons and window previews
 - [x] Keep holding Alt, press Tab to cycle
 - [x] Release Alt to switch
 - [x] Alt+Shift+Tab goes backward

@@ -418,9 +418,10 @@ class TempleOS {
 
   // Lock Screen State
   private isLocked = false;
-  private autoLockTimer: number | null = null;
-  private lockTimeoutMs = 5 * 60 * 1000; // 5 minutes (configurable)
+  private lockInputMode: 'password' | 'pin' = 'password';
+
   private readonly PASSWORD = 'god'; // Authentic TempleOS password
+  private readonly PIN = '7777';
 
   // Network State
   private networkStatus: NetworkStatus = { connected: false };
@@ -452,7 +453,7 @@ class TempleOS {
   private activeDisplayOutput: string | null = null;
 
   // Mouse / Pointer State
-  private mouseSettings: MouseSettings = { speed: 0, raw: false, naturalScroll: false };
+  private mouseSettings: MouseSettings = { speed: 0, raw: true, naturalScroll: false };
   private mouseDpiSupported = false;
   private mouseDpiValues: number[] = [400, 800, 1200, 1600, 2400, 3200];
   private mouseDpiDeviceId: string | null = null;
@@ -578,8 +579,7 @@ class TempleOS {
     await this.refreshMouseDpiInfo();
     await this.refreshDisplayOutputs();
 
-    // Setup Auto-Lock (uses persisted timeout)
-    this.setupAutoLock();
+
 
     // Load initial state for system panels
     await this.refreshAudioDevices();
@@ -2026,14 +2026,7 @@ class TempleOS {
         }
       }
 
-      if (target.matches('.lock-timeout-select')) {
-        const minutes = parseInt(target.value, 10);
-        if (!Number.isNaN(minutes)) {
-          this.lockTimeoutMs = minutes <= 0 ? 0 : Math.max(30_000, minutes * 60 * 1000);
-          this.queueSaveConfig();
-          this.resetAutoLockTimer();
-        }
-      }
+
 
       if (target.matches('.mouse-dpi-select')) {
         const dpi = parseInt(target.value, 10);
@@ -3090,433 +3083,418 @@ class TempleOS {
         this.lock();
       }
 
-      // Reset auto-lock on keypress
-      this.resetAutoLockTimer();
-    });
+      // Reset auto-lock on mouse move
+      // window.addEventListener('mousemove', () => this.resetAutoLockTimer());
+      // window.addEventListener('click', () => this.resetAutoLockTimer());
 
-    // Reset auto-lock on mouse move
-    window.addEventListener('mousemove', () => this.resetAutoLockTimer());
-    window.addEventListener('click', () => this.resetAutoLockTimer());
+      // ============================================
+      // GLOBAL KEYBOARD SHORTCUTS
+      // ============================================
+      document.addEventListener('keydown', (e) => {
+        if (this.modal) {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.modal.type === 'prompt') this.closeModal(null);
+            else if (this.modal.type === 'confirm') this.closeModal(false);
+            else this.closeModal(undefined);
+            return;
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.modal.type === 'prompt') this.closeModal(this.modal.inputValue ?? '');
+            else if (this.modal.type === 'confirm') this.closeModal(true);
+            else this.closeModal(undefined);
+            return;
+          }
+        }
 
-    // ============================================
-    // GLOBAL KEYBOARD SHORTCUTS
-    // ============================================
-    document.addEventListener('keydown', (e) => {
-      if (this.modal) {
-        if (e.key === 'Escape') {
+        // Editor Ctrl+F - Find
+        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+          const target = e.target as HTMLElement;
+          const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+          if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
+            e.preventDefault();
+            this.editorFindMode = 'find';
+            this.editorFindOpen = true;
+            this.editorUpdateFindMatches();
+            this.refreshEditorWindow();
+            setTimeout(() => {
+              const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
+              input?.focus();
+              input?.select();
+            }, 50);
+            return;
+          }
+        }
+
+        // Editor Ctrl+H - Replace
+        if (e.ctrlKey && e.key.toLowerCase() === 'h') {
+          const target = e.target as HTMLElement;
+          const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+          if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
+            e.preventDefault();
+            this.editorFindMode = 'replace';
+            this.editorFindOpen = true;
+            this.editorUpdateFindMatches();
+            this.refreshEditorWindow();
+            setTimeout(() => {
+              const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
+              input?.focus();
+              input?.select();
+            }, 50);
+            return;
+          }
+        }
+
+        // Editor F3 - Find Next, Shift+F3 - Find Prev
+        if (e.key === 'F3') {
+          const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
+          if (editorWindow && this.editorFindOpen) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              this.editorFindPrev();
+            } else {
+              this.editorFindNext();
+            }
+            return;
+          }
+        }
+
+        // Win+E - File Explorer
+        if (e.metaKey && e.key.toLowerCase() === 'e') {
           e.preventDefault();
-          e.stopPropagation();
-          if (this.modal.type === 'prompt') this.closeModal(null);
-          else if (this.modal.type === 'confirm') this.closeModal(false);
-          else this.closeModal(undefined);
+          this.openApp('files');
+          return;
+
+        }
+
+        // Win+D - Show Desktop (minimize all)
+        if (e.metaKey && e.key.toLowerCase() === 'd') {
+          e.preventDefault();
+          this.toggleShowDesktop();
           return;
         }
-        if (e.key === 'Enter') {
+
+        // Ctrl+Shift+Esc - Task Manager
+        if (e.ctrlKey && e.shiftKey && e.key === 'Escape') {
           e.preventDefault();
-          e.stopPropagation();
-          if (this.modal.type === 'prompt') this.closeModal(this.modal.inputValue ?? '');
-          else if (this.modal.type === 'confirm') this.closeModal(true);
-          else this.closeModal(undefined);
+          this.openApp('system-monitor');
           return;
         }
-      }
 
-      // Editor Ctrl+F - Find
-      if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+        // Win+X - Quick Link Menu
+        if (e.metaKey && e.key.toLowerCase() === 'x') {
+          e.preventDefault();
+          this.showContextMenu(18, window.innerHeight - 64, [
+            { label: 'Files', action: () => this.openApp('files') },
+            { label: 'Terminal', action: () => this.openApp('terminal') },
+            { label: 'Task Manager', action: () => this.openApp('system-monitor') },
+            { divider: true },
+            { label: 'Settings', action: () => this.openApp('settings') },
+            { divider: true },
+            { label: 'Lock', action: () => this.lock() },
+            { label: 'Restart', action: () => window.electronAPI?.restart() },
+            { label: 'Shutdown', action: () => window.electronAPI?.shutdown() },
+          ]);
+          return;
+        }
+
+        // Alt+F4 - Close active window
+        if (e.altKey && e.key === 'F4') {
+          e.preventDefault();
+          const activeWindow = this.windows.find(w => w.active && !w.minimized);
+          if (activeWindow) {
+            this.closeWindow(activeWindow.id);
+          }
+        }
+
+        // Alt+Tab - Cycle through windows
+        if (e.altKey && e.key === 'Tab') {
+          e.preventDefault();
+          this.stepAltTab(e.shiftKey ? -1 : 1);
+        }
+
+        // Super/Meta opens Start Menu (Windows-like)
+        if ((e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
+          const target = e.target as HTMLElement;
+          const tag = target?.tagName;
+          if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+            e.preventDefault();
+            this.showStartMenu = !this.showStartMenu;
+            if (!this.showStartMenu) this.startMenuSearchQuery = '';
+            this.render();
+          }
+        }
+
+        // Escape - Close active window (optional, like some apps)
+        // Only if not in an input field
         const target = e.target as HTMLElement;
-        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
-        if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
+        if (e.key === 'Escape' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          if (this.altTabOpen) {
+            this.cancelAltTab();
+            return;
+          }
+          const activeWindow = this.windows.find(w => w.active && !w.minimized);
+          if (activeWindow) {
+            this.minimizeWindow(activeWindow.id);
+          }
+        }
+
+        // F5 - Refresh file browser
+        if (e.key === 'F5') {
           e.preventDefault();
-          this.editorFindMode = 'find';
-          this.editorFindOpen = true;
+          const filesWindow = this.windows.find(w => w.id.startsWith('files') && !w.minimized);
+          if (filesWindow) {
+            this.loadFiles(this.currentPath);
+          }
+        }
+      });
+
+      document.addEventListener('keyup', (e) => {
+        if (e.key === 'Alt' && this.altTabOpen) {
+          this.commitAltTab();
+        }
+      });
+
+      // ============================================
+      // CONTEXT MENU (Right-Click)
+      // ============================================
+      app.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const target = e.target as HTMLElement;
+
+        // Close any existing context menu
+        this.closeContextMenu();
+
+        // Determine context
+        const startAppItem = target.closest('.start-app-item') as HTMLElement;
+        const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
+        const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
+        const fileItem = target.closest('.file-item') as HTMLElement;
+        const desktopEl = target.closest('.desktop') as HTMLElement;
+        const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
+
+        if (startAppItem) {
+          const key =
+            startAppItem.dataset.launchKey ||
+            (startAppItem.dataset.app ? `builtin:${startAppItem.dataset.app}` : '');
+          const display = key ? this.launcherDisplayForKey(key) : null;
+          if (key && display) {
+            const pinnedStart = this.pinnedStart.includes(key);
+            const pinnedTaskbar = this.pinnedTaskbar.includes(key);
+            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { divider: true },
+              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+            ]);
+            return;
+          }
+        }
+
+        if (taskbarItem) {
+          const key = taskbarItem.dataset.launchKey || '';
+          const windowId = taskbarItem.dataset.taskbarWindow || '';
+          if (key) {
+            const pinnedStart = this.pinnedStart.includes(key);
+            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { divider: true },
+              { label: 'dY", Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
+              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+            ]);
+            return;
+          }
+          if (windowId) {
+            const appId = windowId.split('-')[0];
+            const appKey = `builtin:${appId}`;
+            const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: 'dY", Restore/Focus', action: () => this.toggleWindow(windowId) },
+              { label: 'dY-`‹,? Close', action: () => this.closeWindow(windowId) },
+              { divider: true },
+              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
+            ]);
+            return;
+          }
+        }
+
+        if (desktopIcon) {
+          const key = desktopIcon.dataset.launchKey || (desktopIcon.dataset.app ? `builtin:${desktopIcon.dataset.app}` : '');
+          if (key) {
+            const pinnedStart = this.pinnedStart.includes(key);
+            const pinnedTaskbar = this.pinnedTaskbar.includes(key);
+            const isBuiltInDesktop = !!desktopIcon.dataset.app;
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { divider: true },
+              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              ...(isBuiltInDesktop ? [] : [{ label: 'dY", Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
+            ]);
+            return;
+          }
+        }
+
+        if (fileItem) {
+          // File/folder context menu
+          const filePath = fileItem.dataset.filePath || '';
+          const isDir = fileItem.dataset.isDir === 'true';
+          const trashPath = fileItem.dataset.trashPath || '';
+          const originalPath = fileItem.dataset.originalPath || '';
+          if (this.currentPath === 'trash:' && (trashPath || filePath)) {
+            const actualTrashPath = trashPath || filePath;
+            const openOriginalFolder = () => {
+              if (!originalPath) return;
+              const isWindows = originalPath.includes('\\') || originalPath.match(/^[A-Z]:/i);
+              const separator = isWindows ? '\\' : '/';
+              const parent = originalPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
+              this.loadFiles(parent);
+            };
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: 'dY", Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
+              { divider: true },
+              { label: 'dY", Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
+              { label: 'dY-`‹,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
+              { divider: true },
+              ...(originalPath ? [{ label: 'dY"< Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
+              ...(originalPath ? [{ label: 'dY", Open Original Folder', action: () => openOriginalFolder() }] : []),
+            ]);
+            return;
+          }
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
+            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
+            { label: '✏️ Rename', action: () => this.promptRename(filePath) },
+            { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
+            { divider: true },
+            { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+          ]);
+        } else if (fileBrowserEl && !target.closest('.taskbar')) {
+          if (this.currentPath === 'trash:') {
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: 'dY", Refresh', action: () => this.loadFiles('trash:') },
+              { divider: true },
+              { label: 'dY-`‹,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
+            ]);
+            return;
+          }
+          const canPaste = !!this.fileClipboard && !!this.currentPath;
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: '📁 New Folder', action: () => this.promptNewFolder() },
+            { label: '📄 New File', action: () => this.promptNewFile() },
+            { divider: true },
+            ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
+            { divider: true },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+          ]);
+        } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
+          // Desktop context menu
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: '📁 Open Files', action: () => this.openApp('files') },
+            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+            { divider: true },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '⚙️ Settings', action: () => this.openApp('settings') },
+            { divider: true },
+            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+          ]);
+        }
+      });
+
+      // Close context menu on any click
+      document.addEventListener('click', () => this.closeContextMenu());
+
+      // Start Menu Search
+      app.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+
+        // Volume Slider
+        if (target.classList.contains('volume-slider')) {
+          const val = parseInt(target.value, 10);
+          this.updateVolume(val);
+          return;
+        }
+
+        if (target.classList.contains('start-search-input')) {
+          this.startMenuSearchQuery = target.value;
+          // Re-render Start Menu with filtered results
+          const startMenuEl = document.querySelector('.start-menu');
+          if (startMenuEl) {
+            // Get new HTML and replace
+            const newHTML = this.renderStartMenu();
+            startMenuEl.outerHTML = newHTML;
+            // Re-focus input and restore cursor position
+            const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
+            if (newInput) {
+              newInput.focus();
+              newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
+            }
+          }
+        }
+
+        if (target.classList.contains('monitor-search-input')) {
+          this.monitorQuery = target.value;
+          this.refreshSystemMonitorWindowDom();
+        }
+
+        // Editor content change
+        if (target.hasAttribute('data-editor-textarea')) {
+          const currentTab = this.editorTabs[this.activeEditorTab];
+          if (currentTab) {
+            currentTab.content = target.value;
+            currentTab.modified = true;
+            // Update tab modified indicator without full refresh
+            const tabEl = document.querySelector(`.editor-tab[data-editor-tab="${this.activeEditorTab}"]`);
+            if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
+              const modSpan = document.createElement('span');
+              modSpan.className = 'editor-tab-modified';
+              modSpan.textContent = '●';
+              tabEl.insertBefore(modSpan, tabEl.firstChild);
+            }
+          }
+        }
+
+        // Editor find input
+        if (target.hasAttribute('data-editor-find-input')) {
+          this.editorFindQuery = target.value;
           this.editorUpdateFindMatches();
-          this.refreshEditorWindow();
-          setTimeout(() => {
-            const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
-            input?.focus();
-            input?.select();
-          }, 50);
-          return;
+          // Update count display without full refresh
+          const countEl = document.querySelector('.editor-find-count');
+          if (countEl) {
+            countEl.textContent = this.editorFindMatches.length > 0
+              ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}`
+              : '';
+          }
         }
-      }
 
-      // Editor Ctrl+H - Replace
-      if (e.ctrlKey && e.key.toLowerCase() === 'h') {
+        // Editor replace input
+        if (target.hasAttribute('data-editor-replace-input')) {
+          this.editorReplaceQuery = target.value;
+        }
+      });
+
+
+      // Settings Navigation
+      app.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
-        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
-        if (editorWindow && (target.classList.contains('editor-content') || target.closest('.editor-container'))) {
-          e.preventDefault();
-          this.editorFindMode = 'replace';
-          this.editorFindOpen = true;
-          this.editorUpdateFindMatches();
-          this.refreshEditorWindow();
-          setTimeout(() => {
-            const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
-            input?.focus();
-            input?.select();
-          }, 50);
-          return;
-        }
-      }
-
-      // Editor F3 - Find Next, Shift+F3 - Find Prev
-      if (e.key === 'F3') {
-        const editorWindow = this.windows.find(w => w.id.startsWith('editor') && w.active);
-        if (editorWindow && this.editorFindOpen) {
-          e.preventDefault();
-          if (e.shiftKey) {
-            this.editorFindPrev();
-          } else {
-            this.editorFindNext();
-          }
-          return;
-        }
-      }
-
-      // Win+E - File Explorer
-      if (e.metaKey && e.key.toLowerCase() === 'e') {
-        e.preventDefault();
-        this.openApp('files');
-        return;
-
-      }
-
-      // Win+D - Show Desktop (minimize all)
-      if (e.metaKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        this.toggleShowDesktop();
-        return;
-      }
-
-      // Ctrl+Shift+Esc - Task Manager
-      if (e.ctrlKey && e.shiftKey && e.key === 'Escape') {
-        e.preventDefault();
-        this.openApp('system-monitor');
-        return;
-      }
-
-      // Win+X - Quick Link Menu
-      if (e.metaKey && e.key.toLowerCase() === 'x') {
-        e.preventDefault();
-        this.showContextMenu(18, window.innerHeight - 64, [
-          { label: 'Files', action: () => this.openApp('files') },
-          { label: 'Terminal', action: () => this.openApp('terminal') },
-          { label: 'Task Manager', action: () => this.openApp('system-monitor') },
-          { divider: true },
-          { label: 'Settings', action: () => this.openApp('settings') },
-          { divider: true },
-          { label: 'Lock', action: () => this.lock() },
-          { label: 'Restart', action: () => window.electronAPI?.restart() },
-          { label: 'Shutdown', action: () => window.electronAPI?.shutdown() },
-        ]);
-        return;
-      }
-
-      // Alt+F4 - Close active window
-      if (e.altKey && e.key === 'F4') {
-        e.preventDefault();
-        const activeWindow = this.windows.find(w => w.active && !w.minimized);
-        if (activeWindow) {
-          this.closeWindow(activeWindow.id);
-        }
-      }
-
-      // Alt+Tab - Cycle through windows
-      if (e.altKey && e.key === 'Tab') {
-        e.preventDefault();
-        this.stepAltTab(e.shiftKey ? -1 : 1);
-      }
-
-      // Super/Meta opens Start Menu (Windows-like)
-      if ((e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
-        const target = e.target as HTMLElement;
-        const tag = target?.tagName;
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
-          e.preventDefault();
-          this.showStartMenu = !this.showStartMenu;
-          if (!this.showStartMenu) this.startMenuSearchQuery = '';
-          this.render();
-        }
-      }
-
-      // Escape - Close active window (optional, like some apps)
-      // Only if not in an input field
-      const target = e.target as HTMLElement;
-      if (e.key === 'Escape' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-        if (this.altTabOpen) {
-          this.cancelAltTab();
-          return;
-        }
-        const activeWindow = this.windows.find(w => w.active && !w.minimized);
-        if (activeWindow) {
-          this.minimizeWindow(activeWindow.id);
-        }
-      }
-
-      // F5 - Refresh file browser
-      if (e.key === 'F5') {
-        e.preventDefault();
-        const filesWindow = this.windows.find(w => w.id.startsWith('files') && !w.minimized);
-        if (filesWindow) {
-          this.loadFiles(this.currentPath);
-        }
-      }
-    });
-
-    document.addEventListener('keyup', (e) => {
-      if (e.key === 'Alt' && this.altTabOpen) {
-        this.commitAltTab();
-      }
-    });
-
-    // ============================================
-    // CONTEXT MENU (Right-Click)
-    // ============================================
-    app.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      const target = e.target as HTMLElement;
-
-      // Close any existing context menu
-      this.closeContextMenu();
-
-      // Determine context
-      const startAppItem = target.closest('.start-app-item') as HTMLElement;
-      const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
-      const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
-      const fileItem = target.closest('.file-item') as HTMLElement;
-      const desktopEl = target.closest('.desktop') as HTMLElement;
-      const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
-
-      if (startAppItem) {
-        const key =
-          startAppItem.dataset.launchKey ||
-          (startAppItem.dataset.app ? `builtin:${startAppItem.dataset.app}` : '');
-        const display = key ? this.launcherDisplayForKey(key) : null;
-        if (key && display) {
-          const pinnedStart = this.pinnedStart.includes(key);
-          const pinnedTaskbar = this.pinnedTaskbar.includes(key);
-          const onDesktop = this.desktopShortcuts.some(s => s.key === key);
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: `dY", Open`, action: () => this.launchByKey(key) },
-            { divider: true },
-            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-            { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
-          ]);
-          return;
-        }
-      }
-
-      if (taskbarItem) {
-        const key = taskbarItem.dataset.launchKey || '';
-        const windowId = taskbarItem.dataset.taskbarWindow || '';
-        if (key) {
-          const pinnedStart = this.pinnedStart.includes(key);
-          const onDesktop = this.desktopShortcuts.some(s => s.key === key);
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: `dY", Open`, action: () => this.launchByKey(key) },
-            { divider: true },
-            { label: 'dY", Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
-            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-            { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
-          ]);
-          return;
-        }
-        if (windowId) {
-          const appId = windowId.split('-')[0];
-          const appKey = `builtin:${appId}`;
-          const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: 'dY", Restore/Focus', action: () => this.toggleWindow(windowId) },
-            { label: 'dY-`‹,? Close', action: () => this.closeWindow(windowId) },
-            { divider: true },
-            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
-          ]);
-          return;
-        }
-      }
-
-      if (desktopIcon) {
-        const key = desktopIcon.dataset.launchKey || (desktopIcon.dataset.app ? `builtin:${desktopIcon.dataset.app}` : '');
-        if (key) {
-          const pinnedStart = this.pinnedStart.includes(key);
-          const pinnedTaskbar = this.pinnedTaskbar.includes(key);
-          const isBuiltInDesktop = !!desktopIcon.dataset.app;
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: `dY", Open`, action: () => this.launchByKey(key) },
-            { divider: true },
-            { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-            { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-            ...(isBuiltInDesktop ? [] : [{ label: 'dY", Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
-          ]);
-          return;
-        }
-      }
-
-      if (fileItem) {
-        // File/folder context menu
-        const filePath = fileItem.dataset.filePath || '';
-        const isDir = fileItem.dataset.isDir === 'true';
-        const trashPath = fileItem.dataset.trashPath || '';
-        const originalPath = fileItem.dataset.originalPath || '';
-        if (this.currentPath === 'trash:' && (trashPath || filePath)) {
-          const actualTrashPath = trashPath || filePath;
-          const openOriginalFolder = () => {
-            if (!originalPath) return;
-            const isWindows = originalPath.includes('\\') || originalPath.match(/^[A-Z]:/i);
-            const separator = isWindows ? '\\' : '/';
-            const parent = originalPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
-            this.loadFiles(parent);
-          };
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: 'dY", Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
-            { divider: true },
-            { label: 'dY", Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
-            { label: 'dY-`‹,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
-            { divider: true },
-            ...(originalPath ? [{ label: 'dY"< Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
-            ...(originalPath ? [{ label: 'dY", Open Original Folder', action: () => openOriginalFolder() }] : []),
-          ]);
-          return;
-        }
-        this.showContextMenu(e.clientX, e.clientY, [
-          { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
-          { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
-          { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
-          { label: '✏️ Rename', action: () => this.promptRename(filePath) },
-          { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
-          { divider: true },
-          { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
-        ]);
-      } else if (fileBrowserEl && !target.closest('.taskbar')) {
-        if (this.currentPath === 'trash:') {
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: 'dY", Refresh', action: () => this.loadFiles('trash:') },
-            { divider: true },
-            { label: 'dY-`‹,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
-          ]);
-          return;
-        }
-        const canPaste = !!this.fileClipboard && !!this.currentPath;
-        this.showContextMenu(e.clientX, e.clientY, [
-          { label: '📁 New Folder', action: () => this.promptNewFolder() },
-          { label: '📄 New File', action: () => this.promptNewFile() },
-          { divider: true },
-          ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
-          { divider: true },
-          { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-        ]);
-      } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
-        // Desktop context menu
-        this.showContextMenu(e.clientX, e.clientY, [
-          { label: '📁 Open Files', action: () => this.openApp('files') },
-          { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
-          { divider: true },
-          { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-          { label: '⚙️ Settings', action: () => this.openApp('settings') },
-          { divider: true },
-          { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
-        ]);
-      }
-    });
-
-    // Close context menu on any click
-    document.addEventListener('click', () => this.closeContextMenu());
-
-    // Start Menu Search
-    app.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement;
-
-      // Volume Slider
-      if (target.classList.contains('volume-slider')) {
-        this.volumeLevel = parseInt(target.value);
-
-        // Call system volume API
-        if (window.electronAPI) {
-          window.electronAPI.setSystemVolume(this.volumeLevel).catch(console.error);
-        }
-
-        // Update internal audio element if exists
-        const audio = document.getElementById('hymn-audio') as HTMLAudioElement;
-        if (audio) audio.volume = this.volumeLevel / 100;
-
-        // Update tooltip
-        const volTitle = document.getElementById('tray-volume');
-        if (volTitle) volTitle.title = `Volume: ${this.volumeLevel}%`;
-        return;
-      }
-
-      if (target.classList.contains('start-search-input')) {
-        this.startMenuSearchQuery = target.value;
-        // Re-render Start Menu with filtered results
-        const startMenuEl = document.querySelector('.start-menu');
-        if (startMenuEl) {
-          // Get new HTML and replace
-          const newHTML = this.renderStartMenu();
-          startMenuEl.outerHTML = newHTML;
-          // Re-focus input and restore cursor position
-          const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
-          if (newInput) {
-            newInput.focus();
-            newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
+        const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
+        if (settingsItem && settingsItem.dataset.settingsCat) {
+          this.activeSettingsCategory = settingsItem.dataset.settingsCat;
+          const win = this.windows.find(w => w.id.startsWith('settings'));
+          if (win) {
+            win.content = this.getSettingsContentV2();
+            this.render();
           }
         }
-      }
-
-      if (target.classList.contains('monitor-search-input')) {
-        this.monitorQuery = target.value;
-        this.refreshSystemMonitorWindowDom();
-      }
-
-      // Editor content change
-      if (target.hasAttribute('data-editor-textarea')) {
-        const currentTab = this.editorTabs[this.activeEditorTab];
-        if (currentTab) {
-          currentTab.content = target.value;
-          currentTab.modified = true;
-          // Update tab modified indicator without full refresh
-          const tabEl = document.querySelector(`.editor-tab[data-editor-tab="${this.activeEditorTab}"]`);
-          if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
-            const modSpan = document.createElement('span');
-            modSpan.className = 'editor-tab-modified';
-            modSpan.textContent = '●';
-            tabEl.insertBefore(modSpan, tabEl.firstChild);
-          }
-        }
-      }
-
-      // Editor find input
-      if (target.hasAttribute('data-editor-find-input')) {
-        this.editorFindQuery = target.value;
-        this.editorUpdateFindMatches();
-        // Update count display without full refresh
-        const countEl = document.querySelector('.editor-find-count');
-        if (countEl) {
-          countEl.textContent = this.editorFindMatches.length > 0
-            ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}`
-            : '';
-        }
-      }
-
-      // Editor replace input
-      if (target.hasAttribute('data-editor-replace-input')) {
-        this.editorReplaceQuery = target.value;
-      }
-    });
-
-
-    // Settings Navigation
-    app.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
-      if (settingsItem && settingsItem.dataset.settingsCat) {
-        this.activeSettingsCategory = settingsItem.dataset.settingsCat;
-        const win = this.windows.find(w => w.id.startsWith('settings'));
-        if (win) {
-          win.content = this.getSettingsContentV2();
-          this.render();
-        }
-      }
+      });
     });
   }
 
@@ -4326,7 +4304,7 @@ class TempleOS {
       const sinkOptions = this.audioDevices.sinks.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSink ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
       const sourceOptions = this.audioDevices.sources.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSource ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
 
-      const lockMinutes = this.lockTimeoutMs <= 0 ? 0 : Math.round(this.lockTimeoutMs / 60000);
+
 
       const outputs = this.displayOutputs.slice(0, 10);
       const selectedOutput = outputs.find(o => o.name === this.activeDisplayOutput) || outputs.find(o => o.active) || outputs[0] || null;
@@ -4389,12 +4367,6 @@ class TempleOS {
         `)}
 
         ${card('Lock Screen', `
-          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center;">
-            <div>Auto-lock</div>
-            <select class="lock-timeout-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-              ${[0, 1, 5, 10, 30].map(m => `<option value="${m}" ${m === lockMinutes ? 'selected' : ''}>${m === 0 ? 'Never' : `${m} min`}</option>`).join('')}
-            </select>
-          </div>
           <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed (\"god\").</div>
         `)}
       `;
@@ -4509,14 +4481,7 @@ class TempleOS {
             <input type="checkbox" class="mouse-raw-toggle" ${this.mouseSettings.raw ? 'checked' : ''} />
             <span style="opacity: 0.85;">Disable acceleration</span>
           </label>
-
-          <div>Natural scroll</div>
-          <label style="display: inline-flex; align-items: center; gap: 8px;">
-            <input type="checkbox" class="mouse-natural-toggle" ${this.mouseSettings.naturalScroll ? 'checked' : ''} />
-            <span style="opacity: 0.85;">Reverse scroll direction</span>
-          </label>
         </div>
-        <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">${this.mouseDpiSupported ? 'DPI control uses ratbagd/libratbag (ratbagctl) when available.' : 'DPI is hardware/driver-specific; install ratbagd/libratbag-tools to enable DPI control. Pointer speed + accel profile still work.'}</div>
       `)}
     `;
     };
@@ -4524,8 +4489,20 @@ class TempleOS {
     const renderAbout = () => {
       const info = this.systemInfo;
       return `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+          <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
+          <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
+        </div>
         ${card('System', `
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 14px;">
+            <div style="opacity: 0.7;">Processor</div><div>Divine Intellect i9 (Mock)</div>
+            <div style="opacity: 0.7;">Installed RAM</div><div>64 GB (Holy Memory)</div>
+            <div style="opacity: 0.7;">System Type</div><div>64-bit Operating System</div>
+            <div style="opacity: 0.7;">Registered to</div><div>Terry A. Davis</div>
+          </div>
+          <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
+          <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
             <div style="opacity: 0.7;">Platform</div><div>${info?.platform || '—'}</div>
             <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
             <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
@@ -4537,6 +4514,10 @@ class TempleOS {
             <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
           </div>
         `)}
+        <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
+          Made with HolyC 💚 by Giangero Studio<br>
+          © 2025 Giangero Studio
+        </div>
       `;
     };
 
@@ -5279,8 +5260,20 @@ U0 Main()
       audioEl.volume = level / 100;
     }
 
-    // Sync tray and settings volume sliders
-    this.refreshSettingsWindow();
+    // Sync all volume sliders via DOM (don't re-render, it breaks dragging)
+    document.querySelectorAll('.volume-slider').forEach((slider) => {
+      const input = slider as HTMLInputElement;
+      if (input.value !== String(level)) {
+        input.value = String(level);
+      }
+    });
+
+    // Update tray tooltip
+    const volTray = document.getElementById('tray-volume');
+    if (volTray) {
+      volTray.title = `Volume: ${level}%`;
+    }
+
     this.queueSaveConfig();
   }
 
@@ -5341,9 +5334,7 @@ U0 Main()
     if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.themeMode = cfg.themeMode;
     if (typeof cfg.volumeLevel === 'number') this.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
     if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
-    if (typeof cfg.lockTimeoutMs === 'number') {
-      this.lockTimeoutMs = cfg.lockTimeoutMs <= 0 ? 0 : Math.max(30_000, cfg.lockTimeoutMs);
-    }
+
 
     if (cfg.mouse) {
       if (typeof cfg.mouse.speed === 'number') this.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
@@ -5436,7 +5427,7 @@ U0 Main()
       currentResolution: this.currentResolution,
       volumeLevel: this.volumeLevel,
       doNotDisturb: this.doNotDisturb,
-      lockTimeoutMs: this.lockTimeoutMs,
+
       audio: { defaultSink: this.audioDevices.defaultSink, defaultSource: this.audioDevices.defaultSource },
       mouse: { ...this.mouseSettings },
       pinnedStart: this.pinnedStart.slice(0, 24),
@@ -5635,11 +5626,10 @@ U0 Main()
   }
 
   private stepAltTab(direction: number): void {
-    const visible = this.windows.filter(w => !w.minimized);
-    if (visible.length === 0) return;
+    if (this.windows.length === 0) return;
 
     // Build MRU order: active first, then previous windows.
-    const order = visible.slice().reverse().map(w => w.id);
+    const order = this.windows.slice().reverse().map(w => w.id);
 
     if (!this.altTabOpen) {
       this.altTabOpen = true;
@@ -5682,22 +5672,106 @@ U0 Main()
 
     if (items.length === 0) return '';
 
+    const selected = items[Math.min(this.altTabIndex, items.length - 1)] || items[0];
+    const previewLines = selected ? this.getAltTabPreviewLines(selected) : [];
+    const selectedStatus = selected ? (selected.minimized ? 'Minimized' : 'Window') : '';
+
     return `
       <div class="alt-tab-scrim">
         <div class="alt-tab-panel">
-          ${items.map((w, idx) => `
-            <div class="alt-tab-item ${idx === this.altTabIndex ? 'active' : ''}">
-              <span class="alt-tab-icon">${w.icon}</span>
-              <div class="alt-tab-meta">
-                <div class="alt-tab-title">${w.title}</div>
-                <div class="alt-tab-sub">${w.minimized ? 'Minimized' : 'Window'}</div>
+          <div class="alt-tab-columns">
+            <div class="alt-tab-list">
+              ${items.map((w, idx) => `
+                <div class="alt-tab-item ${idx === this.altTabIndex ? 'active' : ''}">
+                  <span class="alt-tab-icon">${w.icon}</span>
+                  <div class="alt-tab-meta">
+                    <div class="alt-tab-title">${escapeHtml(w.title)}</div>
+                    <div class="alt-tab-sub">${w.minimized ? 'Minimized' : 'Window'}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="alt-tab-preview">
+              <div class="alt-tab-preview-head">
+                <div class="alt-tab-preview-icon">${selected?.icon || ''}</div>
+                <div class="alt-tab-preview-meta">
+                  <div class="alt-tab-preview-title">${escapeHtml(selected?.title || '')}</div>
+                  <div class="alt-tab-preview-sub">${escapeHtml(selectedStatus)}</div>
+                </div>
+              </div>
+              <div class="alt-tab-preview-body">
+                ${previewLines.length
+                  ? previewLines.map(l => `<div class="alt-tab-preview-line">${escapeHtml(l)}</div>`).join('')
+                  : `<div class="alt-tab-preview-empty">No preview available.</div>`}
               </div>
             </div>
-          `).join('')}
+          </div>
           <div class="alt-tab-hint">Alt+Tab to cycle • Release Alt to switch</div>
         </div>
       </div>
     `;
+  }
+
+  private getAltTabPreviewLines(win: WindowState): string[] {
+    const appId = win.id.split('-')[0] || '';
+
+    if (appId === 'terminal') {
+      const tab = this.terminalTabs[this.activeTerminalTab];
+      if (this.ptySupported && tab?.ptyId) return ['Real shell (PTY)', tab.cwd ? `CWD: ${tab.cwd}` : ''].filter(Boolean);
+      const recent = (tab?.buffer?.length ? tab.buffer : this.terminalBuffer).slice(-10);
+      const text = recent
+        .map(l => l.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+      return text.slice(-8);
+    }
+
+    if (appId === 'files') {
+      const lines: string[] = [];
+      lines.push(this.currentPath === 'trash:' ? 'Trash' : (this.currentPath || ''));
+      const count = this.fileEntries.length;
+      if (count) lines.push(`${count} item${count === 1 ? '' : 's'}`);
+      const sample = this.fileEntries.slice(0, 5).map(e => (e.isDirectory ? `[DIR] ${e.name}` : e.name));
+      return [...lines, ...sample].filter(Boolean);
+    }
+
+    if (appId === 'editor') {
+      const tab = this.editorTabs[this.activeEditorTab];
+      if (!tab) return [];
+      const title = tab.path ? getBaseName(tab.path) : (tab.filename || 'Untitled');
+      const firstLines = (tab.content || '').split(/\r?\n/).slice(0, 7).map(l => l.slice(0, 80));
+      return [title, ...firstLines].filter(Boolean);
+    }
+
+    if (appId === 'settings') {
+      return ['Settings', `Category: ${this.activeSettingsCategory}`];
+    }
+
+    if (appId === 'system-monitor') {
+      const stats = this.monitorStats;
+      const cpu = typeof stats?.cpuPercent === 'number' ? `${stats.cpuPercent.toFixed(0)}% CPU` : '';
+      const mem = stats?.memory?.total ? `${this.formatFileSize(stats.memory.used)} / ${this.formatFileSize(stats.memory.total)} RAM` : '';
+      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s ↓ • ${this.formatFileSize(stats.network.txBps)}/s ↑` : '';
+      return ['Task Manager', cpu, mem, net].filter(Boolean);
+    }
+
+    // Generic fallback: strip tags, show a few lines
+    const plain = this.stripHtmlToText(win.content).trim();
+    if (!plain) return [];
+    return plain.split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(0, 8);
+  }
+
+  private stripHtmlToText(html: string): string {
+    return String(html || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<\/(div|p|li|tr|h\d|pre|section|article)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n\s+/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .trim();
   }
 
   private closeWindow(windowId: string) {
@@ -5880,27 +5954,6 @@ U0 Main()
   // ============================================
   // LOCK SCREEN
   // ============================================
-
-  // ============================================
-  // LOCK SCREEN
-  // ============================================
-  private setupAutoLock() {
-    this.resetAutoLockTimer();
-  }
-
-  private resetAutoLockTimer() {
-    if (this.isLocked) return;
-    if (this.lockTimeoutMs <= 0) return;
-
-    if (this.autoLockTimer) {
-      clearTimeout(this.autoLockTimer);
-    }
-
-    this.autoLockTimer = window.setTimeout(() => {
-      this.lock();
-    }, this.lockTimeoutMs);
-  }
-
   private lock(): void {
     if (this.isLocked) return;
     this.isLocked = true;
@@ -5915,19 +5968,46 @@ U0 Main()
     lockScreen.style.backgroundSize = 'cover';
     lockScreen.style.backgroundPosition = 'center';
     lockScreen.innerHTML = `
-      <img src="${templeLogo}" draggable="false" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 30px rgba(0, 255, 65, 0.4);">
-      <h1 style="font-size: 48px; margin: 0 0 10px 0; text-shadow: 0 0 10px rgba(0,255,65,0.5);">TEMPLE OS</h1>
-      
-      <div style="font-size: 64px; margin-bottom: 20px; font-weight: bold;" id="lock-clock"></div>
-      <div style="font-size: 18px; margin-top: -10px; margin-bottom: 22px; opacity: 0.85;" id="lock-date"></div>
-      
-      <div class="lock-input-container">
-        <div class="lock-message" id="lock-message">Enter Password</div>
-        <input type="password" class="lock-password-input" placeholder="Password" autofocus>
-      </div>
+      <div class="lock-panel">
+        <img src="${templeLogo}" class="lock-avatar" draggable="false" alt="TempleOS">
+        <div class="lock-brand">
+          <div class="lock-brand-title">TEMPLE OS</div>
+          <div class="lock-brand-sub">God's Own Login</div>
+        </div>
 
-      <div style="position: absolute; bottom: 20px; font-size: 14px; opacity: 0.5;">
-        Press Enter to Unlock
+        <div class="lock-clock" id="lock-clock"></div>
+        <div class="lock-date" id="lock-date"></div>
+
+        <div class="lock-input-container">
+          <div class="lock-user-name">Terry A. Davis</div>
+
+          <div class="lock-mode-toggle">
+            <button class="lock-mode-btn ${this.lockInputMode === 'password' ? 'active' : ''}" data-lock-mode="password">Password</button>
+            <button class="lock-mode-btn ${this.lockInputMode === 'pin' ? 'active' : ''}" data-lock-mode="pin">PIN</button>
+          </div>
+
+          <div class="lock-input-row">
+            <input type="password" class="lock-password-input" placeholder="${this.lockInputMode === 'pin' ? 'PIN' : 'Password'}" inputmode="${this.lockInputMode === 'pin' ? 'numeric' : 'text'}" autocomplete="off">
+            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>👁</button>
+          </div>
+
+          <div class="lock-caps" id="lock-caps">Caps Lock is ON</div>
+          <div class="lock-message" id="lock-message">${this.lockInputMode === 'pin' ? 'Enter PIN' : 'Enter Password'}</div>
+
+          <div class="lock-pin-pad ${this.lockInputMode === 'pin' ? '' : 'hidden'}" data-lock-pin-pad>
+            ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="lock-pin-btn" data-pin-key="${n}">${n}</button>`).join('')}
+            <button class="lock-pin-btn alt" data-pin-key="clear">CLR</button>
+            <button class="lock-pin-btn" data-pin-key="0">0</button>
+            <button class="lock-pin-btn alt" data-pin-key="back">⌫</button>
+            <button class="lock-pin-enter" data-pin-key="enter">ENTER</button>
+          </div>
+
+          <div class="lock-hint">Press Enter to Unlock</div>
+          <div class="lock-power">
+            <button class="lock-power-btn" data-lock-power="restart">Restart</button>
+            <button class="lock-power-btn danger" data-lock-power="shutdown">Shutdown</button>
+          </div>
+        </div>
       </div>
     `;
 
@@ -5956,13 +6036,14 @@ U0 Main()
       const val = input.value;
       const msg = document.getElementById('lock-message');
 
-      if (val === this.PASSWORD) {
+      const ok = this.lockInputMode === 'pin' ? val === this.PIN : val === this.PASSWORD;
+      if (ok) {
         clearInterval(clockInterval);
         this.unlock();
       } else {
         // Error state
         if (msg) {
-          msg.textContent = "Incorrect Password";
+          msg.textContent = this.lockInputMode === 'pin' ? 'Incorrect PIN' : 'Incorrect Password';
           msg.classList.add('error');
         }
         input.classList.add('error');
@@ -5973,7 +6054,7 @@ U0 Main()
         setTimeout(() => {
           input.classList.remove('error');
           if (msg) {
-            msg.textContent = "Enter Password";
+            msg.textContent = this.lockInputMode === 'pin' ? 'Enter PIN' : 'Enter Password';
             msg.classList.remove('error');
           }
           input.focus();
@@ -5982,8 +6063,132 @@ U0 Main()
     };
 
     input.addEventListener('keydown', (e) => {
+      const capsEl = document.getElementById('lock-caps');
+      if (capsEl) {
+        const caps = (e as KeyboardEvent).getModifierState?.('CapsLock') ?? false;
+        capsEl.classList.toggle('show', caps);
+      }
+
+      if (this.lockInputMode === 'pin') {
+        const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Tab', 'Enter'];
+        if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) {
+          e.preventDefault();
+          return;
+        }
+        if (/^\d$/.test(e.key) && input.value.length >= 8) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (e.key === 'Enter') attemptUnlock();
     });
+
+    input.addEventListener('input', () => {
+      if (this.lockInputMode === 'pin') {
+        input.value = input.value.replace(/[^\d]/g, '').slice(0, 8);
+      }
+    });
+
+    const setMode = (mode: 'password' | 'pin') => {
+      this.lockInputMode = mode;
+      const msg = document.getElementById('lock-message');
+      if (msg) {
+        msg.textContent = mode === 'pin' ? 'Enter PIN' : 'Enter Password';
+        msg.classList.remove('error');
+      }
+      input.classList.remove('error');
+      input.value = '';
+      input.type = 'password';
+      input.placeholder = mode === 'pin' ? 'PIN' : 'Password';
+      input.setAttribute('inputmode', mode === 'pin' ? 'numeric' : 'text');
+
+      const pinPad = lockScreen.querySelector('[data-lock-pin-pad]') as HTMLElement | null;
+      if (pinPad) pinPad.classList.toggle('hidden', mode !== 'pin');
+
+      const capsEl = document.getElementById('lock-caps');
+      if (capsEl) capsEl.classList.remove('show');
+
+      const reveal = lockScreen.querySelector('[data-lock-action="reveal"]') as HTMLButtonElement | null;
+      if (reveal) {
+        reveal.disabled = mode === 'pin';
+        reveal.textContent = '👁';
+      }
+
+      lockScreen.querySelectorAll('[data-lock-mode]').forEach((el) => {
+        const btn = el as HTMLButtonElement;
+        btn.classList.toggle('active', btn.dataset.lockMode === mode);
+      });
+
+      input.focus();
+    };
+
+    lockScreen.querySelectorAll('[data-lock-mode]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const mode = (el as HTMLElement).getAttribute('data-lock-mode') === 'pin' ? 'pin' : 'password';
+        setMode(mode);
+      });
+    });
+
+    const revealBtn = lockScreen.querySelector('[data-lock-action="reveal"]') as HTMLButtonElement | null;
+    if (revealBtn) {
+      revealBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this.lockInputMode === 'pin') return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        revealBtn.textContent = input.type === 'password' ? '👁' : '🙈';
+        input.focus();
+      });
+    }
+
+    lockScreen.querySelectorAll('[data-pin-key]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const key = (el as HTMLElement).getAttribute('data-pin-key') || '';
+        if (key === 'enter') {
+          attemptUnlock();
+          return;
+        }
+        if (key === 'back') {
+          input.value = input.value.slice(0, -1);
+          input.focus();
+          return;
+        }
+        if (key === 'clear') {
+          input.value = '';
+          input.focus();
+          return;
+        }
+        if (/^\d$/.test(key) && input.value.length < 8) {
+          input.value += key;
+          input.focus();
+        }
+      });
+    });
+
+    lockScreen.querySelectorAll('[data-lock-power]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const action = (el as HTMLElement).getAttribute('data-lock-power');
+        if (!action) return;
+        void (async () => {
+          const ok = await this.openConfirmModal({
+            title: action === 'shutdown' ? 'Shutdown' : 'Restart',
+            message: action === 'shutdown' ? 'Power off the system?' : 'Restart the system?',
+            confirmText: action === 'shutdown' ? 'Shutdown' : 'Restart',
+            cancelText: 'Cancel'
+          });
+          if (!ok) return;
+          if (!window.electronAPI) return;
+          if (action === 'shutdown') await window.electronAPI.shutdown();
+          if (action === 'restart') await window.electronAPI.restart();
+        })();
+      });
+    });
+
+    // Ensure UI reflects the current mode.
+    setMode(this.lockInputMode);
 
     // Prevent closing by clicking background (unlike before)
     lockScreen.addEventListener('click', (e) => {
@@ -6000,7 +6205,7 @@ U0 Main()
       setTimeout(() => lockScreen.remove(), 200); // Wait for potential animation
     }
     this.isLocked = false;
-    this.resetAutoLockTimer();
+
     this.playNotificationSound('divine');
   }
 

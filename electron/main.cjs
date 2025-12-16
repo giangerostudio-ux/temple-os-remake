@@ -26,6 +26,10 @@ function createWindow() {
     } else {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
+
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`[Renderer] ${message} (${sourceId}:${line})`);
+    });
 }
 
 app.whenReady().then(createWindow);

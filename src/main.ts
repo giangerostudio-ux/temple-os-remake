@@ -281,6 +281,14 @@ class TempleOS {
       const windowEl = target.closest('.window') as HTMLElement;
       if (windowEl) {
         this.focusWindow(windowEl.dataset.windowId!);
+
+        // Focus terminal input when clicking on terminal window
+        if (windowEl.dataset.windowId?.startsWith('terminal')) {
+          setTimeout(() => {
+            const input = document.querySelector('.terminal-input') as HTMLInputElement;
+            if (input) input.focus();
+          }, 10);
+        }
       }
 
       // ============================================

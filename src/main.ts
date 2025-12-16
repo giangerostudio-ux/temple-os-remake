@@ -1469,24 +1469,24 @@ U0 Main()
   // HYMN PLAYER
   // ============================================
   private hymnList = [
-    { file: '01_Blessing_Great_Synapse_Kyrie_eleison.mp3', title: 'Blessing - Kyrie Eleison' },
-    { file: '02_1st_Stanza__Psalm_102_103.mp3', title: '1st Stanza: Psalm 102-103' },
-    { file: '03_2nd_Stanza__Psalm_145_146.mp3', title: '2nd Stanza: Psalm 145-146' },
-    { file: '04_3rd_Stanza__The_Beatitudes.mp3', title: '3rd Stanza: The Beatitudes' },
-    { file: '05_Small_Introit_with_the_Gospel.mp3', title: 'Small Introit with Gospel' },
-    { file: '06_Trisagion_Dynamis.mp3', title: 'Trisagion Dynamis' },
-    { file: '07_Prokeimenon_Epistle.mp3', title: 'Prokeimenon Epistle' },
-    { file: '08_Alleluia_Gospel.mp3', title: 'Alleluia Gospel' },
-    { file: '09_Glory_Be_to_Thee_O_Lord.mp3', title: 'Glory Be to Thee, O Lord' },
-    { file: '10_Hymn_of_the_Cherubim_Great_Introit.mp3', title: 'Hymn of the Cherubim' },
-    { file: '11_Kiss_of_Peace_Symbol_of_Faith_Creed.mp3', title: 'Symbol of Faith (Creed)' },
-    { file: '12_Anaphora_Sanctus.mp3', title: 'Anaphora Sanctus' },
-    { file: '13_Megalymaire_Hymn_To_Our_Lady.mp3', title: 'Hymn to Our Lady' },
-    { file: '14_Ekphonese.mp3', title: 'Ekphonese' },
-    { file: '15_Sunday_Prayer.mp3', title: 'Sunday Prayer' },
-    { file: '16_Kinonikon.mp3', title: 'Kinonikon (Communion)' },
-    { file: '17_Ekphonese_We_Have_Seen_the_True_Light.mp3', title: 'We Have Seen the True Light' },
-    { file: '18_Final_Prayers_Let_the_Name_of_The_Lord.mp3', title: 'Let the Name of the Lord' },
+    { title: "Blessing - Kyrie Eleison", file: "01_Blessing_Great_Synapse_Kyrie_eleison.mp3" },
+    { title: "1st Stanza: Psalm 102-103", file: "02_1st_Stanza__Psalm_102_103.mp3" },
+    { title: "2nd Stanza: Psalm 145-146", file: "03_2nd_Stanza__Psalm_145_146.mp3" },
+    { title: "3rd Stanza: The Beatitudes", file: "04_3rd_Stanza__The_Beatitudes.mp3" },
+    { title: "Small Introit with Gospel", file: "05_Small_Introit_with_the_Gospel.mp3" },
+    { title: "Trisagion Dynamis", file: "06_Trisagion_Dynamis.mp3" },
+    { title: "Prokeimenon Epistle", file: "07_Prokeimenon_Epistle.mp3" },
+    { title: "Alleluia Gospel", file: "08_Alleluia_Gospel.mp3" },
+    { title: "Glory Be to Thee O Lord", file: "09_Glory_Be_to_Thee_O_Lord.mp3" },
+    { title: "Hymn of the Cherubim", file: "10_Hymn_of_the_Cherubim_Great_Introit.mp3" },
+    { title: "Creed", file: "11_Kiss_of_Peace_Symbol_of_Faith_Creed.mp3" },
+    { title: "Anaphora Sanctus", file: "12_Anaphora_Sanctus.mp3" },
+    { title: "Hymn To Our Lady", file: "13_Megalymaire_Hymn_To_Our_Lady.mp3" },
+    { title: "Ekphonese", file: "14_Ekphonese.mp3" },
+    { title: "Sunday Prayer", file: "15_Sunday_Prayer.mp3" },
+    { title: "Kinonikon", file: "16_Kinonikon.mp3" },
+    { title: "We Have Seen the True Light", file: "17_Ekphonese_We_Have_Seen_the_True_Light.mp3" },
+    { title: "Final Prayers", file: "18_Final_Prayers_Let_the_Name_of_The_Lord.mp3" }
   ];
 
   private currentHymn = 0;

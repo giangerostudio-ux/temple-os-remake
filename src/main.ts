@@ -224,26 +224,26 @@ interface TempleConfig {
 // FILE ICON HELPER
 // ============================================
 function getFileIcon(name: string, isDirectory: boolean): string {
-  if (isDirectory) return 'ðŸ“';
+  if (isDirectory) return '📁';
 
   const ext = name.split('.').pop()?.toLowerCase() || '';
   const iconMap: Record<string, string> = {
     // Documents
-    'txt': 'ðŸ“„', 'md': 'ðŸ“„', 'doc': 'ðŸ“„', 'docx': 'ðŸ“„', 'pdf': 'ðŸ“•',
+    'txt': '📄', 'md': '📄', 'doc': '📄', 'docx': '📄', 'pdf': '📕',
     // Code
-    'ts': 'ðŸ“œ', 'js': 'ðŸ“œ', 'py': 'ðŸ', 'hc': 'âœï¸', 'c': 'ðŸ“œ', 'cpp': 'ðŸ“œ', 'h': 'ðŸ“œ',
-    'html': 'ðŸŒ', 'css': 'ðŸŽ¨', 'json': 'ðŸ“‹', 'xml': 'ðŸ“‹',
+    'ts': '📜', 'js': '📜', 'py': '🐍', 'hc': '✝️', 'c': '📜', 'cpp': '📜', 'h': '📜',
+    'html': '🌐', 'css': '🎨', 'json': '📋', 'xml': '📋',
     // Media
-    'jpg': 'ðŸ–¼ï¸', 'jpeg': 'ðŸ–¼ï¸', 'png': 'ðŸ–¼ï¸', 'gif': 'ðŸ–¼ï¸', 'svg': 'ðŸ–¼ï¸', 'webp': 'ðŸ–¼ï¸',
-    'mp3': 'ðŸŽµ', 'wav': 'ðŸŽµ', 'ogg': 'ðŸŽµ', 'flac': 'ðŸŽµ',
-    'mp4': 'ðŸŽ¬', 'mkv': 'ðŸŽ¬', 'avi': 'ðŸŽ¬', 'webm': 'ðŸŽ¬',
+    'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
+    'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'flac': '🎵',
+    'mp4': '🎬', 'mkv': '🎬', 'avi': '🎬', 'webm': '🎬',
     // Archives
-    'zip': 'ðŸ“¦', 'tar': 'ðŸ“¦', 'gz': 'ðŸ“¦', 'rar': 'ðŸ“¦', '7z': 'ðŸ“¦',
+    'zip': '📦', 'tar': '📦', 'gz': '📦', 'rar': '📦', '7z': '📦',
     // Executables
-    'exe': 'âš™ï¸', 'sh': 'âš™ï¸', 'bin': 'âš™ï¸', 'AppImage': 'âš™ï¸',
+    'exe': '⚙️', 'sh': '⚙️', 'bin': '⚙️', 'AppImage': '⚙️',
   };
 
-  return iconMap[ext] || 'ðŸ“„';
+  return iconMap[ext] || '📄';
 }
 
 function escapeHtml(text: string): string {
@@ -1565,7 +1565,7 @@ class TempleOS {
         <div class="start-menu-left">
           <div class="start-search-container">
             <div class="start-search-row">
-              <input type="text" class="start-search-input" placeholder="≡ƒöì Search apps..." value="${escapeHtml(this.startMenuSearchQuery)}">
+              <input type="text" class="start-search-input" placeholder="🔍 Search apps..." value="${escapeHtml(this.startMenuSearchQuery)}">
               <button class="start-all-apps-btn" data-start-action="launcher" title="Open App Launcher (Super+A)">▦ All Apps</button>
             </div>
           </div>
@@ -1602,7 +1602,7 @@ class TempleOS {
                 <div class="start-no-results">No apps found</div>
               ` : filteredApps.map(app => `
                 <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}'>
-                  <span class="app-icon">≡ƒôª</span>
+                  <span class="app-icon">📦</span>
                   <div class="app-info">
                     <span class="app-name">${app.name}</span>
                     ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
@@ -1622,19 +1622,19 @@ class TempleOS {
           </div>
           
           <div class="start-quick-links">
-            <div class="start-quick-link" data-path="root">≡ƒÆ╗ This PC</div>
-            <div class="start-quick-link" data-path="home">≡ƒÅá Home</div>
-            <div class="start-quick-link" data-path="Documents">≡ƒôä Documents</div>
-            <div class="start-quick-link" data-path="Downloads">Γ¼ç∩╕Å Downloads</div>
-            <div class="start-quick-link" data-path="Music">≡ƒÄ╡ Music</div>
-            <div class="start-quick-link" data-path="Pictures">≡ƒû╝∩╕Å Pictures</div>
-            <div class="start-quick-link" data-path="settings">ΓÜÖ∩╕Å Settings</div>
+            <div class="start-quick-link" data-path="root">💻 This PC</div>
+            <div class="start-quick-link" data-path="home">🏠 Home</div>
+            <div class="start-quick-link" data-path="Documents">📄 Documents</div>
+            <div class="start-quick-link" data-path="Downloads">⬇️ Downloads</div>
+            <div class="start-quick-link" data-path="Music">🎵 Music</div>
+            <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
+            <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
           </div>
           
           <div class="start-power-section">
-            <button class="start-power-btn" data-power-action="lock">≡ƒöÆ Lock</button>
-            <button class="start-power-btn" data-power-action="restart">≡ƒöä Restart</button>
-            <button class="start-power-btn" data-power-action="shutdown">≡ƒö┤ Shutdown</button>
+            <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
+            <button class="start-power-btn" data-power-action="restart">🔄 Restart</button>
+            <button class="start-power-btn" data-power-action="shutdown">🔴 Shutdown</button>
           </div>
         </div>
       </div>
@@ -5144,10 +5144,10 @@ class TempleOS {
     const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
     return `
       <div class="word-of-god">
-        <h2>âœ WORD OF GOD âœ</h2>
+        <h2>✝ WORD OF GOD ✝</h2>
         <p class="verse-text">"${verse.text}"</p>
         <p class="verse-reference">â€” ${verse.ref}</p>
-        <p class="click-hint">ðŸ™ Click anywhere for new word</p>
+        <p class="click-hint">🙏 Click anywhere for new word</p>
       </div>
     `;
   }
@@ -5159,7 +5159,7 @@ class TempleOS {
     const separator = isWindows ? '\\' : '/';
 
     // Build breadcrumb HTML
-    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">ðŸ  Root</span>`;
+    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">🏠 Root</span>`;
     let cumulativePath = isWindows ? '' : '';
 
     for (const part of pathParts) {

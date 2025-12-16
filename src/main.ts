@@ -3826,7 +3826,10 @@ class TempleOS {
       // ============================================
       // CONTEXT MENU (Right-Click)
       // ============================================
-      app.addEventListener('contextmenu', (e) => {
+      // ============================================
+      // CONTEXT MENU (Right-Click)
+      // ============================================
+      document.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         const target = e.target as HTMLElement;
 
@@ -3838,17 +3841,15 @@ class TempleOS {
         const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
         const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
-        const desktopEl = target.closest('.desktop') as HTMLElement;
         const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
 
         // DEBUG: Log what's being matched
         console.log('Context menu debug:', {
-          target: target.className,
+          target: target.className || target.tagName,
           startAppItem: !!startAppItem,
           taskbarItem: !!taskbarItem,
           desktopIcon: !!desktopIcon,
           fileItem: !!fileItem,
-          desktopEl: !!desktopEl,
           fileBrowserEl: !!fileBrowserEl,
           inWindow: !!target.closest('.window'),
           inTaskbar: !!target.closest('.taskbar')
@@ -3975,6 +3976,9 @@ class TempleOS {
           ]);
         } else if (!target.closest('.window') && !target.closest('.taskbar') && !target.closest('.toast')) {
           // Desktop context menu (fallback for any click on background)
+          // Also show a toast so the user knows it triggered!
+          this.showNotification('Debug', 'Desktop Context Menu Triggered', 'info');
+
           this.showContextMenu(e.clientX, e.clientY, [
             { label: '📁 Open Files', action: () => this.openApp('files') },
             { label: '💻 Open Terminal', action: () => this.openApp('terminal') },

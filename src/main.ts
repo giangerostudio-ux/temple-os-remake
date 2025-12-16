@@ -1,5 +1,79 @@
 import './style.css';
 
+// ============================================
+// ELECTRON API TYPE DECLARATION
+// ============================================
+declare global {
+  interface Window {
+    electronAPI?: {
+      // Filesystem
+      readDir: (path: string) => Promise<{ success: boolean; entries?: FileEntry[]; error?: string }>;
+      readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+      writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
+      deleteItem: (path: string) => Promise<{ success: boolean; error?: string }>;
+      mkdir: (path: string) => Promise<{ success: boolean; error?: string }>;
+      rename: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>;
+      getHome: () => Promise<string>;
+      openExternal: (path: string) => Promise<{ success: boolean; error?: string }>;
+      // System
+      shutdown: () => Promise<void>;
+      restart: () => Promise<void>;
+      lock: () => Promise<void>;
+      getSystemInfo: () => Promise<SystemInfo>;
+      // Holy Updater
+      checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
+      runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
+      // Window
+      closeWindow: () => Promise<void>;
+      minimizeWindow: () => Promise<void>;
+      maximizeWindow: () => Promise<void>;
+    };
+  }
+}
+
+interface FileEntry {
+  name: string;
+  isDirectory: boolean;
+  path: string;
+  size: number;
+  modified: string | null;
+}
+
+interface SystemInfo {
+  platform: string;
+  hostname: string;
+  uptime: number;
+  memory: { total: number; free: number };
+  cpus: number;
+  user: string;
+}
+
+// ============================================
+// FILE ICON HELPER
+// ============================================
+function getFileIcon(name: string, isDirectory: boolean): string {
+  if (isDirectory) return '📁';
+
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  const iconMap: Record<string, string> = {
+    // Documents
+    'txt': '📄', 'md': '📄', 'doc': '📄', 'docx': '📄', 'pdf': '📕',
+    // Code
+    'ts': '📜', 'js': '📜', 'py': '🐍', 'hc': '✝️', 'c': '📜', 'cpp': '📜', 'h': '📜',
+    'html': '🌐', 'css': '🎨', 'json': '📋', 'xml': '📋',
+    // Media
+    'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
+    'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'flac': '🎵',
+    'mp4': '🎬', 'mkv': '🎬', 'avi': '🎬', 'webm': '🎬',
+    // Archives
+    'zip': '📦', 'tar': '📦', 'gz': '📦', 'rar': '📦', '7z': '📦',
+    // Executables
+    'exe': '⚙️', 'sh': '⚙️', 'bin': '⚙️', 'AppImage': '⚙️',
+  };
+
+  return iconMap[ext] || '📄';
+}
+
 // Bible verses for Word of God feature
 const bibleVerses = [
   { text: "In the beginning God created the heaven and the earth.", ref: "Genesis 1:1" },
@@ -33,7 +107,10 @@ class TempleOS {
   private windows: WindowState[] = [];
   private windowIdCounter = 0;
   private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
-  private hasBooted = false;
+
+  // File browser state
+  private currentPath = '';
+  private fileEntries: FileEntry[] = [];
 
   constructor() {
     this.init();
@@ -45,9 +122,8 @@ class TempleOS {
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
 
-    // Mark as booted after animation completes
+    // Hide boot screen after animation completes
     setTimeout(() => {
-      this.hasBooted = true;
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.display = 'none';
@@ -106,6 +182,7 @@ class TempleOS {
       { id: 'word-of-god', icon: '✝️', label: 'Word of God' },
       { id: 'files', icon: '📁', label: 'Files' },
       { id: 'editor', icon: '📝', label: 'HolyC Editor' },
+      { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
     ];
 
     return icons.map(icon => `
@@ -205,6 +282,68 @@ class TempleOS {
       if (windowEl) {
         this.focusWindow(windowEl.dataset.windowId!);
       }
+
+      // ============================================
+      // FILE BROWSER HANDLERS
+      // ============================================
+
+      // File/folder click in file browser
+      const fileItem = target.closest('.file-item') as HTMLElement;
+      if (fileItem) {
+        const filePath = fileItem.dataset.filePath;
+        const isDir = fileItem.dataset.isDir === 'true';
+        if (filePath && isDir) {
+          this.loadFiles(filePath);
+        } else if (filePath && window.electronAPI) {
+          // Open file with system default app
+          window.electronAPI.openExternal(filePath);
+        }
+        return;
+      }
+
+      // Breadcrumb click
+      const breadcrumb = target.closest('.breadcrumb-item') as HTMLElement;
+      if (breadcrumb && breadcrumb.dataset.path) {
+        this.loadFiles(breadcrumb.dataset.path);
+        return;
+      }
+
+      // Navigation buttons
+      const navBtn = target.closest('.nav-btn') as HTMLElement;
+      if (navBtn && navBtn.dataset.nav) {
+        const nav = navBtn.dataset.nav;
+        if (nav === 'back') {
+          // Go to parent directory
+          const isWindows = this.currentPath.includes('\\');
+          const separator = isWindows ? '\\' : '/';
+          const parentPath = this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
+          this.loadFiles(parentPath);
+        } else if (nav === 'home') {
+          // Go to home directory
+          if (window.electronAPI) {
+            window.electronAPI.getHome().then(home => this.loadFiles(home));
+          }
+        } else if (nav === 'refresh') {
+          this.loadFiles(this.currentPath);
+        }
+        return;
+      }
+
+      // ============================================
+      // HOLY UPDATER HANDLERS
+      // ============================================
+      const updaterBtn = target.closest('.updater-btn') as HTMLElement;
+      if (updaterBtn && updaterBtn.dataset.updaterAction) {
+        const action = updaterBtn.dataset.updaterAction;
+        if (action === 'check') {
+          this.checkForUpdates();
+        } else if (action === 'update') {
+          this.runUpdate();
+        } else if (action === 'reboot' && window.electronAPI) {
+          window.electronAPI.restart();
+        }
+        return;
+      }
     });
 
     // Window dragging
@@ -292,10 +431,12 @@ class TempleOS {
         windowConfig = {
           title: 'File Browser',
           icon: '📁',
-          width: 500,
-          height: 400,
+          width: 600,
+          height: 450,
           content: this.getFileBrowserContent()
         };
+        // Load real files after window opens
+        setTimeout(() => this.loadFiles(), 100);
         break;
       case 'editor':
         windowConfig = {
@@ -305,6 +446,17 @@ class TempleOS {
           height: 450,
           content: this.getEditorContent()
         };
+        break;
+      case 'updater':
+        windowConfig = {
+          title: 'Holy Updater',
+          icon: '⬇️',
+          width: 500,
+          height: 350,
+          content: this.getUpdaterContent()
+        };
+        // Check for updates when window opens
+        setTimeout(() => this.checkForUpdates(), 100);
         break;
     }
 
@@ -364,26 +516,113 @@ class TempleOS {
   }
 
   private getFileBrowserContent(): string {
-    const files = [
-      { name: 'Home', icon: '🏠', type: 'dir' },
-      { name: 'Programs', icon: '📁', type: 'dir' },
-      { name: 'Demos', icon: '📁', type: 'dir' },
-      { name: 'Adam', icon: '📁', type: 'dir' },
-      { name: 'README.TXT', icon: '📄', type: 'file' },
-      { name: 'HYMN.HC', icon: '📝', type: 'file' },
-      { name: 'TEMPLE.GFX', icon: '🖼️', type: 'file' },
-    ];
+    // Show loading state initially, then render with JS after data loads
+    const pathParts = this.currentPath.split(/[/\\]/).filter(p => p);
+    const isWindows = this.currentPath.includes('\\') || this.currentPath.match(/^[A-Z]:/i);
+    const separator = isWindows ? '\\' : '/';
+
+    // Build breadcrumb HTML
+    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">🏠 Root</span>`;
+    let cumulativePath = isWindows ? '' : '';
+
+    for (const part of pathParts) {
+      cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+    }
+
+    // Build file list HTML
+    let filesHtml = '';
+
+    if (this.fileEntries.length === 0 && this.currentPath) {
+      filesHtml = '<div style="padding: 20px; opacity: 0.5;">Loading...</div>';
+    } else if (this.fileEntries.length === 0) {
+      filesHtml = '<div style="padding: 20px; opacity: 0.5;">Empty folder</div>';
+    } else {
+      // Add ".." for parent directory (unless at root)
+      if (this.currentPath && this.currentPath !== '/' && !this.currentPath.match(/^[A-Z]:\\?$/i)) {
+        const parentPath = this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
+        filesHtml += `
+          <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;">
+            <span class="icon">📂</span>
+            <span class="label" style="font-size: 12px;">..</span>
+          </div>
+        `;
+      }
+
+      for (const file of this.fileEntries) {
+        const icon = getFileIcon(file.name, file.isDirectory);
+        const sizeStr = file.isDirectory ? '' : this.formatFileSize(file.size);
+        filesHtml += `
+          <div class="file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer;" title="${file.name}${sizeStr ? ' - ' + sizeStr : ''}">
+            <span class="icon">${icon}</span>
+            <span class="label" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+          </div>
+        `;
+      }
+    }
 
     return `
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; padding: 10px;">
-        ${files.map(f => `
-          <div class="desktop-icon" style="cursor: pointer;">
-            <span class="icon">${f.icon}</span>
-            <span class="label" style="font-size: 12px;">${f.name}</span>
+      <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">← Back</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">🏠</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">🔄</button>
+        </div>
+        <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
+          ${breadcrumbHtml}
+        </div>
+        <div class="file-browser-content" style="flex: 1; overflow-y: auto; padding: 10px;">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+            ${filesHtml}
           </div>
-        `).join('')}
+        </div>
       </div>
     `;
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  private async loadFiles(path?: string): Promise<void> {
+    if (!window.electronAPI) {
+      console.warn('electronAPI not available - running in browser mode');
+      return;
+    }
+
+    try {
+      // Get home directory if no path specified
+      if (!path && !this.currentPath) {
+        this.currentPath = await window.electronAPI.getHome();
+      } else if (path) {
+        this.currentPath = path;
+      }
+
+      const result = await window.electronAPI.readDir(this.currentPath);
+      if (result.success && result.entries) {
+        this.fileEntries = result.entries;
+      } else {
+        console.error('Failed to read directory:', result.error);
+        this.fileEntries = [];
+      }
+
+      // Update file browser window content
+      this.updateFileBrowserWindow();
+    } catch (error) {
+      console.error('Error loading files:', error);
+    }
+  }
+
+  private updateFileBrowserWindow(): void {
+    const filesWindow = this.windows.find(w => w.id.startsWith('files'));
+    if (filesWindow) {
+      filesWindow.content = this.getFileBrowserContent();
+      this.render();
+    }
   }
 
   private getEditorContent(): string {
@@ -414,6 +653,122 @@ U0 Main()
 "></textarea>
       </div>
     `;
+  }
+
+  // ============================================
+  // HOLY UPDATER
+  // ============================================
+  private updaterState: { status: string; message: string; isUpdating: boolean } = {
+    status: 'idle',
+    message: 'Click "Check for Updates" to see if new blessings await.',
+    isUpdating: false
+  };
+
+  private getUpdaterContent(): string {
+    const statusIcon = this.updaterState.status === 'success' ? '✅' :
+      this.updaterState.status === 'error' ? '❌' :
+        this.updaterState.status === 'updating' ? '⏳' :
+          this.updaterState.status === 'available' ? '🆕' : '🔍';
+
+    return `
+      <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
+        <div style="font-size: 48px; margin-bottom: 15px;">⬇️</div>
+        <h2 style="margin: 0 0 10px 0; color: #ffd700;">✝ HOLY UPDATER ✝</h2>
+        <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
+        
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <div style="font-size: 24px; margin-bottom: 10px;">${statusIcon}</div>
+          <p style="margin: 10px 0; max-width: 400px;">${this.updaterState.message}</p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+          <button class="updater-btn" data-updater-action="check" 
+                  style="background: rgba(0,255,65,0.2); border: 1px solid #00ff41; color: #00ff41; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
+                  ${this.updaterState.isUpdating ? 'disabled' : ''}>
+            🔍 Check for Updates
+          </button>
+          <button class="updater-btn" data-updater-action="update" 
+                  style="background: rgba(255,215,0,0.2); border: 1px solid #ffd700; color: #ffd700; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
+                  ${this.updaterState.isUpdating || this.updaterState.status !== 'available' ? 'disabled' : ''}>
+            ⬇️ Download & Install
+          </button>
+          ${this.updaterState.status === 'success' ? `
+          <button class="updater-btn" data-updater-action="reboot" 
+                  style="background: rgba(255,100,100,0.2); border: 1px solid #ff6464; color: #ff6464; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;">
+            🔄 Reboot Now
+          </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  private async checkForUpdates(): Promise<void> {
+    if (!window.electronAPI) {
+      this.updaterState = { status: 'error', message: 'Not running in Electron environment.', isUpdating: false };
+      this.updateUpdaterWindow();
+      return;
+    }
+
+    this.updaterState = { status: 'updating', message: 'Connecting to the Divine Repository...', isUpdating: true };
+    this.updateUpdaterWindow();
+
+    try {
+      const result = await window.electronAPI.checkForUpdates();
+      if (result.success) {
+        if (result.updatesAvailable) {
+          this.updaterState = {
+            status: 'available',
+            message: `🆕 ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
+            isUpdating: false
+          };
+        } else {
+          this.updaterState = {
+            status: 'idle',
+            message: '✨ Your temple is blessed with the latest version!',
+            isUpdating: false
+          };
+        }
+      } else {
+        this.updaterState = { status: 'error', message: `Error: ${result.error}`, isUpdating: false };
+      }
+    } catch (error) {
+      this.updaterState = { status: 'error', message: `Connection failed: ${error}`, isUpdating: false };
+    }
+
+    this.updateUpdaterWindow();
+  }
+
+  private async runUpdate(): Promise<void> {
+    if (!window.electronAPI) return;
+
+    this.updaterState = { status: 'updating', message: '📥 Downloading divine updates...', isUpdating: true };
+    this.updateUpdaterWindow();
+
+    try {
+      const result = await window.electronAPI.runUpdate();
+      if (result.success) {
+        this.updaterState = {
+          status: 'success',
+          message: '✅ Update complete! Reboot to apply the new blessings.',
+          isUpdating: false
+        };
+      } else {
+        this.updaterState = { status: 'error', message: `Update failed: ${result.error}`, isUpdating: false };
+      }
+    } catch (error) {
+      this.updaterState = { status: 'error', message: `Update error: ${error}`, isUpdating: false };
+    }
+
+    this.updateUpdaterWindow();
+  }
+
+  private updateUpdaterWindow(): void {
+    const updaterWindow = this.windows.find(w => w.id.startsWith('updater'));
+    if (updaterWindow) {
+      updaterWindow.content = this.getUpdaterContent();
+      this.render();
+    }
   }
 
   private closeWindow(windowId: string) {

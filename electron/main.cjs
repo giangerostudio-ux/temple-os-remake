@@ -1,6 +1,8 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
+const os = require('os');
 
 let mainWindow;
 
@@ -28,7 +30,9 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// IPC Handlers
+// ============================================
+// WINDOW CONTROL IPC
+// ============================================
 ipcMain.handle('close-window', () => {
     if (mainWindow) mainWindow.close();
 });
@@ -47,6 +51,191 @@ ipcMain.handle('maximize-window', () => {
     }
 });
 
+// ============================================
+// FILESYSTEM IPC
+// ============================================
+ipcMain.handle('fs:readdir', async (event, dirPath) => {
+    try {
+        const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+        const results = [];
+
+        for (const entry of entries) {
+            const fullPath = path.join(dirPath, entry.name);
+            let size = 0;
+            let modified = null;
+
+            try {
+                const stats = await fs.promises.stat(fullPath);
+                size = stats.size;
+                modified = stats.mtime.toISOString();
+            } catch (e) {
+                // Permission denied or other error
+            }
+
+            results.push({
+                name: entry.name,
+                isDirectory: entry.isDirectory(),
+                path: fullPath,
+                size,
+                modified
+            });
+        }
+
+        // Sort: directories first, then files, alphabetically
+        results.sort((a, b) => {
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return { success: true, entries: results };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:readFile', async (event, filePath) => {
+    try {
+        const content = await fs.promises.readFile(filePath, 'utf-8');
+        return { success: true, content };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:writeFile', async (event, filePath, content) => {
+    try {
+        await fs.promises.writeFile(filePath, content, 'utf-8');
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:delete', async (event, itemPath) => {
+    try {
+        const stat = await fs.promises.stat(itemPath);
+        if (stat.isDirectory()) {
+            await fs.promises.rm(itemPath, { recursive: true });
+        } else {
+            await fs.promises.unlink(itemPath);
+        }
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:mkdir', async (event, dirPath) => {
+    try {
+        await fs.promises.mkdir(dirPath, { recursive: true });
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
+    try {
+        await fs.promises.rename(oldPath, newPath);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:getHome', () => os.homedir());
+
+ipcMain.handle('fs:openExternal', async (event, filePath) => {
+    try {
+        await shell.openPath(filePath);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// ============================================
+// SYSTEM IPC
+// ============================================
+ipcMain.handle('system:shutdown', () => {
+    exec('systemctl poweroff');
+});
+
+ipcMain.handle('system:restart', () => {
+    exec('systemctl reboot');
+});
+
+ipcMain.handle('system:lock', () => {
+    // Lock screen - this will be handled by the UI
+    mainWindow.webContents.send('lock-screen');
+});
+
+ipcMain.handle('system:info', () => ({
+    platform: os.platform(),
+    hostname: os.hostname(),
+    uptime: os.uptime(),
+    memory: {
+        total: os.totalmem(),
+        free: os.freemem()
+    },
+    cpus: os.cpus().length,
+    user: os.userInfo().username
+}));
+
+// ============================================
+// HOLY UPDATER IPC
+// ============================================
+ipcMain.handle('updater:check', async () => {
+    return new Promise((resolve) => {
+        // Check for updates by doing git fetch and comparing
+        exec('cd /opt/templeos && git fetch origin main && git rev-list HEAD...origin/main --count',
+            (error, stdout, stderr) => {
+                if (error) {
+                    resolve({ success: false, error: error.message });
+                    return;
+                }
+                const behindCount = parseInt(stdout.trim()) || 0;
+                resolve({
+                    success: true,
+                    updatesAvailable: behindCount > 0,
+                    behindCount
+                });
+            }
+        );
+    });
+});
+
+ipcMain.handle('updater:update', async () => {
+    return new Promise((resolve) => {
+        // Pull updates, rebuild, and prepare for reboot
+        const updateScript = `
+            cd /opt/templeos && 
+            git pull origin main && 
+            npm run build -- --base=./
+        `;
+
+        exec(updateScript, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            if (error) {
+                resolve({
+                    success: false,
+                    error: error.message,
+                    output: stdout + '\n' + stderr
+                });
+                return;
+            }
+            resolve({
+                success: true,
+                output: stdout,
+                message: 'Update complete! Reboot to apply changes.'
+            });
+        });
+    });
+});
+
+// ============================================
+// APP LIFECYCLE
+// ============================================
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();

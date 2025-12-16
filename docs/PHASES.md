@@ -6,7 +6,7 @@ Project tracking with to-do lists and AI prompts. Build the OS foundation first,
 
 **GitHub Repository**: https://github.com/giangerostudio-ux/temple-os-remake
 
-**Current Phase**: 🟢 Phase 2 - Electron Wrapper ✅ → Ready for Phase 3!
+**Current Phase**: 🟢 Phase 3 - Linux Base (VM Setup Complete) + Phase 4 (UI Development)
 
 ---
 
@@ -16,10 +16,10 @@ Project tracking with to-do lists and AI prompts. Build the OS foundation first,
 |-------|--------|-------------|
 | Phase 1: UI Shell | ✅ Complete | Visual UI with mock data |
 | Phase 2: Electron Wrapper | ✅ Complete | Package as desktop app |
-| Phase 3: Linux Base | 🔵 Next | Ubuntu 24.04 LTS + kiosk mode |
-| Phase 4: Real Features | ⚪ Pending | Connect UI to real OS |
-| Phase 5: Bootable USB | ⚪ Pending | Create installable ISO |
-| Phase 6: Windows-like UX | ⚪ Pending | Zorin OS-inspired polish |
+| Phase 3: Linux Base | ✅ VM Ready | Ubuntu 24.04 VM for testing |
+| Phase 4: Real Features | 🔵 In Progress | Connect UI to real OS |
+| Phase 5: Bootable USB | ⚪ Final Step | Create installable ISO (do last!) |
+| Phase 6: Windows-like UX | ⚪ Ongoing | Zorin OS-inspired polish |
 
 ---
 
@@ -28,11 +28,13 @@ Project tracking with to-do lists and AI prompts. Build the OS foundation first,
 ```
 Phase 1: UI Shell          → Just the look (mockups)     ✅ DONE
 Phase 2: Electron Wrapper  → Package for desktop         ✅ DONE
-Phase 3: Linux Base        → Set up Ubuntu + kiosk       ← NEXT
-Phase 4: Real Features     → Real files, terminal, apps
-Phase 5: Bootable USB      → ISO for USB install
-Phase 6: Windows-like UX   → Zorin OS-inspired polish
+Phase 3: Linux Base        → VM for testing kiosk mode   ✅ VM READY
+Phase 4: Real Features     → Real files, terminal, apps  ← CURRENT
+Phase 5: Bootable USB      → ISO for USB install         (DO LAST)
+Phase 6: Windows-like UX   → Zorin OS-inspired polish    (ONGOING)
 ```
+
+> 💡 **Development Workflow**: Write code on Windows → Push to GitHub → Pull in VM to test kiosk mode → Only make ISO when fully done!
 
 ---
 
@@ -93,20 +95,24 @@ The web app is in src/main.ts and src/style.css
 ## To-Do List
 
 ### VM Setup
-- [ ] Download Ubuntu 24.04 LTS Server
-- [ ] Create VM (VirtualBox or QEMU)
-- [ ] Install Ubuntu Server (minimized)
-- [ ] User account "temple"
+- [x] Download Ubuntu 24.04 LTS Server
+- [x] Create VM (VMware)
+- [x] Install Ubuntu Server (minimized)
+- [x] User account "temple"
+- [x] SSH port forwarding (port 2222)
 
 ### Compositor + Kiosk Mode
-- [ ] Install Sway or minimal Wayland compositor
-- [ ] Install Gamescope for gaming
-- [ ] Configure auto-login
-- [ ] Auto-start Electron with Wayland flags
-- [ ] Gaming mode: hide shell when games launch
+- [x] Install Sway compositor
+- [x] Install Gamescope (partial - not in default repos)
+- [x] Configure auto-login
+- [x] Auto-start Sway on boot
+- [x] Clone repo to /opt/templeos
+- [x] npm install & build successful
+- [x] Sway config created for Electron launch
+- [x] Verify Electron launches after reboot
 
 ### Apps
-- [ ] Install Steam (native .deb)
+
 - [ ] ~~Install browsers~~ *(Users install via Word of God when needed)*
 - [ ] Create launch scripts with Gamescope
 

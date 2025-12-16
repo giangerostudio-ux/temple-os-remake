@@ -366,6 +366,37 @@ body {
   border-style: dashed;
 }
 
+.taskbar-tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.power-btn {
+  background: none;
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  color: #ff6464;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.power-btn:hover {
+  background: rgba(255, 100, 100, 0.2);
+  border-color: #ff6464;
+  box-shadow: 0 0 15px rgba(255, 100, 100, 0.3);
+}
+
+.power-menu-item:hover {
+  background: rgba(0, 255, 65, 0.1);
+}
+
 .taskbar-clock {
   font-size: 16px;
   color: var(--tos-cyan);

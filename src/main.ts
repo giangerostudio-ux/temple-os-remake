@@ -227,7 +227,40 @@ class TempleOS {
             </div>
           `).join('')}
         </div>
-        <div class="taskbar-clock" id="clock"></div>
+        <div class="taskbar-tray">
+          <button class="power-btn" title="Power Options">⏻</button>
+          <div class="taskbar-clock" id="clock"></div>
+        </div>
+      </div>
+      ${this.showPowerMenu ? this.renderPowerMenu() : ''}
+    `;
+  }
+
+  private showPowerMenu = false;
+
+  private renderPowerMenu(): string {
+    return `
+      <div class="power-menu" style="
+        position: fixed;
+        bottom: 45px;
+        right: 10px;
+        background: rgba(13, 17, 23, 0.95);
+        border: 1px solid rgba(0, 255, 65, 0.3);
+        border-radius: 8px;
+        padding: 8px 0;
+        min-width: 160px;
+        z-index: 9999;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      ">
+        <div class="power-menu-item" data-power-action="lock" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+          🔒 Lock Screen
+        </div>
+        <div class="power-menu-item" data-power-action="restart" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+          🔄 Restart
+        </div>
+        <div class="power-menu-item" data-power-action="shutdown" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #ff6464;">
+          ⏻ Shut Down
+        </div>
       </div>
     `;
   }
@@ -260,6 +293,36 @@ class TempleOS {
       if (taskbarApp) {
         this.toggleWindow(taskbarApp.dataset.taskbarWindow!);
         return;
+      }
+
+      // Power button click - toggle power menu
+      const powerBtn = target.closest('.power-btn') as HTMLElement;
+      if (powerBtn) {
+        this.showPowerMenu = !this.showPowerMenu;
+        this.render();
+        return;
+      }
+
+      // Power menu item click
+      const powerMenuItem = target.closest('.power-menu-item') as HTMLElement;
+      if (powerMenuItem && powerMenuItem.dataset.powerAction) {
+        const action = powerMenuItem.dataset.powerAction;
+        this.showPowerMenu = false;
+
+        if (action === 'shutdown' && window.electronAPI) {
+          window.electronAPI.shutdown();
+        } else if (action === 'restart' && window.electronAPI) {
+          window.electronAPI.restart();
+        } else if (action === 'lock') {
+          this.showLockScreen();
+        }
+        return;
+      }
+
+      // Click outside power menu closes it
+      if (this.showPowerMenu && !target.closest('.power-menu') && !target.closest('.power-btn')) {
+        this.showPowerMenu = false;
+        this.render();
       }
 
       // Refresh Word of God - click anywhere in the word-of-god container
@@ -405,6 +468,87 @@ class TempleOS {
         input.value = '';
       }
     });
+
+    // ============================================
+    // GLOBAL KEYBOARD SHORTCUTS
+    // ============================================
+    document.addEventListener('keydown', (e) => {
+      // Alt+F4 - Close active window
+      if (e.altKey && e.key === 'F4') {
+        e.preventDefault();
+        const activeWindow = this.windows.find(w => w.active && !w.minimized);
+        if (activeWindow) {
+          this.closeWindow(activeWindow.id);
+        }
+      }
+
+      // Alt+Tab - Cycle through windows
+      if (e.altKey && e.key === 'Tab') {
+        e.preventDefault();
+        this.cycleWindows();
+      }
+
+      // Escape - Close active window (optional, like some apps)
+      // Only if not in an input field
+      const target = e.target as HTMLElement;
+      if (e.key === 'Escape' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        const activeWindow = this.windows.find(w => w.active && !w.minimized);
+        if (activeWindow) {
+          this.minimizeWindow(activeWindow.id);
+        }
+      }
+
+      // F5 - Refresh file browser
+      if (e.key === 'F5') {
+        e.preventDefault();
+        const filesWindow = this.windows.find(w => w.id.startsWith('files') && !w.minimized);
+        if (filesWindow) {
+          this.loadFiles(this.currentPath);
+        }
+      }
+    });
+
+    // ============================================
+    // CONTEXT MENU (Right-Click)
+    // ============================================
+    app.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const target = e.target as HTMLElement;
+
+      // Close any existing context menu
+      this.closeContextMenu();
+
+      // Determine context
+      const fileItem = target.closest('.file-item') as HTMLElement;
+      const desktopEl = target.closest('.desktop') as HTMLElement;
+
+      if (fileItem) {
+        // File/folder context menu
+        const filePath = fileItem.dataset.filePath || '';
+        const isDir = fileItem.dataset.isDir === 'true';
+        this.showContextMenu(e.clientX, e.clientY, [
+          { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+          { label: '✏️ Rename', action: () => this.promptRename(filePath) },
+          { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
+          { divider: true },
+          { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+        ]);
+      } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
+        // Desktop context menu
+        this.showContextMenu(e.clientX, e.clientY, [
+          { label: '📁 Open Files', action: () => this.openApp('files') },
+          { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+          { divider: true },
+          { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+          { label: '⚙️ Settings', action: () => this.openApp('settings') },
+          { divider: true },
+          { label: 'ℹ️ About TempleOS', action: () => alert('TempleOS Remake v1.0 - By Giangero Studio') },
+        ]);
+      }
+    });
+
+    // Close context menu on any click
+    document.addEventListener('click', () => this.closeContextMenu());
   }
 
   private openApp(appId: string) {
@@ -779,6 +923,39 @@ U0 Main()
     }
   }
 
+  // ============================================
+  // WINDOW CYCLING (Alt+Tab)
+  // ============================================
+  private cycleWindows(): void {
+    if (this.windows.length === 0) return;
+
+    // Find current active window index
+    const activeIndex = this.windows.findIndex(w => w.active);
+
+    // Deactivate all
+    this.windows.forEach(w => w.active = false);
+
+    // Find next window (wrap around)
+    let nextIndex = (activeIndex + 1) % this.windows.length;
+
+    // Skip minimized windows
+    let attempts = 0;
+    while (this.windows[nextIndex].minimized && attempts < this.windows.length) {
+      nextIndex = (nextIndex + 1) % this.windows.length;
+      attempts++;
+    }
+
+    // Activate and restore if minimized
+    this.windows[nextIndex].active = true;
+    this.windows[nextIndex].minimized = false;
+
+    // Move to end of array (bring to front)
+    const win = this.windows.splice(nextIndex, 1)[0];
+    this.windows.push(win);
+
+    this.render();
+  }
+
   private closeWindow(windowId: string) {
     this.windows = this.windows.filter(w => w.id !== windowId);
     if (this.windows.length > 0) {
@@ -854,6 +1031,163 @@ U0 Main()
       this.windows.push(win);
     }
     this.render();
+  }
+
+  // ============================================
+  // LOCK SCREEN
+  // ============================================
+  private showLockScreen(): void {
+    this.showPowerMenu = false;
+
+    // Create lock screen overlay
+    const existingLock = document.querySelector('.lock-screen');
+    if (existingLock) existingLock.remove();
+
+    const lockScreen = document.createElement('div');
+    lockScreen.className = 'lock-screen';
+    lockScreen.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(135deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        font-family: 'VT323', monospace;
+        color: #00ff41;
+      ">
+        <div style="font-size: 120px; margin-bottom: 20px;">🔒</div>
+        <h1 style="font-size: 48px; margin: 0 0 10px 0;">TEMPLE OS</h1>
+        <p style="opacity: 0.7; margin-bottom: 40px;">Click anywhere to unlock</p>
+        <div style="font-size: 72px;" id="lock-clock"></div>
+      </div>
+    `;
+
+    document.body.appendChild(lockScreen);
+
+    // Update clock on lock screen
+    const updateLockClock = () => {
+      const lockClock = document.getElementById('lock-clock');
+      if (lockClock) {
+        const now = new Date();
+        lockClock.textContent = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+    };
+    updateLockClock();
+    const clockInterval = setInterval(updateLockClock, 1000);
+
+    // Click to unlock
+    lockScreen.addEventListener('click', () => {
+      clearInterval(clockInterval);
+      this.unlock();
+    });
+  }
+
+  private unlock(): void {
+    const lockScreen = document.querySelector('.lock-screen');
+    if (lockScreen) lockScreen.remove();
+  }
+
+  // ============================================
+  // CONTEXT MENU SYSTEM
+  // ============================================
+  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void; divider?: boolean }>): void {
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.cssText = `
+      position: fixed;
+      left: ${x}px;
+      top: ${y}px;
+      background: rgba(13, 17, 23, 0.98);
+      border: 1px solid rgba(0, 255, 65, 0.3);
+      border-radius: 6px;
+      padding: 6px 0;
+      min-width: 180px;
+      z-index: 99998;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      font-family: 'VT323', monospace;
+    `;
+
+    items.forEach(item => {
+      if (item.divider) {
+        const divider = document.createElement('div');
+        divider.style.cssText = 'height: 1px; background: rgba(0, 255, 65, 0.2); margin: 4px 8px;';
+        menu.appendChild(divider);
+      } else {
+        const menuItem = document.createElement('div');
+        menuItem.textContent = item.label || '';
+        menuItem.style.cssText = `
+          padding: 8px 14px;
+          cursor: pointer;
+          color: #00ff41;
+          font-size: 16px;
+        `;
+        menuItem.addEventListener('mouseenter', () => {
+          menuItem.style.background = 'rgba(0, 255, 65, 0.15)';
+        });
+        menuItem.addEventListener('mouseleave', () => {
+          menuItem.style.background = 'transparent';
+        });
+        menuItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.closeContextMenu();
+          if (item.action) item.action();
+        });
+        menu.appendChild(menuItem);
+      }
+    });
+
+    // Adjust position if menu would go off screen
+    document.body.appendChild(menu);
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${window.innerWidth - rect.width - 10}px`;
+    }
+    if (rect.bottom > window.innerHeight - 50) {
+      menu.style.top = `${y - rect.height}px`;
+    }
+  }
+
+  private closeContextMenu(): void {
+    const menu = document.querySelector('.context-menu');
+    if (menu) menu.remove();
+  }
+
+  private promptRename(filePath: string): void {
+    const fileName = filePath.split(/[/\\]/).pop() || '';
+    const newName = prompt('Enter new name:', fileName);
+    if (newName && newName !== fileName && window.electronAPI) {
+      const parentDir = filePath.substring(0, filePath.lastIndexOf(fileName));
+      const newPath = parentDir + newName;
+      window.electronAPI.rename(filePath, newPath).then(result => {
+        if (result.success) {
+          this.loadFiles(this.currentPath);
+        } else {
+          alert('Failed to rename: ' + result.error);
+        }
+      });
+    }
+  }
+
+  private confirmDelete(filePath: string): void {
+    const fileName = filePath.split(/[/\\]/).pop() || '';
+    if (confirm(`Delete "${fileName}"?`)) {
+      if (window.electronAPI) {
+        window.electronAPI.deleteItem(filePath).then(result => {
+          if (result.success) {
+            this.loadFiles(this.currentPath);
+          } else {
+            alert('Failed to delete: ' + result.error);
+          }
+        });
+      }
+    }
   }
 
   private handleTerminalCommand(command: string) {

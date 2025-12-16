@@ -202,6 +202,81 @@ body {
   overflow: auto;
 }
 
+/* Resize Handles */
+.resize-handle {
+  position: absolute;
+  z-index: 1002;
+}
+
+.resize-handle.n {
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  cursor: ns-resize;
+}
+
+.resize-handle.e {
+  top: 0;
+  right: -8px;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.resize-handle.s {
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  cursor: ns-resize;
+}
+
+.resize-handle.w {
+  top: 0;
+  left: -8px;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.resize-handle.nw {
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 1003;
+}
+
+.resize-handle.ne {
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  cursor: nesw-resize;
+  z-index: 1003;
+}
+
+.resize-handle.sw {
+  bottom: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  cursor: nesw-resize;
+  z-index: 1003;
+}
+
+.resize-handle.se {
+  bottom: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 1003;
+}
+
+
 /* Terminal */
 .terminal {
   font-family: 'VT323', monospace;
@@ -534,4 +609,60 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 65, 0.5);
+}
+
+/* Settings Panel */
+.settings-window {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #c9d1d9;
+}
+
+.settings-sidebar {
+  user-select: none;
+}
+
+.settings-nav-item:hover {
+  background: rgba(0, 255, 65, 0.1);
+}
+
+.settings-nav-item.active {
+  background: #00ff41;
+  color: #000;
+  font-weight: bold;
+}
+
+.settings-section h3 {
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  padding-bottom: 5px;
+  margin-top: 0;
+  color: #00ff41;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.settings-row {
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.1);
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+/* Range Slider */
+input[type=range] {
+  -webkit-appearance: none;
+  background: rgba(0, 255, 65, 0.2);
+  height: 4px;
+  border-radius: 2px;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #00ff41;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
 }

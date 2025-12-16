@@ -107,6 +107,22 @@ class TempleOS {
   private windows: WindowState[] = [];
   private windowIdCounter = 0;
   private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
+  private snapState: { type: string; rect: { x: number; y: number; width: number; height: number } } | null = null;
+  private resizeState: { windowId: string; dir: string; startX: number; startY: number; startW: number; startH: number; startXLoc: number; startYLoc: number } | null = null;
+
+  // Tray State
+  private showVolumePopup = false;
+  private showCalendarPopup = false;
+  private showNetworkPopup = false;
+  private showNotificationPopup = false;
+  private showPowerMenu = false;
+  private showStartMenu = false;
+  private volumeLevel = 50;
+
+  // Settings State
+  private activeSettingsCategory = 'System';
+  private wallpaperImage = 'background.jpg'; // Default
+  private themeMode = 'dark'; // 'dark' or 'light'
 
   // File browser state
   private currentPath = '';
@@ -139,6 +155,16 @@ class TempleOS {
         ${this.renderDesktopIcons()}
         <div id="windows-container"></div>
       </div>
+      <div id="snap-preview" style="
+        position: fixed;
+        background: rgba(0, 255, 65, 0.15);
+        border: 2px dashed #00ff41;
+        border-radius: 8px;
+        z-index: 9999;
+        display: none;
+        pointer-events: none;
+        transition: all 0.1s;
+      "></div>
       ${this.renderTaskbar()}
     `;
   }
@@ -176,6 +202,136 @@ class TempleOS {
     `;
   }
 
+  private renderPowerMenu() {
+    return `
+      <div class="power-menu start-power-menu-overlay" style="bottom: 50px; right: 10px;">
+        <div class="power-item" data-action="lock">🔒 Lock</div>
+        <div class="power-item" data-action="restart">🔄 Restart</div>
+        <div class="power-item" data-action="shutdown">⏻ Shutdown</div>
+      </div>
+    `;
+  }
+
+  private renderVolumePopup() {
+    return `
+      <div class="tray-popup volume-popup" style="
+        position: absolute; 
+        bottom: 30px; 
+        left: -12px; 
+        width: 40px; 
+        height: 120px; 
+        background: rgba(13,17,23,0.95); 
+        border: 2px solid #555; 
+        z-index: 10000; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center; 
+        padding: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
+               style="
+                 writing-mode: bt-lr; /* IE */
+                 -webkit-appearance: slider-vertical; /* WebKit */
+                 width: 8px; 
+                 height: 100px; 
+                 cursor: pointer;
+               ">
+      </div>
+    `;
+  }
+
+  private renderCalendarPopup() {
+    const now = new Date();
+    return `
+      <div class="tray-popup calendar-popup" style="
+        position: absolute; 
+        bottom: 40px; 
+        right: 0; 
+        width: 220px; 
+        height: auto; 
+        background: rgba(13,17,23,0.95); 
+        border: 2px solid #00AA00; 
+        z-index: 10000; 
+        padding: 15px; 
+        font-family: 'VT323', monospace; 
+        color: #00ff00;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <div style="text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; font-size: 18px;">
+           ${now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+        <div style="text-align: center; font-size: 42px; font-weight: bold; margin: 10px 0;">
+           ${now.getDate()}
+        </div>
+         <div style="text-align: center; font-size: 14px; opacity: 0.8; margin-top: 10px; color: #ffd700;">
+           Cannot have a bad day if looking at God's calendar.
+        </div>
+      </div>
+    `;
+  }
+
+  private renderNetworkPopup() {
+    return `
+      <div class="tray-popup network-popup" style="
+        position: absolute; 
+        bottom: 40px; 
+        right: 80px; 
+        width: 200px; 
+        background: rgba(13,17,23,0.95); 
+        border: 2px solid #00ff41; 
+        z-index: 10000; 
+        padding: 10px; 
+        font-family: 'VT323', monospace; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #00ff41;">
+          Network Connections
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 5px; background: rgba(0,255,65,0.1); border-radius: 4px;">
+          <span>📶</span>
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: bold;">TempleNet_5G</span>
+            <span style="font-size: 12px; color: #bbb;">Connected, Secure</span>
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">
+          Divine Signal Strength: 100%
+        </div>
+      </div>
+    `;
+  }
+
+  private renderNotificationPopup() {
+    return `
+      <div class="tray-popup notification-popup" style="
+        position: absolute; 
+        bottom: 40px; 
+        right: 40px; 
+        width: 250px; 
+        background: rgba(13,17,23,0.95); 
+        border: 2px solid #ffd700; 
+        z-index: 10000; 
+        padding: 10px; 
+        font-family: 'VT323', monospace; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      ">
+        <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700;">
+          Notifications
+        </div>
+        <div style="padding: 10px; text-align: center; color: #fff;">
+          <div style="font-size: 14px; margin-bottom: 5px;">No new earthly notifications.</div>
+          <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private formatTime() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
   private renderDesktopIcons(): string {
     const icons = [
       { id: 'terminal', icon: '💻', label: 'Terminal' },
@@ -199,6 +355,16 @@ class TempleOS {
       <div class="window ${win.active ? 'active' : ''}" 
            data-window-id="${win.id}"
            style="left: ${win.x}px; top: ${win.y}px; width: ${win.width}px; height: ${win.height}px;">
+        <!-- Resize Handles -->
+        <div class="resize-handle n" data-resize-dir="n" data-window="${win.id}"></div>
+        <div class="resize-handle e" data-resize-dir="e" data-window="${win.id}"></div>
+        <div class="resize-handle s" data-resize-dir="s" data-window="${win.id}"></div>
+        <div class="resize-handle w" data-resize-dir="w" data-window="${win.id}"></div>
+        <div class="resize-handle nw" data-resize-dir="nw" data-window="${win.id}"></div>
+        <div class="resize-handle ne" data-resize-dir="ne" data-window="${win.id}"></div>
+        <div class="resize-handle sw" data-resize-dir="sw" data-window="${win.id}"></div>
+        <div class="resize-handle se" data-resize-dir="se" data-window="${win.id}"></div>
+
         <div class="window-header" data-draggable="${win.id}">
           <div class="window-title">
             <span>${win.icon}</span>
@@ -220,7 +386,7 @@ class TempleOS {
   private renderTaskbar(): string {
     return `
       <div class="taskbar">
-        <button class="start-btn">TEMPLE</button>
+        <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
         <div class="taskbar-apps">
           ${this.windows.map(w => `
             <div class="taskbar-app ${w.active ? 'active' : ''}" data-taskbar-window="${w.id}">
@@ -228,43 +394,34 @@ class TempleOS {
             </div>
           `).join('')}
         </div>
-        <div class="taskbar-tray">
-          <button class="power-btn" title="Power Options">⏻</button>
-          <div class="taskbar-clock" id="clock"></div>
+      <div class="taskbar-tray">
+        <div class="tray-icon" id="tray-network" title="Network: Connected" style="position: relative;">
+          📶
+          ${this.showNetworkPopup ? this.renderNetworkPopup() : ''}
+        </div>
+        
+        <div class="tray-icon" id="tray-volume" title="Volume: ${this.volumeLevel}%" style="position: relative;">
+           🔊
+           ${this.showVolumePopup ? this.renderVolumePopup() : ''}
+        </div>
+
+        <div class="tray-icon" id="tray-notification" title="Notifications" style="position: relative;">
+           🔔
+           ${this.showNotificationPopup ? this.renderNotificationPopup() : ''}
+        </div>
+ 
+        <button class="power-btn" title="Power Options">⏻</button>
+        ${this.showPowerMenu ? this.renderPowerMenu() : ''}
+
+        <div class="taskbar-clock" id="clock" style="cursor: pointer; position: relative;">
+          ${this.formatTime()}
+          ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
         </div>
       </div>
-      ${this.showPowerMenu ? this.renderPowerMenu() : ''}
-    `;
+    </div>`;
   }
 
-  private showPowerMenu = false;
 
-  private renderPowerMenu(): string {
-    return `
-      <div class="power-menu" style="
-        position: fixed;
-        bottom: 45px;
-        right: 10px;
-        background: rgba(13, 17, 23, 0.95);
-        border: 1px solid rgba(0, 255, 65, 0.3);
-        border-radius: 8px;
-        padding: 8px 0;
-        min-width: 160px;
-        z-index: 9999;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      ">
-        <div class="power-menu-item" data-power-action="lock" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-          🔒 Lock Screen
-        </div>
-        <div class="power-menu-item" data-power-action="restart" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-          🔄 Restart
-        </div>
-        <div class="power-menu-item" data-power-action="shutdown" style="padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #ff6464;">
-          ⏻ Shut Down
-        </div>
-      </div>
-    `;
-  }
 
   private setupEventListeners() {
     const app = document.getElementById('app')!;
@@ -294,6 +451,142 @@ class TempleOS {
       if (taskbarApp) {
         this.toggleWindow(taskbarApp.dataset.taskbarWindow!);
         return;
+      }
+
+      // Start button click
+      const startBtn = target.closest('.start-btn') as HTMLElement;
+      if (startBtn) {
+        this.showStartMenu = !this.showStartMenu;
+        this.showPowerMenu = false; // Close power menu if open
+        this.render();
+        return;
+      }
+
+      // Tray: Volume
+      const volIcon = target.closest('#tray-volume');
+      if (volIcon) {
+        this.showVolumePopup = !this.showVolumePopup;
+        this.showCalendarPopup = false;
+        this.showPowerMenu = false;
+        this.showNetworkPopup = false;
+        this.showNotificationPopup = false;
+        this.render();
+        return;
+      }
+
+      // Tray: Volume Slider Change
+      const volSlider = target.closest('.volume-slider');
+      if (volSlider) {
+        // This is handled by 'input' event, but we prevent closing popup here
+        return;
+      }
+
+      // Tray: Clock/Calendar
+      // Tray: Clock/Calendar
+      const clock = target.closest('#clock');
+      if (clock) {
+        this.showCalendarPopup = !this.showCalendarPopup;
+        this.showVolumePopup = false;
+        this.showPowerMenu = false;
+        this.showNetworkPopup = false;
+        this.showNotificationPopup = false;
+        this.render();
+        return;
+      }
+
+      // Tray: Network
+      const networkIcon = target.closest('#tray-network');
+      if (networkIcon) {
+        this.showNetworkPopup = !this.showNetworkPopup;
+        this.showVolumePopup = false;
+        this.showCalendarPopup = false;
+        this.showPowerMenu = false;
+        this.showNotificationPopup = false;
+        this.render();
+        return;
+      }
+
+      // Tray: Notifications
+      const notifIcon = target.closest('#tray-notification');
+      if (notifIcon) {
+        this.showNotificationPopup = !this.showNotificationPopup;
+        this.showVolumePopup = false;
+        this.showCalendarPopup = false;
+        this.showPowerMenu = false;
+        this.showNetworkPopup = false;
+        this.render();
+        return;
+      }
+
+      // Close tray popups if clicking outside
+      if (this.showVolumePopup && !target.closest('#tray-volume') && !target.closest('.volume-popup')) {
+        this.showVolumePopup = false;
+        this.render();
+      }
+      if (this.showCalendarPopup && !target.closest('#clock') && !target.closest('.calendar-popup')) {
+        this.showCalendarPopup = false;
+        this.render();
+      }
+      if (this.showNetworkPopup && !target.closest('#tray-network') && !target.closest('.network-popup')) {
+        this.showNetworkPopup = false;
+        this.render();
+      }
+      if (this.showNotificationPopup && !target.closest('#tray-notification') && !target.closest('.notification-popup')) {
+        this.showNotificationPopup = false;
+        this.render();
+      }
+
+      // Start menu item click
+      const startAppItem = target.closest('.start-app-item') as HTMLElement;
+      if (startAppItem && startAppItem.dataset.app) {
+        this.openApp(startAppItem.dataset.app);
+        this.showStartMenu = false;
+        this.render();
+        return;
+      }
+
+      // Start menu quick link click
+      const quickLink = target.closest('.start-quick-link') as HTMLElement;
+      if (quickLink && quickLink.dataset.path) {
+        const path = quickLink.dataset.path;
+        if (path === 'settings') {
+          // Open settings app (placeholder for now)
+          alert('Settings panel coming in Tier 3!');
+        } else {
+          // Determine path - simple mapping for now
+          if (path === 'home') {
+            if (window.electronAPI) window.electronAPI.getHome().then(p => this.loadFiles(p));
+          } else {
+            // For Docs/Downloads/Music/Pictures, we assume they are in User Home
+            // This requires async, but we are in a sync handler.
+            if (window.electronAPI) {
+              window.electronAPI.getHome().then(home => {
+                const sep = home.includes('\\') ? '\\' : '/';
+                this.loadFiles(`${home}${sep}${path}`);
+              });
+            }
+          }
+          this.openApp('files');
+        }
+        this.showStartMenu = false;
+        this.render();
+        return;
+      }
+
+      // Start menu power button
+      const startPowerBtn = target.closest('.start-power-btn') as HTMLElement;
+      if (startPowerBtn && startPowerBtn.dataset.powerAction) {
+        const action = startPowerBtn.dataset.powerAction;
+        if (action === 'shutdown' && window.electronAPI) window.electronAPI.shutdown();
+        if (action === 'lock') this.showLockScreen();
+        this.showStartMenu = false;
+        return;
+      }
+
+      // Click outside start menu closes it
+      if (this.showStartMenu && !target.closest('.start-menu') && !target.closest('.start-btn')) {
+        this.showStartMenu = false;
+        this.render();
       }
 
       // Power button click - toggle power menu
@@ -451,9 +744,32 @@ class TempleOS {
       }
     });
 
-    // Window dragging
+    // Window dragging & Resizing
     app.addEventListener('mousedown', (e) => {
       const target = e.target as HTMLElement;
+
+      // Check for resize handle FIRST
+      const resizeHandle = target.closest('.resize-handle') as HTMLElement;
+      if (resizeHandle) {
+        e.preventDefault();
+        const windowId = resizeHandle.dataset.window!;
+        const dir = resizeHandle.dataset.resizeDir!;
+        const win = this.windows.find(w => w.id === windowId);
+        if (win) {
+          this.resizeState = {
+            windowId,
+            dir,
+            startX: e.clientX,
+            startY: e.clientY,
+            startW: win.width,
+            startH: win.height,
+            startXLoc: win.x,
+            startYLoc: win.y
+          };
+          this.focusWindow(windowId);
+        }
+        return;
+      }
 
       // Don't start drag if clicking on buttons
       if (target.closest('.window-btn')) {
@@ -475,22 +791,132 @@ class TempleOS {
     });
 
     document.addEventListener('mousemove', (e) => {
+      // RESIZE LOGIC
+      if (this.resizeState) {
+        e.preventDefault();
+        const win = this.windows.find(w => w.id === this.resizeState!.windowId);
+        if (win) {
+          const dx = e.clientX - this.resizeState.startX;
+          const dy = e.clientY - this.resizeState.startY;
+          const dir = this.resizeState.dir;
+
+          const MIN_W = 200;
+          const MIN_H = 150;
+
+          if (dir.includes('e')) {
+            win.width = Math.max(MIN_W, this.resizeState.startW + dx);
+          }
+          if (dir.includes('s')) {
+            win.height = Math.max(MIN_H, this.resizeState.startH + dy);
+          }
+          if (dir.includes('w')) {
+            const newW = Math.max(MIN_W, this.resizeState.startW - dx);
+            if (newW !== win.width) { // Only move X if width actually changed
+              win.x = this.resizeState.startXLoc + (this.resizeState.startW - newW);
+              win.width = newW;
+            }
+          }
+          if (dir.includes('n')) {
+            const newH = Math.max(MIN_H, this.resizeState.startH - dy);
+            if (newH !== win.height) { // Only move Y if height actually changed
+              win.y = this.resizeState.startYLoc + (this.resizeState.startH - newH);
+              win.height = newH;
+            }
+          }
+
+          // Apply changes
+          const windowEl = document.querySelector(`[data-window-id="${win.id}"]`) as HTMLElement;
+          if (windowEl) {
+            windowEl.style.width = `${win.width}px`;
+            windowEl.style.height = `${win.height}px`;
+            windowEl.style.left = `${win.x}px`;
+            windowEl.style.top = `${win.y}px`;
+          }
+        }
+        return; // Skip drag logic
+      }
+
       if (this.dragState) {
         const win = this.windows.find(w => w.id === this.dragState!.windowId);
         if (win) {
+          // Normal drag
           win.x = e.clientX - this.dragState.offsetX;
           win.y = e.clientY - this.dragState.offsetY;
+
           const windowEl = document.querySelector(`[data-window-id="${win.id}"]`) as HTMLElement;
           if (windowEl) {
             windowEl.style.left = `${win.x}px`;
             windowEl.style.top = `${win.y}px`;
+          }
+
+          // Snapping Logic
+          const SNAP_MARGIN = 20;
+          const { clientX: x, clientY: y } = e;
+          const { innerWidth: w, innerHeight: h } = window;
+
+          let snapRect = null;
+          let snapType = '';
+
+          // Corners & Edges
+          if (y < SNAP_MARGIN) {
+            if (x < SNAP_MARGIN) { snapType = 'top-left'; snapRect = { x: 0, y: 0, width: w / 2, height: h / 2 }; }
+            else if (x > w - SNAP_MARGIN) { snapType = 'top-right'; snapRect = { x: w / 2, y: 0, width: w / 2, height: h / 2 }; }
+            else { snapType = 'maximize'; snapRect = { x: 0, y: 0, width: w, height: h - 50 }; } // Subtract taskbar
+          } else if (y > h - SNAP_MARGIN) {
+            if (x < SNAP_MARGIN) { snapType = 'bottom-left'; snapRect = { x: 0, y: h / 2, width: w / 2, height: (h / 2) - 50 }; }
+            else if (x > w - SNAP_MARGIN) { snapType = 'bottom-right'; snapRect = { x: w / 2, y: h / 2, width: w / 2, height: (h / 2) - 50 }; }
+          } else if (x < SNAP_MARGIN) {
+            snapType = 'left'; snapRect = { x: 0, y: 0, width: w / 2, height: h - 50 };
+          } else if (x > w - SNAP_MARGIN) {
+            snapType = 'right'; snapRect = { x: w / 2, y: 0, width: w / 2, height: h - 50 };
+          }
+
+          const preview = document.getElementById('snap-preview');
+          if (preview) {
+            if (snapRect) {
+              preview.style.display = 'block';
+              preview.style.left = `${snapRect.x}px`;
+              preview.style.top = `${snapRect.y}px`;
+              preview.style.width = `${snapRect.width}px`;
+              preview.style.height = `${snapRect.height}px`;
+              this.snapState = { type: snapType, rect: snapRect };
+            } else {
+              preview.style.display = 'none';
+              this.snapState = null;
+            }
           }
         }
       }
     });
 
     document.addEventListener('mouseup', () => {
+      this.resizeState = null;
+
+      // Apply snap if exists
+      if (this.dragState && this.snapState) {
+        const win = this.windows.find(w => w.id === this.dragState!.windowId);
+        if (win) {
+          win.x = this.snapState.rect.x;
+          win.y = this.snapState.rect.y;
+          win.width = this.snapState.rect.width;
+          win.height = this.snapState.rect.height;
+
+          // If maximized via snap, set flag
+          if (this.snapState.type === 'maximize') {
+            win.maximized = true;
+          } else {
+            win.maximized = false;
+            // Save these bounds as "restored" or "normal" if we want? 
+            // Actually, usually snapping IS the new state.
+          }
+        }
+        this.render();
+      }
+
       this.dragState = null;
+      this.snapState = null;
+      const preview = document.getElementById('snap-preview');
+      if (preview) preview.style.display = 'none';
     });
 
     // Terminal input
@@ -583,6 +1009,50 @@ class TempleOS {
 
     // Close context menu on any click
     document.addEventListener('click', () => this.closeContextMenu());
+
+    // Start Menu Search
+    app.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+
+      // Volume Slider
+      if (target.classList.contains('volume-slider')) {
+        this.volumeLevel = parseInt(target.value);
+        // In real app, IPC to system volume
+        const volTitle = document.getElementById('tray-volume');
+        if (volTitle) volTitle.title = `Volume: ${this.volumeLevel}%`;
+        return;
+      }
+
+      if (target.classList.contains('start-search-input')) {
+        const query = target.value.toLowerCase();
+        const appItems = document.querySelectorAll('.start-app-item') as NodeListOf<HTMLElement>;
+
+        appItems.forEach(item => {
+          const label = item.querySelector('div:nth-child(2)')?.textContent?.toLowerCase() || '';
+          const desc = item.querySelector('div:nth-child(3)')?.textContent?.toLowerCase() || '';
+
+          if (label.includes(query) || desc.includes(query)) {
+            item.style.display = 'flex';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      }
+    });
+
+    // Settings Navigation
+    app.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
+      if (settingsItem && settingsItem.dataset.settingsCat) {
+        this.activeSettingsCategory = settingsItem.dataset.settingsCat;
+        const win = this.windows.find(w => w.id.startsWith('settings'));
+        if (win) {
+          win.content = this.getSettingsContent();
+          this.render();
+        }
+      }
+    });
   }
 
   private openApp(appId: string) {
@@ -651,6 +1121,15 @@ class TempleOS {
           width: 450,
           height: 500,
           content: this.getHymnPlayerContent()
+        };
+        break;
+      case 'settings':
+        windowConfig = {
+          title: 'Settings',
+          icon: '⚙️',
+          width: 800,
+          height: 600,
+          content: this.getSettingsContent()
         };
         break;
     }
@@ -781,6 +1260,142 @@ class TempleOS {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  // ============================================
+  // SETTINGS PANEL (TIER 3.1)
+  // ============================================
+  private getSettingsContent(): string {
+    const categories = [
+      { id: 'System', icon: '💻', label: 'System' },
+      { id: 'Personalization', icon: '🎨', label: 'Personalization' },
+      { id: 'Network', icon: '📡', label: 'Network & Internet' },
+      { id: 'Apps', icon: '📱', label: 'Apps' },
+      { id: 'Time', icon: '🕒', label: 'Time & Language' },
+      { id: 'About', icon: 'ℹ️', label: 'About' },
+    ];
+
+    const renderSidebar = () => `
+      <div class="settings-sidebar" style="
+        width: 220px;
+        background: rgba(0, 0, 0, 0.3);
+        border-right: 1px solid rgba(0, 255, 65, 0.2);
+        display: flex;
+        flex-direction: column;
+        padding: 10px 0;
+      ">
+        ${categories.map(cat => `
+          <div class="settings-nav-item ${this.activeSettingsCategory === cat.id ? 'active' : ''}" 
+               data-settings-cat="${cat.id}"
+               style="
+                 padding: 10px 20px;
+                 cursor: pointer;
+                 display: flex;
+                 align-items: center;
+                 gap: 12px;
+                 color: ${this.activeSettingsCategory === cat.id ? '#000' : '#00ff41'};
+                 background: ${this.activeSettingsCategory === cat.id ? '#00ff41' : 'transparent'};
+                 transition: all 0.2s;
+               "
+               onmouseenter="if(!this.classList.contains('active')) this.style.background='rgba(0,255,65,0.1)'"
+               onmouseleave="if(!this.classList.contains('active')) this.style.background='transparent'">
+            <span style="font-size: 18px;">${cat.icon}</span>
+            <span style="font-size: 14px;">${cat.label}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    const renderPageContent = () => {
+      switch (this.activeSettingsCategory) {
+        case 'System':
+          return `
+            <div class="settings-section">
+              <h3>🔊 Sound</h3>
+              <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span>Volume</span>
+                <input type="range" min="0" max="100" value="${this.volumeLevel}" 
+                       oninput="window.electronAPI ? null : document.dispatchEvent(new CustomEvent('volume-change', {detail: this.value}))"
+                       style="width: 150px; accent-color: #00ff41;">
+              </div>
+              <h3>🖥️ Display</h3>
+              <div class="settings-row" style="opacity: 0.6; margin-bottom: 5px;">Resolution: 1920x1080 (Mock)</div>
+              <div class="settings-row" style="opacity: 0.6;">Refresh Rate: 60Hz (Mock)</div>
+            </div>
+          `;
+        case 'Personalization':
+          return `
+            <div class="settings-section">
+              <h3>🎨 Theme</h3>
+              <div class="settings-row" style="margin-bottom: 20px;">
+                <button style="
+                  padding: 8px 16px;
+                  background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'};
+                  color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'};
+                  border: 1px solid #00ff41;
+                  cursor: pointer;
+                  margin-right: 10px;
+                " onclick="console.log('Dark mode set')">Dark</button>
+                <button style="
+                  padding: 8px 16px;
+                  background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'};
+                  color: ${this.themeMode === 'light' ? '#000' : '#00ff41'};
+                  border: 1px solid #00ff41;
+                  cursor: pointer;
+                  opacity: 0.5;
+                " title="Not implemented yet">Light</button>
+              </div>
+              <h3>🖼️ Background</h3>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;">Default</div>
+                <div style="aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Solid</div>
+                <div style="aspect-ratio: 16/9; background: #111; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Custom</div>
+              </div>
+            </div>
+          `;
+        case 'Network':
+          return `
+            <div class="settings-section">
+              <h3>📡 Wi-Fi</h3>
+              <div class="settings-row" style="padding: 10px; border: 1px solid #00ff41; margin-bottom: 10px;">
+                <div style="font-weight: bold;">TempleNet_5G</div>
+                <div style="font-size: 12px; color: #00ff41;">Connected, Secure</div>
+              </div>
+              <div class="settings-row" style="padding: 10px; border: 1px solid rgba(0,255,65,0.3); opacity: 0.7;">
+                <div>CIA_Surveillance_Van</div>
+                <div style="font-size: 12px;">Secured</div>
+              </div>
+            </div>
+          `;
+        case 'About':
+          return `
+            <div class="settings-section" style="text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
+              <h2 style="color: #ffd700;">TempleOS Remake</h2>
+              <p>Version 2.4.0 (Divine Intellect)</p>
+              <div style="margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);">
+                <div><strong>Processor:</strong> Divine Intellect i9 (Mock)</div>
+                <div><strong>Installed RAM:</strong> 64 GB (Holy Memory)</div>
+                <div><strong>System Type:</strong> 64-bit Operating System</div>
+                <div><strong>Registered to:</strong> Terry A. Davis</div>
+              </div>
+              <p style="font-size: 12px; opacity: 0.6;">© 2025 Giangero Studio</p>
+            </div>
+          `;
+        default:
+          return `<div style="padding: 20px; text-align: center; opacity: 0.6;">Select a category to view settings.</div>`;
+      }
+    };
+
+    return `
+      <div class="settings-window" style="display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);">
+        ${renderSidebar()}
+        <div class="settings-content" style="flex: 1; padding: 20px; overflow-y: auto;">
+          <h2 style="border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-top: 0;">${this.activeSettingsCategory}</h2>
+          ${renderPageContent()}
+        </div>
+      </div>
+    `;
   }
 
   private async loadFiles(path?: string): Promise<void> {
@@ -919,14 +1534,61 @@ U0 Main()
   }
 
   private playHymn(index: number): void {
+    // Validate index
     this.currentHymn = Math.max(0, Math.min(index, this.hymnList.length - 1));
+    const hymn = this.hymnList[this.currentHymn];
+
     const hymnsWindow = this.windows.find(w => w.id.startsWith('hymns'));
-    if (hymnsWindow) {
+    if (!hymnsWindow) return;
+
+    // Check if the window is open and DOM elements exist
+    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement;
+    const titleEl = hymnsWindow.active || document.querySelector(`[data-window-id="${hymnsWindow.id}"]`) ?
+      document.querySelector(`[data-window-id="${hymnsWindow.id}"] .hymn-player h2 + p + div > div`) // Selector for title div
+      : null; // Fallback if query fails
+
+    // If audio element exists, update it in-place (Smoother, no flicker)
+    if (audioEl) {
+      // Update Audio
+      audioEl.src = `./music/${hymn.file}`;
+      audioEl.play().catch(console.error);
+
+      // Update Title (approximate selector based on structure)
+      // Actually, let's just find the title text element by content or structure
+      // A better way is to re-render JUST the info section, but updating text is faster
+      const playerContainer = document.querySelector(`[data-window-id="${hymnsWindow.id}"] .hymn-player`) as HTMLElement;
+      if (playerContainer) {
+        // Update Title - 2nd child of 2nd div
+        const titleDiv = playerContainer.children[1].querySelector('div');
+        if (titleDiv) titleDiv.textContent = hymn.title;
+
+        // Update Playlist Active State
+        const items = playerContainer.querySelectorAll('.hymn-item');
+        items.forEach((item, i) => {
+          if (i === this.currentHymn) {
+            item.classList.add('active');
+            item.setAttribute('style', `padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(0,255,65,0.1); display: flex; align-items: center; gap: 10px; background: rgba(0,255,65,0.15); color: #ffd700;`);
+            // Add play icon if missing
+            if (!item.querySelector('span:nth-child(3)')) {
+              item.insertAdjacentHTML('beforeend', '<span>▶</span>');
+            }
+          } else {
+            item.classList.remove('active');
+            item.setAttribute('style', `padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(0,255,65,0.1); display: flex; align-items: center; gap: 10px; color: #00ff41;`);
+            // Remove play icon
+            const playIcon = item.querySelector('span:nth-child(3)');
+            if (playIcon) playIcon.remove();
+          }
+        });
+      }
+    } else {
+      // Fallback: Full Re-render (Only if first load or error)
+      console.warn('Audio element not found, performing full re-render');
       hymnsWindow.content = this.getHymnPlayerContent();
       this.render();
       setTimeout(() => {
         const audio = document.getElementById('hymn-audio') as HTMLAudioElement;
-        if (audio) audio.play();
+        if (audio) audio.play().catch(console.error);
       }, 100);
     }
   }
@@ -1400,6 +2062,166 @@ U0 Main()
       const now = new Date();
       clock.textContent = now.toLocaleTimeString();
     }
+  }
+
+  // ============================================
+  // START MENU (TIER 2.1)
+  // ============================================
+
+
+  private renderStartMenu(): string {
+    const apps = [
+      { id: 'terminal', icon: '💻', label: 'Terminal', desc: 'Command Line' },
+      { id: 'files', icon: '📁', label: 'Files', desc: 'File Browser' },
+      { id: 'word-of-god', icon: '✝️', label: 'Word of God', desc: 'Divine Chat' },
+      { id: 'hymns', icon: '🎵', label: 'Hymn Player', desc: 'Music Player' },
+      { id: 'editor', icon: '📝', label: 'HolyC Editor', desc: 'Text Editor' },
+      { id: 'updater', icon: '⬇️', label: 'Holy Updater', desc: 'System Update' },
+    ];
+
+    return `
+      <div class="start-menu" style="
+        position: fixed;
+        bottom: 50px;
+        left: 5px;
+        width: 380px;
+        height: 450px;
+        background: rgba(13, 17, 23, 0.98);
+        border: 2px solid #00ff41;
+        border-radius: 8px 8px 8px 8px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 -5px 20px rgba(0, 255, 65, 0.15);
+        overflow: hidden;
+      ">
+        <!-- Header / User Profile -->
+        <div style="
+          padding: 15px;
+          background: rgba(0, 255, 65, 0.15);
+          border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        ">
+          <div style="
+            width: 42px;
+            height: 42px;
+            background: #00ff41;
+            color: #000;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(0,255,65,0.5);
+          ">T</div>
+          <div>
+            <div style="font-size: 16px; font-weight: bold; color: #ffd700; text-shadow: 0 0 5px rgba(255,215,0,0.5);">Terry Davis</div>
+            <div style="font-size: 11px; opacity: 0.8; color: #00ff41;">High Priest (Admin)</div>
+          </div>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+             <button class="start-power-btn" data-power-action="lock" title="Lock" style="background: none; border: 1px solid rgba(0,255,65,0.3); border-radius: 4px; padding: 4px; font-size: 16px; cursor: pointer; color: #00ff41;">🔒</button>
+             <button class="start-power-btn" data-power-action="shutdown" title="Shutdown" style="background: none; border: 1px solid rgba(255,100,100,0.3); border-radius: 4px; padding: 4px; font-size: 16px; cursor: pointer; color: #ff6464;">⏻</button>
+          </div>
+        </div>
+
+        <div style="flex: 1; display: flex;">
+          <!-- Left Sidebar (Quick Places) -->
+          <div style="
+            width: 140px;
+            border-right: 1px solid rgba(0, 255, 65, 0.2);
+            padding: 10px 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          ">
+            ${this.renderQuickLink('Home', '🏠', 'home')}
+            ${this.renderQuickLink('Documents', '📄', 'Documents')}
+            ${this.renderQuickLink('Downloads', '⬇️', 'Downloads')}
+            ${this.renderQuickLink('Music', '🎵', 'Music')}
+            <div style="flex: 1;"></div>
+            ${this.renderQuickLink('Settings', '⚙️', 'settings')}
+          </div>
+
+          <!-- Right Content (Apps) -->
+          <div style="flex: 1; display: flex; flex-direction: column; background: rgba(13,17,23,0.95);">
+            <!-- Search Bar -->
+            <div style="padding: 12px;">
+              <div style="
+                position: relative;
+                border: 1px solid rgba(0, 255, 65, 0.4);
+                border-radius: 4px;
+                background: rgba(0, 0, 0, 0.5);
+              ">
+                <span style="position: absolute; left: 8px; top: 7px; font-size: 14px;">🔍</span>
+                <input type="text" class="start-search-input" placeholder="Search apps..." style="
+                  width: 100%;
+                  background: none;
+                  border: none;
+                  color: #00ff41;
+                  padding: 8px 10px 8px 30px;
+                  font-family: inherit;
+                  font-size: 14px;
+                  outline: none;
+                ">
+              </div>
+            </div>
+
+            <!-- Pinned Apps Grid -->
+            <div style="padding: 0 12px 5px 12px; font-size: 10px; color: #ffd700; opacity: 0.7; letter-spacing: 1px;">PINNED APPS</div>
+            <div style="
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 8px;
+              padding: 0 12px;
+              overflow-y: auto;
+            ">
+              ${apps.map(app => `
+                <div class="start-app-item" data-app="${app.id}" style="
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  padding: 12px 5px;
+                  background: rgba(0, 255, 65, 0.05);
+                  border: 1px solid rgba(0, 255, 65, 0.1);
+                  border-radius: 6px;
+                  cursor: pointer;
+                  text-align: center;
+                  gap: 5px;
+                  transition: all 0.2s;
+                " onmouseenter="this.style.background='rgba(0,255,65,0.15)';this.style.borderColor='#00ff41'" 
+                  onmouseleave="this.style.background='rgba(0,255,65,0.05)';this.style.borderColor='rgba(0,255,65,0.1)'">
+                  <div style="font-size: 24px;">${app.icon}</div>
+                  <div style="font-weight: bold; font-size: 13px;">${app.label}</div>
+                  <div style="font-size: 10px; opacity: 0.6;">${app.desc}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderQuickLink(label: string, icon: string, path: string): string {
+    return `
+      <div class="start-quick-link" data-path="${path}" style="
+        padding: 8px 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: #c9d1d9;
+        transition: background 0.2s;
+      " onmouseenter="this.style.background='rgba(0,255,65,0.1)';this.style.color='#00ff41'" 
+        onmouseleave="this.style.background='transparent';this.style.color='#c9d1d9'">
+        <span style="width: 16px; text-align: center;">${icon}</span> ${label}
+      </div>
+    `;
   }
 }
 

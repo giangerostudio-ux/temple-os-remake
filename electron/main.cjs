@@ -187,6 +187,29 @@ ipcMain.handle('system:info', () => ({
     user: os.userInfo().username
 }));
 
+ipcMain.handle('system:setVolume', (event, level) => {
+    // Clamp level between 0 and 100
+    const safeLevel = Math.max(0, Math.min(100, parseInt(level)));
+
+    // Command depends on OS
+    let command = '';
+    if (process.platform === 'linux') {
+        // amixer is standard on Ubuntu/Linux
+        // -q = quiet, set Master 
+        command = `amixer -q set Master ${safeLevel}%`;
+    } else if (process.platform === 'win32') {
+        // Windows needs nircmd or powershell script. For now, we skip.
+        console.log(`[Windows] Mock volume set to ${safeLevel}%`);
+        return;
+    } else {
+        return;
+    }
+
+    exec(command, (error) => {
+        if (error) console.error(`Failed to set volume: ${error.message}`);
+    });
+});
+
 const projectRoot = path.resolve(__dirname, '..');
 
 // ============================================

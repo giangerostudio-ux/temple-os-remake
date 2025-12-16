@@ -20,6 +20,7 @@ declare global {
       restart: () => Promise<void>;
       lock: () => Promise<void>;
       getSystemInfo: () => Promise<SystemInfo>;
+      setSystemVolume: (level: number) => Promise<void>;
       // Holy Updater
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
@@ -1017,7 +1018,17 @@ class TempleOS {
       // Volume Slider
       if (target.classList.contains('volume-slider')) {
         this.volumeLevel = parseInt(target.value);
-        // In real app, IPC to system volume
+        
+        // Call system volume API
+        if (window.electronAPI) {
+          window.electronAPI.setSystemVolume(this.volumeLevel).catch(console.error);
+        }
+
+        // Update internal audio element if exists
+        const audio = document.getElementById('hymn-audio') as HTMLAudioElement;
+        if (audio) audio.volume = this.volumeLevel / 100;
+
+        // Update tooltip
         const volTitle = document.getElementById('tray-volume');
         if (volTitle) volTitle.title = `Volume: ${this.volumeLevel}%`;
         return;
@@ -1314,8 +1325,7 @@ class TempleOS {
               <h3>🔊 Sound</h3>
               <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span>Volume</span>
-                <input type="range" min="0" max="100" value="${this.volumeLevel}" 
-                       oninput="window.electronAPI ? null : document.dispatchEvent(new CustomEvent('volume-change', {detail: this.value}))"
+                <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
                        style="width: 150px; accent-color: #00ff41;">
               </div>
               <h3>🖥️ Display</h3>

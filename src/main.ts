@@ -2295,7 +2295,7 @@ U0 Main()
       min-width: 180px;
       z-index: 99998;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-      font-family: 'VT323', monospace;
+      font-family: 'VT323', 'Noto Color Emoji', monospace;
     `;
 
     items.forEach(item => {
@@ -2311,6 +2311,7 @@ U0 Main()
           cursor: pointer;
           color: #00ff41;
           font-size: 16px;
+          font-family: 'VT323', 'Noto Color Emoji', monospace;
         `;
         menuItem.addEventListener('mouseenter', () => {
           menuItem.style.background = 'rgba(0, 255, 65, 0.15)';

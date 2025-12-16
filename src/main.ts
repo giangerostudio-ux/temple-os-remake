@@ -148,6 +148,7 @@ class TempleOS {
   // Start Menu state
   private installedApps: InstalledApp[] = [];
   private startMenuSearchQuery = '';
+  private eventListenersAttached = false;
 
   constructor() {
     this.init();
@@ -471,8 +472,8 @@ class TempleOS {
       </button>
       ${this.showPowerMenu ? this.renderPowerMenu() : ''}
 
-      <div class="taskbar-clock" id="clock" style="cursor: pointer; position: relative;">
-        ${this.formatTime()}
+      <div class="taskbar-clock" id="clock-container" style="cursor: pointer; position: relative;">
+        <span id="clock-text">${this.formatTime()}</span>
         ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
       </div>
     `;
@@ -602,6 +603,9 @@ class TempleOS {
 
 
   private setupEventListeners() {
+    if (this.eventListenersAttached) return;
+    this.eventListenersAttached = true;
+
     const app = document.getElementById('app')!;
 
     // Volume Slider Input
@@ -681,9 +685,8 @@ class TempleOS {
 
       // Tray: Clock/Calendar
       // Tray: Clock/Calendar
-      const clock = target.closest('#clock');
+      const clock = target.closest('#clock-container');
       if (clock) {
-        e.stopPropagation(); // prevent immediate close checks
         this.showCalendarPopup = !this.showCalendarPopup;
         this.showVolumePopup = false;
         this.showPowerMenu = false;
@@ -722,7 +725,7 @@ class TempleOS {
         this.showVolumePopup = false;
         this.render();
       }
-      if (this.showCalendarPopup && !target.closest('#clock') && !target.closest('.calendar-popup')) {
+      if (this.showCalendarPopup && !target.closest('#clock-container') && !target.closest('.calendar-popup')) {
         this.showCalendarPopup = false;
         this.render();
       }
@@ -2462,10 +2465,10 @@ U0 Main()
   }
 
   private updateClock() {
-    const clock = document.getElementById('clock');
-    if (clock) {
+    const clockText = document.getElementById('clock-text');
+    if (clockText) {
       const now = new Date();
-      clock.textContent = now.toLocaleTimeString();
+      clockText.textContent = now.toLocaleTimeString();
     }
   }
 

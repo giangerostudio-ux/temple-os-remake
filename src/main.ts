@@ -200,6 +200,8 @@ interface TempleConfig {
   volumeLevel?: number;
   doNotDisturb?: boolean;
   lockTimeoutMs?: number;
+  lockPassword?: string;
+  lockPin?: string;
   terminal?: {
     aliases?: Record<string, string>;
     promptTemplate?: string;
@@ -481,8 +483,8 @@ class TempleOS {
   private isLocked = false;
   private lockInputMode: 'password' | 'pin' = 'password';
 
-  private readonly PASSWORD = 'temple'; // Authentic TempleOS password
-  private readonly PIN = '7777';
+  private lockPassword = 'temple'; // User-configurable lock screen password (default: temple)
+  private lockPin = '7777'; // User-configurable lock screen PIN (default: 7777)
 
   // Network State
   private networkStatus: NetworkStatus = { connected: false };
@@ -3846,8 +3848,8 @@ class TempleOS {
         }
 
         if (taskbarItem) {
-            const key = taskbarItem.dataset.launchKey || '';
-            const windowId = taskbarItem.dataset.taskbarWindow || '';
+          const key = taskbarItem.dataset.launchKey || '';
+          const windowId = taskbarItem.dataset.taskbarWindow || '';
           if (key) {
             const pinnedStart = this.pinnedStart.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
@@ -5436,6 +5438,7 @@ class TempleOS {
       System: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
       Personalization: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="19" cy="17" r="2"></circle></svg>',
       Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
+      Security: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
       Devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="6"></rect><line x1="12" y1="7" x2="12" y2="11"></line></svg>',
       About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
     };
@@ -5444,6 +5447,7 @@ class TempleOS {
       { id: 'System', icon: svgIcons.System, label: 'System' },
       { id: 'Personalization', icon: svgIcons.Personalization, label: 'Personalization' },
       { id: 'Network', icon: svgIcons.Network, label: 'Network & Internet' },
+      { id: 'Security', icon: svgIcons.Security, label: 'Security' },
       { id: 'Devices', icon: svgIcons.Devices, label: 'Mouse & Input' },
       { id: 'About', icon: svgIcons.About, label: 'About' },
     ];
@@ -5705,11 +5709,43 @@ class TempleOS {
       `;
     };
 
+    const renderSecurity = () => {
+      return `
+        ${card('Lock Screen Password', `
+          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
+            <div>Password</div>
+            <div style="display: flex; gap: 10px;">
+              <input type="password" class="lock-password-field" value="${escapeHtml(this.lockPassword)}" placeholder="Password" 
+                     style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;" />
+              <button class="save-password-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
+            </div>
+          </div>
+          <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">Password for lock screen (default: temple). Leave empty to disable password.</div>
+        `)}
+        ${card('Lock Screen PIN', `
+          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
+            <div>PIN</div>
+            <div style="display: flex; gap: 10px;">
+              <input type="password" class="lock-pin-field" value="${escapeHtml(this.lockPin)}" placeholder="PIN (numbers only)" inputmode="numeric" pattern="[0-9]*"
+                     style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;" />
+              <button class="save-pin-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
+            </div>
+          </div>
+          <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">PIN for lock screen (default: 7777). Leave empty to disable PIN.</div>
+        `)}
+        ${card('Lock Screen', `
+          <button class="test-lock-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: inherit;">Test Lock Screen</button>
+          <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">Test the lock screen with your current password/PIN settings.</div>
+        `)}
+      `;
+    };
+
     const renderPageContent = () => {
       switch (this.activeSettingsCategory) {
         case 'System': return renderSystem();
         case 'Personalization': return renderPersonalization();
         case 'Network': return renderNetwork();
+        case 'Security': return renderSecurity();
         case 'Devices': return renderDevices();
         case 'About': return renderAbout();
         default: return '<div style="padding: 20px; opacity: 0.6;">Select a category.</div>';
@@ -6924,6 +6960,8 @@ class TempleOS {
     if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.themeMode = cfg.themeMode;
     if (typeof cfg.volumeLevel === 'number') this.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
     if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
+    if (typeof cfg.lockPassword === 'string') this.lockPassword = cfg.lockPassword;
+    if (typeof cfg.lockPin === 'string') this.lockPin = cfg.lockPin;
 
     if (cfg.terminal) {
       const t = cfg.terminal;
@@ -7046,6 +7084,8 @@ class TempleOS {
       currentResolution: this.currentResolution,
       volumeLevel: this.volumeLevel,
       doNotDisturb: this.doNotDisturb,
+      lockPassword: this.lockPassword,
+      lockPin: this.lockPin,
 
       terminal: {
         aliases: this.terminalAliases,
@@ -7697,7 +7737,7 @@ class TempleOS {
       const val = input.value;
       const msg = document.getElementById('lock-message');
 
-      const ok = this.lockInputMode === 'pin' ? val === this.PIN : val === this.PASSWORD;
+      const ok = this.lockInputMode === 'pin' ? val === this.lockPin : val === this.lockPassword;
       if (ok) {
         clearInterval(clockInterval);
         this.unlock();

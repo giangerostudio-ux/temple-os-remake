@@ -41,6 +41,8 @@
 - [x] Fix Wallpaper Scaling on Desktop (Text Cutoff)
 - [x] Refactor Tray Rendering (Fix Click Responsiveness)
 - [x] Implement App-Level Audio Volume Control
+- [x] Setup VM Fullscreen (Guest Additions)
+
 
 
 ## 🔨 TIER 3: SIGNIFICANT EFFORT

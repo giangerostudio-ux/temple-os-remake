@@ -121,7 +121,7 @@ class TempleOS {
 
   // Settings State
   private activeSettingsCategory = 'System';
-  private wallpaperImage = 'background.jpg'; // Default
+  private wallpaperImage = './images/wallpaper.png'; // Default
   private themeMode = 'dark'; // 'dark' or 'light'
 
   // File browser state
@@ -151,7 +151,7 @@ class TempleOS {
     const app = document.getElementById('app')!;
     app.innerHTML = `
       ${this.renderBootScreen()}
-      <div class="desktop" id="desktop">
+      <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: cover; background-position: center;">
         ${this.renderDesktopIcons()}
         <div id="windows-container"></div>
       </div>

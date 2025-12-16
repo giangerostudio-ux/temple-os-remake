@@ -1463,10 +1463,11 @@ ipcMain.handle('updater:check', async () => {
 
 ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
-        // Pull updates, rebuild, and prepare for reboot
-        // Use npm.cmd on Windows if needed, but 'npm' usually works
+        // Pull updates, install deps, rebuild, and prepare for reboot
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        const updateScript = `cd "${projectRoot}" && git pull origin main && ${npmCmd} run build -- --base=./`;
+        // Note: --ignore-optional skips node-pty if it fails to compile
+        const updateScript = `cd "${projectRoot}" && git pull origin main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
+
 
         exec(updateScript, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {

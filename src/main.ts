@@ -397,30 +397,46 @@ class TempleOS {
           `).join('')}
         </div>
       <div class="taskbar-tray">
-        <div class="tray-icon" id="tray-network" title="Network: Connected" style="position: relative;">
-          📶
-          ${this.showNetworkPopup ? this.renderNetworkPopup() : ''}
-        </div>
-        
-        <div class="tray-icon" id="tray-volume" title="Volume: ${this.volumeLevel}%" style="position: relative;">
-           🔊
-           ${this.showVolumePopup ? this.renderVolumePopup() : ''}
-        </div>
-
-        <div class="tray-icon" id="tray-notification" title="Notifications" style="position: relative;">
-           🔔
-           ${this.showNotificationPopup ? this.renderNotificationPopup() : ''}
-        </div>
- 
-        <button class="power-btn" title="Power Options">⏻</button>
-        ${this.showPowerMenu ? this.renderPowerMenu() : ''}
-
-        <div class="taskbar-clock" id="clock" style="cursor: pointer; position: relative;">
-          ${this.formatTime()}
-          ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
-        </div>
+      <div class="tray-icon" id="tray-network" title="Network: Connected" style="position: relative;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+        ${this.showNetworkPopup ? this.renderNetworkPopup() : ''}
       </div>
-    </div>`;
+      
+      <div class="tray-icon" id="tray-volume" title="Volume: ${this.volumeLevel}%" style="position: relative;">
+         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+           <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+         </svg>
+         ${this.showVolumePopup ? this.renderVolumePopup() : ''}
+      </div>
+
+      <div class="tray-icon" id="tray-notification" title="Notifications" style="position: relative;">
+         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+         </svg>
+         ${this.showNotificationPopup ? this.renderNotificationPopup() : ''}
+      </div>
+ 
+      <button class="power-btn" title="Power Options">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          <line x1="12" y1="2" x2="12" y2="12"></line>
+        </svg>
+      </button>
+      ${this.showPowerMenu ? this.renderPowerMenu() : ''}
+
+      <div class="taskbar-clock" id="clock" style="cursor: pointer; position: relative;">
+        ${this.formatTime()}
+        ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
+      </div>
+    </div>
+  </div>`;
   }
 
 

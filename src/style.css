@@ -447,6 +447,22 @@ body {
   gap: 10px;
 }
 
+.tray-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  color: var(--tos-green);
+}
+
+.tray-icon:hover {
+  background: rgba(0, 255, 65, 0.1);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
 .power-btn {
   background: none;
   border: 1px solid rgba(255, 100, 100, 0.5);

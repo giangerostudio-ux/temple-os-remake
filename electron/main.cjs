@@ -1465,8 +1465,8 @@ ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
         // Pull updates, install deps, rebuild, and prepare for reboot
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        // Note: --ignore-optional skips node-pty if it fails to compile
-        const updateScript = `cd "${projectRoot}" && git pull origin main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
+        // Reset local changes (e.g. package-lock.json) before pulling to avoid conflicts
+        const updateScript = `cd "${projectRoot}" && git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
 
 
         exec(updateScript, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {

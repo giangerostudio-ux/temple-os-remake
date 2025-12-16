@@ -562,7 +562,7 @@ class TempleOS {
           <div class="start-power-section">
             <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
             <button class="start-power-btn" data-power-action="restart">🔄 Restart</button>
-            <button class="start-power-btn" data-power-action="shutdown">⏻ Shutdown</button>
+            <button class="start-power-btn" data-power-action="shutdown">🔴 Shutdown</button>
           </div>
         </div>
       </div>

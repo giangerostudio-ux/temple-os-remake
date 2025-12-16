@@ -3959,8 +3959,8 @@ class TempleOS {
             { divider: true },
             { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
           ]);
-        } else if (desktopEl && !target.closest('.window') && !target.closest('.taskbar')) {
-          // Desktop context menu
+        } else if (!target.closest('.window') && !target.closest('.taskbar') && !target.closest('.toast')) {
+          // Desktop context menu (fallback for any click on background)
           this.showContextMenu(e.clientX, e.clientY, [
             { label: '📁 Open Files', action: () => this.openApp('files') },
             { label: '💻 Open Terminal', action: () => this.openApp('terminal') },

@@ -604,8 +604,7 @@ class TempleOS {
       if (quickLink && quickLink.dataset.path) {
         const path = quickLink.dataset.path;
         if (path === 'settings') {
-          // Open settings app (placeholder for now)
-          alert('Settings panel coming in Tier 3!');
+          this.openApp('settings');
         } else {
           // Determine path - simple mapping for now
           if (path === 'home') {
@@ -1892,7 +1891,40 @@ U0 Main()
       if (visibleWindows.length > 0) {
         visibleWindows[visibleWindows.length - 1].active = true;
       }
+
+      // OPTIMIZED: Hide window via DOM instead of re-render (preserves audio playback!)
+      const winEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
+      if (winEl) {
+        winEl.style.display = 'none';
+
+        // Update active styling on remaining windows
+        const container = document.getElementById('windows-container');
+        if (container) {
+          const allWindows = container.querySelectorAll('.window');
+          allWindows.forEach(el => {
+            const elId = el.getAttribute('data-window-id');
+            const winData = this.windows.find(w => w.id === elId);
+            if (winData?.active) {
+              el.classList.add('active');
+            } else {
+              el.classList.remove('active');
+            }
+          });
+        }
+
+        // Update Taskbar Only
+        const taskbarApps = document.querySelector('.taskbar-apps');
+        if (taskbarApps) {
+          taskbarApps.innerHTML = this.windows.map(w => `
+            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+              ${w.icon} ${w.title}
+            </div>
+          `).join('');
+        }
+        return; // Skip full re-render
+      }
     }
+    // Fallback: full re-render if DOM element not found
     this.render();
   }
 
@@ -1949,36 +1981,54 @@ U0 Main()
       this.windows = this.windows.filter(w => w.id !== windowId);
       this.windows.push(win);
 
-      if (wasMinimized) {
-        // If it was minimized, we DO need to render to create the DOM element
-        this.render();
-      } else {
-        // OPTIMIZED UPDATE: Don't destroy DOM (keeps audio playing!)
-        const container = document.getElementById('windows-container');
-        const winEl = document.querySelector(`[data-window-id="${windowId}"]`);
+      const container = document.getElementById('windows-container');
+      const winEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
 
-        if (container && winEl) {
-          // Move to end (visual front)
-          container.appendChild(winEl);
+      if (wasMinimized && winEl) {
+        // OPTIMIZED: Just show the hidden element (preserves audio playback!)
+        winEl.style.display = 'flex';
 
-          // Update active styling
+        // Move to end (visual front)
+        if (container) container.appendChild(winEl);
+
+        // Update active styling
+        if (container) {
           const allWindows = container.querySelectorAll('.window');
           allWindows.forEach(el => el.classList.remove('active'));
-          winEl.classList.add('active');
-
-          // Update Taskbar Only
-          const taskbarApps = document.querySelector('.taskbar-apps');
-          if (taskbarApps) {
-            taskbarApps.innerHTML = this.windows.map(w => `
-              <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-                ${w.icon} ${w.title}
-              </div>
-            `).join('');
-          }
-        } else {
-          // Fallback if something is weird
-          this.render();
         }
+        winEl.classList.add('active');
+
+        // Update Taskbar Only
+        const taskbarApps = document.querySelector('.taskbar-apps');
+        if (taskbarApps) {
+          taskbarApps.innerHTML = this.windows.map(w => `
+            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+              ${w.icon} ${w.title}
+            </div>
+          `).join('');
+        }
+      } else if (container && winEl) {
+        // OPTIMIZED UPDATE: Don't destroy DOM (keeps audio playing!)
+        // Move to end (visual front)
+        container.appendChild(winEl);
+
+        // Update active styling
+        const allWindows = container.querySelectorAll('.window');
+        allWindows.forEach(el => el.classList.remove('active'));
+        winEl.classList.add('active');
+
+        // Update Taskbar Only
+        const taskbarApps = document.querySelector('.taskbar-apps');
+        if (taskbarApps) {
+          taskbarApps.innerHTML = this.windows.map(w => `
+            <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+              ${w.icon} ${w.title}
+            </div>
+          `).join('');
+        }
+      } else {
+        // Fallback: full re-render if DOM element not found
+        this.render();
       }
     } else {
       this.render();

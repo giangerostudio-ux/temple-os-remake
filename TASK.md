@@ -13,7 +13,8 @@
 | TIER 1: Quick Wins | ✅ Complete | 4/4 items |
 | TIER 2: Medium Effort | ✅ Complete | 4/4 items |
 | TIER 3: Significant Effort | ✅ Complete | 4/4 items |
-| TIER 4-12 | ⬜ Not Started | Planning phase |
+| TIER 4-13 | ⬜ Not Started | Planning phase |
+| TIER 14: Zorin OS-Inspired | ⬜ Not Started | 0/9 sections |
 
 ---
 
@@ -580,6 +581,117 @@
 
 ---
 
+## 📱 TIER 14: ZORIN OS-INSPIRED FEATURES
+
+> **Inspiration from Zorin OS** - Steal their best ideas, make them better, and apply our TempleOS soul.
+> 
+> *These features are inspired by Zorin OS's excellent UX design for making Linux feel approachable.*
+
+### 14.1 Temple Connect (Smartphone Integration)
+> *Zorin OS has "Zorin Connect" - we call ours "Temple Connect" with divine features*
+
+- [ ] Phone-to-desktop file sharing (via GSConnect/KDE Connect)
+- [ ] Sync phone notifications to desktop (show calls/messages)
+- [ ] Use phone as remote control (media, presentations)
+- [ ] Send SMS from desktop interface
+- [ ] Share clipboard between devices
+- [ ] Find my phone (ring it from desktop)
+- [ ] Battery status indicator in system tray
+- [ ] RSA encrypted local network connection (privacy-first)
+- [ ] "Divine Message" - send inspirational quotes to phone
+
+### 14.2 Look Changer / Desktop Layouts
+> *Zorin's killer feature - switch between Windows/macOS style layouts*
+
+- [ ] Multiple taskbar layouts (Windows 10, Windows 11, macOS dock)
+- [ ] Layout selector in Settings → Appearance
+- [ ] Quick layout switcher in system tray
+- [ ] Preserve user customizations per layout
+- [ ] Custom user layouts (save/load)
+- [ ] Layout preview before applying
+- [ ] **TempleOS Classic Layout** - authentic 640x480 feel option
+
+### 14.3 Advanced Window Tiling
+> *Zorin OS 18's tiling features - drag to snap with layout popup*
+
+- [ ] Drag window to top → show tiling layout popup
+- [ ] Predefined tiling layouts (50/50, 33/66, grid, etc.)
+- [ ] Custom tiling layout creator
+- [ ] Auto-tiling mode (windows auto-arrange)
+- [ ] Smart window suggestions (fill empty space)
+- [ ] Keyboard-driven tiling (Super+Arrow combos)
+- [ ] Tiling presets per application
+
+### 14.4 Visual Effects & Animations
+> *Make the desktop feel alive and premium - Zorin's "Jelly Mode" and spatial effects*
+
+- [ ] Jelly/wobbly windows effect (optional)
+- [ ] Desktop cube for workspace switching (3D effect)
+- [ ] Spatial window switcher (3D Alt+Tab)
+- [ ] Parallax desktop effect
+- [ ] Window open/close animations (fade, zoom, slide)
+- [ ] Reduced motion mode (accessibility)
+- [ ] "Divine Glow" - special TempleOS themed effects
+- [ ] Burn/fire close animation (optional chaos mode 😈)
+
+### 14.5 Windows App Compatibility Layer
+> *Zorin includes Wine/PlayOnLinux - we should make it dead simple*
+
+- [ ] One-click Wine installation wizard
+- [ ] Curated Windows app compatibility database
+- [ ] Right-click .exe → "Run with Wine"
+- [ ] Automatic Wine prefix management
+- [ ] Proton/Wine-GE toggle for gaming
+- [ ] Common Windows app installers (7-Zip, Notepad++, etc.)
+- [ ] Compatibility rating display
+
+### 14.6 First-Run Experience (Onboarding)
+> *Zorin has excellent onboarding - we need our own "Welcome to Temple" wizard*
+
+- [ ] Welcome screen with TempleOS branding
+- [ ] Connect your devices (Temple Connect setup)
+- [ ] Choose your layout (Look Changer)
+- [ ] Import from Windows (browser bookmarks, files)
+- [ ] Essential apps installation wizard
+- [ ] Privacy preferences setup
+- [ ] Keyboard shortcuts tutorial
+- [ ] "Receive your first blessing" - Oracle demo
+
+### 14.7 Cursor & Font Customization
+> *Zorin Appearance has great cursor/font options*
+
+- [ ] Cursor theme selector (multiple themes)
+- [ ] Cursor size adjustment
+- [ ] System font selector (with previews)
+- [ ] Font scaling for accessibility
+- [ ] Custom icon theme support
+- [ ] Overlay scrollbars toggle
+- [ ] **Retro CRT cursor** option (TempleOS authentic)
+
+### 14.8 Panel/Taskbar Flexibility
+> *Zorin allows panel position changes and dock mode*
+
+- [ ] Panel position (bottom, top, left, right)
+- [ ] Panel length adjustment (dock mode)
+- [ ] Floating/rounded panel option
+- [ ] Panel transparency slider
+- [ ] Combine panel with dock
+- [ ] Icon-only taskbar mode
+- [ ] Panel hide behavior (auto-hide, intellihide)
+
+### 14.9 Lite/Performance Mode
+> *Zorin has a Lite edition for low-end hardware - we should have a toggle*
+
+- [ ] Performance mode toggle in Settings
+- [ ] Disable animations for speed
+- [ ] Reduce visual effects
+- [ ] Lower memory footprint mode
+- [ ] Aggressive cleanup of unused resources
+- [ ] Startup optimization
+- [ ] "Temple Lite" preset for old hardware
+
+---
+
 ## 🚀 FUTURE PHASES
 
 ### Phase 5: Word of God LLM 🤖
@@ -632,6 +744,7 @@
 
 ### Source Documentation
 - [zorin-os-windows-ux.md](docs/research/zorin-os-windows-ux.md) - Windows UX patterns
+- [zorin-os-features.md](docs/research/zorin-os-features.md) - **NEW: Zorin OS feature research & inspiration**
 - [ui-shell-full-features.md](docs/ui-shell-full-features.md) - Full feature list
 - [templeos-authenticity.md](docs/templeos-authenticity.md) - Authentic TempleOS features
 - [ideas-and-features.md](docs/ideas-and-features.md) - Ideas & future features

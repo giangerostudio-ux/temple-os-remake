@@ -3837,11 +3837,11 @@ class TempleOS {
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `dY", Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
-              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ]);
             return;
           }
@@ -3854,11 +3854,11 @@ class TempleOS {
             const pinnedStart = this.pinnedStart.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `dY", Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
-              { label: 'dY", Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
-              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: onDesktop ? 'dY", Remove from Desktop' : 'dY", Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              { label: '📌 Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
+              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ]);
             return;
           }
@@ -3867,10 +3867,10 @@ class TempleOS {
             const appKey = `builtin:${appId}`;
             const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: 'dY", Restore/Focus', action: () => this.toggleWindow(windowId) },
-              { label: 'dY-`ΓÇ╣,? Close', action: () => this.closeWindow(windowId) },
+              { label: '🔼 Restore/Focus', action: () => this.toggleWindow(windowId) },
+              { label: '❌ Close', action: () => this.closeWindow(windowId) },
               { divider: true },
-              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
+              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
             ]);
             return;
           }
@@ -3883,11 +3883,11 @@ class TempleOS {
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
             const isBuiltInDesktop = !!desktopIcon.dataset.app;
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `dY", Open`, action: () => this.launchByKey(key) },
+              { label: `🚀 Open`, action: () => this.launchByKey(key) },
               { divider: true },
-              { label: pinnedStart ? 'dY", Unpin from Start' : 'dY", Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: pinnedTaskbar ? 'dY", Unpin from Taskbar' : 'dY", Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              ...(isBuiltInDesktop ? [] : [{ label: 'dY", Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
+              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              ...(isBuiltInDesktop ? [] : [{ label: '🗑️ Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
             ]);
             return;
           }
@@ -3909,31 +3909,31 @@ class TempleOS {
               this.loadFiles(parent);
             };
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: 'dY", Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
+              { label: '📂 Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
               { divider: true },
-              { label: 'dY", Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
-              { label: 'dY-`ΓÇ╣,? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
+              { label: '♻️ Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
+              { label: '❌ Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
               { divider: true },
-              ...(originalPath ? [{ label: 'dY"< Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
-              ...(originalPath ? [{ label: 'dY", Open Original Folder', action: () => openOriginalFolder() }] : []),
+              ...(originalPath ? [{ label: '📋 Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
+              ...(originalPath ? [{ label: '📁 Open Original Folder', action: () => openOriginalFolder() }] : []),
             ]);
             return;
           }
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '≡ƒôé Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
-            { label: '≡ƒôï Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
-            { label: 'Γ£é∩╕Å Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
-            { label: 'Γ£Å∩╕Å Rename', action: () => this.promptRename(filePath) },
-            { label: '≡ƒùæ∩╕Å Delete', action: () => this.confirmDelete(filePath) },
+            { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
+            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
+            { label: '✏️ Rename', action: () => this.promptRename(filePath) },
+            { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
             { divider: true },
-            { label: '≡ƒôï Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+            { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
           ]);
         } else if (fileBrowserEl && !target.closest('.taskbar')) {
           if (this.currentPath === 'trash:') {
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: 'dY", Refresh', action: () => this.loadFiles('trash:') },
+              { label: '🔄 Refresh', action: () => this.loadFiles('trash:') },
               { divider: true },
-              { label: 'dY-`ΓÇ╣,? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
+              { label: '❌ Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
             ]);
             return;
           }

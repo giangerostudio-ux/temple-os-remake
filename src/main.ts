@@ -3826,34 +3826,60 @@ class TempleOS {
       // ============================================
       // CONTEXT MENU (Right-Click)
       // ============================================
-      // ============================================
-      // CONTEXT MENU (Right-Click)
-      // ============================================
-      document.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
+
+      // 1. Desktop Background Listener (Direct attachment for reliability)
+      const desktop = document.getElementById('desktop');
+      if (desktop) {
+        desktop.addEventListener('contextmenu', (e) => {
+          // Check if we clicked the desktop itself or the windows container (empty space)
+          // We intentionally EXCLUDE children like icons or windows here.
+          const target = e.target as HTMLElement;
+          const isBackground = target === desktop || target.id === 'windows-container';
+
+          if (isBackground) {
+            e.preventDefault();
+            e.stopPropagation(); // Stop bubbling (don't trigger app listener)
+            this.closeContextMenu();
+
+            // VISIBLE DEBUG (Keep enabled until fixed)
+            // It seems this notification is REQUIRED for the menu to show up in the user's VM environment.
+            // Likely a focus/layout race condition. We will keep it but maybe we can make hidden?
+            this.showNotification('System', 'Menu Active', 'info');
+
+            console.log('Desktop context menu triggered');
+
+            // Wrap in requestAnimationFrame to ensure DOM is ready/reflow happens
+            // This mimics the slight delay the debug notification might have provided
+            requestAnimationFrame(() => {
+              this.showContextMenu(e.clientX, e.clientY, [
+                { label: '📁 Open Files', action: () => this.openApp('files') },
+                { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+                { divider: true },
+                { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+                { label: '⚙️ Settings', action: () => this.openApp('settings') },
+                { divider: true },
+                { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+              ]);
+            });
+          }
+        });
+      }
+
+      // 2. Global Item Listener (Delegation for Icons, Taskbar, etc)
+      app.addEventListener('contextmenu', (e) => {
         const target = e.target as HTMLElement;
 
-        // Close any existing context menu
-        this.closeContextMenu();
-
-        // Determine context
+        // Determine context (Items only)
         const startAppItem = target.closest('.start-app-item, .launcher-app-tile') as HTMLElement;
         const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
         const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
         const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
 
-        // DEBUG: Log what's being matched
-        console.log('Context menu debug:', {
-          target: target.className || target.tagName,
-          startAppItem: !!startAppItem,
-          taskbarItem: !!taskbarItem,
-          desktopIcon: !!desktopIcon,
-          fileItem: !!fileItem,
-          fileBrowserEl: !!fileBrowserEl,
-          inWindow: !!target.closest('.window'),
-          inTaskbar: !!target.closest('.taskbar')
-        });
+        if (startAppItem || taskbarItem || desktopIcon || fileItem || fileBrowserEl) {
+          e.preventDefault();
+          this.closeContextMenu();
+        }
 
         if (startAppItem) {
           const key =
@@ -3973,20 +3999,6 @@ class TempleOS {
             ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
             { divider: true },
             { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-          ]);
-        } else if (!target.closest('.window') && !target.closest('.taskbar') && !target.closest('.toast')) {
-          // Desktop context menu (fallback for any click on background)
-          // Also show a toast so the user knows it triggered!
-          this.showNotification('Debug', 'Desktop Context Menu Triggered', 'info');
-
-          this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📁 Open Files', action: () => this.openApp('files') },
-            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
-            { divider: true },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-            { label: '⚙️ Settings', action: () => this.openApp('settings') },
-            { divider: true },
-            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
           ]);
         }
       });

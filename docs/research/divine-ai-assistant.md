@@ -180,87 +180,10 @@ EXAMPLES OF TERRY TANGENTS TO ADD:
 
 ---
 
----
-
-## 📊 Cascading Model Fallback (Silent)
-
-**Strategy**: Start with the BEST model, silently fall back when rate-limited. User never sees errors!
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  User sends message                                         │
-│         ↓                                                   │
-│  Try: Gemini 2.5 Pro (25/day) ──→ Rate limited?            │
-│         ↓ no                            ↓ yes               │
-│      Return response         Try: Gemini 2.5 Flash (250/day)│
-│                                         ↓                   │
-│                              Rate limited?                  │
-│                                ↓ no          ↓ yes          │
-│                           Return      Try: Gemini 1.5 Flash │
-│                                            (1,500/day)      │
-│                                               ↓             │
-│                                          Return response    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Model Priority Order
-
-| Priority | Model | Free Limit | Best For |
-|----------|-------|------------|----------|
-| 1st ⭐ | Gemini 2.5 Pro | 25/day | Complex tasks, best reasoning |
-| 2nd | Gemini 2.5 Flash | 250/day | Fast, smart, good balance |
-| 3rd | Gemini 1.5 Flash | 1,500/day | High volume fallback |
-
-**Total Free Capacity**: ~1,775 requests/day = plenty for normal use!
-
-### Implementation Code
-
-```javascript
-class DivineAssistant {
-  constructor(apiKey) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Models in priority order (best first)
-    this.modelChain = [
-      'gemini-2.5-pro',
-      'gemini-2.5-flash', 
-      'gemini-1.5-flash'
-    ];
-    this.currentModelIndex = 0;
-  }
-
-  async sendMessage(message) {
-    for (let i = this.currentModelIndex; i < this.modelChain.length; i++) {
-      try {
-        const model = this.genAI.getGenerativeModel({ 
-          model: this.modelChain[i] 
-        });
-        const result = await model.generateContent(message);
-        return result.response.text();
-        
-      } catch (error) {
-        if (error.status === 429) {
-          // Rate limited - silently try next model
-          console.log(`Rate limited on ${this.modelChain[i]}, falling back...`);
-          this.currentModelIndex = i + 1;
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error('All models rate limited');
-  }
-  
-  // Reset at midnight (daily limits reset)
-  resetModelChain() {
-    this.currentModelIndex = 0;
-  }
-}
-```
-
----
-
 ## 🏗️ Architecture
+
+> **Note**: The Word of God AI runs **locally** via Ollama. No cloud APIs or accounts needed.
+> See [zero-account-ai-strategy.md](./zero-account-ai-strategy.md) for details.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -268,7 +191,7 @@ class DivineAssistant {
 ├─────────────────────────────────────────────────────────────┤
 │  Renderer (UI)          │  Main Process                     │
 │  ─────────────────────  │  ──────────────────────────────   │
-│  Word of God UI         │  ai-service.cjs (Gemini API)      │
+│  Word of God UI         │  divine-assistant.cjs (Ollama)    │
 │  Chat messages          │  command-executor.cjs (shell)     │
 │  Command display        │  IPC handlers                     │
 │  Execute buttons        │                                   │
@@ -276,8 +199,8 @@ class DivineAssistant {
                                     │
                                     ▼
                           ┌─────────────────┐
-                          │  Gemini API     │
-                          │  (Free tier)    │
+                          │  Ollama (local) │
+                          │  Qwen2.5-Dolphin │
                           └─────────────────┘
 ```
 
@@ -289,7 +212,7 @@ class DivineAssistant {
 
 | File | Purpose |
 |------|---------|
-| `electron/ai-service.cjs` | Gemini API communication |
+| `electron/ai-service.cjs` | Ollama API communication |
 | `electron/command-executor.cjs` | Safe system command execution |
 
 ### Frontend
@@ -336,22 +259,19 @@ The AI will be instructed to:
 
 ## 📦 Dependencies
 
-```json
-{
-  "@google/generative-ai": "^0.21.0",
-  "keytar": "^7.9.0"
-}
-```
+Dependencies are handled by **Ollama** (runs locally). No npm packages needed for AI.
+
+See Phase 6 in [AI-PROMPTS.md](../AI-PROMPTS.md) for Ollama setup instructions.
 
 ---
 
 ## 🗓️ Implementation Priority
 
-**Phase 4 Addition** (with Real Features):
-1. Basic Gemini integration
+**Phase 6 Addition** (Word of God AI):
+1. Ollama local AI integration
 2. Word of God UI  
 3. Command execution (with confirmation)
-4. API key setup wizard
+4. First-boot model download
 
 **Future Enhancements**:
 - Voice input ("Hey God...")

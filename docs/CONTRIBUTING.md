@@ -53,7 +53,7 @@ Use clear, descriptive messages:
 
 ---
 
-## Updating the VM (Alpine Linux)
+## Updating the VM (Ubuntu 24.04 LTS)
 
 Once the code is on GitHub, update the VM:
 

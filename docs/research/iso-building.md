@@ -1,5 +1,9 @@
 # ISO Building Process Research
 
+> [!WARNING]
+> This document still references Alpine Linux. The project now uses **Ubuntu 24.04 LTS**.
+> Updates pending to align with Ubuntu base. See [ubuntu-setup.md](./ubuntu-setup.md) for current setup.
+
 ## Overview
 
 How to create a bootable ISO image of the TempleOS Linux distribution.

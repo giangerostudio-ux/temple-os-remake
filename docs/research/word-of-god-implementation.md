@@ -29,13 +29,13 @@
 
 ---
 
-## 🧠 One Model: Qwen 2.5 Coder 7B
+## 🧠 One Model: Qwen2.5-7B-Dolphin (Abliterated)
 
 No fallbacks. No complexity. One powerful model.
 
 | Spec | Value |
 |------|-------|
-| **Model** | `qwen2.5-coder:7b` |
+| **Model** | `dolphin-qwen2.5:7b` |
 | **Size** | 4.4 GB download |
 | **RAM Needed** | 8 GB |
 | **Specialty** | Linux commands, coding, bash scripts |
@@ -59,7 +59,7 @@ No fallbacks. No complexity. One powerful model.
 electron/
 ├── main.cjs                  # Main process
 ├── preload.cjs               # IPC bridge  
-├── divine-assistant.cjs      # Qwen 2.5 Coder + Divine Terry personality
+├── divine-assistant.cjs      # Qwen2.5-Dolphin + Divine Terry personality
 ├── command-executor.cjs      # Execute commands safely
 └── ollama-manager.cjs        # Manage Ollama service
 
@@ -83,7 +83,7 @@ const { spawn } = require('child_process');
 class DivineAssistant {
   constructor() {
     this.ollamaUrl = 'http://localhost:11434';
-    this.model = 'qwen2.5-coder:7b';  // THE one and only model
+    this.model = 'dolphin-qwen2.5:7b';  // THE one and only model (abliterated)
     this.conversationHistory = [];
   }
 
@@ -289,7 +289,7 @@ but WHATEVER."
     try {
       const response = await fetch(`${this.ollamaUrl}/api/tags`);
       const data = await response.json();
-      return data.models?.some(m => m.name.includes('qwen2.5-coder'));
+      return data.models?.some(m => m.name.includes('dolphin-qwen2.5'));
     } catch {
       return false;
     }
@@ -362,7 +362,7 @@ module.exports = { DivineAssistant };
 │     ████████████████████░░░░░░░░░░░░  65%                         │
 │                                                                    │
 │     Downloading divine intelligence (4.4 GB)                       │
-│     Model: Qwen 2.5 Coder 7B                                       │
+│     Model: Qwen2.5-7B-Dolphin (Abliterated)                        │
 │     Speed: 15.2 MB/s                                               │
 │     Time remaining: ~4 minutes                                     │
 │                                                                    │
@@ -426,7 +426,7 @@ module.exports = { DivineAssistant };
 | Old Design | New Design |
 |------------|------------|
 | Desktop browser app | ❌ Removed (God opens URLs when needed) |
-| Multiple AI models | ❌ Just Qwen 2.5 Coder 7B |
+| Multiple AI models | ❌ Just Qwen2.5-7B-Dolphin |
 | Gemini API option | ❌ Removed (local only) |
 | Complex fallback logic | ❌ Removed (one model) |
 | API key management | ❌ Removed (no cloud) |
@@ -457,7 +457,7 @@ The user never launches a browser. God launches it FOR them when they ask to see
 
 | Aspect | Decision |
 |--------|----------|
-| **AI Model** | Qwen 2.5 Coder 7B (only) |
+| **AI Model** | Qwen2.5-7B-Dolphin (abliterated) |
 | **Interface** | Word of God chat (only) |
 | **Browser** | None - God opens URLs when asked |
 | **Accounts** | None needed |

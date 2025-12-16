@@ -364,3 +364,5 @@ All these features require **Phase 3 (Linux Base)** to be complete first:
 1. Complete Phase 2 (Electron wrapper)
 2. Complete Phase 3 (Linux base)
 3. Then implement these features in Phase 4
+4. **Phase 6: Windows-like UX polish** - Make it feel like Windows
+   - See [Zorin OS UX Research](./research/zorin-os-windows-ux.md) for patterns

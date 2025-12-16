@@ -19,11 +19,13 @@ User speaks English  ──►  Word of God  ──►  Computer obeys
 
 ---
 
-## 🧠 The Model: Qwen 2.5 Coder 7B
+## 🧠 The Model: Qwen2.5-7B-Dolphin (Abliterated)
+
+> **Why Abliterated?** Standard models refuse to roleplay Terry's unfiltered personality. Dolphin/abliterated fine-tunes remove these restrictions.
 
 | Spec | Value |
 |------|-------|
-| Model | `qwen2.5-coder:7b` |
+| Model | `dolphin-qwen2.5:7b` |
 | Download Size | 4.4 GB |
 | RAM Required | 8 GB |
 | Specialty | Linux commands, coding, bash |
@@ -32,7 +34,7 @@ User speaks English  ──►  Word of God  ──►  Computer obeys
 
 ### Installation Command (happens during first boot)
 ```bash
-ollama pull qwen2.5-coder:7b
+ollama pull dolphin-qwen2.5:7b
 ```
 
 ---
@@ -49,7 +51,7 @@ ollama pull qwen2.5-coder:7b
 3. Ollama auto-installs (100 MB)
    │
    ▼
-4. Qwen 2.5 Coder 7B downloads (4.4 GB)
+4. Qwen2.5-7B-Dolphin downloads (~4.4 GB)
    │  Shows: "Setting up the Word of God..."
    │  Shows: Progress bar + Bible verse
    │  Takes: ~5 minutes on average internet
@@ -144,7 +146,7 @@ GOD: Linux is an operating system kernel created by Linus Torvalds.
 
 | Question | Answer |
 |----------|--------|
-| What AI model? | **Qwen 2.5 Coder 7B** |
+| What AI model? | **Qwen2.5-7B-Dolphin** (abliterated) |
 | Where does it run? | **Locally via Ollama** |
 | Need accounts? | **No** |
 | Need internet? | **Only first boot** |

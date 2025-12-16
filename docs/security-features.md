@@ -39,7 +39,7 @@ This OS takes the best security features from Tails, Whonix, and QubesOS while m
 | ✅ **Full Disk Encryption** | LUKS encryption for all user data | Required on first boot |
 | ✅ **MAC Randomization** | Changes MAC address on every boot | NetworkManager setting |
 | ✅ **Firewall** | Block all incoming, allow outgoing | UFW with strict rules |
-| ✅ **Tor Browser** | Anonymous browsing option | Included, not forced |
+| ✅ **Tor Browser** | Anonymous browsing option | Optional install via Word of God |
 | ✅ **Memory Wipe** | Clear RAM on shutdown | Optional toggle |
 | ✅ **No Swap** | Prevents password/data leakage | Disabled by default |
 | ✅ **Secure Boot** | Prevent boot tampering | UEFI Secure Boot |

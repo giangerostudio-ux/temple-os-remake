@@ -11,7 +11,7 @@ All research documents for the TempleOS Remake project.
 | Document | Description |
 |----------|-------------|
 | [Electron Integration](./electron-integration.md) | IPC patterns, packaging, main/renderer process |
-| [Alpine Linux Setup](./alpine-linux-setup.md) | Packages, kiosk mode, auto-login, security |
+| [Alpine Linux Setup](./archive/alpine-linux-setup.md) | ⚠️ ARCHIVED - Use [ubuntu-setup.md](./ubuntu-setup.md) |
 | [ISO Building](./iso-building.md) | Build pipeline, GRUB theming, squashfs |
 | [Hardware Requirements](./hardware-requirements.md) | Min specs, GPU compatibility, laptops |
 | [Licensing & Legal](./licensing-legal.md) | TempleOS name, GPL, distribution |
@@ -30,7 +30,7 @@ All research documents for the TempleOS Remake project.
 | [Apps & Programs](../apps-and-programs.md) | Built-in and external apps |
 | [Gaming Integration](../gaming-integration.md) | Steam, Proton, emulators |
 | [Security Features](../security-features.md) | Encryption, firewall, Tor |
-| [Browser Integration](../browser-integration.md) | Opera GX, Firefox, Tor Browser |
+| [Browser Integration](../browser-integration.md) | Optional browsers (installed via Word of God) |
 | [Boot Sequence](../boot-sequence.md) | Boot animation, first-run |
 | [Ideas & Features](../ideas-and-features.md) | Future wishlist |
 
@@ -54,7 +54,7 @@ All research documents for the TempleOS Remake project.
 | ✅ Overall architecture | Documented |
 | ✅ Feature list | Documented |
 | ✅ Electron specifics | Documented |
-| ✅ Alpine Linux setup | Documented |
+| ⚠️ Alpine Linux setup | Archived (now Ubuntu) |
 | ✅ ISO building | Documented |
 | ✅ Hardware requirements | Documented |
 | ✅ Licensing/Legal | Documented |

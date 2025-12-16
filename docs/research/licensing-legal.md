@@ -91,7 +91,7 @@ Why MIT:
 |----------|-------------|-------|
 | ✅ Firefox | Yes | MPL allows it |
 | ✅ Tor Browser | Yes | Must provide source |
-| ⚠️ Opera GX | Maybe | Check EULA, may need user download |
+| ⚠️ Opera GX | No (user download) | User installs via Word of God |
 | ❌ Steam | No | User must download/install |
 | ✅ RetroArch | Yes | GPL |
 | ✅ LibreOffice | Yes | MPL |

@@ -21,7 +21,7 @@ d:\temple os recreation\
 │   ├── apps-and-programs.md
 │   ├── security-features.md
 │   ├── gaming-integration.md
-│   ├── browser-integration.md
+│   ├── browser-integration.md  # Optional (Word of God install)
 │   ├── boot-sequence.md
 │   └── ideas-and-features.md
 └── package.json

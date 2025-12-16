@@ -2,9 +2,12 @@
 
 ## Overview
 
-Browser options for the TempleOS Remake, focusing on Opera GX for gaming/theming and Tor Browser for privacy.
+> [!IMPORTANT]
+> **Browsers are NOT shipped by default.** Users install them via the Word of God AI assistant.
+>
+> Example: *"Install Firefox"* → God provides the flatpak install command
 
----
+This document lists supported browsers that can be installed on demand.
 
 ## Primary Browser: Opera GX
 
@@ -254,7 +257,10 @@ In TempleOS Settings:
 
 ## Implementation Priority
 
-### Phase 1 (Essential)
+> [!NOTE]
+> Browsers are NOT pre-installed. Users install them via Word of God when needed.
+
+### User-Initiated (via Word of God)
 1. Opera GX installation + theming
 2. Firefox as backup
 3. Tor Browser installation

@@ -10,7 +10,7 @@ I'm building a TempleOS remake - a browser-based (eventually bootable Linux) OS 
 
 **Tech Stack:**
 - TypeScript + Vite (browser prototype)
-- Will become: Electron → Alpine Linux → Bootable USB
+- Will become: Electron → Ubuntu 24.04 LTS → Bootable USB
 
 **Current Phase:** Phase 1 - Browser Prototype
 

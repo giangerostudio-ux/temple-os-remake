@@ -1,5 +1,9 @@
 # Alpine Linux Setup Research
 
+> [!CAUTION]
+> **ARCHIVED**: This document is deprecated. The project now uses **Ubuntu 24.04 LTS**.
+> See [ubuntu-setup.md](../ubuntu-setup.md) for current documentation.
+
 ## Overview
 
 Detailed guide for setting up Alpine Linux as the base OS for the TempleOS kiosk.

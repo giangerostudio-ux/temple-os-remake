@@ -188,6 +188,9 @@ These are real Linux apps that open in separate windows.
 
 ### 🌐 Browsers
 
+> [!NOTE]
+> **Optional**: Browsers are NOT pre-installed. Users install via Word of God.
+
 | App | Notes |
 |-----|-------|
 | **Opera GX** | Gaming browser, customizable themes |

@@ -67,7 +67,7 @@ A bootable, secure Linux-based operating system with a TempleOS-inspired interfa
 ```
 1. BIOS/UEFI loads bootloader
          ↓
-2. Alpine Linux kernel loads (~3 seconds)
+2. Ubuntu Linux kernel loads (~3 seconds)
          ↓
 3. Encrypted partition unlock (user enters password)
          ↓

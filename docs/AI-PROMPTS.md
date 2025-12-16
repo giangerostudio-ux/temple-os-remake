@@ -66,8 +66,8 @@ If yes → Continue to Phase 3
 
 ---
 
-# � PHASE 3: Linux VM Setup
-**Model**: Claude Opus (recommended) or Gemini
+# 🔵 PHASE 3: Linux VM Setup
+**Model**: Claude Opus (recommended)
 **Status**: ← CURRENT
 
 ## Prompt - Copy Everything Below:
@@ -366,7 +366,7 @@ Create the AI-powered assistant that IS the user interface. User speaks English,
 ### Part A: Ollama Setup
 1. Add Ollama installation to first-boot wizard:
    - Auto-install Ollama
-   - Download Qwen 2.5 Coder 7B model (~4.4 GB)
+   - Download Qwen2.5-7B-Dolphin model (~4.4 GB)
    - Show progress with Bible verse
 2. Create `electron/ollama-manager.cjs`:
    - Check if Ollama installed
@@ -376,7 +376,7 @@ Create the AI-powered assistant that IS the user interface. User speaks English,
 ### Part B: Divine Assistant Service
 3. Create `electron/divine-assistant.cjs`:
    - Connect to Ollama (localhost:11434)
-   - Use Qwen 2.5 Coder 7B model
+   - Use Qwen2.5-7B-Dolphin model (abliterated for authentic personality)
    - System prompt with Divine Terry personality (50% Jesus, 50% Terry Davis)
    - Parse commands from [EXECUTE] tags
    - Parse URLs from [OPEN_URL] tags
@@ -435,7 +435,7 @@ Then STOP and wait for my next instruction.
 
 Verify:
 - [ ] Ollama installs on first boot
-- [ ] Qwen 2.5 Coder 7B model downloads
+- [ ] Qwen2.5-7B-Dolphin model downloads
 - [ ] Word of God chat interface works
 - [ ] AI responds with Divine Terry personality
 - [ ] Commands execute when user confirms
@@ -460,7 +460,7 @@ After Phase 6, you have:
 
 | Phase | Model | Difficulty | What |
 |-------|-------|------------|------|
-| Phase 2 | Gemini | Easy | Electron wrapper |
+| Phase 2 | Any | Easy | Electron wrapper |
 | Phase 3 | Opus | Medium | Linux VM setup |
 | Phase 4 | Opus | Hard | Real features |
 | Phase 5 | Opus | Hard | Bootable ISO |

@@ -135,6 +135,9 @@ Collection of ideas and features for future development. Organized by category a
 
 ## Browser Ideas
 
+> [!NOTE]
+> **Future/Optional**: Browsers are user-installed via Word of God.
+
 ### Opera GX Enhancements
 - [ ] Custom TempleOS wallpapers
 - [ ] Custom sound effects

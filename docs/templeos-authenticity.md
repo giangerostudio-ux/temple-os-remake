@@ -272,7 +272,7 @@ View original TempleOS documents
 │                                                │
 │      OS: TempleOS Remake v1.0                  │
 │      By: Giangero Studio                       │
-│      Kernel: Alpine Linux 3.19                 │
+│      Kernel: Ubuntu 24.04 LTS                  │
 │      Uptime: 2 hours, 15 mins                  │
 │      CPU: AMD Ryzen 7                          │
 │      Memory: 4.2 GB / 16 GB                    │

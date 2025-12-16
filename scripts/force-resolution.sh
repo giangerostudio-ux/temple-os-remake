@@ -14,11 +14,13 @@ if command -v xrandr &> /dev/null; then
         xrandr --newmode "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync 2>/dev/null
         xrandr --addmode $DISP 1920x1080_60.00 2>/dev/null
         
-        # Apply
-        xrandr --output $DISP --mode 1920x1080_60.00
+        # Apply with explicit framebuffer size
+        xrandr --fb 1920x1080 --output $DISP --mode 1920x1080_60.00
         
-        # Also try simpler build-in command if the above fails
-        xrandr -s 1920x1080 2>/dev/null
+        if [ $? -ne 0 ]; then
+             echo "Standard apply failed, trying simple mode switch..."
+             xrandr -s 1920x1080
+        fi
         echo "Resolution command sent."
     else
         echo "No display detected via xrandr."

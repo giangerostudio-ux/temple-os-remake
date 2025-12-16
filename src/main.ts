@@ -180,12 +180,18 @@ class TempleOS {
       .filter(w => !w.minimized)
       .map(w => this.renderWindow(w)).join('');
 
-    // Update taskbar
+    // Update taskbar apps
     taskbarApps.innerHTML = this.windows.map(w => `
       <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
         ${w.icon} ${w.title}
       </div>
     `).join('');
+
+    // Update tray
+    const tray = document.querySelector('.taskbar-tray');
+    if (tray) {
+      tray.innerHTML = this.getTrayHTML();
+    }
   }
 
   private renderBootScreen(): string {
@@ -396,7 +402,14 @@ class TempleOS {
             </div>
           `).join('')}
         </div>
-      <div class="taskbar-tray">
+        <div class="taskbar-tray">
+          ${this.getTrayHTML()}
+        </div>
+      </div>`;
+  }
+
+  private getTrayHTML(): string {
+    return `
       <div class="tray-icon" id="tray-network" title="Network: Connected" style="position: relative;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
@@ -435,14 +448,22 @@ class TempleOS {
         ${this.formatTime()}
         ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
       </div>
-    </div>
-  </div>`;
+    `;
   }
 
 
 
   private setupEventListeners() {
     const app = document.getElementById('app')!;
+
+    // Volume Slider Input
+    app.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.matches('.volume-slider')) {
+        const val = parseInt(target.value, 10);
+        this.updateVolume(val);
+      }
+    });
 
     // Desktop icon clicks
     app.addEventListener('click', (e) => {
@@ -1615,6 +1636,21 @@ U0 Main()
         if (audio) audio.play().catch(console.error);
       }, 100);
     }
+  }
+
+  private updateVolume(level: number): void {
+    this.volumeLevel = level;
+    if (window.electronAPI) {
+      window.electronAPI.setSystemVolume(level);
+    }
+
+    // Application-level volume control
+    const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement;
+    if (audioEl) {
+      audioEl.volume = level / 100;
+    }
+
+    // Update tray if it's visible (optional, but render() handles it)
   }
 
   // ============================================

@@ -39,6 +39,9 @@
 - [x] Implement Real System Volume Control (`amixer` IPC)
 - [x] Fix Tray Icons Visibility (Replaced Emojis with SVGs)
 - [x] Fix Wallpaper Scaling on Desktop (Text Cutoff)
+- [x] Refactor Tray Rendering (Fix Click Responsiveness)
+- [x] Implement App-Level Audio Volume Control
+
 
 ## 🔨 TIER 3: SIGNIFICANT EFFORT
 - [x] **3.1 Settings Panel** (`zorin-os-windows-ux.md`)

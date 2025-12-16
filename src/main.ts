@@ -1543,9 +1543,6 @@ U0 Main()
 
     // Check if the window is open and DOM elements exist
     const audioEl = document.getElementById('hymn-audio') as HTMLAudioElement;
-    const titleEl = hymnsWindow.active || document.querySelector(`[data-window-id="${hymnsWindow.id}"]`) ?
-      document.querySelector(`[data-window-id="${hymnsWindow.id}"] .hymn-player h2 + p + div > div`) // Selector for title div
-      : null; // Fallback if query fails
 
     // If audio element exists, update it in-place (Smoother, no flicker)
     if (audioEl) {
@@ -2064,122 +2061,53 @@ U0 Main()
     }
   }
 
-  // ============================================
-  // START MENU (TIER 2.1)
-  // ============================================
-
-
-  private renderStartMenu(): string {
-    const apps = [
-      { id: 'terminal', icon: '💻', label: 'Terminal', desc: 'Command Line' },
-      { id: 'files', icon: '📁', label: 'Files', desc: 'File Browser' },
-      { id: 'word-of-god', icon: '✝️', label: 'Word of God', desc: 'Divine Chat' },
-      { id: 'hymns', icon: '🎵', label: 'Hymn Player', desc: 'Music Player' },
-      { id: 'editor', icon: '📝', label: 'HolyC Editor', desc: 'Text Editor' },
-      { id: 'updater', icon: '⬇️', label: 'Holy Updater', desc: 'System Update' },
-    ];
-
-    return `
-      <div class="start-menu" style="
-        position: fixed;
-        bottom: 50px;
-        left: 5px;
-        width: 380px;
-        height: 450px;
-        background: rgba(13, 17, 23, 0.98);
-        border: 2px solid #00ff41;
-        border-radius: 8px 8px 8px 8px;
-        z-index: 10000;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 -5px 20px rgba(0, 255, 65, 0.15);
-        overflow: hidden;
-      ">
-        <!-- Header / User Profile -->
-        <div style="
-          padding: 15px;
-          background: rgba(0, 255, 65, 0.15);
-          border-bottom: 1px solid rgba(0, 255, 65, 0.3);
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        ">
-          <div style="
-            width: 42px;
-            height: 42px;
-            background: #00ff41;
-            color: #000;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: bold;
-            box-shadow: 0 0 10px rgba(0,255,65,0.5);
-          ">T</div>
-          <div>
-            <div style="font-size: 16px; font-weight: bold; color: #ffd700; text-shadow: 0 0 5px rgba(255,215,0,0.5);">Terry Davis</div>
-            <div style="font-size: 11px; opacity: 0.8; color: #00ff41;">High Priest (Admin)</div>
-          </div>
-          <div style="margin-left: auto; display: flex; gap: 8px;">
-             <button class="start-power-btn" data-power-action="lock" title="Lock" style="background: none; border: 1px solid rgba(0,255,65,0.3); border-radius: 4px; padding: 4px; font-size: 16px; cursor: pointer; color: #00ff41;">🔒</button>
-             <button class="start-power-btn" data-power-action="shutdown" title="Shutdown" style="background: none; border: 1px solid rgba(255,100,100,0.3); border-radius: 4px; padding: 4px; font-size: 16px; cursor: pointer; color: #ff6464;">⏻</button>
-          </div>
-        </div>
-
-        <div style="flex: 1; display: flex;">
-          <!-- Left Sidebar (Quick Places) -->
-          <div style="
-            width: 140px;
-            border-right: 1px solid rgba(0, 255, 65, 0.2);
-            padding: 10px 0;
-            background: rgba(0, 0, 0, 0.3);
-            display: flex;
+  display: flex;
             flex-direction: column;
-            gap: 2px;
-          ">
-            ${this.renderQuickLink('Home', '🏠', 'home')}
-            ${this.renderQuickLink('Documents', '📄', 'Documents')}
-            ${this.renderQuickLink('Downloads', '⬇️', 'Downloads')}
-            ${this.renderQuickLink('Music', '🎵', 'Music')}
-            <div style="flex: 1;"></div>
-            ${this.renderQuickLink('Settings', '⚙️', 'settings')}
-          </div>
+gap: 2px;
+">
+            ${ this.renderQuickLink('Home', '🏠', 'home') }
+            ${ this.renderQuickLink('Documents', '📄', 'Documents') }
+            ${ this.renderQuickLink('Downloads', '⬇️', 'Downloads') }
+            ${ this.renderQuickLink('Music', '🎵', 'Music') }
+<div style="flex: 1;" > </div>
+            ${ this.renderQuickLink('Settings', '⚙️', 'settings') }
+</div>
 
-          <!-- Right Content (Apps) -->
-          <div style="flex: 1; display: flex; flex-direction: column; background: rgba(13,17,23,0.95);">
-            <!-- Search Bar -->
-            <div style="padding: 12px;">
-              <div style="
-                position: relative;
-                border: 1px solid rgba(0, 255, 65, 0.4);
-                border-radius: 4px;
-                background: rgba(0, 0, 0, 0.5);
-              ">
-                <span style="position: absolute; left: 8px; top: 7px; font-size: 14px;">🔍</span>
-                <input type="text" class="start-search-input" placeholder="Search apps..." style="
-                  width: 100%;
-                  background: none;
-                  border: none;
-                  color: #00ff41;
-                  padding: 8px 10px 8px 30px;
-                  font-family: inherit;
-                  font-size: 14px;
-                  outline: none;
-                ">
-              </div>
-            </div>
+  < !--Right Content(Apps)-- >
+    <div style="flex: 1; display: flex; flex-direction: column; background: rgba(13,17,23,0.95);" >
+      <!--Search Bar-- >
+        <div style="padding: 12px;" >
+          <div style="
+position: relative;
+border: 1px solid rgba(0, 255, 65, 0.4);
+border - radius: 4px;
+background: rgba(0, 0, 0, 0.5);
+">
+  < span style = "position: absolute; left: 8px; top: 7px; font-size: 14px;" >🔍</span>
+    < input type = "text" class="start-search-input" placeholder = "Search apps..." style = "
+width: 100 %;
+background: none;
+border: none;
+color: #00ff41;
+padding: 8px 10px 8px 30px;
+font - family: inherit;
+font - size: 14px;
+outline: none;
+">
+  </div>
+  </div>
 
-            <!-- Pinned Apps Grid -->
-            <div style="padding: 0 12px 5px 12px; font-size: 10px; color: #ffd700; opacity: 0.7; letter-spacing: 1px;">PINNED APPS</div>
-            <div style="
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              gap: 8px;
-              padding: 0 12px;
-              overflow-y: auto;
-            ">
-              ${apps.map(app => `
+  < !--Pinned Apps Grid-- >
+    <div style="padding: 0 12px 5px 12px; font-size: 10px; color: #ffd700; opacity: 0.7; letter-spacing: 1px;" > PINNED APPS </div>
+      < div style = "
+display: grid;
+grid - template - columns: repeat(2, 1fr);
+gap: 8px;
+padding: 0 12px;
+overflow - y: auto;
+">
+              ${
+  apps.map(app => `
                 <div class="start-app-item" data-app="${app.id}" style="
                   display: flex;
                   flex-direction: column;
@@ -2198,30 +2126,31 @@ U0 Main()
                   <div style="font-weight: bold; font-size: 13px;">${app.label}</div>
                   <div style="font-size: 10px; opacity: 0.6;">${app.desc}</div>
                 </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      </div>
+              `).join('')
+}
+</div>
+  </div>
+  </div>
+  </div>
     `;
   }
 
   private renderQuickLink(label: string, icon: string, path: string): string {
     return `
-      <div class="start-quick-link" data-path="${path}" style="
-        padding: 8px 15px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 13px;
-        color: #c9d1d9;
-        transition: background 0.2s;
-      " onmouseenter="this.style.background='rgba(0,255,65,0.1)';this.style.color='#00ff41'" 
-        onmouseleave="this.style.background='transparent';this.style.color='#c9d1d9'">
-        <span style="width: 16px; text-align: center;">${icon}</span> ${label}
-      </div>
-    `;
+  < div class="start-quick-link" data - path="${path}" style = "
+padding: 8px 15px;
+cursor: pointer;
+display: flex;
+align - items: center;
+gap: 10px;
+font - size: 13px;
+color: #c9d1d9;
+transition: background 0.2s;
+" onmouseenter="this.style.background = 'rgba(0,255,65,0.1)'; this.style.color = '#00ff41'" 
+onmouseleave = "this.style.background='transparent';this.style.color='#c9d1d9'" >
+  <span style="width: 16px; text-align: center;" > ${ icon } </span> ${label}
+    </div>
+      `;
   }
 }
 

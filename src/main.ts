@@ -3,6 +3,19 @@ import templeLogo from './assets/temple-logo.jpg';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
+import { defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, syntaxHighlighting } from '@codemirror/language';
+import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { history, historyKeymap, indentWithTab, defaultKeymap, undo, redo } from '@codemirror/commands';
+import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
+import { cpp } from '@codemirror/lang-cpp';
+import { css } from '@codemirror/lang-css';
+import { html } from '@codemirror/lang-html';
+import { javascript } from '@codemirror/lang-javascript';
+import { json } from '@codemirror/lang-json';
+import { markdown } from '@codemirror/lang-markdown';
+import { python } from '@codemirror/lang-python';
 
 
 
@@ -194,6 +207,8 @@ interface TempleConfig {
     fontFamily?: string;
     fontSize?: number;
   };
+  editor?: { wordWrap?: boolean };
+  recentFiles?: string[];
   audio?: { defaultSink?: string | null; defaultSource?: string | null };
   mouse?: Partial<MouseSettings>;
   pinnedStart?: string[];
@@ -552,6 +567,9 @@ class TempleOS {
     content: string;
     modified: boolean;
     cursorPos?: number;
+    cmState: EditorState | null;
+    revision: number;
+    lastSavedRevision: number;
   }> = [];
   private activeEditorTab = 0;
   private editorFindOpen = false;
@@ -560,6 +578,13 @@ class TempleOS {
   private editorFindMode: 'find' | 'replace' = 'find';
   private editorFindMatches: number[] = [];
   private editorFindCurrentMatch = -1;
+  private editorView: EditorView | null = null;
+  private editorViewTabId: string | null = null;
+  private editorWordWrap = true;
+  private editorRecentFiles: string[] = [];
+  private editorAutosaveTimer: number | null = null;
+  private readonly editorWrapCompartment = new Compartment();
+  private readonly editorLanguageCompartment = new Compartment();
 
   // Config persistence
   private configSaveTimer: number | null = null;
@@ -825,6 +850,12 @@ class TempleOS {
     if (this.ptySupported) {
       const termWin = this.windows.find(w => w.id.startsWith('terminal'));
       preserveById(termWin?.id);
+    }
+
+    // Editor (CodeMirror) (keep undo/redo + DOM stable)
+    if (this.editorView) {
+      const editorWin = this.windows.find(w => w.id.startsWith('editor'));
+      preserveById(editorWin?.id);
     }
 
     // Update windows (only show non-minimized), EXCEPT preserved windows
@@ -2540,9 +2571,31 @@ class TempleOS {
         if (!isNaN(tabIndex) && this.editorTabs.length > 1) {
           const tab = this.editorTabs[tabIndex];
           if (tab?.modified) {
-            // Prompt to save - for now just close
-            // TODO: Add save prompt
+            void this.openConfirmModal({
+              title: 'Unsaved Changes',
+              message: `Save changes to ${tab.filename}?`,
+              confirmText: 'Save',
+              cancelText: 'Discard'
+            }).then(async (save) => {
+              if (save) {
+                await this.editorSaveTab(tab.id, { forcePrompt: false });
+              }
+
+              // Close tab after decision (best-effort; tab may have moved)
+              const idxNow = this.editorTabs.findIndex(t => t.id === tab.id);
+              if (idxNow >= 0 && this.editorTabs.length > 1) {
+                if (this.editorViewTabId === tab.id) this.editorViewTabId = null;
+                this.editorTabs.splice(idxNow, 1);
+                if (this.activeEditorTab >= this.editorTabs.length) {
+                  this.activeEditorTab = this.editorTabs.length - 1;
+                }
+                this.refreshEditorWindow();
+              }
+            });
+            return;
           }
+
+          if (tab?.id && this.editorViewTabId === tab.id) this.editorViewTabId = null;
           this.editorTabs.splice(tabIndex, 1);
           if (this.activeEditorTab >= this.editorTabs.length) {
             this.activeEditorTab = this.editorTabs.length - 1;
@@ -2560,7 +2613,10 @@ class TempleOS {
           path: null,
           filename: `untitled${this.editorTabs.length + 1}.hc`,
           content: '',
-          modified: false
+          modified: false,
+          cmState: null,
+          revision: 0,
+          lastSavedRevision: 0
         };
         this.editorTabs.push(newTab);
         this.activeEditorTab = this.editorTabs.length - 1;
@@ -2573,6 +2629,46 @@ class TempleOS {
       if (editorAction && editorAction.dataset.editorAction) {
         const action = editorAction.dataset.editorAction;
         switch (action) {
+          case 'open':
+            void this.editorOpenFromPrompt();
+            break;
+          case 'save':
+            void this.editorSaveActive(false);
+            break;
+          case 'save-as':
+            void this.editorSaveActive(true);
+            break;
+          case 'undo':
+            if (this.editorView) undo(this.editorView);
+            break;
+          case 'redo':
+            if (this.editorView) redo(this.editorView);
+            break;
+          case 'wrap':
+            this.toggleEditorWordWrap();
+            break;
+          case 'recent': {
+            const rect = editorAction.getBoundingClientRect();
+            const items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }> = this.editorRecentFiles.slice(0, 12).map(p => ({
+              label: p,
+              action: () => void this.editorOpenPath(p)
+            }));
+            if (items.length === 0) {
+              items.push({ label: 'No recent files', action: () => void 0 });
+            } else {
+              items.push({ divider: true });
+              items.push({
+                label: 'Clear recent',
+                action: () => {
+                  this.editorRecentFiles = [];
+                  this.queueSaveConfig();
+                  this.refreshEditorWindow();
+                }
+              });
+            }
+            this.showContextMenu(Math.round(rect.left), Math.round(rect.bottom + 6), items);
+            break;
+          }
           case 'find-next':
             this.editorFindNext();
             break;
@@ -3800,6 +3896,10 @@ class TempleOS {
           if (input) input.focus();
         }
       }, 100);
+    }
+
+    if (appId === 'editor') {
+      setTimeout(() => this.ensureEditorView(), 100);
     }
   }
 
@@ -5647,14 +5747,34 @@ class TempleOS {
 
   private refreshEditorWindow(): void {
     const editorWindow = this.windows.find(w => w.id.startsWith('editor'));
-    if (editorWindow) {
-      editorWindow.content = this.getEditorContent();
-      this.render();
-      setTimeout(() => {
-        const textarea = document.querySelector('.editor-content') as HTMLTextAreaElement | null;
-        textarea?.focus();
-      }, 10);
+    if (!editorWindow) return;
+
+    // Persist current tab state for undo/redo preservation
+    if (this.editorView && this.editorViewTabId) {
+      const tab = this.editorTabs.find(t => t.id === this.editorViewTabId);
+      if (tab) tab.cmState = this.editorView.state;
     }
+
+    editorWindow.content = this.getEditorContent();
+
+    const contentEl = document.querySelector(`[data-window-id="${editorWindow.id}"] .window-content`) as HTMLElement | null;
+    if (!contentEl) {
+      this.render();
+      setTimeout(() => this.ensureEditorView(), 50);
+      return;
+    }
+
+    const preservedEditorDom = this.editorView?.dom ?? null;
+    if (preservedEditorDom) preservedEditorDom.remove();
+
+    contentEl.innerHTML = editorWindow.content;
+
+    if (preservedEditorDom) {
+      const host = contentEl.querySelector('#editor-cm-host') as HTMLElement | null;
+      if (host) host.appendChild(preservedEditorDom);
+    }
+
+    setTimeout(() => this.ensureEditorView(), 10);
   }
 
   private editorUpdateFindMatches(): void {
@@ -5700,13 +5820,21 @@ class TempleOS {
   }
 
   private editorScrollToMatch(): void {
-    const textarea = document.querySelector('.editor-content') as HTMLTextAreaElement | null;
-    if (!textarea || this.editorFindCurrentMatch < 0) return;
     const pos = this.editorFindMatches[this.editorFindCurrentMatch];
-    if (pos !== undefined) {
-      textarea.setSelectionRange(pos, pos + this.editorFindQuery.length);
-      textarea.focus();
+    if (pos === undefined || this.editorFindCurrentMatch < 0) return;
+    const from = pos;
+    const to = pos + this.editorFindQuery.length;
+
+    if (this.editorView) {
+      this.editorView.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true });
+      this.editorView.focus();
+      return;
     }
+
+    const textarea = document.querySelector('.editor-content') as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    textarea.setSelectionRange(from, to);
+    textarea.focus();
   }
 
   private editorReplace(): void {
@@ -5716,10 +5844,18 @@ class TempleOS {
     const pos = this.editorFindMatches[this.editorFindCurrentMatch];
     if (pos === undefined) return;
 
-    const before = currentTab.content.substring(0, pos);
-    const after = currentTab.content.substring(pos + this.editorFindQuery.length);
-    currentTab.content = before + this.editorReplaceQuery + after;
-    currentTab.modified = true;
+    if (this.editorView && this.editorViewTabId === currentTab.id) {
+      this.editorView.dispatch({
+        changes: { from: pos, to: pos + this.editorFindQuery.length, insert: this.editorReplaceQuery }
+      });
+    } else {
+      const before = currentTab.content.substring(0, pos);
+      const after = currentTab.content.substring(pos + this.editorFindQuery.length);
+      currentTab.content = before + this.editorReplaceQuery + after;
+      currentTab.modified = true;
+      currentTab.revision = (currentTab.revision || 0) + 1;
+      currentTab.cmState = null;
+    }
 
     this.editorUpdateFindMatches();
     this.refreshEditorWindow();
@@ -5730,8 +5866,18 @@ class TempleOS {
     if (!currentTab || !this.editorFindQuery) return;
 
     const regex = new RegExp(this.editorFindQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-    currentTab.content = currentTab.content.replace(regex, this.editorReplaceQuery);
-    currentTab.modified = true;
+    const next = currentTab.content.replace(regex, this.editorReplaceQuery);
+
+    if (this.editorView && this.editorViewTabId === currentTab.id) {
+      this.editorView.dispatch({
+        changes: { from: 0, to: this.editorView.state.doc.length, insert: next }
+      });
+    } else {
+      currentTab.content = next;
+      currentTab.modified = true;
+      currentTab.revision = (currentTab.revision || 0) + 1;
+      currentTab.cmState = null;
+    }
 
     this.editorUpdateFindMatches();
     this.refreshEditorWindow();
@@ -5746,7 +5892,10 @@ class TempleOS {
         path: null,
         filename: 'untitled.hc',
         content: '',
-        modified: false
+        modified: false,
+        cmState: null,
+        revision: 0,
+        lastSavedRevision: 0
       });
     }
 
@@ -5779,25 +5928,332 @@ class TempleOS {
       </div>
     ` : '';
 
+    const toolbarHtml = `
+      <div class="editor-toolbar">
+        <div class="editor-meta">
+          <div class="editor-file">${escapeHtml(currentTab.path || currentTab.filename)}</div>
+          <div class="editor-lang">${escapeHtml(this.editorLanguageLabel(currentTab.filename))}</div>
+        </div>
+        <div class="editor-tools">
+          <button class="editor-tool" data-editor-action="open">Open</button>
+          <button class="editor-tool" data-editor-action="save" ${currentTab.modified ? '' : 'disabled'}>Save</button>
+          <button class="editor-tool" data-editor-action="save-as">Save As</button>
+          <span class="editor-tool-sep"></span>
+          <button class="editor-tool" data-editor-action="undo">Undo</button>
+          <button class="editor-tool" data-editor-action="redo">Redo</button>
+          <button class="editor-tool" data-editor-action="wrap">${this.editorWordWrap ? 'Wrap: On' : 'Wrap: Off'}</button>
+          <button class="editor-tool" data-editor-action="recent" ${this.editorRecentFiles.length ? '' : 'disabled'}>Recent</button>
+        </div>
+      </div>
+    `;
+
     return `
       <div class="editor-container">
         <div class="editor-tabs">
           ${tabsHtml}
           <div class="editor-tab-new" data-editor-new title="New File">+</div>
         </div>
+        ${toolbarHtml}
         ${findBarHtml}
-        <textarea class="editor-content" data-editor-textarea placeholder="// HolyC Code - God's Programming Language
-
-U0 Main()
-{
-  Print(&quot;Hello, God's Temple!\\n&quot;);
-  
-  // Speak to the Lord
-  // He will answer through the Word
-}
-">${escapeHtml(currentTab.content)}</textarea>
+        <div class="editor-cm-wrap">
+          <div id="editor-cm-host" class="editor-cm-host"></div>
+        </div>
       </div>
     `;
+  }
+
+  private editorLanguageLabel(filename: string): string {
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    switch (ext) {
+      case 'hc': return 'HolyC';
+      case 'c':
+      case 'h': return 'C';
+      case 'cpp':
+      case 'hpp': return 'C++';
+      case 'ts': return 'TypeScript';
+      case 'tsx': return 'TypeScript (TSX)';
+      case 'js': return 'JavaScript';
+      case 'jsx': return 'JavaScript (JSX)';
+      case 'py': return 'Python';
+      case 'json': return 'JSON';
+      case 'md': return 'Markdown';
+      case 'html': return 'HTML';
+      case 'css': return 'CSS';
+      default: return 'Text';
+    }
+  }
+
+  private editorLanguageExtension(filename: string): Extension {
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    if (ext === 'ts') return javascript({ typescript: true });
+    if (ext === 'tsx') return javascript({ typescript: true, jsx: true });
+    if (ext === 'jsx') return javascript({ jsx: true });
+    if (ext === 'js' || ext === 'mjs' || ext === 'cjs') return javascript();
+    if (ext === 'py') return python();
+    if (ext === 'json') return json();
+    if (ext === 'md' || ext === 'markdown') return markdown();
+    if (ext === 'html' || ext === 'htm') return html();
+    if (ext === 'css') return css();
+    if (ext === 'hc' || ext === 'c' || ext === 'h' || ext === 'cpp' || ext === 'hpp') return cpp();
+    return [];
+  }
+
+  private createEditorStateForTab(tabId: string, doc: string, filename: string): EditorState {
+    const wrapExt: Extension = this.editorWordWrap ? EditorView.lineWrapping : [];
+    const langExt = this.editorLanguageExtension(filename);
+
+    const theme = EditorView.theme({
+      '&': {
+        height: '100%',
+        backgroundColor: '#0d1117',
+        color: '#00ff41',
+        fontFamily: '"VT323", monospace',
+        fontSize: '18px'
+      },
+      '.cm-content': { caretColor: '#00ff41' },
+      '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#00ff41' },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+        backgroundColor: 'rgba(0, 255, 65, 0.20)'
+      },
+      '.cm-gutters': {
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        color: 'rgba(0,255,65,0.75)',
+        borderRight: '1px solid rgba(0,255,65,0.2)'
+      },
+      '.cm-activeLine': { backgroundColor: 'rgba(0,255,65,0.06)' },
+      '.cm-activeLineGutter': { backgroundColor: 'rgba(0,255,65,0.10)' }
+    }, { dark: true });
+
+    return EditorState.create({
+      doc,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        indentOnInput(),
+        bracketMatching(),
+        foldGutter(),
+        history(),
+        autocompletion(),
+        closeBrackets(),
+        highlightSelectionMatches(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        this.editorWrapCompartment.of(wrapExt),
+        this.editorLanguageCompartment.of(langExt),
+        theme,
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...foldKeymap,
+          ...searchKeymap,
+          ...completionKeymap,
+          ...closeBracketsKeymap,
+          indentWithTab
+        ]),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) this.handleEditorDocChange(tabId, update.state);
+        })
+      ]
+    });
+  }
+
+  private handleEditorDocChange(tabId: string, state: EditorState): void {
+    const tab = this.editorTabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    tab.content = state.doc.toString();
+    tab.revision = (tab.revision || 0) + 1;
+    tab.modified = true;
+    tab.cmState = state;
+
+    // Update modified indicator without full refresh (best-effort)
+    const idx = this.editorTabs.findIndex(t => t.id === tabId);
+    const tabEl = document.querySelector(`.editor-tab[data-editor-tab="${idx}"]`) as HTMLElement | null;
+    if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
+      const modSpan = document.createElement('span');
+      modSpan.className = 'editor-tab-modified';
+      modSpan.textContent = '●';
+      tabEl.insertBefore(modSpan, tabEl.firstChild);
+    }
+
+    // Enable save button
+    const saveBtn = document.querySelector('.editor-tool[data-editor-action="save"]') as HTMLButtonElement | null;
+    if (saveBtn) saveBtn.disabled = false;
+
+    // Autosave (only for files with a path)
+    if (tab.path) {
+      if (this.editorAutosaveTimer) window.clearTimeout(this.editorAutosaveTimer);
+      const expected = tab.revision;
+      this.editorAutosaveTimer = window.setTimeout(() => {
+        void this.editorSaveTab(tabId, { forcePrompt: false, expectedRevision: expected, silent: true });
+      }, 900);
+    }
+  }
+
+  private ensureEditorView(): void {
+    const editorWindow = this.windows.find(w => w.id.startsWith('editor'));
+    if (!editorWindow || editorWindow.minimized) return;
+    const host = document.querySelector(`[data-window-id="${editorWindow.id}"] #editor-cm-host`) as HTMLElement | null;
+    if (!host) return;
+
+    const tab = this.editorTabs[this.activeEditorTab] || this.editorTabs[0];
+    if (!tab) return;
+
+    if (this.editorView) {
+      // Persist previous tab state
+      if (this.editorViewTabId) {
+        const prev = this.editorTabs.find(t => t.id === this.editorViewTabId);
+        if (prev) prev.cmState = this.editorView.state;
+      }
+
+      if (this.editorView.dom.parentElement !== host) {
+        host.appendChild(this.editorView.dom);
+      }
+
+      if (this.editorViewTabId !== tab.id) {
+        const nextState = tab.cmState ?? this.createEditorStateForTab(tab.id, tab.content, tab.filename);
+        tab.cmState = nextState;
+        this.editorView.setState(nextState);
+        this.editorViewTabId = tab.id;
+      }
+
+      // Reconfigure wrap + language for the current file
+      this.editorView.dispatch({
+        effects: [
+          this.editorWrapCompartment.reconfigure(this.editorWordWrap ? EditorView.lineWrapping : []),
+          this.editorLanguageCompartment.reconfigure(this.editorLanguageExtension(tab.filename))
+        ]
+      });
+    } else {
+      const state = tab.cmState ?? this.createEditorStateForTab(tab.id, tab.content, tab.filename);
+      tab.cmState = state;
+      this.editorView = new EditorView({ state, parent: host });
+      this.editorViewTabId = tab.id;
+    }
+
+    if (this.editorFindOpen) {
+      const input = document.querySelector('.editor-find-input') as HTMLInputElement | null;
+      input?.focus();
+    } else {
+      this.editorView?.focus();
+    }
+  }
+
+  private editorAddRecentFile(path: string): void {
+    const p = String(path || '').trim();
+    if (!p) return;
+    this.editorRecentFiles = this.editorRecentFiles.filter(x => x !== p);
+    this.editorRecentFiles.unshift(p);
+    this.editorRecentFiles = this.editorRecentFiles.slice(0, 20);
+    this.queueSaveConfig();
+  }
+
+  private async editorOpenFromPrompt(): Promise<void> {
+    const suggested = this.editorRecentFiles[0] || '';
+    const path = await this.openPromptModal({
+      title: 'Open File',
+      message: 'Enter a file path to open.',
+      defaultValue: suggested
+    });
+    if (path === null) return;
+    const p = path.trim();
+    if (!p) return;
+    await this.editorOpenPath(p);
+  }
+
+  private async editorOpenPath(path: string): Promise<void> {
+    if (!window.electronAPI?.readFile) {
+      this.showNotification('Editor', 'File open requires Electron.', 'warning');
+      return;
+    }
+
+    const res = await window.electronAPI.readFile(path);
+    if (!res.success) {
+      this.showNotification('Editor', res.error || 'Failed to open file', 'error');
+      return;
+    }
+
+    const filename = path.split(/[\\/]/).pop() || 'untitled.hc';
+    const newTab = {
+      id: `editor-${Date.now()}`,
+      path,
+      filename,
+      content: res.content || '',
+      modified: false,
+      cmState: null,
+      revision: 0,
+      lastSavedRevision: 0
+    };
+
+    this.editorTabs.push(newTab);
+    this.activeEditorTab = this.editorTabs.length - 1;
+    this.editorAddRecentFile(path);
+    this.refreshEditorWindow();
+  }
+
+  private async editorSaveActive(forcePrompt: boolean): Promise<void> {
+    const tab = this.editorTabs[this.activeEditorTab] || this.editorTabs[0];
+    if (!tab) return;
+    await this.editorSaveTab(tab.id, { forcePrompt });
+  }
+
+  private async editorSaveTab(tabId: string, opts: { forcePrompt: boolean; expectedRevision?: number; silent?: boolean }): Promise<void> {
+    const tab = this.editorTabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    // Sync from CodeMirror for active tab
+    if (this.editorView && this.editorViewTabId === tabId) {
+      tab.content = this.editorView.state.doc.toString();
+      tab.cmState = this.editorView.state;
+    }
+
+    if (!window.electronAPI?.writeFile) {
+      if (!opts.silent) this.showNotification('Editor', 'File save requires Electron.', 'warning');
+      return;
+    }
+
+    let path = tab.path;
+    if (opts.forcePrompt || !path) {
+      const suggested = tab.path || (this.homePath ? this.joinPath(this.homePath, tab.filename) : tab.filename);
+      const next = await this.openPromptModal({
+        title: 'Save File',
+        message: 'Enter a file path to save.',
+        defaultValue: suggested
+      });
+      if (next === null) return;
+      path = next.trim();
+      if (!path) return;
+    }
+
+    const expected = opts.expectedRevision ?? tab.revision;
+    const res = await window.electronAPI.writeFile(path, tab.content);
+    if (!res.success) {
+      if (!opts.silent) this.showNotification('Editor', res.error || 'Save failed', 'error');
+      return;
+    }
+
+    tab.path = path;
+    tab.filename = path.split(/[\\/]/).pop() || tab.filename;
+    this.editorAddRecentFile(path);
+
+    if (tab.revision === expected) {
+      tab.lastSavedRevision = expected;
+      tab.modified = false;
+    }
+
+    this.refreshEditorWindow();
+    if (!opts.silent) this.showNotification('Editor', `Saved: ${path}`, 'divine');
+  }
+
+  private toggleEditorWordWrap(): void {
+    this.editorWordWrap = !this.editorWordWrap;
+    this.queueSaveConfig();
+    if (this.editorView) {
+      this.editorView.dispatch({
+        effects: this.editorWrapCompartment.reconfigure(this.editorWordWrap ? EditorView.lineWrapping : [])
+      });
+    }
+    this.refreshEditorWindow();
   }
 
 
@@ -6205,6 +6661,16 @@ U0 Main()
       }
     }
 
+    if (cfg.editor && typeof cfg.editor.wordWrap === 'boolean') {
+      this.editorWordWrap = cfg.editor.wordWrap;
+    }
+
+    if (Array.isArray(cfg.recentFiles)) {
+      this.editorRecentFiles = cfg.recentFiles
+        .filter(x => typeof x === 'string')
+        .slice(0, 20);
+    }
+
 
     if (cfg.mouse) {
       if (typeof cfg.mouse.speed === 'number') this.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
@@ -6305,6 +6771,9 @@ U0 Main()
         fontFamily: this.terminalFontFamily,
         fontSize: this.terminalFontSize
       },
+
+      editor: { wordWrap: this.editorWordWrap },
+      recentFiles: this.editorRecentFiles.slice(0, 20),
 
       audio: { defaultSink: this.audioDevices.defaultSink, defaultSource: this.audioDevices.defaultSource },
       mouse: { ...this.mouseSettings },
@@ -6655,6 +7124,7 @@ U0 Main()
   private closeWindow(windowId: string) {
     const wasSystemMonitor = windowId.startsWith('system-monitor');
     const wasTerminal = windowId.startsWith('terminal');
+    const wasEditor = windowId.startsWith('editor');
     if (wasTerminal) {
       for (const tab of this.terminalTabs) {
         if (tab?.ptyId && window.electronAPI?.destroyPty) {
@@ -6670,6 +7140,19 @@ U0 Main()
       this.terminalSearchQuery = '';
       this.terminalSearchMatches = [];
       this.terminalSearchMatchIndex = -1;
+    }
+    if (wasEditor) {
+      if (this.editorAutosaveTimer) {
+        window.clearTimeout(this.editorAutosaveTimer);
+        this.editorAutosaveTimer = null;
+      }
+      if (this.editorView && this.editorViewTabId) {
+        const tab = this.editorTabs.find(t => t.id === this.editorViewTabId);
+        if (tab) tab.cmState = this.editorView.state;
+      }
+      this.editorView?.destroy();
+      this.editorView = null;
+      this.editorViewTabId = null;
     }
     this.windows = this.windows.filter(w => w.id !== windowId);
     if (this.windows.length > 0) {

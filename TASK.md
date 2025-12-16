@@ -140,16 +140,16 @@
 - [x] `sl` - Steam locomotive (for typos)
 
 ### 4.2 Text Editor Enhancements
-- [ ] Syntax highlighting (HolyC, Python, JS, etc.)
-- [ ] Line numbers
+- [x] Syntax highlighting (HolyC, Python, JS, etc.)
+- [x] Line numbers
 - [x] Find/replace
 - [x] Multiple tabs
-- [ ] Undo/redo
-- [ ] Auto-save
-- [ ] File save dialog
-- [ ] Recent files
-- [ ] Word wrap toggle
-- [ ] Code folding
+- [x] Undo/redo
+- [x] Auto-save
+- [x] File save dialog
+- [x] Recent files
+- [x] Word wrap toggle
+- [x] Code folding
 
 
 ### 4.3 App Launcher (Real .desktop files)

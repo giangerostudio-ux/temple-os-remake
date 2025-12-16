@@ -942,20 +942,106 @@ input[type=range]::-webkit-slider-thumb {
   font-size: 16px;
 }
 
-.power-menu-item:hover {
-  background: rgba(0, 255, 65, 0.15);
+
+/* Lock Screen */
+.lock-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  font-family: 'VT323', monospace;
   color: #00ff41;
 }
+
+.lock-input-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeIn 0.5s ease forwards 0.5s;
+}
+
+.lock-password-input {
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  padding: 10px 15px;
+  font-family: inherit;
+  font-size: 20px;
+  width: 250px;
+  text-align: center;
+  border-radius: 4px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.lock-password-input:focus {
+  background: rgba(0, 255, 65, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+}
+
+.lock-password-input.error {
+  border-color: #ff0000;
+  color: #ff0000;
+  animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+.lock-message {
+  font-size: 16px;
+  height: 20px;
+  /* retain space */
+  color: #00ff41;
+}
+
+.lock-message.error {
+  color: #ff0000;
+}
+
+@keyframes shake {
+
+  10%,
+  90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+
+  20%,
+  80% {
+    transform: translate3d(2px, 0, 0);
+  }
+
+  30%,
+  50%,
+  70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+
+  40%,
+  60% {
+    transform: translate3d(4px, 0, 0);
+  }
+}
+
 /* Notifications & Toasts */
 .toast-container {
   position: fixed;
-  bottom: 80px; /* Above taskbar */
+  bottom: 80px;
+  /* Above taskbar */
   right: 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   z-index: 10001;
-  pointer-events: none; /* Let clicks pass through container */
+  pointer-events: none;
+  /* Let clicks pass through container */
 }
 
 .toast {
@@ -967,7 +1053,8 @@ input[type=range]::-webkit-slider-thumb {
   font-family: 'VT323', monospace;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   animation: slideIn 0.3s ease-out;
-  pointer-events: auto; /* Re-enable clicks on toast */
+  pointer-events: auto;
+  /* Re-enable clicks on toast */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1006,18 +1093,31 @@ input[type=range]::-webkit-slider-thumb {
   cursor: pointer;
   color: #888;
 }
+
 .toast-close:hover {
   color: #fff;
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .notification-item {
@@ -1026,16 +1126,18 @@ input[type=range]::-webkit-slider-thumb {
   margin-bottom: 5px;
   background: rgba(255, 255, 255, 0.05);
 }
+
 .notification-item:last-child {
   border-bottom: none;
 }
+
 .notification-item.unread {
   border-left: 3px solid #ffd700;
 }
+
 .notification-time {
   font-size: 0.8em;
   color: #888;
   margin-top: 4px;
   display: block;
 }
-

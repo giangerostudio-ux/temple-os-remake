@@ -162,8 +162,17 @@ class TempleOS {
   // Notifications State
   private notifications: Notification[] = [];
   private activeToasts: Notification[] = [];
+
+
   private audioContext: AudioContext | null = null;
   private doNotDisturb = false;
+
+  // Lock Screen State
+  private isLocked = false;
+  private autoLockTimer: number | null = null;
+  private readonly LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  private readonly PASSWORD = 'god'; // Authentic TempleOS password
+
 
 
 
@@ -190,6 +199,9 @@ class TempleOS {
 
     // Load installed apps for Start Menu
     this.loadInstalledApps();
+
+    // Setup Auto-Lock
+    this.setupAutoLock();
 
     // Welcome Notification
     setTimeout(() => {
@@ -962,7 +974,7 @@ class TempleOS {
         const action = startPowerBtn.dataset.powerAction;
         if (action === 'shutdown' && window.electronAPI) window.electronAPI.shutdown();
         if (action === 'restart' && window.electronAPI) window.electronAPI.restart();
-        if (action === 'lock') this.showLockScreen();
+        if (action === 'lock') this.lock();
         this.showStartMenu = false;
         return;
       }
@@ -1286,7 +1298,21 @@ class TempleOS {
         this.handleTerminalCommand(input.value);
         input.value = '';
       }
+
+      // Global shortcuts
+      const key = e.key.toLowerCase();
+      if (key === 'l' && (e.metaKey || e.ctrlKey)) { // Win+L or Ctrl+L
+        e.preventDefault();
+        this.lock();
+      }
+
+      // Reset auto-lock on keypress
+      this.resetAutoLockTimer();
     });
+
+    // Reset auto-lock on mouse move
+    window.addEventListener('mousemove', () => this.resetAutoLockTimer());
+    window.addEventListener('click', () => this.resetAutoLockTimer());
 
     // ============================================
     // GLOBAL KEYBOARD SHORTCUTS
@@ -2377,62 +2403,119 @@ U0 Main()
   // ============================================
   // LOCK SCREEN
   // ============================================
-  private showLockScreen(): void {
 
+  // ============================================
+  // LOCK SCREEN
+  // ============================================
+  private setupAutoLock() {
+    this.resetAutoLockTimer();
+  }
 
-    // Create lock screen overlay
+  private resetAutoLockTimer() {
+    if (this.isLocked) return;
+
+    if (this.autoLockTimer) {
+      clearTimeout(this.autoLockTimer);
+    }
+
+    this.autoLockTimer = window.setTimeout(() => {
+      this.lock();
+    }, this.LOCK_TIMEOUT);
+  }
+
+  private lock(): void {
+    if (this.isLocked) return;
+    this.isLocked = true;
+
+    // Create secure lock screen
     const existingLock = document.querySelector('.lock-screen');
     if (existingLock) existingLock.remove();
 
     const lockScreen = document.createElement('div');
     lockScreen.className = 'lock-screen';
     lockScreen.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(135deg, #0d1117 0%, #1a1f2e 50%, #0d1117 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 99999;
-        font-family: 'VT323', monospace;
-        color: #00ff41;
-      ">
-        <img src="${templeLogo}" draggable="false" style="width: 100px; height: 100px; object-fit: cover; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);">
-        <h1 style="font-size: 48px; margin: 0 0 10px 0;">TEMPLE OS</h1>
-        <p style="opacity: 0.7; margin-bottom: 40px;">Click anywhere to unlock</p>
-        <div style="font-size: 72px;" id="lock-clock"></div>
+      <img src="${templeLogo}" draggable="false" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; margin-bottom: 20px; border: 2px solid #00ff41; box-shadow: 0 0 30px rgba(0, 255, 65, 0.4);">
+      <h1 style="font-size: 48px; margin: 0 0 10px 0; text-shadow: 0 0 10px rgba(0,255,65,0.5);">TEMPLE OS</h1>
+      
+      <div style="font-size: 64px; margin-bottom: 20px; font-weight: bold;" id="lock-clock"></div>
+      
+      <div class="lock-input-container">
+        <div class="lock-message" id="lock-message">Enter Password</div>
+        <input type="password" class="lock-password-input" placeholder="Password" autofocus>
+      </div>
+
+      <div style="position: absolute; bottom: 20px; font-size: 14px; opacity: 0.5;">
+        Press Enter to Unlock
       </div>
     `;
 
     document.body.appendChild(lockScreen);
 
-    // Update clock on lock screen
+    // Focus input
+    const input = lockScreen.querySelector('.lock-password-input') as HTMLInputElement;
+    if (input) setTimeout(() => input.focus(), 100);
+
+    // Update clock
     const updateLockClock = () => {
       const lockClock = document.getElementById('lock-clock');
       if (lockClock) {
-        const now = new Date();
-        lockClock.textContent = now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        });
+        lockClock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
     };
     updateLockClock();
     const clockInterval = setInterval(updateLockClock, 1000);
 
-    // Click to unlock
-    lockScreen.addEventListener('click', () => {
-      clearInterval(clockInterval);
-      this.unlock();
+    // Event Listeners for Unlock
+    const attemptUnlock = () => {
+      const val = input.value;
+      const msg = document.getElementById('lock-message');
+
+      if (val === this.PASSWORD) {
+        clearInterval(clockInterval);
+        this.unlock();
+      } else {
+        // Error state
+        if (msg) {
+          msg.textContent = "Incorrect Password";
+          msg.classList.add('error');
+        }
+        input.classList.add('error');
+        input.value = '';
+
+        this.playNotificationSound('error');
+
+        setTimeout(() => {
+          input.classList.remove('error');
+          if (msg) {
+            msg.textContent = "Enter Password";
+            msg.classList.remove('error');
+          }
+          input.focus();
+        }, 1000);
+      }
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') attemptUnlock();
+    });
+
+    // Prevent closing by clicking background (unlike before)
+    lockScreen.addEventListener('click', (e) => {
+      if (e.target === lockScreen) {
+        input.focus();
+      }
     });
   }
 
   private unlock(): void {
     const lockScreen = document.querySelector('.lock-screen');
-    if (lockScreen) lockScreen.remove();
+    if (lockScreen) {
+      lockScreen.classList.add('fadeOut'); // Add fade out if we had CSS for it
+      setTimeout(() => lockScreen.remove(), 200); // Wait for potential animation
+    }
+    this.isLocked = false;
+    this.resetAutoLockTimer();
+    this.playNotificationSound('divine');
   }
 
   // ============================================

@@ -1056,7 +1056,7 @@ class TempleOS {
           { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
           { label: '⚙️ Settings', action: () => this.openApp('settings') },
           { divider: true },
-          { label: 'ℹ️ About TempleOS', action: () => alert('TempleOS Remake v1.0 - By Giangero Studio') },
+          { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
         ]);
       }
     });
@@ -1117,6 +1117,12 @@ class TempleOS {
         }
       }
     });
+  }
+
+  // Open Settings directly to About tab
+  private openSettingsToAbout() {
+    this.activeSettingsCategory = 'About';
+    this.openApp('settings');
   }
 
   private openApp(appId: string) {
@@ -1330,13 +1336,22 @@ class TempleOS {
   // SETTINGS PANEL (TIER 3.1)
   // ============================================
   private getSettingsContent(): string {
+    // SVG icons for settings sidebar (emojis don't render properly in some VMs)
+    const svgIcons: Record<string, string> = {
+      System: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
+      Personalization: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="19" cy="17" r="2"></circle><circle cx="6" cy="12" r="3"></circle></svg>',
+      Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
+      Apps: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
+      Time: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+      About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+    };
     const categories = [
-      { id: 'System', icon: '💻', label: 'System' },
-      { id: 'Personalization', icon: '🎨', label: 'Personalization' },
-      { id: 'Network', icon: '📡', label: 'Network & Internet' },
-      { id: 'Apps', icon: '📱', label: 'Apps' },
-      { id: 'Time', icon: '🕒', label: 'Time & Language' },
-      { id: 'About', icon: 'ℹ️', label: 'About' },
+      { id: 'System', icon: svgIcons.System, label: 'System' },
+      { id: 'Personalization', icon: svgIcons.Personalization, label: 'Personalization' },
+      { id: 'Network', icon: svgIcons.Network, label: 'Network & Internet' },
+      { id: 'Apps', icon: svgIcons.Apps, label: 'Apps' },
+      { id: 'Time', icon: svgIcons.Time, label: 'Time & Language' },
+      { id: 'About', icon: svgIcons.About, label: 'About' },
     ];
 
     const renderSidebar = () => `

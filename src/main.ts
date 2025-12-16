@@ -218,6 +218,19 @@ class TempleOS {
     if (tray) {
       tray.innerHTML = this.getTrayHTML();
     }
+
+    // Update Start Menu
+    const startMenuContainer = document.getElementById('start-menu-container');
+    if (startMenuContainer) {
+      startMenuContainer.innerHTML = this.renderStartMenu();
+    }
+
+    // Update Start Button State
+    const startBtn = document.querySelector('.start-btn');
+    if (startBtn) {
+      if (this.showStartMenu) startBtn.classList.add('active');
+      else startBtn.classList.remove('active');
+    }
   }
 
   private renderBootScreen(): string {
@@ -419,7 +432,7 @@ class TempleOS {
 
   private renderTaskbar(): string {
     return `
-      ${this.renderStartMenu()}
+      <div id="start-menu-container">${this.renderStartMenu()}</div>
       <div class="taskbar">
         <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
         <div class="taskbar-apps">

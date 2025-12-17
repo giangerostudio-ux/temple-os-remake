@@ -4259,7 +4259,6 @@ class TempleOS {
     if (existingWindow) {
       if (toggle) {
         if (existingWindow.minimized) {
-          existingWindow.minimized = false;
           this.focusWindow(existingWindow.id);
         } else if (existingWindow.active) {
           this.minimizeWindow(existingWindow.id);
@@ -7766,7 +7765,6 @@ class TempleOS {
     const win = this.windows.find(w => w.id === windowId);
     if (win) {
       if (win.minimized) {
-        win.minimized = false;
         this.focusWindow(windowId);
       } else if (win.active) {
         this.minimizeWindow(windowId);

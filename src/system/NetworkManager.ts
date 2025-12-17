@@ -333,13 +333,46 @@ export class NetworkManager {
     public updateDataUsage(stats: MonitorStats | null) {
         if (!this.dataUsageTrackingEnabled || !stats?.network) return;
 
-        // Simple polling accumulation (approximate)
-        // In a real app we'd persist this carefully.
+        const rx = stats.network.rxBytes || 0;
+        const tx = stats.network.txBytes || 0;
+
+        // Current totals for the session deltas
+        if (this.dataUsageStartRx === 0 && rx > 0) this.dataUsageStartRx = rx;
+        if (this.dataUsageStartTx === 0 && tx > 0) this.dataUsageStartTx = tx;
+
+        const deltaRx = Math.max(0, rx - this.dataUsageStartRx);
+        const deltaTx = Math.max(0, tx - this.dataUsageStartTx);
+
+        const now = Date.now();
+        const dayStart = now - (now % 86400000);
+
+        let today = this.dataUsageHistory.find(d => d.timestamp >= dayStart);
+        if (!today) {
+            today = { timestamp: dayStart, rx: 0, tx: 0 };
+            this.dataUsageHistory.push(today);
+            // Limit history to 30 days
+            if (this.dataUsageHistory.length > 30) this.dataUsageHistory.shift();
+        }
+
+        // We store the total for the day. Since it's cumulative since session start,
+        // we just update it. In a real OS we'd add session deltas to persisted historical data.
+        today.rx = deltaRx;
+        today.tx = deltaTx;
+
+        // Check limit
+        if (this.dataUsageDailyLimit > 0 && (deltaRx + deltaTx) > this.dataUsageDailyLimit) {
+            // We could trigger a notification here if we haven't already today
+        }
+
+        this.onUpdate();
     }
 
     public resetDataUsage() {
         this.dataUsageHistory = [];
-        // Reset logic needs current stats reference or just clear history
+        this.dataUsageStartRx = this.status.wifi?.signal || 0; // fallback if monitor not active
+        // Better: reset start offsets to current values
+        this.dataUsageStartRx = 0; // Will be set on next update
+        this.dataUsageStartTx = 0;
         this.onUpdate();
         this.onNotify('Data Usage', 'Usage statistics reset', 'info');
     }

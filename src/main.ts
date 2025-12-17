@@ -827,6 +827,11 @@ class TempleOS {
         this.showNotification('Divine Intellect', this.getRandomQuote(), 'divine');
       }
     }, 60000 * 5); // Check every 5 minutes
+    // Background Network & System Status
+    setInterval(() => {
+      void this.networkManager.refreshStatus();
+    }, 15000); // Every 15 seconds
+
     // Hide boot screen after animation completes
     setTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
@@ -10497,7 +10502,10 @@ class TempleOS {
     try {
       if (window.electronAPI.getMonitorStats) {
         const statsRes = await window.electronAPI.getMonitorStats();
-        if (statsRes.success && statsRes.stats) this.monitorStats = statsRes.stats;
+        if (statsRes.success && statsRes.stats) {
+          this.monitorStats = statsRes.stats;
+          this.networkManager.updateDataUsage(this.monitorStats);
+        }
       }
 
       if (window.electronAPI.listProcesses) {

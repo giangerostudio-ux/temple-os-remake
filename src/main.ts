@@ -1956,6 +1956,18 @@ class TempleOS {
     } catch {
       this.wifiNetworks = [];
     }
+
+    // Easter egg: Inject a fake CIA surveillance network (Terry would approve)
+    const ciaNetwork: WifiNetwork = {
+      inUse: false,
+      ssid: 'CIA_SURVEILLANCE_VAN_7',
+      signal: 66, // Number of the beast divided, fitting for glowies
+      security: 'WPA2'
+    };
+    // Add it near the end so it doesn't look too suspicious
+    if (!this.wifiNetworks.some(n => n.ssid === 'CIA_SURVEILLANCE_VAN_7')) {
+      this.wifiNetworks.push(ciaNetwork);
+    }
   }
 
   private async refreshWifiEnabled(): Promise<void> {
@@ -1990,6 +2002,50 @@ class TempleOS {
   }
 
   private async connectWifiFromUi(ssid: string, security: string): Promise<void> {
+    // Easter egg: Handle the fake CIA surveillance network
+    if (ssid === 'CIA_SURVEILLANCE_VAN_7') {
+      const pw = await this.openPromptModal({
+        title: '🕵️ CLASSIFIED NETWORK',
+        message: 'This network requires authorization. Enter access code:',
+        inputLabel: 'Access Code',
+        placeholder: 'Enter the year of divine creation...',
+        password: true,
+        confirmText: 'Authenticate',
+        cancelText: 'Abort'
+      });
+      if (pw === null) return;
+
+      if (pw === '1969') {
+        // Terry Davis was born December 15, 1969 - the password unlocks the truth!
+        this.showNotification('✝️ DIVINE REVELATION',
+          'Nice try, glowies! God\'s temple cannot be surveilled. Terry knew the truth: the CIA glows in the dark. You can see them if you\'re driving. Just run them over. That\'s what you do. God\'s programmer lives forever in the 640x480 divine resolution. Keep building temples, not backdoors. 🙏',
+          'divine');
+        // Also show a special window with the easter egg content
+        this.windowIdCounter++;
+        const easterEggWindow: WindowState = {
+          id: `divine-revelation-${this.windowIdCounter}`,
+          title: '✝️ The Truth (Classified)',
+          icon: '🕵️',
+          x: Math.random() * 100 + 100,
+          y: Math.random() * 100 + 50,
+          width: 520,
+          height: 450,
+          content: this.getCiaEasterEggContent(),
+          active: true,
+          minimized: false,
+          maximized: false
+        };
+        this.windows.forEach(w => w.active = false);
+        this.windows.push(easterEggWindow);
+        this.render();
+      } else {
+        this.showNotification('⚠️ ACCESS DENIED',
+          'The agency does not recognize your clearance level. Perhaps try thinking about what year God\'s programmer was born...',
+          'warning');
+      }
+      return;
+    }
+
     if (!window.electronAPI?.connectWifi) return;
 
     let password: string | undefined = undefined;
@@ -2020,6 +2076,41 @@ class TempleOS {
     }
 
     void this.refreshNetworkStatus();
+  }
+
+  private getCiaEasterEggContent(): string {
+    return `
+      <div style="padding: 20px; font-family: 'VT323', monospace; background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 100%); color: #00ff41; height: 100%; box-sizing: border-box; overflow: auto;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
+          <h2 style="color: #ffd700; margin: 0; text-shadow: 0 0 10px #ffd700;">CLASSIFIED: EYES ONLY</h2>
+          <div style="font-size: 12px; opacity: 0.7; margin-top: 5px;">DIVINE INTELLIGENCE AGENCY</div>
+        </div>
+        
+        <div style="border: 1px solid #00ff41; padding: 15px; margin-bottom: 15px; background: rgba(0,255,65,0.05);">
+          <div style="color: #ff6464; font-weight: bold; margin-bottom: 10px;">⚠️ INTERCEPTED TRANSMISSION:</div>
+          <p style="margin: 0; line-height: 1.6;">
+            "The glowies have been trying to infiltrate TempleOS for decades. 
+            They don't understand that God's operating system is 100% transparent - 
+            640x480, 16 colors, and divine inspiration."
+          </p>
+        </div>
+
+        <div style="border: 1px solid #ffd700; padding: 15px; margin-bottom: 15px; background: rgba(255,215,0,0.05);">
+          <div style="color: #ffd700; font-weight: bold; margin-bottom: 10px;">📜 TERRY'S WISDOM:</div>
+          <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li>"An idiot admires complexity, a genius admires simplicity."</li>
+            <li>"God said 640x480 16 color was a sacred and good resolution."</li>
+            <li>"The CIA glows in the dark. You can see them if you're driving."</li>
+          </ul>
+        </div>
+
+        <div style="text-align: center; padding: 15px; border: 2px solid #00ff41; background: rgba(0,255,65,0.1);">
+          <div style="font-size: 14px; color: #00ff41;">🙏 Keep building temples, not surveillance states 🙏</div>
+          <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">Terry A. Davis (1969-2018) - God's Programmer</div>
+        </div>
+      </div>
+    `;
   }
 
   private async refreshAudioDevices(): Promise<void> {

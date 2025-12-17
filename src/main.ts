@@ -1181,7 +1181,7 @@ class TempleOS {
           Network Connections
         </div>
         <div style="display: flex; align-items: center; gap: 10px; padding: 5px; background: rgba(0,255,65,0.1); border-radius: 4px;">
-          <span>ðŸ“¶</span>
+          <span>📶</span>
           <div style="display: flex; flex-direction: column;">
             <span style="font-weight: bold;">TempleNet_5G</span>
             <span style="font-size: 12px; color: #bbb;">Connected, Secure</span>
@@ -1204,7 +1204,7 @@ class TempleOS {
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
         <div style="min-width: 0; display: flex; flex-direction: column;">
           <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} ΓÇó ${n.signal}%</div>
+          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
         </div>
         ${n.inUse ? `
           <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -1237,7 +1237,7 @@ class TempleOS {
 
         <div style="padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,255,65,0.08); margin-bottom: 10px;">
           <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` ΓÇó IP ${ip}` : ''}${ssid ? ` ΓÇó ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto;">
@@ -1267,7 +1267,7 @@ class TempleOS {
         <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
           <span>Notifications</span>
           <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '≡ƒöò' : '≡ƒöö'}
+            ${this.doNotDisturb ? '🔕' : '🔔'}
           </button>
         </div>
         <div style="padding: 5px; color: #fff;">
@@ -1308,7 +1308,7 @@ class TempleOS {
         <div style="border-bottom: 1px solid rgba(255,215,0,0.25); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
           <span>Notifications ${unread ? `(${unread})` : ''}</span>
           <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '≡ƒöò' : '≡ƒöö'}
+            ${this.doNotDisturb ? '🔕' : '🔔'}
           </button>
         </div>
 
@@ -1391,7 +1391,7 @@ class TempleOS {
         const display = this.launcherDisplayForKey(s.key);
         return {
           key: s.key,
-          icon: display?.icon || '≡ƒôä',
+          icon: display?.icon || '📄',
           label: s.label
         };
       });
@@ -1759,8 +1759,8 @@ class TempleOS {
         <div class="app-launcher-panel">
           <div class="app-launcher-top">
             <div class="app-launcher-brand">
-              <div class="app-launcher-title">dYs? APPLICATION LAUNCHER</div>
-              <div class="app-launcher-sub">Type to search • Right‑click for ƒ+' Desktop/Pin • Esc to close</div>
+              <div class="app-launcher-title">🔰 APPLICATION LAUNCHER</div>
+              <div class="app-launcher-sub">Type to search • Right‑click for → Desktop/Pin • Esc to close</div>
             </div>
             <button class="app-launcher-close-btn" data-launcher-action="close" title="Close (Esc)">×</button>
           </div>
@@ -2194,7 +2194,7 @@ class TempleOS {
       return this.builtinLauncherMeta(raw.slice('builtin:'.length));
     }
     const installed = this.findInstalledAppByKey(raw);
-    if (installed) return { label: installed.name, icon: 'dY"├¥' };
+    if (installed) return { label: installed.name, icon: '📦' };
     return null;
   }
 
@@ -5157,10 +5157,10 @@ class TempleOS {
     if (base === 'neofetch') {
       const info = this.systemInfo;
       const art = [
-        'â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—',
-        'â•‘  T E M P L E  O S    â•‘',
-        'â•‘      R E M A K E     â•‘',
-        'â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•',
+        '╔══════════════════════╗',
+        '║  T E M P L E  O S    ║',
+        '║      R E M A K E     ║',
+        '╚══════════════════════╝',
       ];
       art.forEach(l => print(l, 'gold'));
       print(`OS: TempleOS Remake`, 'system');
@@ -5240,7 +5240,7 @@ class TempleOS {
       <div class="word-of-god">
         <h2>✝ WORD OF GOD ✝</h2>
         <p class="verse-text">"${verse.text}"</p>
-        <p class="verse-reference">â€” ${verse.ref}</p>
+        <p class="verse-reference">— ${verse.ref}</p>
         <p class="click-hint">🙏 Click anywhere for new word</p>
       </div>
     `;
@@ -5258,7 +5258,7 @@ class TempleOS {
 
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">â€º</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     // Build file list HTML
@@ -5274,7 +5274,7 @@ class TempleOS {
         const parentPath = this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
         filesHtml += `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;">
-            <span class="icon">ðŸ“‚</span>
+            <span class="icon">📁</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         `;
@@ -5295,9 +5295,9 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">â† Back</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">âŒ‚ Home</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">â†» Refresh</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">← Back</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">⌂ Home</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">↻ Refresh</button>
         </div>
         <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
           ${breadcrumbHtml}
@@ -5376,7 +5376,7 @@ class TempleOS {
     let cumulativePath = isWindows ? '' : '';
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">â€º</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     const query = this.fileSearchQuery.trim().toLowerCase();
@@ -5424,7 +5424,7 @@ class TempleOS {
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
         ${parentPath ? `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;" title="Parent folder">
-            <span class="icon">ðŸ“</span>
+            <span class="icon">📁</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         ` : ''}
@@ -5443,7 +5443,7 @@ class TempleOS {
 
     const sortArrow = (key: 'name' | 'size' | 'modified') => {
       if (this.fileSortMode !== key) return '';
-      return this.fileSortDir === 'asc' ? ' â–²' : ' â–¼';
+      return this.fileSortDir === 'asc' ? ' ▲' : ' ▼';
     };
 
     const listHtml = `
@@ -5456,16 +5456,16 @@ class TempleOS {
         </div>
         ${parentPath ? `
           <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
-            <span class="icon">ðŸ“</span>
+            <span class="icon">📁</span>
             <span class="label">..</span>
-            <span style="opacity: 0.6;">â€”</span>
-            <span style="opacity: 0.6;">â€”</span>
+            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">—</span>
           </div>
         ` : ''}
         ${files.map(file => {
       const icon = getFileIcon(file.name, file.isDirectory);
-      const sizeStr = file.isDirectory ? 'â€”' : this.formatFileSize(file.size);
-      const mod = file.modified ? new Date(file.modified).toLocaleString() : 'â€”';
+      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleString() : '—';
       return `
             <div class="file-row file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,0,0,0.15);">
               <span class="icon">${icon}</span>
@@ -5481,9 +5481,9 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">âŸµ</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">âŒ‚</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">â†»</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⟵</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⌂</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">↻</button>
 
           <input class="file-search-input" type="text" placeholder="Search this folder" value="${this.fileSearchQuery}"
                  style="flex: 1; min-width: 180px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit; outline: none;">
@@ -5639,7 +5639,7 @@ class TempleOS {
 
             <div>Orientation</div>
             <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;" ${selectedOutput ? '' : 'disabled'}>
-              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}Â°`}</option>`).join('')}
+              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}°`}</option>`).join('')}
             </select>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px;">
@@ -5689,11 +5689,11 @@ class TempleOS {
       return `
         ${card('Status', `
           <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` â€¢ IP ${ip}` : ''}${ssid ? ` â€¢ ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
           <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
             <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
               <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} />
-              <span style="opacity: 0.9;">Wiâ€‘Fi</span>
+              <span style="opacity: 0.9;">Wi‑Fi</span>
             </label>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
               <button class="net-btn" data-net-action="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
@@ -5702,13 +5702,13 @@ class TempleOS {
           </div>
         `)}
 
-        ${card('Wiâ€‘Fi Networks', `
+        ${card('Wi‑Fi Networks', `
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${window.electronAPI?.listWifiNetworks ? (this.wifiNetworks.slice(0, 10).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} â€¢ ${n.signal}%</div>
+                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
                 </div>
                 ${n.inUse ? `
                   <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -5716,7 +5716,7 @@ class TempleOS {
                   <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
                 `}
               </div>
-            `).join('') || '<div style=\"opacity: 0.6;\">No Wiâ€‘Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wiâ€‘Fi management requires Electron/Linux.</div>'}
+            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires Electron/Linux.</div>'}
           </div>
         `)}
 
@@ -5724,13 +5724,13 @@ class TempleOS {
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require Electron/Linux.</div>' : ''}
             ${window.electronAPI?.listSavedNetworks ? ([
-          ...savedWifi.map(n => ({ ...n, kind: 'Wiâ€‘Fi' })),
+          ...savedWifi.map(n => ({ ...n, kind: 'Wi‑Fi' })),
           ...savedOther.map(n => ({ ...n, kind: n.type || 'Connection' }))
         ].slice(0, 14).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: #00ff41; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(n.name)}</div>
-                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` â€¢ ${escapeHtml(n.device)}` : ''}</div>
+                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` • ${escapeHtml(n.device)}` : ''}</div>
                 </div>
                 <div style="display:flex; gap: 8px; flex-shrink: 0;">
                   <button class="saved-net-btn" data-action="connect" data-key="${escapeHtml(n.uuid)}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
@@ -5772,7 +5772,7 @@ class TempleOS {
       const info = this.systemInfo;
       return `
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">âœ</div>
+          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
           <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
           <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>
@@ -5785,20 +5785,20 @@ class TempleOS {
           </div>
           <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
-            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || 'â€”'}</div>
-            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || 'â€”'}</div>
-            <div style="opacity: 0.7;">User</div><div>${info?.user || 'â€”'}</div>
-            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? 'â€”'}</div>
-            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : 'â€”'}</div>
-            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : 'â€”'}</div>
+            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || '—'}</div>
+            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
+            <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
+            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '—'}</div>
+            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : '—'}</div>
+            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : '—'}</div>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
             <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
           </div>
         `)}
         <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
-          Made with HolyC ðŸ’š by Giangero Studio<br>
-          Â© 2025 Giangero Studio
+          Made with HolyC ❤️ by Giangero Studio<br>
+          © 2025 Giangero Studio
         </div>
       `;
     };
@@ -5915,13 +5915,13 @@ class TempleOS {
         case 'System':
           return `
             <div class="settings-section">
-              <h3>ðŸ”Š Sound</h3>
+              <h3>🔊 Sound</h3>
               <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span>Volume</span>
                 <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
                        style="width: 150px; accent-color: #00ff41;">
               </div>
-              <h3>ðŸ–¥ï¸ Display</h3>
+              <h3>🖥️ Display</h3>
               <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span>Resolution</span>
                 <select class="resolution-select" style="
@@ -5941,7 +5941,7 @@ class TempleOS {
         case 'Personalization':
           return `
             <div class="settings-section">
-              <h3>ðŸŽ¨ Theme</h3>
+              <h3>🎨 Theme</h3>
               <div class="settings-row" style="margin-bottom: 20px;">
                 <button style="
                   padding: 8px 16px;
@@ -5960,7 +5960,7 @@ class TempleOS {
                   opacity: 0.5;
                 " title="Not implemented yet">Light</button>
               </div>
-              <h3>ðŸ–¼ï¸ Background</h3>
+              <h3>🖼️ Background</h3>
               <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                 <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;">Default</div>
                 <div style="aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Solid</div>
@@ -5971,7 +5971,7 @@ class TempleOS {
         case 'Network':
           return `
             <div class="settings-section">
-              <h3>ðŸ“¡ Wi-Fi</h3>
+              <h3>📶 Wi-Fi</h3>
               <div class="settings-row" style="padding: 10px; border: 1px solid #00ff41; margin-bottom: 10px;">
                 <div style="font-weight: bold;">TempleNet_5G</div>
                 <div style="font-size: 12px; color: #00ff41;">Connected, Secure</div>
@@ -5985,7 +5985,7 @@ class TempleOS {
         case 'About':
           return `
             <div class="settings-section" style="text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 10px;">âœï¸</div>
+              <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
               <h2 style="color: #ffd700;">TempleOS Remake</h2>
               <p>Version 2.4.0 (Divine Intellect)</p>
               <div style="margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);">
@@ -5994,7 +5994,7 @@ class TempleOS {
                 <div><strong>System Type:</strong> 64-bit Operating System</div>
                 <div><strong>Registered to:</strong> Terry A. Davis</div>
               </div>
-              <p style="font-size: 12px; opacity: 0.6;">Â© 2025 Giangero Studio</p>
+              <p style="font-size: 12px; opacity: 0.6;">© 2025 Giangero Studio</p>
             </div>
           `;
         default:
@@ -6316,9 +6316,9 @@ class TempleOS {
 
     const tabsHtml = this.editorTabs.map((tab, i) => `
       <div class="editor-tab ${i === this.activeEditorTab ? 'active' : ''}" data-editor-tab="${i}">
-        ${tab.modified ? '<span class="editor-tab-modified">â—</span>' : ''}
+        ${tab.modified ? '<span class="editor-tab-modified">●</span>' : ''}
         ${escapeHtml(tab.filename)}
-        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">Ã—</span>` : ''}
+        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">×</span>` : ''}
       </div>
     `).join('');
 
@@ -6330,14 +6330,14 @@ class TempleOS {
           <input type="text" class="editor-replace-input" placeholder="Replace..." 
                  value="${escapeHtml(this.editorReplaceQuery)}" data-editor-replace-input />
         ` : ''}
-        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">â—€</button>
-        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">â–¶</button>
+        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">◀</button>
+        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">▶</button>
         ${this.editorFindMode === 'replace' ? `
           <button class="editor-find-btn" data-editor-action="replace" title="Replace">Replace</button>
           <button class="editor-find-btn" data-editor-action="replace-all" title="Replace All">All</button>
         ` : ''}
         <span class="editor-find-count">${this.editorFindMatches.length > 0 ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}` : ''}</span>
-        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">Ã—</button>
+        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">×</button>
       </div>
     ` : '';
 
@@ -6779,7 +6779,7 @@ class TempleOS {
       })
       .slice(0, 250);
 
-    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' â–²' : ' â–¼') : '';
+    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
     const statCard = (title: string, primary: string, secondary: string, percent: number | null) => `
       <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 10px; background: rgba(0,0,0,0.16);">
@@ -6800,15 +6800,15 @@ class TempleOS {
           <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
           <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
           <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
-            ${s ? `Uptime ${this.formatDuration(s.uptime)} â€¢ ${escapeHtml(s.hostname)}` : 'Loadingâ€¦'}
+            ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
           </div>
         </div>
 
         <div style="padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
-          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} â€¢ ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
-          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : 'â€”', memPct)}
-          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : 'â€”', diskPct === null ? null : diskPct)}
-          ${statCard('Network', `${this.formatFileSize(rxBps)}/s â†“`, `${this.formatFileSize(txBps)}/s â†‘`, null)}
+          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} • ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
+          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : '—', memPct)}
+          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : '—', diskPct === null ? null : diskPct)}
+          ${statCard('Network', `${this.formatFileSize(rxBps)}/s ↓`, `${this.formatFileSize(txBps)}/s ↑`, null)}
         </div>
 
         <div class="system-monitor-processes" style="flex: 1; overflow: auto; padding: 10px; min-width: 0;">
@@ -6822,12 +6822,12 @@ class TempleOS {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process listâ€¦'}</div>` : processes.map(p => `
+            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process list…'}</div>` : processes.map(p => `
               <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; background: rgba(0,0,0,0.14); min-width: 0;">
                 <button class="proc-kill-btn" data-pid="${p.pid}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 8px; cursor: pointer;">End</button>
                 <div title="${escapeHtml(p.command || p.name)}" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <span style="color: #ffd700;">${escapeHtml(p.name)}</span>
-                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` â€¢ ${escapeHtml(p.command)}` : ''}</span>
+                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` • ${escapeHtml(p.command)}` : ''}</span>
                 </div>
                 <div style="opacity: 0.85;">${p.pid}</div>
                 <div style="opacity: 0.85;">${(p.cpu || 0).toFixed(1)}%</div>
@@ -6880,14 +6880,14 @@ class TempleOS {
       ">
         <span style="opacity: 0.5; font-size: 14px;">${(i + 1).toString().padStart(2, '0')}</span>
         <span style="flex: 1; font-size: 15px;">${h.title}</span>
-        ${i === this.currentHymn ? '<span>â–¶</span>' : ''}
+        ${i === this.currentHymn ? '<span>▶</span>' : ''}
       </div>
     `).join('');
 
     return `
       <div class="hymn-player" style="height: 100%; display: flex; flex-direction: column;">
         <div style="text-align: center; padding: 15px; border-bottom: 1px solid rgba(0,255,65,0.2);">
-          <div style="font-size: 24px; margin-bottom: 5px;">ðŸŽµ âœï¸ ðŸŽµ</div>
+          <div style="font-size: 24px; margin-bottom: 5px;">🎶 ✝️ 🎶</div>
           <h2 style="font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ffd700; margin: 0;">DIVINE HYMNS</h2>
           <p style="font-size: 12px; opacity: 0.6; margin-top: 5px;">Orthodox Liturgical Music</p>
         </div>
@@ -6896,9 +6896,9 @@ class TempleOS {
           <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px; text-align: center;">${this.hymnList[this.currentHymn].title}</div>
           <audio id="hymn-audio" controls style="width: 100%; filter: sepia(0.3) hue-rotate(80deg);" src="./music/${this.hymnList[this.currentHymn].file}"></audio>
           <div style="display: flex; justify-content: center; gap: 15px; margin-top: 10px;">
-            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">â® Prev</button>
-            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">ðŸŽ² Random</button>
-            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next â­</button>
+            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">⏮ Prev</button>
+            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">🎲 Random</button>
+            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next ⏭</button>
           </div>
         </div>
         
@@ -6943,7 +6943,7 @@ class TempleOS {
             item.setAttribute('style', `padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(0,255,65,0.1); display: flex; align-items: center; gap: 10px; background: rgba(0,255,65,0.15); color: #ffd700;`);
             // Add play icon if missing
             if (!item.querySelector('span:nth-child(3)')) {
-              item.insertAdjacentHTML('beforeend', '<span>â–¶</span>');
+              item.insertAdjacentHTML('beforeend', '<span>▶</span>');
             }
           } else {
             item.classList.remove('active');
@@ -7222,15 +7222,15 @@ class TempleOS {
   };
 
   private getUpdaterContent(): string {
-    const statusIcon = this.updaterState.status === 'success' ? 'âœ…' :
-      this.updaterState.status === 'error' ? 'âŒ' :
-        this.updaterState.status === 'updating' ? 'â³' :
-          this.updaterState.status === 'available' ? 'ðŸ†•' : 'ðŸ”';
+    const statusIcon = this.updaterState.status === 'success' ? '✅' :
+      this.updaterState.status === 'error' ? '❌' :
+        this.updaterState.status === 'updating' ? '⏳' :
+          this.updaterState.status === 'available' ? '🆕' : '🔍';
 
     return `
       <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
-        <div style="font-size: 48px; margin-bottom: 15px;">â¬‡ï¸</div>
-        <h2 style="margin: 0 0 10px 0; color: #ffd700;">âœ HOLY UPDATER âœ</h2>
+        <div style="font-size: 48px; margin-bottom: 15px;">⬇️</div>
+        <h2 style="margin: 0 0 10px 0; color: #ffd700;">✝ HOLY UPDATER ✝</h2>
         <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
         
         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
@@ -7242,17 +7242,17 @@ class TempleOS {
           <button class="updater-btn" data-updater-action="check" 
                   style="background: rgba(0,255,65,0.2); border: 1px solid #00ff41; color: #00ff41; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating ? 'disabled' : ''}>
-            ðŸ” Check for Updates
+            🔍 Check for Updates
           </button>
           <button class="updater-btn" data-updater-action="update" 
                   style="background: rgba(255,215,0,0.2); border: 1px solid #ffd700; color: #ffd700; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating || this.updaterState.status !== 'available' ? 'disabled' : ''}>
-            â¬‡ï¸ Download & Install
+            ⬇️ Download & Install
           </button>
           ${this.updaterState.status === 'success' ? `
           <button class="updater-btn" data-updater-action="reboot" 
                   style="background: rgba(255,100,100,0.2); border: 1px solid #ff6464; color: #ff6464; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;">
-            ðŸ”„ Reboot Now
+            🔄 Reboot Now
           </button>
           ` : ''}
         </div>
@@ -7276,13 +7276,13 @@ class TempleOS {
         if (result.updatesAvailable) {
           this.updaterState = {
             status: 'available',
-            message: `ðŸ†• ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
+            message: `🆕 ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
             isUpdating: false
           };
         } else {
           this.updaterState = {
             status: 'idle',
-            message: 'âœ¨ Your temple is blessed with the latest version!',
+            message: '✨ Your temple is blessed with the latest version!',
             isUpdating: false
           };
         }
@@ -7299,7 +7299,7 @@ class TempleOS {
   private async runUpdate(): Promise<void> {
     if (!window.electronAPI) return;
 
-    this.updaterState = { status: 'updating', message: 'ðŸ“¥ Downloading divine updates...', isUpdating: true };
+    this.updaterState = { status: 'updating', message: '📥 Downloading divine updates...', isUpdating: true };
     this.updateUpdaterWindow();
 
     try {
@@ -7307,7 +7307,7 @@ class TempleOS {
       if (result.success) {
         this.updaterState = {
           status: 'success',
-          message: 'âœ… Update complete! Reboot to apply the new blessings.',
+          message: '✅ Update complete! Reboot to apply the new blessings.',
           isUpdating: false
         };
       } else {
@@ -7470,7 +7470,7 @@ class TempleOS {
               </div>
             </div>
           </div>
-          <div class="alt-tab-hint">Alt+Tab to cycle â€¢ Release Alt to switch</div>
+          <div class="alt-tab-hint">Alt+Tab to cycle • Release Alt to switch</div>
         </div>
       </div>
     `;
@@ -7514,7 +7514,7 @@ class TempleOS {
       const stats = this.monitorStats;
       const cpu = typeof stats?.cpuPercent === 'number' ? `${stats.cpuPercent.toFixed(0)}% CPU` : '';
       const mem = stats?.memory?.total ? `${this.formatFileSize(stats.memory.used)} / ${this.formatFileSize(stats.memory.total)} RAM` : '';
-      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s â†“ â€¢ ${this.formatFileSize(stats.network.txBps)}/s â†‘` : '';
+      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s ↓ • ${this.formatFileSize(stats.network.txBps)}/s ↑` : '';
       return ['Task Manager', cpu, mem, net].filter(Boolean);
     }
 
@@ -7796,7 +7796,7 @@ class TempleOS {
 
           <div class="lock-input-row">
             <input type="password" class="lock-password-input" placeholder="${this.lockInputMode === 'pin' ? 'PIN' : 'Password'}" inputmode="${this.lockInputMode === 'pin' ? 'numeric' : 'text'}" autocomplete="off">
-            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>ðŸ‘</button>
+            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>👁</button>
           </div>
 
           <div class="lock-caps" id="lock-caps">Caps Lock is ON</div>
@@ -7806,7 +7806,7 @@ class TempleOS {
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="lock-pin-btn" data-pin-key="${n}">${n}</button>`).join('')}
             <button class="lock-pin-btn alt" data-pin-key="clear">CLR</button>
             <button class="lock-pin-btn" data-pin-key="0">0</button>
-            <button class="lock-pin-btn alt" data-pin-key="back">âŒ«</button>
+            <button class="lock-pin-btn alt" data-pin-key="back">⌫</button>
             <button class="lock-pin-enter" data-pin-key="enter">ENTER</button>
           </div>
 
@@ -7920,7 +7920,7 @@ class TempleOS {
       const reveal = lockScreen.querySelector('[data-lock-action="reveal"]') as HTMLButtonElement | null;
       if (reveal) {
         reveal.disabled = mode === 'pin';
-        reveal.textContent = 'ðŸ‘';
+        reveal.textContent = '👁';
       }
 
       lockScreen.querySelectorAll('[data-lock-mode]').forEach((el) => {

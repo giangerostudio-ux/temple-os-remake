@@ -634,13 +634,13 @@ class TempleOS {
       window.electronAPI.onLockScreen(() => this.lock());
     }
 
-    // Hide boot screen after animation completes
+    // Hide boot screen after animation completes (reduced from 4.5s for snappier startup)
     setTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.display = 'none';
       }
-    }, 4500);
+    }, 2000);
 
     // Bootstrap async OS integration + persisted settings
     void this.bootstrap();
@@ -658,23 +658,24 @@ class TempleOS {
   }
 
   private async bootstrap(): Promise<void> {
-    await this.loadResolutions();
-    await this.loadInstalledApps();
+    // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
-    await this.refreshMouseDpiInfo();
-    await this.refreshDisplayOutputs();
 
+    // Phase 2: Run independent operations in parallel for faster startup
+    await Promise.all([
+      this.loadResolutions(),
+      this.loadInstalledApps(),
+      this.refreshMouseDpiInfo(),
+      this.refreshDisplayOutputs(),
+      this.refreshAudioDevices(),
+      this.refreshNetworkStatus(),
+      this.refreshWifiEnabled(),
+      this.refreshSavedNetworks(),
+      this.refreshSystemInfo(),
+      this.checkPtySupport(),
+    ]);
 
-
-    // Load initial state for system panels
-    await this.refreshAudioDevices();
-    await this.refreshNetworkStatus();
-    await this.refreshWifiEnabled();
-    await this.refreshSavedNetworks();
-    await this.refreshSystemInfo();
-
-    // Check PTY availability and setup listeners
-    await this.checkPtySupport();
+    // Setup PTY listeners after PTY support check completes
     this.setupPtyListeners();
 
     // Periodic refresh (Windows-like status panels)
@@ -682,12 +683,10 @@ class TempleOS {
     window.setInterval(() => void this.refreshAudioDevices(), 15000);
     window.setInterval(() => void this.refreshSystemInfo(), 30000);
 
-    // Welcome Notification
-    setTimeout(() => {
-      this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
-        { id: 'open-settings', label: 'Open Settings' }
-      ]);
-    }, 2000);
+    // Welcome Notification (immediate since bootstrap is now fast)
+    this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
+      { id: 'open-settings', label: 'Open Settings' }
+    ]);
   }
 
   private async checkPtySupport(): Promise<void> {

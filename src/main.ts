@@ -3878,30 +3878,10 @@ class TempleOS {
         const clickedOnWindow = target.closest('.window') !== null;
         const isBackground = clickedOnDesktopArea && !clickedOnIcon && !clickedOnWindow && !desktopIcon && !fileItem && !fileBrowserEl;
 
-        // DEBUG: Log all context menu detection
-        console.group('🖱️ RIGHT-CLICK DEBUG');
-        console.log('Target element:', target);
-        console.log('Target tagName:', target.tagName);
-        console.log('Target className:', target.className);
-        console.log('Target id:', target.id);
-        console.log('---');
-        console.log('startAppItem:', !!startAppItem);
-        console.log('taskbarItem:', !!taskbarItem);
-        console.log('desktopIcon:', !!desktopIcon);
-        console.log('fileItem:', !!fileItem);
-        console.log('fileBrowserEl:', !!fileBrowserEl);
-        console.log('---');
-        console.log('clickedOnDesktopArea:', clickedOnDesktopArea);
-        console.log('clickedOnIcon:', clickedOnIcon);
-        console.log('clickedOnWindow:', clickedOnWindow);
-        console.log('---');
-        console.log('isBackground:', isBackground);
-        console.groupEnd();
-
         if (isBackground) {
-          console.log('✅ SHOWING DESKTOP BACKGROUND MENU');
           e.preventDefault();
           this.closeContextMenu();
+
           this.showContextMenu(e.clientX, e.clientY, [
             { label: '📁 Open Files', action: () => this.openApp('files') },
             { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
@@ -3969,7 +3949,6 @@ class TempleOS {
         }
 
         if (desktopIcon) {
-          console.log('🖼️ SHOWING DESKTOP ICON MENU');
           const key = desktopIcon.dataset.launchKey || (desktopIcon.dataset.app ? `builtin:${desktopIcon.dataset.app}` : '');
           if (key) {
             const pinnedStart = this.pinnedStart.includes(key);

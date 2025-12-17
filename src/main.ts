@@ -2295,10 +2295,10 @@ class TempleOS {
     return null;
   }
 
-  private launchByKey(key: string): void {
+  private launchByKey(key: string, toggle = false): void {
     const raw = String(key || '');
     if (raw.startsWith('builtin:')) {
-      this.openApp(raw.slice('builtin:'.length));
+      this.openApp(raw.slice('builtin:'.length), toggle);
       return;
     }
     const installed = this.findInstalledAppByKey(raw);
@@ -2641,7 +2641,7 @@ class TempleOS {
       const taskbarApp = target.closest('.taskbar-app') as HTMLElement;
       if (taskbarApp) {
         if (taskbarApp.dataset.launchKey) {
-          this.launchByKey(taskbarApp.dataset.launchKey);
+          this.launchByKey(taskbarApp.dataset.launchKey, true);
           return;
         }
         if (taskbarApp.dataset.taskbarWindow) {
@@ -4251,10 +4251,24 @@ class TempleOS {
     return base + sep + name;
   }
 
-  private openApp(appId: string) {
-    const existingWindow = this.windows.find(w => w.id.startsWith(appId));
+  private openApp(appId: string, toggle = false) {
+    // Prefer the active window if one exists (to allow toggling minimize)
+    const activeWindow = this.windows.find(w => w.id.startsWith(appId) && w.active);
+    const existingWindow = activeWindow || this.windows.find(w => w.id.startsWith(appId));
+
     if (existingWindow) {
-      this.focusWindow(existingWindow.id);
+      if (toggle) {
+        if (existingWindow.minimized) {
+          existingWindow.minimized = false;
+          this.focusWindow(existingWindow.id);
+        } else if (existingWindow.active) {
+          this.minimizeWindow(existingWindow.id);
+        } else {
+          this.focusWindow(existingWindow.id);
+        }
+      } else {
+        this.focusWindow(existingWindow.id);
+      }
       return;
     }
 
@@ -7326,7 +7340,6 @@ class TempleOS {
 
     return `
       <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
-        <div style="font-size: 48px; margin-bottom: 15px;">⬇️</div>
         <h2 style="margin: 0 0 10px 0; color: #ffd700;">✝ HOLY UPDATER ✝</h2>
         <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
         

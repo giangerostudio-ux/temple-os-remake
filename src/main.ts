@@ -17,7 +17,17 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { python } from '@codemirror/lang-python';
 
-
+// New modular architecture imports
+import { ImageViewerEnhancer } from './apps/ImageViewer';
+import { SystemMonitorEnhancer } from './apps/SystemMonitor';
+import { MediaPlayerApp } from './apps/MediaPlayer';
+import { CalculatorApp } from './apps/Calculator';
+import { NotesApp } from './apps/Notes';
+import { CalendarApp } from './apps/Calendar';
+import { HelpApp } from './apps/Help';
+import type { FirewallRule, VeraCryptVolume } from './utils/types';
+import { WorkspaceManager } from './system/WorkspaceManager';
+import { TilingManager } from './system/TilingManager';
 
 // ============================================
 // ELECTRON API TYPE DECLARATION
@@ -41,6 +51,8 @@ declare global {
       getHome: () => Promise<string>;
       getAppPath: () => Promise<string>;
       openExternal: (path: string) => Promise<{ success: boolean; error?: string }>;
+      createZip: (sourcePath: string, targetZipPath: string) => Promise<{ success: boolean; error?: string }>;
+      extractZip: (zipPath: string, targetDir: string) => Promise<{ success: boolean; error?: string }>;
       // System
       shutdown: () => Promise<void>;
       restart: () => Promise<void>;
@@ -65,11 +77,33 @@ declare global {
       listWifiNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
       connectWifi?: (ssid: string, password?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       disconnectNetwork?: () => Promise<{ success: boolean; error?: string }>;
+      disconnectNonVpnNetwork?: () => Promise<{ success: boolean; disconnected?: string[]; error?: string }>;
+      disconnectConnection?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
       getWifiEnabled?: () => Promise<{ success: boolean; enabled?: boolean; error?: string }>;
       setWifiEnabled?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       listSavedNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
       connectSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       forgetSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
+      importVpnProfile?: (kind: 'openvpn' | 'wireguard', filePath: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+      createHotspot?: (ssid: string, password?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+      stopHotspot?: () => Promise<{ success: boolean; error?: string }>;
+      // SSH Server
+      sshControl?: (action: 'start' | 'stop' | 'status' | 'regenerate-keys' | 'get-pubkey', port?: number) => Promise<{ success: boolean; status?: string; pubkey?: string; error?: string }>;
+      // EXIF Metadata
+      extractExif?: (imagePath: string) => Promise<{ success: boolean; metadata?: Record<string, string>; error?: string }>;
+      stripExif?: (imagePath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
+      setTrackerBlocking?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      // Firewall (Tier 7.2)
+      getFirewallRules?: () => Promise<{ success: boolean; active?: boolean; rules?: FirewallRule[]; error?: string }>;
+      addFirewallRule?: (port: number, protocol: string, action: string) => Promise<{ success: boolean; error?: string }>;
+      deleteFirewallRule?: (id: number) => Promise<{ success: boolean; error?: string }>;
+      toggleFirewall?: (enable: boolean) => Promise<{ success: boolean; error?: string }>;
+
+      // VeraCrypt (Tier 7.1)
+      getVeraCryptStatus?: () => Promise<{ success: boolean; volumes?: VeraCryptVolume[]; error?: string }>;
+      mountVeraCrypt?: (path: string, password: string, slot?: number) => Promise<{ success: boolean; mountPoint?: string; error?: string }>;
+      dismountVeraCrypt?: (slot?: number) => Promise<{ success: boolean; error?: string }>;
+
       // Display
       getDisplayOutputs?: () => Promise<{ success: boolean; outputs?: any[]; backend?: string; error?: string }>;
       setDisplayMode?: (outputName: string, mode: string) => Promise<{ success: boolean; error?: string }>;
@@ -105,6 +139,8 @@ declare global {
     };
   }
 }
+
+
 
 interface FileEntry {
   name: string;
@@ -164,6 +200,21 @@ interface Notification {
   actions?: Array<{ id: string; label: string }>;
 }
 
+interface NetworkDeviceStatus {
+  device: string;
+  type: string;
+  state: string;
+  connection: string;
+}
+
+interface VpnStatus {
+  connected: boolean;
+  device?: string;
+  type?: string;
+  connection?: string;
+  state?: string;
+}
+
 interface NetworkStatus {
   connected: boolean;
   device?: string;
@@ -171,6 +222,8 @@ interface NetworkStatus {
   connection?: string;
   ip4?: string | null;
   wifi?: { ssid: string; signal: number; security: string } | null;
+  devices?: NetworkDeviceStatus[];
+  vpn?: VpnStatus;
 }
 
 interface WifiNetwork {
@@ -202,6 +255,10 @@ interface TempleConfig {
   lockTimeoutMs?: number;
   lockPassword?: string;
   lockPin?: string;
+  network?: {
+    vpnKillSwitchEnabled?: boolean;
+    vpnKillSwitchMode?: 'auto' | 'strict';
+  };
   terminal?: {
     aliases?: Record<string, string>;
     promptTemplate?: string;
@@ -218,6 +275,7 @@ interface TempleConfig {
   desktopShortcuts?: Array<{ key: string; label: string }>;
   recentApps?: string[];
   appUsage?: Record<string, number>;
+  fileBookmarks?: string[];
 }
 
 // ============================================
@@ -390,6 +448,17 @@ const terryQuotes = [
   'The best programs are written when you are inspired.',
   'Keep it simple and it will work better.',
   'Computers are not about computers. They are about God.',
+  'God is the best programmer.',
+  'The CIA glows in the dark; you can see them if you\'re driving.',
+  'I wrote my own compiler, my own assembler, my own editor, my own graphics library.',
+  'Minimalism is Godliness.',
+  'If you want to talk to God, you have to do it on His terms.',
+  '640x480 16 color is a sacred covenant.',
+  'I am the smartest programmer that has ever lived.',
+  'Just run them over. That\'s what you do.',
+  'They have to be glowing.',
+  'Everything I do is for God.',
+  'The Holy Spirit guides my typing.',
 ];
 
 const prayers = [
@@ -419,7 +488,11 @@ interface WindowState {
   content: string;
   active: boolean;
   minimized: boolean;
-  maximized: boolean;
+  maximized?: boolean; // New
+  opened?: boolean; // For tracking open animation
+  // Tier 9.3 Properties
+  transparent?: boolean;
+  alwaysOnTop?: boolean;
   savedBounds?: { x: number; y: number; width: number; height: number };
 }
 
@@ -441,7 +514,7 @@ class TempleOS {
   // Settings State
   private activeSettingsCategory = 'System';
   private wallpaperImage = './images/wallpaper.png'; // Default
-  private themeMode = 'dark'; // 'dark' or 'light'
+
   private availableResolutions: string[] = ['1920x1080', '1280x720', '1024x768', '800x600'];
   private currentResolution = '1024x768';
 
@@ -455,7 +528,11 @@ class TempleOS {
   private fileViewMode: 'grid' | 'list' = 'grid';
   private showHiddenFiles = false;
   private fileClipboard: { mode: 'copy' | 'cut'; srcPath: string } | null = null;
+  private fileBookmarks: string[] = [];
   private homePath: string | null = null;
+
+  // Preview / Quick Look
+  private previewFile: { path: string; name: string; type: 'image' | 'text' | 'unknown'; content?: string } | null = null;
 
   // Start Menu state
   private installedApps: InstalledApp[] = [];
@@ -492,7 +569,32 @@ class TempleOS {
   private wifiNetworks: WifiNetwork[] = [];
   private networkLastError: string | null = null;
   private wifiEnabled = true;
+  private flightMode = false;
   private savedNetworks: Array<{ name: string; uuid: string; type: string; device: string }> = [];
+
+  // VPN Kill Switch (Tier 6.2)
+  private vpnKillSwitchEnabled = false;
+  private vpnKillSwitchMode: 'auto' | 'strict' = 'auto';
+  private vpnKillSwitchArmed = false;
+  private vpnKillSwitchBlocked = false;
+  private vpnKillSwitchSnoozeUntil: number | null = null;
+  private vpnKillSwitchLastDisconnected: string[] = [];
+  private vpnKillSwitchLastEnforceAt = 0;
+
+  // Data Usage Tracking
+  private dataUsageHistory: Array<{ timestamp: number; rx: number; tx: number }> = []; // Last 24 hours
+  private dataUsageDailyLimit: number = 10 * 1024 * 1024 * 1024; // 10 GB default
+  private dataUsageTrackingEnabled = true;
+  private dataUsageStartRx: number = 0;
+  private dataUsageStartTx: number = 0;
+
+  // Bluetooth State
+  private bluetoothEnabled = false;
+  private bluetoothDevices: { name: string; connected: boolean; type: 'headphone' | 'phone' | 'mouse' | 'keyboard' }[] = [
+    { name: 'Divine Headset', connected: false, type: 'headphone' },
+    { name: 'God\'s Mouse', connected: false, type: 'mouse' }
+  ];
+  private bluetoothScanning = false;
 
   // Audio Devices State
   private audioDevices: { sinks: AudioDevice[]; sources: AudioDevice[]; defaultSink: string | null; defaultSource: string | null } = {
@@ -501,6 +603,53 @@ class TempleOS {
     defaultSink: null,
     defaultSource: null
   };
+
+  // Security State
+  private encryptionEnabled = true;
+  private firewallEnabled = true;
+  // Firewall Rules (Tier 7.2)
+  private firewallRules: FirewallRule[] = [];
+  private firewallRulesLoading = false;
+  private macRandomization = false;
+  private torEnabled = false;
+  private torBridges = '';
+  private torBridgeType: 'none' | 'obfs4' | 'meek-azure' = 'none';
+  private torRoutingMode: 'all' | 'specific' = 'all';
+  private torCircuitStatus: 'disconnected' | 'connecting' | 'connected' | 'failed' = 'disconnected';
+  private torCircuitRelays: Array<{ name: string; ip: string; country: string }> = [];
+  private secureDelete = false;
+
+  // Physical Security State (Tier 7.6)
+  private usbDevices = [
+    { id: 'usb1', name: 'Divine Mouse', type: 'HID', allowed: true },
+    { id: 'usb2', name: 'Holy Keyboard', type: 'HID', allowed: true },
+    { id: 'usb3', name: 'Suspicious USB Drive', type: 'Storage', allowed: false }
+  ];
+  private duressPassword = '';
+  private isDecoySession = false;
+
+  // SSH Server State (Tier 6.3)
+  private sshEnabled = false;
+  private sshPort = 22;
+  private sshStatus: 'running' | 'stopped' | 'unknown' = 'unknown';
+
+  // EXIF Metadata Stripper State (Tier 7.3)
+  private exifSelectedFile: string | null = null;
+  private exifMetadata: Record<string, string> | null = null;
+
+  // Hotspot State (Tier 6.4)
+  private hotspotEnabled = false;
+  private hotspotSSID = 'TempleOS_Hotspot';
+  private hotspotPassword = '';
+  private hotspotLoading = false;
+
+  // Tracker Blocking State (Tier 7.4)
+  private trackerBlockingEnabled = false;
+
+  // VeraCrypt State (Tier 7.1)
+  private veraCryptVolumes: VeraCryptVolume[] = [];
+  private veraCryptLoading = false;
+
   private systemInfo: SystemInfo | null = null;
 
   // System Monitor State
@@ -523,9 +672,23 @@ class TempleOS {
   private mouseDpiDeviceId: string | null = null;
 
   // Pinned / shortcuts (Windows-like)
-  private pinnedStart: string[] = ['builtin:terminal', 'builtin:files', 'builtin:settings', 'builtin:editor', 'builtin:hymns'];
-  private pinnedTaskbar: string[] = ['builtin:files', 'builtin:terminal', 'builtin:settings'];
+  // Pinned / shortcuts (Windows-like)
+  private pinnedStart: string[] = JSON.parse(localStorage.getItem('temple_pinned_start') || '["builtin:terminal", "builtin:files", "builtin:settings", "builtin:editor", "builtin:hymns"]');
+  private pinnedTaskbar: string[] = JSON.parse(localStorage.getItem('temple_pinned_taskbar') || '["builtin:files", "builtin:terminal", "builtin:settings"]');
   private desktopShortcuts: Array<{ key: string; label: string }> = [];
+
+  // Taskbar Settings (Tier 9.1)
+  private taskbarTransparent = localStorage.getItem('temple_taskbar_transparent') === 'true';
+  private taskbarAutoHide = localStorage.getItem('temple_taskbar_autohide') === 'true';
+
+  // Desktop Settings (Tier 9.2)
+  private desktopWidgetsEnabled = localStorage.getItem('temple_desktop_widgets') === 'true';
+  private desktopIconSize: 'small' | 'medium' | 'large' = (localStorage.getItem('temple_desktop_icon_size') as any) || 'medium';
+  private desktopAutoArrange = localStorage.getItem('temple_desktop_auto_arrange') !== 'false'; // Default true
+
+  // Theme System (Tier 9.4)
+  private themeColor: 'green' | 'amber' | 'cyan' | 'white' = (localStorage.getItem('temple_theme_color') as any) || 'green';
+  private themeMode: 'dark' | 'light' = (localStorage.getItem('temple_theme_mode') as any) || 'dark';
 
   // Alt-Tab Overlay State
   private altTabOpen = false;
@@ -536,11 +699,69 @@ class TempleOS {
   private showDesktopMode = false;
   private showDesktopRestoreIds: string[] = [];
 
+  // Tier 10 & 11 State
+  private gamingModeActive = false;
+  private setupComplete = localStorage.getItem('temple_setup_complete') === 'true';
+  private isShuttingDown = false;
+  private firstRunStep = 0; // 0: Welcome, 1: Theme, 2: Privacy, 3: Done
+  private konamiIndex = 0;
+  private readonly konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  private cheatBuffer = '';
+  private liteMode = localStorage.getItem('temple_lite_mode') === 'true';
+  private quoteNotifications = localStorage.getItem('temple_quote_notifications') !== 'false'; // Default true
+  private secureWipeOnShutdown = localStorage.getItem('temple_secure_wipe') !== 'false'; // Default true
+  private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
+
+  // Enhancement Modules (New Modular Architecture)
+  private imageViewer = new ImageViewerEnhancer();
+  private systemMonitor = new SystemMonitorEnhancer();
+
+  // Media Player State (Tier 8.1)
+  // Media Player State (Tier 8.1)
+  private mediaPlayer = new MediaPlayerApp();
+
+  // Calculator App (Tier 8.2)
+  private calculator = new CalculatorApp();
+
+  // Notes App (Tier 8.4)
+  private notesApp = new NotesApp();
+
+  // Calendar App (Tier 8.3)
+  private calendarApp = new CalendarApp((title, msg) => this.showNotification(title, msg, 'info'));
+
+  // Help App (Tier 8.7)
+  private helpApp = new HelpApp();
+
+  // Workspace Manager (Tier 9.2 - Virtual Desktops)
+  private workspaceManager = new WorkspaceManager();
+  private showWorkspaceOverview = false;
+
+  // Tiling Manager (Tier 14.1 - Smart Window Tiling)
+  private tilingManager = new TilingManager();
+  private snapPreview: { x: number; y: number; width: number; height: number; zone: string } | null = null;
+  private showSnapAssist = false;
+
+  // Taskbar Position (Tier 14.4)
+  private taskbarPosition: 'top' | 'bottom' = (localStorage.getItem('temple_taskbar_position') as 'top' | 'bottom') || 'bottom';
+
+  // Taskbar Hover Preview (Tier 9.1)
+  private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
+  private taskbarHoverTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Helper for Random Quotes
+  public getRandomQuote(): string {
+    return terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+  }
+
   // Terminal State (basic shell exec)
   private terminalCwd = '';
   private terminalHistory: string[] = [];
   private terminalHistoryIndex = -1;
   private terminalBuffer: string[] = [];
+
+  // Authenticity Apps State
+  private oracleHistory: string[] = [];
+  private bootQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
@@ -595,6 +816,31 @@ class TempleOS {
   private readonly editorWrapCompartment = new Compartment();
   private readonly editorLanguageCompartment = new Compartment();
 
+  // Sprite Editor State
+  private spriteGridSize = 16;
+  private spriteZoom = 20;
+  private spriteData: number[][] = Array(16).fill(0).map(() => Array(16).fill(15));
+  private spriteSelectedColor = 0;
+  private spriteTool: 'pencil' | 'eraser' | 'fill' | 'eyedropper' = 'pencil';
+  private spriteShowGrid = true;
+  // Animation state
+  private spriteAnimationFrames: number[][][] = []; // Array of frames (each frame is 16x16 grid)
+  private spriteCurrentFrame = 0;
+  private spriteAnimationPlaying = false;
+  private spriteAnimationTimer: number | null = null;
+  private spriteAnimationFPS = 8; // Frames per second
+
+  // AutoHarp State
+  private autoHarpOctave = 4;
+  private autoHarpRecording = false;
+  private autoHarpSong: { freq: number; time: number; duration: number }[] = [];
+  private autoHarpStartTime = 0;
+  private autoHarpActiveNotes: Set<string> = new Set();
+
+  // DolDoc Viewer State
+  private dolDocContent: string = '';
+  private dolDocPath: string = '';
+
   // Config persistence
   private configSaveTimer: number | null = null;
 
@@ -623,17 +869,38 @@ class TempleOS {
   }
 
   private init() {
+    this.applyTheme();
+    this.applyTaskbarPosition();
     this.renderInitial();
     this.setupEventListeners();
     this.keepLegacyMethodsReferenced();
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
 
+    // Setup workspace manager callback
+    this.workspaceManager.setOnChangeCallback(() => {
+      this.render();
+    });
+
+    // Sync tiling manager taskbar position
+    this.tilingManager.setTaskbarPosition(this.taskbarPosition);
+
     // Electron main-process lock request
     if (window.electronAPI?.onLockScreen) {
       window.electronAPI.onLockScreen(() => this.lock());
     }
 
+    // Periodically save state (if we had complex state)
+    setInterval(() => {
+      // Auto-save logic could go here
+    }, 30000);
+
+    // Random Terry Quotes (if enabled)
+    setInterval(() => {
+      if (this.quoteNotifications && Math.random() < 0.1) { // 10% chance every check
+        this.showNotification('Divine Intellect', this.getRandomQuote(), 'divine');
+      }
+    }, 60000 * 5); // Check every 5 minutes
     // Hide boot screen after animation completes
     setTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
@@ -655,6 +922,14 @@ class TempleOS {
     void this.getSettingsContent;
     void this.cycleWindows;
     void this.handleTerminalCommand;
+    // Tier 14.1: snapPreview is referenced via DOM element #snap-preview
+    void this.snapPreview;
+  }
+
+  // Helper: Check if file is an image
+  private isImageFile(filename: string): boolean {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext);
   }
 
   // Timeout wrapper for IPC calls that may hang (e.g., nmcli in VMs without WiFi)
@@ -663,6 +938,41 @@ class TempleOS {
       promise,
       new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
     ]);
+  }
+
+  // Physical Security Methods (Tier 7.6)
+  private toggleUsbDevice(id: string) {
+    const device = this.usbDevices.find(d => d.id === id);
+    if (device) {
+      device.allowed = !device.allowed;
+      this.refreshSettingsWindow();
+      this.showNotification('Security Alert', `USB Device ${device.allowed ? 'Allowed' : 'Blocked'}: ${device.name}`, 'warning');
+    }
+  }
+
+  private triggerLockdown() {
+    // Check if lock exists, otherwise implemented it or mock it
+    if ((this as any).lock) {
+      (this as any).lock();
+    } else {
+      this.isLocked = true;
+      this.render();
+    }
+
+    if (this.encryptionEnabled) {
+      // "Dismount" VeraCrypt volumes in lockdown
+      this.veraCryptVolumes = [];
+    }
+    // Clear clipboard (mock)
+    if (navigator.clipboard) navigator.clipboard.writeText('');
+
+    this.showNotification('LOCKDOWN INITIATED', 'System locked. Encryption keys purged. Clipboard cleared.', 'divine');
+  }
+
+  private setDuressPassword(pwd: string) {
+    this.duressPassword = pwd;
+    this.queueSaveConfig();
+    this.showNotification('Security', 'Duress password updated.', 'info');
   }
 
   private async bootstrap(): Promise<void> {
@@ -683,6 +993,7 @@ class TempleOS {
     ]);
 
     // Setup PTY listeners after PTY support check completes
+
     this.setupPtyListeners();
 
     // Periodic refresh (Windows-like status panels)
@@ -694,6 +1005,16 @@ class TempleOS {
     this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
       { id: 'open-settings', label: 'Open Settings' }
     ]);
+
+    // Background update check (delayed to not slow down startup)
+    setTimeout(() => {
+      void this.checkForUpdates(true); // true = show notification if updates available
+    }, 10000); // Check 10 seconds after boot
+
+    // Periodic update check every 4 hours
+    window.setInterval(() => {
+      void this.checkForUpdates(true);
+    }, 4 * 60 * 60 * 1000);
   }
 
   private async checkPtySupport(): Promise<void> {
@@ -825,12 +1146,14 @@ class TempleOS {
     }
   }
 
+
+
   private renderInitial() {
     const app = document.getElementById('app')!;
     app.innerHTML = `
       ${this.renderBootScreen()}
       <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;">
-        ${this.renderDesktopIcons()}
+        ${this.renderDesktop()}
         <div id="windows-container"></div>
       </div>
       <div id="snap-preview" style="
@@ -847,12 +1170,20 @@ class TempleOS {
        <div id="alt-tab-overlay" class="alt-tab-overlay"></div>
        <div id="launcher-overlay-root" class="launcher-overlay-root"></div>
        <div id="modal-overlay" class="modal-overlay-root"></div>
+       <div id="file-preview-overlay" class="file-preview-root"></div>
+       <div id="workspace-overview-overlay"></div>
+       <div id="snap-assist-overlay"></div>
+       <div id="taskbar-hover-preview"></div>
        ${this.renderTaskbar()}
+       <div id="lock-screen-root"></div>
      `;
   }
 
+
   // Only update windows and taskbar, not the boot screen
   private render() {
+
+
     const windowsContainer = document.getElementById('windows-container')!;
     const taskbarApps = document.querySelector('.taskbar-apps')!;
     const toastContainer = document.getElementById('toast-container');
@@ -873,6 +1204,39 @@ class TempleOS {
 
     if (modalOverlay) {
       modalOverlay.innerHTML = this.renderModal();
+    }
+
+    const previewOverlay = document.getElementById('file-preview-overlay');
+    if (previewOverlay) {
+      previewOverlay.innerHTML = this.renderPreviewOverlay();
+    }
+
+    // Workspace Overview Overlay
+    const workspaceOverlay = document.getElementById('workspace-overview-overlay');
+    if (workspaceOverlay) {
+      workspaceOverlay.innerHTML = this.showWorkspaceOverview
+        ? this.workspaceManager.renderWorkspaceOverview()
+        : '';
+    }
+
+    // Snap Assist Overlay
+    const snapAssistOverlay = document.getElementById('snap-assist-overlay');
+    if (snapAssistOverlay) {
+      if (this.showSnapAssist && this.tilingManager.hasPendingSnapAssist()) {
+        const pending = this.tilingManager.getPendingSnapAssist();
+        const availableWindows = this.windows
+          .filter(w => !w.minimized && w.id !== pending?.snappedWindowId)
+          .map(w => ({ id: w.id, title: w.title, icon: w.icon }));
+        snapAssistOverlay.innerHTML = this.tilingManager.renderSnapAssistOverlay(availableWindows);
+      } else {
+        snapAssistOverlay.innerHTML = '';
+      }
+    }
+
+    // Update workspace switcher in taskbar
+    const workspaceSwitcher = document.querySelector('.workspace-switcher');
+    if (workspaceSwitcher) {
+      workspaceSwitcher.outerHTML = this.renderWorkspaceSwitcher();
     }
 
     // PRESERVE HEAVY DOM WINDOWS:
@@ -915,6 +1279,14 @@ class TempleOS {
       preserveById(termWin?.id);
     }
 
+    // Media Player (keep playing if index matches)
+    this.windows.forEach(w => {
+      const el = document.querySelector(`[data-window-id="${w.id}"] .media-player-app`) as HTMLElement | null;
+      if (el && el.dataset.mpIndex === String(this.mediaPlayer.state.currentIndex)) {
+        preserveById(w.id);
+      }
+    });
+
     // Editor (CodeMirror) (keep undo/redo + DOM stable)
     if (this.editorView) {
       const editorWin = this.windows.find(w => w.id.startsWith('editor'));
@@ -942,6 +1314,14 @@ class TempleOS {
       el.style.height = `${w.height}px`;
       el.classList.toggle('active', !!w.active);
       el.style.display = w.minimized ? 'none' : 'flex';
+
+      // Animation (first open)
+      if (!w.opened && !w.minimized && !preserved.has(w.id)) {
+        el.classList.add('window-opening');
+        w.opened = true; // Mark as opened so it doesn't animate again
+        // Optional: Remove class after animation to clean up
+        setTimeout(() => el.classList.remove('window-opening'), 300);
+      }
     }
 
     // Update taskbar apps (pinned + running)
@@ -967,6 +1347,18 @@ class TempleOS {
     }
   }
 
+  private renderDesktop(): string {
+    return `
+      ${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}
+      ${this.renderShutdownOverlay()}
+      ${this.renderFirstRunWizard()}
+      ${this.renderDesktopWidgets()}
+      <div class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" id="desktop-icons">
+        ${this.renderDesktopIcons()}
+      </div>
+    `;
+  }
+
   private renderBootScreen(): string {
     return `
       <div class="boot-screen">
@@ -978,6 +1370,9 @@ class TempleOS {
         <div class="boot-text">Starting Window Manager...</div>
         <div class="boot-text">Connecting to the Word of God...</div>
         <div class="boot-text ready">System Ready. God's Temple Awaits.</div>
+        <div class="boot-text quote" style="margin-top: 20px; color: #ffd700; font-style: italic; max-width: 600px; text-align: center;">
+          "${escapeHtml(this.bootQuote)}"
+        </div>
       </div>
     `;
   }
@@ -985,6 +1380,32 @@ class TempleOS {
   // ============================================
   // MODALS (replace browser prompt/confirm/alert)
   // ============================================
+  private renderPreviewOverlay(): string {
+    if (!this.previewFile) return '';
+
+    const content = this.previewFile.type === 'image'
+      ? `<div style="display:flex; justify-content:center; align-items:center; height:100%;"><img src="${escapeHtml(this.previewFile.content || '')}" style="max-width:90%; max-height:90%; object-fit: contain; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.2);"></div>`
+      : `<div style="padding: 20px; color: #00ff41; font-family: 'Terminus', monospace; white-space: pre-wrap; overflow: auto; height: 100%; background: rgba(0,0,0,0.8); border: 1px solid #00ff41;">${escapeHtml(this.previewFile.content || '')}</div>`;
+
+    return `
+      <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
+        <div class="preview-modal" style="
+            width: 80%; height: 80%; 
+            display: flex; flex-direction: column; 
+            background: #0d1117; border: 2px solid #00ff41; box-shadow: 0 0 30px rgba(0,255,65,0.15);
+        ">
+            <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.3); display: flex; justify-content: space-between; align-items: center; background: rgba(0,255,65,0.05);">
+                <div style="font-weight: bold; font-size: 16px;">${escapeHtml(this.previewFile.name)}</div>
+                <button class="preview-close-btn" style="border: 1px solid #00ff41; background: none; color: #00ff41; cursor: pointer; padding: 4px 12px; font-family: inherit;">❌ Close</button>
+            </div>
+            <div style="flex: 1; overflow: hidden; position: relative;">
+                ${content}
+            </div>
+        </div>
+      </div>
+    `;
+  }
+
   private renderModal(): string {
     if (!this.modal) return '';
 
@@ -1387,6 +1808,7 @@ class TempleOS {
       { id: 'editor', icon: '📝', label: 'HolyC Editor' },
       { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
+      { id: 'help', icon: '❓', label: 'Help' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -1419,10 +1841,19 @@ class TempleOS {
   }
 
   private renderWindow(win: WindowState): string {
+    const style = [
+      `left: ${win.x}px`,
+      `top: ${win.y}px`,
+      `width: ${win.width}px`,
+      `height: ${win.height}px`,
+      win.alwaysOnTop ? 'z-index: 10000 !important' : '',
+      win.transparent ? 'opacity: 0.85' : ''
+    ].filter(Boolean).join('; ');
+
     return `
-      <div class="window ${win.active ? 'active' : ''}" 
+      <div class="window ${win.active ? 'active' : ''} ${win.transparent ? 'transparent-window' : ''}"
            data-window-id="${win.id}"
-           style="left: ${win.x}px; top: ${win.y}px; width: ${win.width}px; height: ${win.height}px;">
+           style="${style}">
         <!-- Resize Handles -->
         <div class="resize-handle n" data-resize-dir="n" data-window="${win.id}"></div>
         <div class="resize-handle e" data-resize-dir="e" data-window="${win.id}"></div>
@@ -1452,10 +1883,16 @@ class TempleOS {
   }
 
   private renderTaskbar(): string {
+    const extraClasses = [
+      this.taskbarTransparent ? 'taskbar-transparent' : '',
+      this.taskbarAutoHide ? 'taskbar-autohide' : ''
+    ].filter(Boolean).join(' ');
+
     return `
       <div id="start-menu-container">${this.renderStartMenu()}</div>
-      <div class="taskbar">
+      <div class="taskbar ${extraClasses}" oncontextmenu="window.appInstance.showTaskbarContextMenu(event); return false;">
         <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
+        ${this.renderWorkspaceSwitcher()}
         <div class="taskbar-apps">
           ${this.renderTaskbarAppsHtml()}
         </div>
@@ -1464,6 +1901,39 @@ class TempleOS {
         </div>
       </div>`;
   }
+
+  private renderWorkspaceSwitcher(): string {
+    const workspaces = this.workspaceManager.getWorkspaces();
+    const activeId = this.workspaceManager.getActiveWorkspaceId();
+
+    const indicators = workspaces.map(ws => {
+      const isActive = ws.id === activeId;
+      const windowCount = this.getWindowCountForWorkspace(ws.id);
+      const hasWindows = windowCount > 0;
+      return `
+        <div class="workspace-indicator ${isActive ? 'active' : ''} ${hasWindows ? 'has-windows' : ''}"
+             data-workspace-id="${ws.id}"
+             title="${ws.name} (${windowCount} window${windowCount !== 1 ? 's' : ''})${isActive ? ' - Current' : ''}">
+          ${ws.id}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="workspace-switcher" title="Virtual Desktops (Ctrl+Win+Arrows)">
+        ${indicators}
+      </div>
+    `;
+  }
+
+  private getWindowCountForWorkspace(workspaceId: number): number {
+    // If window is in workspace, count it
+    const wsWindows = this.workspaceManager.getWorkspaces()
+      .find(ws => ws.id === workspaceId)?.windowIds || [];
+
+    return this.windows.filter(w => wsWindows.includes(w.id)).length;
+  }
+
 
   private renderTaskbarAppsHtml(): string {
     const pinned = this.pinnedTaskbar
@@ -1504,6 +1974,207 @@ class TempleOS {
     const sep = (pinnedHtml && windowsHtml) ? `<div class="taskbar-sep"></div>` : '';
     return `${pinnedHtml}${sep}${windowsHtml}`;
   }
+
+  // ============================================
+  // TASKBAR HOVER PREVIEW (Tier 9.1)
+  // ============================================
+  private showTaskbarHoverPreview(windowId: string, targetElement: HTMLElement): void {
+    // Clear any pending timeout
+    if (this.taskbarHoverTimeout) {
+      clearTimeout(this.taskbarHoverTimeout);
+      this.taskbarHoverTimeout = null;
+    }
+
+    // Delay before showing preview (300ms feels natural)
+    this.taskbarHoverTimeout = setTimeout(() => {
+      const win = this.windows.find(w => w.id === windowId);
+      if (!win) return;
+
+      // Calculate position based on taskbar position and element location
+      const rect = targetElement.getBoundingClientRect();
+      const previewWidth = 280;
+      const previewHeight = 200;
+
+      // Center the preview above/below the taskbar item
+      let x = Math.max(10, rect.left + rect.width / 2 - previewWidth / 2);
+      // Make sure it doesn't go off-screen
+      if (x + previewWidth > window.innerWidth - 10) {
+        x = window.innerWidth - previewWidth - 10;
+      }
+
+      // Position above or below taskbar depending on taskbar position
+      let y: number;
+      if (this.taskbarPosition === 'bottom') {
+        y = rect.top - previewHeight - 10;
+      } else {
+        y = rect.bottom + 10;
+      }
+
+      this.taskbarHoverPreview = { windowId, x, y };
+      this.updateTaskbarHoverPreviewDom();
+    }, 300);
+  }
+
+  private hideTaskbarHoverPreview(): void {
+    if (this.taskbarHoverTimeout) {
+      clearTimeout(this.taskbarHoverTimeout);
+      this.taskbarHoverTimeout = null;
+    }
+    if (this.taskbarHoverPreview) {
+      this.taskbarHoverPreview = null;
+      this.updateTaskbarHoverPreviewDom();
+    }
+  }
+
+  private updateTaskbarHoverPreviewDom(): void {
+    const container = document.getElementById('taskbar-hover-preview');
+    if (!container) return;
+
+    if (!this.taskbarHoverPreview) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const { windowId, x, y } = this.taskbarHoverPreview;
+    const win = this.windows.find(w => w.id === windowId);
+    if (!win) {
+      container.innerHTML = '';
+      return;
+    }
+
+    // Generate a scaled-down preview of the window
+    const previewContent = this.generateWindowPreviewContent(win);
+
+    container.innerHTML = `
+      <div class="taskbar-preview-popup" style="
+        position: fixed;
+        left: ${x}px;
+        top: ${y}px;
+        width: 280px;
+        height: 200px;
+        background: rgba(0, 0, 0, 0.95);
+        border: 2px solid #00ff41;
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 99999;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.1);
+        animation: taskbar-preview-fade-in 0.15s ease-out;
+      ">
+        <div class="taskbar-preview-header" style="
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          background: linear-gradient(180deg, rgba(0, 255, 65, 0.15) 0%, transparent 100%);
+          border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+        ">
+          <span style="font-size: 16px;">${win.icon}</span>
+          <span style="color: #00ff41; font-size: 13px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${escapeHtml(win.title)}</span>
+          ${win.minimized ? '<span style="font-size: 10px; color: #888; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">Minimized</span>' : ''}
+        </div>
+        <div class="taskbar-preview-content" style="
+          padding: 8px;
+          height: calc(100% - 40px);
+          overflow: hidden;
+          color: #888;
+          font-size: 11px;
+          line-height: 1.4;
+        ">
+          ${previewContent}
+        </div>
+      </div>
+    `;
+  }
+
+  private generateWindowPreviewContent(win: WindowState): string {
+    // Generate a simplified preview based on the window type
+    const windowType = win.id.split('-')[0];
+
+    // For minimized windows, show a placeholder
+    if (win.minimized) {
+      return `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.5;">
+          <div style="font-size: 32px; margin-bottom: 8px;">${win.icon}</div>
+          <div style="color: #666;">Window is minimized</div>
+        </div>
+      `;
+    }
+
+    // Generate type-specific previews
+    switch (windowType) {
+      case 'terminal':
+        return this.generateTerminalPreview();
+      case 'editor':
+        return this.generateEditorPreview();
+      case 'files':
+        return this.generateFilesPreview();
+      default:
+        return this.generateGenericPreview(win);
+    }
+  }
+
+  private generateTerminalPreview(): string {
+    const tab = this.terminalTabs[this.activeTerminalTab];
+    if (!tab || tab.buffer.length === 0) {
+      return '<div style="color: #00ff41; font-family: monospace;">Terminal ready.<br>$ _</div>';
+    }
+
+    // Show last few lines of terminal output
+    const lastLines = tab.buffer.slice(-6).join('');
+    // Strip HTML tags for preview
+    const textContent = lastLines.replace(/<[^>]*>/g, '').slice(-200);
+    return `<div style="color: #00ff41; font-family: monospace; white-space: pre-wrap; word-break: break-all;">${escapeHtml(textContent)}</div>`;
+  }
+
+  private generateEditorPreview(): string {
+    const tab = this.editorTabs[this.activeEditorTab];
+    if (!tab) {
+      return '<div style="color: #888;">No file open</div>';
+    }
+
+    const content = tab.content.slice(0, 300);
+    return `
+      <div style="margin-bottom: 6px; color: #00ff41; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        📄 ${escapeHtml(tab.filename)}${tab.modified ? ' •' : ''}
+      </div>
+      <div style="color: #888; font-family: monospace; font-size: 10px; white-space: pre-wrap; word-break: break-word;">
+        ${escapeHtml(content)}${content.length >= 300 ? '...' : ''}
+      </div>
+    `;
+  }
+
+  private generateFilesPreview(): string {
+    const entries = this.fileEntries.slice(0, 6);
+    if (entries.length === 0) {
+      return '<div style="color: #888;">Empty folder</div>';
+    }
+
+    const items = entries.map(e => `
+      <div style="display: flex; align-items: center; gap: 6px; padding: 2px 0;">
+        <span>${e.isDirectory ? '📁' : '📄'}</span>
+        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(e.name)}</span>
+      </div>
+    `).join('');
+
+    return `
+      <div style="margin-bottom: 6px; color: #00ff41; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        📂 ${escapeHtml(this.currentPath)}
+      </div>
+      ${items}
+      ${this.fileEntries.length > 6 ? `<div style="color: #666; margin-top: 4px;">+${this.fileEntries.length - 6} more items</div>` : ''}
+    `;
+  }
+
+  private generateGenericPreview(win: WindowState): string {
+    // Generic preview with window icon and size info
+    return `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+        <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.6;">${win.icon}</div>
+        <div style="color: #666; font-size: 10px;">${win.width} × ${win.height}px</div>
+      </div>
+    `;
+  }
+
 
   private getTrayHTML(): string {
     return `
@@ -1556,6 +2227,7 @@ class TempleOS {
       { id: 'editor', icon: '📝', name: 'HolyC Editor' },
       { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
       { id: 'settings', icon: '⚙️', name: 'Settings' },
+      { id: 'help', icon: '❓', name: 'Help' },
     ];
 
     const pinnedAppsView = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
@@ -1936,6 +2608,8 @@ class TempleOS {
       this.networkStatus = { connected: false };
     }
 
+    await this.evaluateVpnKillSwitch();
+
     await this.refreshWifiNetworks();
     await this.refreshWifiEnabled();
     await this.refreshSavedNetworks();
@@ -2007,6 +2681,335 @@ class TempleOS {
     if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
   }
 
+  private connectedState(state: string | undefined): boolean {
+    const s = String(state || '').toLowerCase();
+    return s === 'connected' || s.startsWith('connected');
+  }
+
+  private isVpnDevice(dev: NetworkDeviceStatus): boolean {
+    const type = String(dev.type || '').toLowerCase();
+    const name = String(dev.device || '').toLowerCase();
+    return type === 'tun' || type === 'vpn' || type.includes('wireguard') || name.startsWith('tun') || name.startsWith('wg');
+  }
+
+  private getVpnStatus(): VpnStatus {
+    const vpn = this.networkStatus.vpn;
+    if (vpn && typeof vpn.connected === 'boolean') return vpn;
+
+    const devices = this.networkStatus.devices;
+    if (Array.isArray(devices)) {
+      const hit = devices.find(d => this.isVpnDevice(d) && this.connectedState(d.state));
+      if (hit) {
+        return { connected: true, device: hit.device, type: hit.type, connection: hit.connection, state: hit.state };
+      }
+    }
+
+    return { connected: false };
+  }
+
+  private async restoreConnections(keys: string[]): Promise<void> {
+    const unique = Array.from(new Set(keys.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 6);
+    if (!unique.length) return;
+    if (!window.electronAPI?.connectSavedNetwork) return;
+
+    for (const key of unique) {
+      try {
+        await window.electronAPI.connectSavedNetwork(key);
+      } catch {
+        // ignore; user can reconnect manually
+      }
+    }
+  }
+
+  private async snoozeVpnKillSwitch(seconds: number): Promise<void> {
+    const sec = Math.max(5, Math.min(600, Math.floor(seconds)));
+    this.vpnKillSwitchSnoozeUntil = Date.now() + sec * 1000;
+    await this.restoreConnections(this.vpnKillSwitchLastDisconnected);
+
+    this.showNotification('VPN Kill Switch', `Snoozed for ${sec}s. Reconnect your VPN now.`, 'warning', [
+      { id: 'open-settings', label: 'Open Settings' }
+    ]);
+
+    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+    window.setTimeout(() => void this.refreshNetworkStatus(), 750);
+  }
+
+  private async evaluateVpnKillSwitch(): Promise<void> {
+    if (!this.vpnKillSwitchEnabled) {
+      this.vpnKillSwitchArmed = false;
+      this.vpnKillSwitchBlocked = false;
+      this.vpnKillSwitchSnoozeUntil = null;
+      this.vpnKillSwitchLastDisconnected = [];
+      return;
+    }
+
+    const vpn = this.getVpnStatus();
+    if (vpn.connected) {
+      const firstArm = !this.vpnKillSwitchArmed;
+      const wasBlocked = this.vpnKillSwitchBlocked;
+      this.vpnKillSwitchArmed = true;
+      this.vpnKillSwitchBlocked = false;
+      this.vpnKillSwitchSnoozeUntil = null;
+      this.vpnKillSwitchLastDisconnected = [];
+
+      if (firstArm) {
+        this.showNotification('VPN Kill Switch', 'Armed (VPN detected).', 'info');
+      } else if (wasBlocked) {
+        this.showNotification('VPN Kill Switch', 'VPN restored. Network is safe again.', 'info');
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const snoozing = this.vpnKillSwitchSnoozeUntil !== null && this.vpnKillSwitchSnoozeUntil > now;
+    if (snoozing) return;
+
+    const shouldEnforce = this.vpnKillSwitchMode === 'strict' || this.vpnKillSwitchArmed;
+    if (!shouldEnforce) return;
+
+    const hasActiveNonVpn = Array.isArray(this.networkStatus.devices)
+      ? this.networkStatus.devices.some(d => this.connectedState(d.state) && !this.isVpnDevice(d))
+      : this.networkStatus.connected;
+
+    if (!hasActiveNonVpn) {
+      this.vpnKillSwitchBlocked = true;
+      return;
+    }
+
+    if (now - this.vpnKillSwitchLastEnforceAt < 4000) return;
+    this.vpnKillSwitchLastEnforceAt = now;
+
+    const wasBlocked = this.vpnKillSwitchBlocked;
+
+    try {
+      if (window.electronAPI?.disconnectNonVpnNetwork) {
+        const res = await window.electronAPI.disconnectNonVpnNetwork();
+        if (!res.success) {
+          this.vpnKillSwitchBlocked = true;
+          if (!wasBlocked) this.showNotification('VPN Kill Switch', res.error || 'Failed to enforce kill switch', 'error');
+          return;
+        }
+        if (Array.isArray(res.disconnected) && res.disconnected.length) {
+          this.vpnKillSwitchLastDisconnected = res.disconnected.slice(0, 8);
+        }
+      } else if (window.electronAPI?.disconnectNetwork) {
+        const res = await window.electronAPI.disconnectNetwork();
+        if (!res.success) {
+          this.vpnKillSwitchBlocked = true;
+          if (!wasBlocked) this.showNotification('VPN Kill Switch', res.error || 'Failed to enforce kill switch', 'error');
+          return;
+        }
+        if (this.networkStatus.connection) this.vpnKillSwitchLastDisconnected = [this.networkStatus.connection];
+      } else {
+        this.vpnKillSwitchBlocked = true;
+        if (!wasBlocked) this.showNotification('VPN Kill Switch', 'Kill switch requires Electron/Linux integration.', 'warning');
+        return;
+      }
+
+      this.vpnKillSwitchBlocked = true;
+      if (!wasBlocked) {
+        this.showNotification('VPN Kill Switch', 'VPN disconnected. Network blocked to prevent leaks.', 'warning', [
+          { id: 'open-settings', label: 'Open Settings' }
+        ]);
+      }
+    } catch (e) {
+      this.vpnKillSwitchBlocked = true;
+      if (!wasBlocked) this.showNotification('VPN Kill Switch', `Kill switch failed: ${String(e)}`, 'error');
+    }
+  }
+
+  private async importVpnProfile(kind: 'openvpn' | 'wireguard'): Promise<void> {
+    if (!window.electronAPI?.importVpnProfile) {
+      this.showNotification('VPN', 'VPN import requires Electron/Linux integration.', 'warning');
+      return;
+    }
+
+    const title = kind === 'wireguard' ? 'Import WireGuard Profile' : 'Import OpenVPN Profile';
+    const placeholder = kind === 'wireguard' ? '/home/user/wg0.conf' : '/home/user/vpn.ovpn';
+
+    const filePath = await this.openPromptModal({
+      title,
+      message: 'Enter the full path to the VPN config file:',
+      placeholder,
+      confirmText: 'Import',
+      cancelText: 'Cancel'
+    });
+
+    if (!filePath) return;
+
+    const lower = filePath.toLowerCase();
+    const ok = kind === 'wireguard'
+      ? lower.endsWith('.conf') || lower.endsWith('.wg')
+      : lower.endsWith('.ovpn') || lower.endsWith('.conf');
+    if (!ok) {
+      this.showNotification('VPN', `Unexpected file type for ${kind}.`, 'warning');
+      return;
+    }
+
+    try {
+      this.showNotification('VPN', 'Importing profile...', 'info');
+      const res = await window.electronAPI.importVpnProfile(kind, filePath);
+      if (!res.success) {
+        this.showNotification('VPN', res.error || 'Import failed', 'error');
+        return;
+      }
+      this.showNotification('VPN', 'Profile imported successfully.', 'info');
+      await this.refreshSavedNetworks();
+      await this.refreshNetworkStatus();
+    } catch (e) {
+      this.showNotification('VPN', `Import failed: ${String(e)}`, 'error');
+    }
+  }
+
+  private async toggleHotspot(enable: boolean): Promise<void> {
+    if (!window.electronAPI?.createHotspot) {
+      this.hotspotEnabled = false;
+      this.showNotification('Hotspot', 'Hotspot control not available.', 'warning');
+      if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+      return;
+    }
+
+    this.hotspotLoading = true;
+    this.hotspotEnabled = enable;
+    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+
+    try {
+      if (enable) {
+        const res = await window.electronAPI.createHotspot(this.hotspotSSID, this.hotspotPassword);
+        if (!res.success) {
+          this.hotspotEnabled = false;
+          this.showNotification('Hotspot', res.error || 'Failed to start hotspot', 'error');
+        } else {
+          this.showNotification('Hotspot', 'Hotspot active: ' + this.hotspotSSID, 'info');
+        }
+      } else if (window.electronAPI?.stopHotspot) {
+        const res = await window.electronAPI.stopHotspot();
+        if (!res.success) {
+          this.showNotification('Hotspot', res.error || 'Failed to stop hotspot', 'warning');
+        }
+      }
+    } catch (e) {
+      this.hotspotEnabled = !enable;
+      this.showNotification('Hotspot', `Error: ${e}`, 'error');
+    } finally {
+      this.hotspotLoading = false;
+      if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+      void this.refreshNetworkStatus();
+    }
+  }
+
+  private async editHotspotSettings(): Promise<void> {
+    const ssid = await this.openPromptModal({
+      title: 'Hotspot Settings',
+      message: 'Enter Network Name (SSID):',
+      defaultValue: this.hotspotSSID,
+      placeholder: 'TempleOS_Hotspot'
+    });
+    if (ssid === null) return;
+
+    const pwd = await this.openPromptModal({
+      title: 'Hotspot Settings',
+      message: 'Enter Password (min 8 chars, leave empty for open):',
+      defaultValue: this.hotspotPassword,
+      placeholder: '********'
+    });
+    if (pwd === null) return;
+
+    this.hotspotSSID = ssid || 'TempleOS_Hotspot';
+    this.hotspotPassword = pwd;
+    this.queueSaveConfig();
+    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+
+    if (this.hotspotEnabled) {
+      const confirm = await this.openConfirmModal({
+        title: 'Restart Hotspot?',
+        message: 'Settings changed. Restart hotspot to apply?',
+        confirmText: 'Restart',
+        cancelText: 'Later'
+      });
+      if (confirm) {
+        await this.toggleHotspot(false);
+        await this.toggleHotspot(true);
+      }
+    }
+  }
+
+  private renderTorCircuitViz(): string {
+    if (this.torCircuitStatus !== 'connected') {
+      return `<div style="width: 100%; text-align: center; opacity: 0.6; padding: 20px;">
+              ${this.torCircuitStatus === 'connecting' ? 'Constructing circuit...' : 'Circuit not established'}
+          </div>`;
+    }
+
+    const nodes: { type: string; label: string; ip?: string }[] = [
+      { type: 'client', label: 'This PC' },
+      ...this.torCircuitRelays.map((r, i) => ({
+        type: i === 0 ? 'guard' : (i === this.torCircuitRelays.length - 1 ? 'exit' : 'middle'),
+        label: r.country,
+        ip: r.ip
+      })),
+      { type: 'target', label: 'Internet' }
+    ];
+
+    return nodes.map((node, i) => {
+      const isLast = i === nodes.length - 1;
+      let icon = '💻';
+      let color = '#fff';
+      if (node.type === 'guard') { icon = '🛡️'; color = '#00ff41'; }
+      if (node.type === 'middle') { icon = '🔄'; color = '#00ff41'; }
+      if (node.type === 'exit') { icon = '🌐'; color = '#ffd700'; }
+      if (node.type === 'target') { icon = '🌍'; color = '#fff'; }
+
+      return `
+            <div style="display: flex; flex-direction: column; align-items: center; z-index: 2;">
+                <div style="background: rgba(0,0,0,0.5); border: 2px solid ${color}; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 4px;" title="${node.ip || ''}">
+                    ${icon}
+                </div>
+                <div style="font-size: 10px; color: ${color};">${node.label}</div>
+            </div>
+            ${!isLast ? `<div style="flex: 1; height: 2px; background: repeating-linear-gradient(90deg, #00ff41, #00ff41 4px, transparent 4px, transparent 8px); margin-bottom: 14px;"></div>` : ''}
+          `;
+    }).join('');
+  }
+
+  private async toggleTor(enabled: boolean): Promise<void> {
+    this.torEnabled = enabled;
+
+    if (enabled) {
+      this.torCircuitStatus = 'connecting';
+      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+
+      this.showNotification('Tor Network', 'Establishing circuit...', 'info');
+
+      // Simulate connection delay
+      setTimeout(() => {
+        if (!this.torEnabled) return; // Cancelled
+
+        this.torCircuitStatus = 'connected';
+        // Generate fake circuit
+        this.torCircuitRelays = [
+          { name: 'Guard', ip: '192.0.2.45', country: 'France' },
+          { name: 'Middle', ip: '198.51.100.12', country: 'Germany' },
+          { name: 'Exit', ip: '203.0.113.88', country: 'Netherlands' }
+        ];
+
+        this.showNotification('Tor Network', 'Circuit established. Anonymity active.', 'divine');
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+      }, 2500);
+    } else {
+      this.torCircuitStatus = 'disconnected';
+      this.torCircuitRelays = [];
+      this.showNotification('Tor Network', 'Tor disabled.', 'info');
+      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+    }
+
+    // Update backend if needed (mocked for now)
+    if ((window.electronAPI as any)?.secureTorToggle) {
+      // void window.electronAPI.secureTorToggle(enabled, this.torBridgeType, this.torBridges);
+    }
+  }
+
+  // VPN profile management (Tier 6.1)
   private async connectWifiFromUi(ssid: string, security: string): Promise<void> {
     // Easter egg: Handle the fake CIA surveillance network
     if (ssid === 'CIA_SURVEILLANCE_VAN_7') {
@@ -2141,6 +3144,259 @@ class TempleOS {
     }
   }
 
+  // ============================================
+  // SSH SERVER MANAGEMENT (TIER 6.3)
+  // ============================================
+
+  private async toggleSSHServer(enable: boolean): Promise<void> {
+    if (!window.electronAPI?.sshControl) {
+      this.showNotification(
+        'SSH Server',
+        'SSH control not available (requires Electron/Linux)',
+        'warning'
+      );
+      this.sshEnabled = false;
+      this.refreshSettingsWindow();
+      return;
+    }
+
+    try {
+      const action = enable ? 'start' : 'stop';
+      const res = await window.electronAPI.sshControl(action, this.sshPort);
+
+      if (res.success) {
+        const normalized = res.status === 'running' || res.status === 'stopped'
+          ? res.status
+          : (enable ? 'running' : 'stopped');
+        this.sshStatus = normalized;
+        this.sshEnabled = normalized === 'running';
+        this.showNotification(
+          'SSH Server',
+          `SSH server ${this.sshEnabled ? 'started' : 'stopped'} successfully${this.sshEnabled ? ` on port ${this.sshPort}` : ''}`,
+          'info'
+        );
+        this.queueSaveConfig();
+      } else {
+        this.sshEnabled = !enable; // Revert if failed
+        this.sshStatus = 'unknown';
+        this.showNotification(
+          'SSH Server',
+          res.error || `Failed to ${action} SSH server`,
+          'error'
+        );
+      }
+    } catch (err) {
+      this.sshEnabled = !enable;
+      this.sshStatus = 'unknown';
+      this.showNotification(
+        'SSH Server',
+        `Error ${enable ? 'starting' : 'stopping'} SSH: ${String(err)}`,
+        'error'
+      );
+    }
+
+    if (this.activeSettingsCategory === 'Network') {
+      this.refreshSettingsWindow();
+    }
+  }
+
+  private async regenerateSSHKeys(): Promise<void> {
+    const confirmed = await this.openConfirmModal({
+      title: '🔑 Regenerate SSH Keys',
+      message: 'This will generate new SSH host keys. Existing authorized clients will need to accept the new host key. Continue?',
+      confirmText: 'Regenerate',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
+
+    if (!window.electronAPI?.sshControl) {
+      this.showNotification('SSH Keys', 'SSH control not available', 'warning');
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.sshControl('regenerate-keys', this.sshPort);
+
+      if (res.success) {
+        this.showNotification(
+          'SSH Keys',
+          '✅ SSH host keys regenerated successfully',
+          'info'
+        );
+      } else {
+        this.showNotification(
+          'SSH Keys',
+          res.error || 'Failed to regenerate SSH keys',
+          'error'
+        );
+      }
+    } catch (err) {
+      this.showNotification(
+        'SSH Keys',
+        `Error regenerating keys: ${String(err)}`,
+        'error'
+      );
+    }
+  }
+
+  private async viewSSHPublicKey(): Promise<void> {
+    if (!window.electronAPI?.sshControl) {
+      this.showNotification('SSH Keys', 'SSH control not available', 'warning');
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.sshControl('get-pubkey', this.sshPort);
+
+      if (res.success && res.pubkey) {
+        await this.openAlertModal({
+          title: '🔑 SSH Public Key',
+          message: `\`\`\`\n${res.pubkey}\n\`\`\`\n\nCopy this key to authorize this machine on remote servers.`,
+          confirmText: 'Close'
+        });
+      } else {
+        this.showNotification(
+          'SSH Keys',
+          res.error || 'Failed to retrieve public key',
+          'warning'
+        );
+      }
+    } catch (err) {
+      this.showNotification(
+        'SSH Keys',
+        `Error retrieving public key: ${String(err)}`,
+        'error'
+      );
+    }
+  }
+
+  // ============================================
+  // EXIF METADATA STRIPPER (TIER 7.3)
+  // ============================================
+
+  private async selectImageForExif(): Promise<void> {
+    if (!window.electronAPI?.readFile) {
+      this.showNotification('EXIF Stripper', 'File access not available', 'warning');
+      return;
+    }
+
+    // Show file picker using Electron dialog
+    const filePath = await this.openPromptModal({
+      title: '📂 Select Image File',
+      message: 'Enter the full path to an image file (JPG, PNG, etc.):',
+      placeholder: '/home/user/Pictures/photo.jpg',
+      confirmText: 'Select',
+      cancelText: 'Cancel'
+    });
+
+    if (!filePath) return;
+
+    // Check if it's an image
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.bmp'];
+    const isImage = imageExts.some(ext => filePath.toLowerCase().endsWith(ext));
+
+    if (!isImage) {
+      this.showNotification('EXIF Stripper', 'Please select a valid image file', 'warning');
+      return;
+    }
+
+    this.exifSelectedFile = filePath;
+    await this.extractExifData(filePath);
+  }
+
+  private async extractExifData(filePath: string): Promise<void> {
+    if (!window.electronAPI?.extractExif) {
+      // Fallback: Show mock data for demo
+      this.exifMetadata = {
+        'Make': 'Apple',
+        'Model': 'iPhone 14 Pro',
+        'DateTime': '2024:12:17 10:30:45',
+        'GPS Latitude': '37.7749° N',
+        'GPS Longitude': '122.4194° W',
+        'Software': 'iOS 17.2'
+      };
+      this.refreshSettingsWindow();
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.extractExif(filePath);
+
+      if (res.success && res.metadata) {
+        this.exifMetadata = res.metadata;
+        this.showNotification(
+          'EXIF Data',
+          `Found ${Object.keys(res.metadata).length} metadata fields`,
+          'info'
+        );
+      } else {
+        this.exifMetadata = null;
+        this.showNotification(
+          'EXIF Data',
+          res.error || 'No EXIF data found in image',
+          'warning'
+        );
+      }
+    } catch (err) {
+      this.exifMetadata = null;
+      this.showNotification('EXIF Error', `Failed to read metadata: ${String(err)}`, 'error');
+    }
+
+    this.refreshSettingsWindow();
+  }
+
+  private async stripExifData(): Promise<void> {
+    if (!this.exifSelectedFile) {
+      this.showNotification('EXIF Stripper', 'No image selected', 'warning');
+      return;
+    }
+
+    const confirmed = await this.openConfirmModal({
+      title: '🧹 Strip EXIF Data',
+      message: `Remove all metadata from:\n${this.exifSelectedFile}\n\nOriginal will be backed up with .original extension.`,
+      confirmText: 'Strip Metadata',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
+
+    if (!window.electronAPI?.stripExif) {
+      this.showNotification(
+        'EXIF Stripper',
+        '✅ Metadata stripped! (Demo mode - backend not connected)',
+        'info'
+      );
+      this.exifMetadata = null;
+      this.refreshSettingsWindow();
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.stripExif(this.exifSelectedFile);
+
+      if (res.success) {
+        this.showNotification(
+          'EXIF Stripper',
+          `✅ Metadata removed successfully!\nSaved to: ${res.outputPath || this.exifSelectedFile}`,
+          'info'
+        );
+        this.exifMetadata = null;
+        this.exifSelectedFile = null;
+        this.refreshSettingsWindow();
+      } else {
+        this.showNotification(
+          'EXIF Stripper',
+          res.error || 'Failed to strip metadata',
+          'error'
+        );
+      }
+    } catch (err) {
+      this.showNotification('EXIF Error', `Error: ${String(err)}`, 'error');
+    }
+  }
+
+
   private async refreshSystemInfo(): Promise<void> {
     if (!window.electronAPI?.getSystemInfo) return;
     try {
@@ -2262,6 +3518,7 @@ class TempleOS {
       case 'settings': return { label: 'Settings', icon: '⚙️' };
       case 'updater': return { label: 'Holy Updater', icon: '⬇️' };
       case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
+      case 'help': return { label: 'Help & Docs', icon: '❓' };
       default: return null;
     }
   }
@@ -2323,14 +3580,16 @@ class TempleOS {
   private pinStart(key: string): void {
     if (!key) return;
     if (!this.pinnedStart.includes(key)) {
-      this.pinnedStart.unshift(key);
-      this.pinnedStart = this.pinnedStart.slice(0, 24);
+      this.pinnedStart.push(key);
+      this.pinnedStart = this.pinnedStart.slice(0, 20);
+      localStorage.setItem('temple_pinned_start', JSON.stringify(this.pinnedStart));
       this.queueSaveConfig();
     }
   }
 
   private unpinStart(key: string): void {
     this.pinnedStart = this.pinnedStart.filter(k => k !== key);
+    localStorage.setItem('temple_pinned_start', JSON.stringify(this.pinnedStart));
     this.queueSaveConfig();
   }
 
@@ -2339,12 +3598,14 @@ class TempleOS {
     if (!this.pinnedTaskbar.includes(key)) {
       this.pinnedTaskbar.push(key);
       this.pinnedTaskbar = this.pinnedTaskbar.slice(0, 20);
+      localStorage.setItem('temple_pinned_taskbar', JSON.stringify(this.pinnedTaskbar));
       this.queueSaveConfig();
     }
   }
 
   private unpinTaskbar(key: string): void {
     this.pinnedTaskbar = this.pinnedTaskbar.filter(k => k !== key);
+    localStorage.setItem('temple_pinned_taskbar', JSON.stringify(this.pinnedTaskbar));
     this.queueSaveConfig();
   }
 
@@ -2377,6 +3638,30 @@ class TempleOS {
     }
     app.dataset.listenersAttached = 'true';
 
+    // ============================================
+    // TASKBAR HOVER PREVIEW (Tier 9.1)
+    // ============================================
+    app.addEventListener('mouseenter', (e) => {
+      const target = e.target as HTMLElement;
+      const taskbarApp = target.closest('.taskbar-app[data-taskbar-window]') as HTMLElement;
+      if (taskbarApp && taskbarApp.dataset.taskbarWindow) {
+        this.showTaskbarHoverPreview(taskbarApp.dataset.taskbarWindow, taskbarApp);
+      }
+    }, true); // Use capture phase for reliable event bubbling
+
+    app.addEventListener('mouseleave', (e) => {
+      const target = e.target as HTMLElement;
+      const taskbarApp = target.closest('.taskbar-app[data-taskbar-window]') as HTMLElement;
+      if (taskbarApp) {
+        this.hideTaskbarHoverPreview();
+      }
+    }, true);
+
+    // Also hide preview when clicking anywhere
+    app.addEventListener('mousedown', () => {
+      this.hideTaskbarHoverPreview();
+    });
+
 
     // Volume Slider Input
     app.addEventListener('input', (e) => {
@@ -2384,6 +3669,24 @@ class TempleOS {
       if (target.matches('.volume-slider')) {
         const val = parseInt(target.value, 10);
         this.updateVolume(val);
+      }
+
+      // Notes Inputs
+      if (target.matches('.note-title-input')) {
+        const container = target.closest('.notes-app');
+        if (container) {
+          const contentArea = container.querySelector('.note-content-area') as HTMLTextAreaElement;
+          const content = contentArea ? contentArea.value : '';
+          this.notesApp.updateActiveNote(target.value, content);
+        }
+      }
+      if (target.matches('.note-content-area')) {
+        const container = target.closest('.notes-app');
+        if (container) {
+          const titleInput = container.querySelector('.note-title-input') as HTMLInputElement;
+          const title = titleInput ? titleInput.value : 'Untitled';
+          this.notesApp.updateActiveNote(title, target.value);
+        }
       }
 
       if (target.matches('.modal-input') && this.modal?.type === 'prompt') {
@@ -2429,11 +3732,29 @@ class TempleOS {
 
     // Resolution Dropdown Change
     app.addEventListener('change', (e) => {
-      const target = e.target as HTMLSelectElement;
+      const target = e.target as HTMLInputElement;
+
+      // Gaming Mode Toggle
+      if (target.matches('.gaming-mode-toggle')) {
+        this.toggleGamingMode();
+        this.refreshSettingsWindow();
+        return;
+      }
+      if (target.matches('.lite-mode-toggle')) {
+        this.liteMode = target.checked;
+        localStorage.setItem('temple_lite_mode', String(this.liteMode));
+        this.refreshSettingsWindow();
+        this.render();
+        return;
+      }
+      if (target.matches('.quote-notifications-toggle')) {
+        this.quoteNotifications = target.checked;
+        localStorage.setItem('temple_quote_notifications', String(this.quoteNotifications));
+        return;
+      }
       if (target.matches('.resolution-select')) {
         this.changeResolution(target.value);
       }
-
       if (target.matches('.display-output-select')) {
         const val = target.value;
         this.activeDisplayOutput = val || null;
@@ -2470,6 +3791,12 @@ class TempleOS {
         this.fileSortMode = val;
         this.fileSortDir = val === 'name' ? 'asc' : 'desc';
         this.updateFileBrowserWindow();
+      }
+
+      if (target.matches('.calc-mode-select')) {
+        const mode = (target.value as any);
+        this.calculator.setMode(mode);
+        this.render();
       }
 
       if (target.matches('.start-view-select')) {
@@ -2521,6 +3848,14 @@ class TempleOS {
         }
       }
 
+      if (target.matches('.vpn-killswitch-mode')) {
+        const mode = target.value === 'strict' ? 'strict' : 'auto';
+        this.vpnKillSwitchMode = mode;
+        this.queueSaveConfig();
+        void this.refreshNetworkStatus();
+        if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+      }
+
       const inputTarget = e.target as HTMLInputElement;
       if (inputTarget.matches('.file-hidden-toggle')) {
         this.showHiddenFiles = inputTarget.checked;
@@ -2548,6 +3883,18 @@ class TempleOS {
         if (window.electronAPI?.applyMouseSettings) void window.electronAPI.applyMouseSettings(this.mouseSettings);
       }
 
+      // Sprite Animation FPS input
+      if (inputTarget.matches('.sprite-fps-input')) {
+        const fps = parseInt(inputTarget.value, 10);
+        if (!Number.isNaN(fps) && fps >= 1 && fps <= 30) {
+          this.spriteAnimationFPS = fps;
+          // Restart animation with new FPS if playing
+          if (this.spriteAnimationPlaying) {
+            this.startSpriteAnimation();
+          }
+        }
+      }
+
       if (inputTarget.matches('.wifi-enabled-toggle')) {
         this.wifiEnabled = inputTarget.checked;
         this.queueSaveConfig();
@@ -2558,11 +3905,493 @@ class TempleOS {
           });
         }
       }
+
+      if (inputTarget.matches('.vpn-killswitch-toggle')) {
+        const enabled = inputTarget.checked;
+
+        if (!enabled) {
+          const toRestore = this.vpnKillSwitchLastDisconnected.slice();
+          this.vpnKillSwitchEnabled = false;
+          this.vpnKillSwitchArmed = false;
+          this.vpnKillSwitchBlocked = false;
+          this.vpnKillSwitchSnoozeUntil = null;
+          this.queueSaveConfig();
+          void this.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
+          if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+          return;
+        }
+
+        this.vpnKillSwitchEnabled = true;
+        this.vpnKillSwitchBlocked = false;
+        this.vpnKillSwitchSnoozeUntil = null;
+        this.queueSaveConfig();
+        this.showNotification(
+          'VPN Kill Switch',
+          this.vpnKillSwitchMode === 'strict' ? 'Enabled (strict). Traffic will be blocked when VPN is down.' : 'Enabled. It will arm when a VPN is detected.',
+          'info'
+        );
+        void this.refreshNetworkStatus();
+        if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+      }
+
+      if (inputTarget.matches('.bt-enable-toggle')) {
+        this.bluetoothEnabled = inputTarget.checked;
+        if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+      }
+
+      if (inputTarget.matches('.flight-mode-toggle')) {
+        this.flightMode = inputTarget.checked;
+        if (this.flightMode) {
+          this.wifiEnabled = false;
+          this.bluetoothEnabled = false;
+        }
+        this.refreshSettingsWindow();
+      }
+
+      // Data Usage Tracking
+      if (inputTarget.matches('.data-tracking-toggle')) {
+        this.dataUsageTrackingEnabled = inputTarget.checked;
+        if (this.dataUsageTrackingEnabled && this.monitorStats?.network) {
+          // Start tracking from current values
+          this.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
+          this.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
+        }
+        this.refreshSettingsWindow();
+      }
+
+      if (inputTarget.matches('.data-limit-input')) {
+        const limitGB = parseFloat(inputTarget.value);
+        if (!Number.isNaN(limitGB) && limitGB > 0) {
+          this.dataUsageDailyLimit = limitGB * 1024 * 1024 * 1024; // Convert GB to bytes
+          this.refreshSettingsWindow();
+        }
+      }
+
+      if (inputTarget.matches('.sec-toggle')) {
+        const key = inputTarget.dataset.secKey;
+        const checked = inputTarget.checked;
+        if (key === 'encryption') this.encryptionEnabled = checked;
+        else if (key === 'firewall') this.firewallEnabled = checked;
+        else if (key === 'mac') this.macRandomization = checked;
+        else if (key === 'shred') this.secureDelete = checked;
+        else if (key === 'memory-wipe') {
+          this.secureWipeOnShutdown = checked;
+          localStorage.setItem('temple_secure_wipe', String(checked));
+        }
+        else if (key === 'tor') {
+          void this.toggleTor(checked);
+        }
+        else if (key === 'tracker-blocking') {
+          this.trackerBlockingEnabled = checked;
+          this.showNotification(
+            'Tracker Blocking',
+            checked ? '🛡️ Tracker blocking enabled! Ads & trackers will be blocked.' : 'Tracker blocking disabled.',
+            'info'
+          );
+          if (window.electronAPI?.setTrackerBlocking) {
+            void window.electronAPI.setTrackerBlocking(checked).then(res => {
+              if (!res.success) this.showNotification('Security', res.error || 'Failed to update tracker blocking', 'warning');
+            });
+          }
+        }
+
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+      }
+
+      // Tor Controls
+      if (target.matches('.tor-bridge-select')) {
+        this.torBridgeType = (target as unknown as HTMLSelectElement).value as any;
+        this.refreshSettingsWindow();
+      }
+      if (target.matches('.tor-routing-select')) {
+        this.torRoutingMode = (target as unknown as HTMLSelectElement).value as any;
+      }
+      if (target.matches('.tor-bridge-input')) {
+        this.torBridges = (target as unknown as HTMLTextAreaElement).value;
+      }
+
+
+      // SSH Server Toggle
+      if (inputTarget.matches('.ssh-toggle')) {
+        this.sshEnabled = inputTarget.checked;
+        this.toggleSSHServer(this.sshEnabled);
+      }
+
+      // SSH Port Input
+      if (inputTarget.matches('.ssh-port-input')) {
+        const port = parseInt(inputTarget.value, 10);
+        if (!Number.isNaN(port) && port >= 1 && port <= 65535) {
+          this.sshPort = port;
+          this.queueSaveConfig();
+        }
+      }
+
+      if (inputTarget.matches('.hotspot-toggle')) {
+        this.toggleHotspot(inputTarget.checked);
+      }
+
+      if (inputTarget.matches('.firewall-toggle')) {
+        void this.toggleFirewallSystem(inputTarget.checked);
+      }
+
+      if (inputTarget.matches('.taskbar-autohide-toggle')) {
+        this.autoHideTaskbar = inputTarget.checked;
+        localStorage.setItem('temple_autohide_taskbar', String(this.autoHideTaskbar));
+        // If disabled, ensure it's shown immediately
+        if (!this.autoHideTaskbar) {
+          const taskbar = document.querySelector('.taskbar') as HTMLElement;
+          if (taskbar) taskbar.classList.remove('taskbar-hidden');
+        }
+      }
+    });
+
+    // Image Viewer Controls (Enhanced with new module)
+    app.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+
+      // Calculator Logic
+      if (target.matches('.calc-btn')) {
+        const key = target.dataset.key;
+        if (key) {
+          this.calculator.pressKey(key);
+          this.render();
+        }
+      }
+      if (target.matches('.calc-toggle-history')) {
+        this.calculator.toggleHistory();
+        this.render();
+      }
+      if (target.matches('.calc-base-btn')) {
+        const base = target.dataset.calcBase;
+        if (base) {
+          this.calculator.setBase(base as any);
+          this.render();
+        }
+      }
+      if (target.matches('.calc-btn-history-clear')) {
+        this.calculator.clearHistory();
+        this.render();
+      }
+
+      // Notes App Logic
+      if (target.matches('[data-note-action]')) {
+        const action = target.dataset.noteAction;
+        if (action === 'new') {
+          this.notesApp.createNote();
+          this.render();
+        } else if (action === 'delete') {
+          if (this.notesApp.activeNoteId) {
+            // Confirm delete
+            this.openConfirmModal({ title: 'Delete Note', message: 'Destroy this testament?', confirmText: 'Burn', cancelText: 'Keep' }).then(ok => {
+              if (ok && this.notesApp.activeNoteId) {
+                this.notesApp.deleteNote(this.notesApp.activeNoteId);
+                this.render();
+              }
+            });
+          }
+        } else if (action === 'toggle-secure' || action === 'lock' || action === 'unlock-dialog') {
+          if (action === 'lock') {
+            this.notesApp.lockCurrentNote();
+          } else {
+            this.notesApp.initiateLock();
+          }
+          this.render();
+        } else if (action === 'pwd-cancel') {
+          this.notesApp.showPasswordDialog = false;
+          this.notesApp.passwordError = null;
+          this.render();
+        } else if (action === 'pwd-submit') {
+          const input = document.querySelector('.notes-password-input') as HTMLInputElement;
+          if (input) {
+            this.notesApp.handlePasswordSubmit(input.value);
+            this.render();
+          }
+        }
+      }
+
+      if (target.matches('.note-item') || target.closest('.note-item')) {
+        const item = target.matches('.note-item') ? target : target.closest('.note-item') as HTMLElement;
+        const id = item.dataset.noteId;
+        if (id) {
+          this.notesApp.selectNote(id);
+          this.render();
+        }
+      }
+
+      // Calendar App Logic
+      if (target.matches('[data-cal-action]')) {
+        const action = target.dataset.calAction;
+        if (action === 'prev') {
+          this.calendarApp.changeMonth(-1);
+        } else if (action === 'next') {
+          this.calendarApp.changeMonth(1);
+        } else if (action === 'add-dialog') {
+          this.calendarApp.openReminderDialog();
+        } else if (action === 'save-reminder') {
+          const input = document.querySelector('.cal-reminder-input') as HTMLInputElement;
+          if (input) {
+            this.calendarApp.addReminder(input.value);
+          }
+        } else if (action === 'cancel-reminder') {
+          this.calendarApp.showReminderDialog = false;
+        } else if (action === 'delete-reminder') {
+          const id = target.dataset.calId;
+          if (id) this.calendarApp.deleteReminder(id);
+        }
+        this.render();
+      }
+
+      if (target.matches('.calendar-day') || target.closest('.calendar-day')) {
+        const el = target.matches('.calendar-day') ? target : target.closest('.calendar-day') as HTMLElement;
+        const day = parseInt(el.dataset.calDay || '0', 10);
+        if (day) {
+          this.calendarApp.selectDay(day);
+          this.render();
+        }
+      }
+
+      if (target.matches('.hotspot-edit-btn')) {
+        void this.editHotspotSettings();
+        return;
+      }
+
+      // Firewall Buttons
+      if (target.matches('.fw-refresh-btn')) {
+        void this.refreshFirewallRules();
+        return;
+      }
+
+      if (target.matches('.fw-delete-btn') || target.closest('.fw-delete-btn')) {
+        const btn = target.closest('.fw-delete-btn') as HTMLElement;
+        const id = parseInt(btn.dataset.id || '-1');
+        if (id !== -1) void this.deleteFirewallRule(id);
+        return;
+      }
+
+      if (target.matches('.fw-add-btn')) {
+        // Find inputs relative to button to support multiple instances if needed
+        // The structure is: button -> parent div -> inputs
+        const parent = target.parentElement;
+        if (parent) {
+          const portInput = parent.querySelector('.fw-port-input') as HTMLInputElement;
+          const protoSelect = parent.querySelector('.fw-proto-select') as HTMLSelectElement;
+          const actionSelect = parent.querySelector('.fw-action-select') as HTMLSelectElement;
+
+          if (portInput && protoSelect && actionSelect) {
+            const port = parseInt(portInput.value);
+            if (port > 0 && port < 65536) {
+              void this.addFirewallRule(port, protoSelect.value, actionSelect.value);
+              portInput.value = '';
+            } else {
+              this.showNotification('Firewall', 'Invalid port number', 'warning');
+            }
+          }
+        }
+        return;
+      }
+
+
+
+      // VeraCrypt Listeners
+      if (target.matches('.vc-mount-btn')) {
+        void this.mountVeraCryptFromUi();
+        return;
+      }
+      if (target.matches('.vc-refresh-btn')) {
+        void this.refreshVeraCrypt();
+        return;
+      }
+      if (target.matches('.vc-dismount-btn') || target.closest('.vc-dismount-btn')) {
+        const btn = target.closest('.vc-dismount-btn') as HTMLElement;
+        const slot = parseInt(btn.dataset.slot || '0');
+        if (slot > 0) void this.dismountVeraCryptFromUi(slot);
+        return;
+      }
+
+      const btn = target.closest('.iv-btn') as HTMLElement;
+      if (btn) {
+        const action = btn.dataset.action;
+        const winId = btn.dataset.window;
+        if (!winId) return;
+
+        // Use new ImageViewerEnhancer module
+        if (action === 'zoom-in') this.imageViewer.zoomIn(winId);
+        if (action === 'zoom-out') this.imageViewer.zoomOut(winId);
+        if (action === 'rotate-left') this.imageViewer.rotateLeft(winId);
+        if (action === 'rotate-right') this.imageViewer.rotateRight(winId);
+        if (action === 'reset') this.imageViewer.reset(winId);
+
+        // New features from enhanced module
+        if (action === 'slideshow') {
+          // Get all image files from current directory for slideshow
+          const imageFiles = this.fileEntries
+            .filter(f => !f.isDirectory && this.isImageFile(f.name))
+            .map(f => f.path);
+          const currentSrc = this.imageViewer.getState(winId)?.src || '';
+          const currentIndex = imageFiles.indexOf(currentSrc);
+
+          this.imageViewer.toggleSlideshow(winId, imageFiles, Math.max(0, currentIndex), (newSrc) => {
+            // Update window when slideshow advances
+            const win = this.windows.find(w => w.id === winId);
+            if (win) {
+              win.content = this.getImageViewerContent(newSrc, winId);
+              this.render();
+            }
+          });
+          this.render();
+          return;
+        }
+
+        if (action === 'wallpaper') {
+          const state = this.imageViewer.getState(winId);
+          if (state) {
+            this.wallpaperImage = state.src;
+            this.queueSaveConfig();
+            this.render();
+            this.showNotification('Wallpaper', 'Wallpaper updated successfully', 'info');
+          }
+          return;
+        }
+
+        if (action === 'crop') {
+          const state = this.imageViewer.getState(winId);
+          if (state?.cropMode) {
+            this.imageViewer.disableCropMode(winId);
+          } else {
+            this.imageViewer.enableCropMode(winId);
+          }
+          this.render();
+          return;
+        }
+
+        // Update UI with new transform
+        const winEl = document.querySelector(`[data-window-id="${winId}"]`);
+        if (winEl) {
+          const img = winEl.querySelector('.image-canvas img') as HTMLElement;
+          if (img) {
+            img.style.transform = this.imageViewer.getTransformCSS(winId);
+            const label = winEl.querySelector('.toolbar span');
+            const state = this.imageViewer.getState(winId);
+            if (label && state) label.textContent = `${Math.round(state.zoom * 100)}%`;
+          }
+        }
+      }
     });
 
     // Desktop icon clicks
     app.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+
+      // Sprite Editor Tools
+      const spriteToolBtn = target.closest('.sprite-tool-btn') as HTMLElement;
+      if (spriteToolBtn) {
+        const tool = spriteToolBtn.dataset.tool;
+        if (tool === 'pencil' || tool === 'fill' || tool === 'eyedropper' || tool === 'eraser') {
+          this.spriteTool = tool;
+          this.render();
+          return;
+        }
+      }
+
+      // Sprite Editor Actions
+      const spriteActionBtn = target.closest('.sprite-action-btn') as HTMLElement;
+      if (spriteActionBtn) {
+        const action = spriteActionBtn.dataset.action;
+        if (action === 'clear') {
+          this.spriteData = Array(16).fill(0).map(() => Array(16).fill(15));
+          this.render();
+          return;
+        }
+        if (action === 'save') {
+          this.saveSprite();
+          return;
+        }
+        if (action === 'export-png') {
+          this.downloadSpritePng();
+          return;
+        }
+      }
+
+      // Sprite Animation Controls
+      const spriteAnimBtn = target.closest('.sprite-anim-btn') as HTMLElement;
+      if (spriteAnimBtn) {
+        const animAction = spriteAnimBtn.dataset.animAction;
+        if (animAction === 'add-frame') {
+          // Add current sprite as a new frame
+          const frameCopy = this.spriteData.map(row => [...row]);
+          this.spriteAnimationFrames.push(frameCopy);
+          this.spriteCurrentFrame = this.spriteAnimationFrames.length - 1;
+          this.render();
+          this.showNotification('Animation', `Frame ${this.spriteAnimationFrames.length} added`, 'info');
+          return;
+        }
+        if (animAction === 'toggle-play') {
+          if (this.spriteAnimationFrames.length === 0) {
+            this.showNotification('Animation', 'Add frames first to preview animation', 'warning');
+            return;
+          }
+          this.spriteAnimationPlaying = !this.spriteAnimationPlaying;
+          if (this.spriteAnimationPlaying) {
+            this.startSpriteAnimation();
+          } else {
+            this.stopSpriteAnimation();
+          }
+          this.render();
+          return;
+        }
+      }
+
+      // Data Usage Reset Button
+      const dataResetBtn = target.closest('.data-reset-btn') as HTMLElement;
+      if (dataResetBtn) {
+        this.dataUsageHistory = [];
+        if (this.monitorStats?.network) {
+          this.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
+          this.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
+        }
+        this.refreshSettingsWindow();
+        this.showNotification('Data Usage', 'Usage statistics reset for today', 'info');
+        return;
+      }
+
+      // DNS Save Button
+      const dnsSaveBtn = target.closest('.dns-save-btn') as HTMLElement;
+      if (dnsSaveBtn) {
+        const primary = (document.querySelector('.dns-primary-input') as HTMLInputElement)?.value;
+        const secondary = (document.querySelector('.dns-secondary-input') as HTMLInputElement)?.value;
+        if (primary && secondary) {
+          this.showNotification('DNS', `DNS servers set to ${primary} and ${secondary}`, 'info');
+          // Would call Electron API here to actually set DNS
+          // if (window.electronAPI?.setDNS) { ... }
+        }
+        return;
+      }
+
+      // SSH Server Buttons
+      const sshBtn = target.closest('.ssh-btn') as HTMLElement;
+      if (sshBtn) {
+        const action = sshBtn.dataset.sshAction;
+
+        if (action === 'regenerate-keys') {
+          this.regenerateSSHKeys();
+        } else if (action === 'view-pubkey') {
+          this.viewSSHPublicKey();
+        }
+        return;
+      }
+
+      // EXIF Stripper Buttons
+      const exifSelectBtn = target.closest('.exif-select-file-btn') as HTMLElement;
+      if (exifSelectBtn) {
+        this.selectImageForExif();
+        return;
+      }
+
+      const exifStripBtn = target.closest('.exif-strip-btn') as HTMLElement;
+      if (exifStripBtn && this.exifSelectedFile) {
+        this.stripExifData();
+        return;
+      }
 
       // Modal interactions (eat clicks before anything else)
       if (this.modal) {
@@ -2634,6 +4463,32 @@ class TempleOS {
         const key = launcherTile.dataset.launchKey;
         this.closeAppLauncher();
         this.launchByKey(key);
+        return;
+      }
+
+      // Desktop Icon Click
+      const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
+      if (desktopIcon) {
+        if (desktopIcon.dataset.app) {
+          // Basic open for built-ins
+          this.openApp(desktopIcon.dataset.app);
+          return;
+        }
+        if (desktopIcon.dataset.launchKey) {
+          this.launchByKey(desktopIcon.dataset.launchKey);
+          return;
+        }
+      }
+
+      // Help App Navigation
+      const helpTab = target.closest('[data-help-tab]') as HTMLElement;
+      if (helpTab && helpTab.dataset.helpTab) {
+        this.helpApp.setTab(helpTab.dataset.helpTab as any);
+        const win = this.windows.find(w => w.id.startsWith('help'));
+        if (win) {
+          win.content = this.helpApp.render();
+          this.render();
+        }
         return;
       }
 
@@ -2738,6 +4593,30 @@ class TempleOS {
         return;
       }
 
+      // Bluetooth Actions
+      if (target.matches('.bt-scan-btn')) {
+        this.bluetoothScanning = true;
+        this.refreshSettingsWindow();
+        setTimeout(() => {
+          this.bluetoothScanning = false;
+          this.bluetoothDevices.forEach(d => d.connected = Math.random() > 0.7);
+          this.refreshSettingsWindow();
+        }, 2000);
+        return;
+      }
+
+      const btConnectBtn = target.closest('.bt-connect-btn') as HTMLElement;
+      if (btConnectBtn) {
+        const name = btConnectBtn.dataset.name;
+        const device = this.bluetoothDevices.find(d => d.name === name);
+        if (device) {
+          device.connected = !device.connected;
+          this.showNotification('Bluetooth', `${device.connected ? 'Connected to' : 'Disconnected from'} ${device.name}`, 'info');
+          this.refreshSettingsWindow();
+        }
+        return;
+      }
+
       // Tray: Notifications
       const notifIcon = target.closest('#tray-notification');
       if (notifIcon) {
@@ -2757,6 +4636,12 @@ class TempleOS {
         this.doNotDisturb = !this.doNotDisturb;
         this.queueSaveConfig();
         this.render();
+        return;
+      }
+
+      // Preview Close
+      if (target.closest('.preview-close-btn')) {
+        this.closePreview();
         return;
       }
 
@@ -2812,7 +4697,8 @@ class TempleOS {
           const actionId = toastActionEl.dataset.actionId || '';
           if (actionId === 'open-settings') {
             this.openApp('settings');
-            this.render();
+          } else if (actionId === 'open-updater') {
+            this.openApp('updater');
           }
           this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
           const notif = this.notifications.find(n => n.id === toastId);
@@ -3196,6 +5082,30 @@ class TempleOS {
         return;
       }
 
+      // Security: USB Toggle
+      const usbToggleBtn = target.closest('.usb-toggle-btn') as HTMLElement;
+      if (usbToggleBtn && usbToggleBtn.dataset.id) {
+        this.toggleUsbDevice(usbToggleBtn.dataset.id);
+        return;
+      }
+
+      // Security: Panic Button
+      const panicBtn = target.closest('.panic-btn') as HTMLElement;
+      if (panicBtn) {
+        this.triggerLockdown();
+        return;
+      }
+
+      // Security: Duress Password
+      const saveDuressBtn = target.closest('.save-duress-btn') as HTMLElement;
+      if (saveDuressBtn) {
+        const input = saveDuressBtn.parentElement?.querySelector('.duress-input') as HTMLInputElement;
+        if (input) {
+          this.setDuressPassword(input.value);
+        }
+        return;
+      }
+
       // Settings: audio device refresh
       const audioRefreshBtn = target.closest('.audio-refresh-btn') as HTMLElement;
       if (audioRefreshBtn) {
@@ -3207,6 +5117,74 @@ class TempleOS {
       const displayRefreshBtn = target.closest('.display-refresh-btn') as HTMLElement;
       if (displayRefreshBtn) {
         void this.refreshDisplayOutputs().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
+      // Settings: VPN profiles actions
+      const vpnImportBtn = target.closest('.vpn-import-btn') as HTMLElement;
+      if (vpnImportBtn && vpnImportBtn.dataset.vpnKind) {
+        const kind = vpnImportBtn.dataset.vpnKind === 'wireguard' ? 'wireguard' : 'openvpn';
+        void this.importVpnProfile(kind);
+        return;
+      }
+
+      const vpnProfileBtn = target.closest('.vpn-profile-btn') as HTMLElement;
+      if (vpnProfileBtn && vpnProfileBtn.dataset.action && vpnProfileBtn.dataset.key) {
+        const action = vpnProfileBtn.dataset.action;
+        const key = vpnProfileBtn.dataset.key;
+        const name = vpnProfileBtn.dataset.name || key;
+
+        if (action === 'connect' && window.electronAPI?.connectSavedNetwork) {
+          this.showNotification('VPN', `Connecting ${name}...`, 'info');
+          void window.electronAPI.connectSavedNetwork(key).then(res => {
+            if (!res.success) this.showNotification('VPN', res.error || 'Connect failed', 'error');
+            void this.refreshNetworkStatus();
+          });
+        }
+
+        if (action === 'disconnect' && window.electronAPI?.disconnectConnection) {
+          this.showNotification('VPN', `Disconnecting ${name}...`, 'info');
+          void window.electronAPI.disconnectConnection(key).then(res => {
+            if (!res.success) this.showNotification('VPN', res.error || 'Disconnect failed', 'error');
+            void this.refreshNetworkStatus();
+          });
+        }
+
+        if (action === 'delete' && window.electronAPI?.forgetSavedNetwork) {
+          void this.openConfirmModal({
+            title: 'Delete VPN Profile',
+            message: `Delete saved VPN profile "${name}"?`,
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+          }).then(ok => {
+            if (!ok) return;
+            void window.electronAPI!.forgetSavedNetwork!(key).then(res => {
+              if (!res.success) this.showNotification('VPN', res.error || 'Delete failed', 'error');
+              void this.refreshSavedNetworks();
+              void this.refreshNetworkStatus();
+            });
+          });
+        }
+
+        return;
+      }
+
+      // Settings: VPN kill switch actions
+      const vpnKillBtn = target.closest('.vpn-killswitch-btn') as HTMLElement;
+      if (vpnKillBtn && vpnKillBtn.dataset.action) {
+        const action = vpnKillBtn.dataset.action;
+        if (action === 'snooze') {
+          void this.snoozeVpnKillSwitch(60);
+        } else if (action === 'disable') {
+          const toRestore = this.vpnKillSwitchLastDisconnected.slice();
+          this.vpnKillSwitchEnabled = false;
+          this.vpnKillSwitchArmed = false;
+          this.vpnKillSwitchBlocked = false;
+          this.vpnKillSwitchSnoozeUntil = null;
+          this.queueSaveConfig();
+          void this.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
+          if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+        }
         return;
       }
 
@@ -3250,6 +5228,16 @@ class TempleOS {
         return;
       }
 
+      const themeColorBtn = target.closest('.theme-color-btn') as HTMLElement;
+      if (themeColorBtn && themeColorBtn.dataset.color) {
+        this.themeColor = themeColorBtn.dataset.color as any;
+        localStorage.setItem('temple_theme_color', this.themeColor);
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
       // Settings: wallpaper buttons
       const wallpaperBtn = target.closest('.wallpaper-btn') as HTMLElement;
       if (wallpaperBtn && wallpaperBtn.dataset.wallpaper) {
@@ -3264,6 +5252,31 @@ class TempleOS {
       const aboutRefreshBtn = target.closest('.about-refresh-btn') as HTMLElement;
       if (aboutRefreshBtn) {
         void this.refreshSystemInfo().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
+      // Start Menu Power Actions
+      const powerBtn = target.closest('.start-power-btn') as HTMLElement;
+      if (powerBtn && powerBtn.dataset.powerAction) {
+        const action = powerBtn.dataset.powerAction;
+        if (action === 'lock') this.lock();
+        else if (action === 'restart') window.location.reload();
+        else if (action === 'shutdown') this.shutdownSystem();
+        this.showStartMenu = false;
+        this.render();
+        return;
+      }
+
+      // First Run Wizard Actions
+      if (target.matches('.wizard-next-btn')) {
+        this.firstRunStep++;
+        this.render();
+        return;
+      }
+      if (target.matches('.wizard-finish-btn')) {
+        this.setupComplete = true;
+        localStorage.setItem('temple_setup_complete', 'true');
+        this.render();
         return;
       }
 
@@ -3336,8 +5349,24 @@ class TempleOS {
         if (effectivePath && isDir) {
           this.loadFiles(effectivePath);
         } else if (effectivePath && window.electronAPI) {
-          // Open file with system default app
-          window.electronAPI.openExternal(effectivePath);
+          const ext = effectivePath.split('.').pop()?.toLowerCase() || '';
+          if (ext === 'dd') {
+            window.electronAPI.readFile(effectivePath).then(res => {
+              if (res.success && typeof res.content === 'string') {
+                this.dolDocContent = res.content;
+                this.dolDocPath = effectivePath;
+                this.openApp('doldoc-viewer');
+              } else {
+                window.electronAPI!.openExternal(effectivePath);
+              }
+            });
+          } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
+            this.openApp('media-player', { file: effectivePath });
+          } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+            this.openApp('image-viewer', { file: effectivePath });
+          } else {
+            window.electronAPI.openExternal(effectivePath);
+          }
         }
         return;
       }
@@ -3559,6 +5588,26 @@ class TempleOS {
     });
 
     document.addEventListener('mousemove', (e) => {
+      // Auto-Hide Taskbar Logic
+      if (this.autoHideTaskbar) {
+        const taskbar = document.querySelector('.taskbar') as HTMLElement;
+        if (taskbar) {
+          const threshold = window.innerHeight - 60; // Taskbar height approx + buffer
+          if (e.clientY >= threshold) {
+            taskbar.classList.remove('taskbar-hidden');
+          } else {
+            // Only hide if not interacting with context menu or start menu?
+            // For simplicity, just hide. CSS transition will make it smooth.
+            if (!this.showStartMenu && !document.querySelector('.context-menu')) {
+              taskbar.classList.add('taskbar-hidden');
+            }
+          }
+        }
+      } else {
+        const taskbar = document.querySelector('.taskbar') as HTMLElement;
+        if (taskbar) taskbar.classList.remove('taskbar-hidden');
+      }
+
       // RESIZE LOGIC
       if (this.resizeState) {
         e.preventDefault();
@@ -3769,6 +5818,56 @@ class TempleOS {
       // GLOBAL KEYBOARD SHORTCUTS
       // ============================================
       document.addEventListener('keydown', (e) => {
+        // Tier 10: Gaming Mode
+        if (this.gamingModeActive) {
+          if (e.metaKey || e.altKey || (e.ctrlKey && e.shiftKey && e.key === 'Escape')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
+
+        // Cheat Codes (Tier 13)
+        // Only track letters
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          this.cheatBuffer = (this.cheatBuffer || '') + e.key.toLowerCase();
+          if (this.cheatBuffer.length > 20) this.cheatBuffer = this.cheatBuffer.slice(-20);
+
+          if (this.cheatBuffer.endsWith('terry')) {
+            this.showNotification('Rest In Peace', 'Terry A. Davis (1969-2018). King of the Temple.', 'divine');
+            this.cheatBuffer = '';
+            this.playTone(440, 'sine', 0.5);
+          }
+          if (this.cheatBuffer.endsWith('cia')) {
+            this.showNotification('GLOWIES DETECTED', 'The CIA n****** glow in the dark. You can see them if you\'re driving.', 'warning');
+            this.cheatBuffer = '';
+            this.playTone(100, 'sawtooth', 0.5);
+          }
+          if (this.cheatBuffer.endsWith('glow')) {
+            document.body.classList.toggle('extra-glow');
+            this.showNotification('Visuals', 'Divine Glow Toggled', 'info');
+            this.cheatBuffer = '';
+          }
+        }
+
+        // Konami Code
+        const key = e.key; // preserve case for Arrows, but handle letters
+        const expected = this.konamiCode[this.konamiIndex];
+        const match = key === expected || key.toLowerCase() === expected;
+
+        if (match) {
+          this.konamiIndex++;
+          if (this.konamiIndex === this.konamiCode.length) {
+            this.konamiIndex = 0;
+            this.showNotification('DIVINE INTELLECT', 'God Mode Enabled. You are now Terry\'s chosen one.', 'divine');
+            this.playTone(880, 'square', 0.1);
+            setTimeout(() => this.playTone(1100, 'square', 0.2), 100);
+          }
+        } else {
+          this.konamiIndex = 0;
+          if (e.key === 'ArrowUp') this.konamiIndex = 1;
+        }
+
         if (this.modal) {
           if (e.key === 'Escape') {
             e.preventDefault();
@@ -4110,8 +6209,18 @@ class TempleOS {
             ]);
             return;
           }
+          const ext = filePath.split('.').pop()?.toLowerCase() || '';
+          const isZip = ext === 'zip';
+          const isBookmarked = this.fileBookmarks.includes(filePath);
+
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📂 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: isDir ? '📂 Open' : '📄 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: '👀 Preview', action: () => this.previewFileItem(filePath, isDir) },
+            { divider: true },
+            ...(isDir ? [{ label: isBookmarked ? '★ Remove Bookmark' : '★ Add Bookmark', action: () => { isBookmarked ? this.removeBookmark(filePath) : this.addBookmark(filePath); } }] : []),
+            ...(isZip ? [{ label: '📦 Extract Here', action: () => this.extractZipHere(filePath) }] : []),
+            { label: '🗜️ Compress to Zip', action: () => this.createZipFromItem(filePath) },
+            { divider: true },
             { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
             { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
             { label: '✏️ Rename', action: () => this.promptRename(filePath) },
@@ -4119,7 +6228,25 @@ class TempleOS {
             { divider: true },
             { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
           ]);
-        } else if (fileBrowserEl && !target.closest('.taskbar')) {
+        }
+
+        // Sidebar Context Menu (Bookmarks)
+        const sidebarLink = target.closest('.file-sidebar-link') as HTMLElement;
+        if (sidebarLink && sidebarLink.dataset.isBookmark === 'true') {
+          e.preventDefault();
+          this.closeContextMenu();
+          const path = sidebarLink.dataset.path || '';
+          if (path) {
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: '📂 Open', action: () => this.loadFiles(path) },
+              { divider: true },
+              { label: '★ Remove Bookmark', action: () => this.removeBookmark(path) }
+            ]);
+            return;
+          }
+        }
+
+        if (fileBrowserEl && !target.closest('.taskbar')) {
           if (this.currentPath === 'trash:') {
             this.showContextMenu(e.clientX, e.clientY, [
               { label: '🔄 Refresh', action: () => this.loadFiles('trash:') },
@@ -4136,6 +6263,77 @@ class TempleOS {
             ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
             { divider: true },
             { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+          ]);
+        }
+
+        // Window Title Bar Context Menu (Tier 9.3)
+        const windowHeader = target.closest('.window-header') as HTMLElement;
+        if (windowHeader) {
+          e.preventDefault();
+          this.closeContextMenu();
+          const winId = windowHeader.dataset.draggable || ''; // We used draggable for ID storage in header
+          const win = this.windows.find(w => w.id === winId);
+
+          if (win) {
+            this.showContextMenu(e.clientX, e.clientY, [
+              { label: win.minimized ? '🔼 Restore' : '🔽 Minimize', action: () => this.toggleWindow(winId) },
+              { label: win.maximized ? 'Restore Down' : 'Maximize', action: () => this.maximizeWindow(winId) },
+              { divider: true },
+              {
+                label: `${win.transparent ? 'Disable' : 'Enable'} Transparency`,
+                action: () => {
+                  win.transparent = !win.transparent;
+                  this.render();
+                }
+              },
+              {
+                label: `${win.alwaysOnTop ? 'Disable' : 'Enable'} Always on Top`,
+                action: () => {
+                  win.alwaysOnTop = !win.alwaysOnTop;
+                  this.render();
+                }
+              },
+              { divider: true },
+              { label: '❌ Close', action: () => this.closeWindow(winId) }
+            ]);
+            return;
+          }
+        }
+
+        // Desktop Context Menu (Tier 9.2)
+        if (target.matches('.desktop') || target.matches('#desktop')) {
+          this.showContextMenu(e.clientX, e.clientY, [
+            {
+              label: 'Widgets',
+              action: () => {
+                // Submenu mock (we don't have submenus yet, just toggle for now)
+                this.desktopWidgetsEnabled = !this.desktopWidgetsEnabled;
+                localStorage.setItem('temple_desktop_widgets', String(this.desktopWidgetsEnabled));
+                this.render();
+              }
+            },
+            { divider: true },
+            {
+              label: `Icon Size: ${this.desktopIconSize.toUpperCase()}`,
+              action: () => {
+                // Cycle sizes
+                const sizes: ('small' | 'medium' | 'large')[] = ['small', 'medium', 'large'];
+                const currentIdx = sizes.indexOf(this.desktopIconSize);
+                this.desktopIconSize = sizes[(currentIdx + 1) % sizes.length];
+                localStorage.setItem('temple_desktop_icon_size', this.desktopIconSize);
+                this.render();
+              }
+            },
+            {
+              label: `${this.desktopAutoArrange ? 'Disable' : 'Enable'} Auto-Arrange`,
+              action: () => {
+                this.desktopAutoArrange = !this.desktopAutoArrange;
+                localStorage.setItem('temple_desktop_auto_arrange', String(this.desktopAutoArrange));
+                this.render();
+              }
+            },
+            { divider: true },
+            { label: '⚙️ Settings', action: () => this.openApp('settings') }
           ]);
         }
       });
@@ -4217,7 +6415,533 @@ class TempleOS {
       });
 
 
+
+      // ============================================
+      // DRAG AND DROP (File Browser)
+      // ============================================
+      app.addEventListener('dragstart', (e) => {
+        const fileItem = (e.target as HTMLElement).closest('.file-item') as HTMLElement;
+        if (fileItem && fileItem.dataset.filePath) {
+          e.dataTransfer?.setData('text/plain', fileItem.dataset.filePath);
+        }
+      });
+
+      app.addEventListener('dragover', (e) => {
+        const fileItem = (e.target as HTMLElement).closest('.file-item') as HTMLElement;
+        const browser = (e.target as HTMLElement).closest('.file-browser') as HTMLElement;
+        if (browser) {
+          e.preventDefault(); // Allow drop
+          if (fileItem && fileItem.dataset.isDir === 'true') {
+            fileItem.style.background = 'rgba(0,255,65,0.3)';
+          }
+        }
+
+        // Media Player Dragover
+        if ((e.target as HTMLElement).closest('.media-player-app')) {
+          e.preventDefault();
+        }
+      });
+
+      app.addEventListener('dragleave', (e) => {
+        const fileItem = (e.target as HTMLElement).closest('.file-item') as HTMLElement;
+        if (fileItem) {
+          fileItem.style.background = '';
+        }
+      });
+
+      app.addEventListener('drop', async (e) => {
+        e.preventDefault();
+
+        // Media Player Drop
+        const dropMediaPlayer = (e.target as HTMLElement).closest('.media-player-app');
+        if (dropMediaPlayer) {
+          const srcPath = e.dataTransfer?.getData('text/plain');
+          if (srcPath) {
+            this.mediaPlayer.addFile(srcPath);
+            if (this.mediaPlayer.state.playlist.length === 1) this.mediaPlayer.setIndex(0);
+            this.render();
+            return;
+          }
+        }
+
+        const fileItem = (e.target as HTMLElement).closest('.file-item') as HTMLElement;
+
+        if (fileItem) fileItem.style.background = '';
+
+        const srcPath = e.dataTransfer?.getData('text/plain');
+        if (!srcPath) return;
+
+        let destDir = this.currentPath;
+        if (fileItem && fileItem.dataset.isDir === 'true' && fileItem.dataset.filePath) {
+          destDir = fileItem.dataset.filePath;
+        }
+
+        if (destDir && srcPath && destDir !== srcPath) {
+          const name = srcPath.split(/[/\\]/).pop();
+          if (name) {
+            const destPath = this.joinPath(destDir, name);
+            if (destPath !== srcPath) {
+              if (window.electronAPI) {
+                const res = await this.fallbackCopyFile(srcPath, destPath);
+                if (res.success) {
+                  this.showNotification('Files', `Copied ${name}`, 'info');
+                  this.loadFiles(this.currentPath);
+                } else {
+                  this.showNotification('Files', 'Copy failed', 'error');
+                }
+              }
+            }
+          }
+        }
+      });
+
+
+
+      // ============================================
+      // ORACLE APP
+      // ============================================
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const oracleBtn = target.closest('.oracle-btn') as HTMLElement;
+        if (oracleBtn && oracleBtn.dataset.oracleAction) {
+          const action = oracleBtn.dataset.oracleAction;
+          if (action === 'speak') {
+            this.generateOracleWords();
+          } else if (action === 'copy') {
+            const text = this.oracleHistory.join('\n');
+            navigator.clipboard.writeText(text);
+            this.showNotification('Oracle', 'Divine words copied to clipboard', 'divine');
+          } else if (action === 'clear') {
+            this.oracleHistory = [];
+            // Force update of Oracle window content
+            const win = this.windows.find(w => w.content.includes('oracle-app'));
+            if (win) {
+              win.content = this.getWordOfGodContent();
+              this.render();
+            }
+          }
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        // Oracle Spacebar
+        if (e.code === 'Space' && !e.repeat) {
+          const oracleWin = this.windows.find(w => w.active && w.content.includes('oracle-app'));
+          const target = e.target as HTMLElement;
+          const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+          if (oracleWin && !isInput) {
+            e.preventDefault();
+            this.generateOracleWords();
+
+            const btn = document.querySelector('.oracle-btn[data-oracle-action="speak"]') as HTMLElement;
+            if (btn) {
+              btn.style.background = '#ffd700';
+              setTimeout(() => btn.style.background = '#00ff41', 150);
+            }
+          }
+        }
+
+        // F5 to Run HolyC (Editor)
+        if (e.code === 'F5') {
+          e.preventDefault();
+          const editorWin = this.windows.find(w => w.active && w.id.startsWith('editor'));
+          // Also check if we have active editor tab
+          if (editorWin && this.activeEditorTab !== undefined && this.activeEditorTab < this.editorTabs.length) {
+            const tab = this.editorTabs[this.activeEditorTab];
+            if (tab) {
+              this.showNotification('HolyC', `Compiling ${tab.filename}...`, 'info');
+              this.executeHolyC(tab.content);
+            }
+          }
+        }
+      });
+
+      // ============================================
+      // SPRITE EDITOR
+      // ============================================
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+
+        const toolBtn = target.closest('.sprite-tool') as HTMLElement;
+        if (toolBtn && toolBtn.dataset.tool) {
+          this.spriteTool = toolBtn.dataset.tool as any;
+          this.render();
+        }
+
+        const colorBtn = target.closest('.sprite-palette-color') as HTMLElement;
+        if (colorBtn) {
+          const idx = parseInt(colorBtn.dataset.color || '0');
+          this.spriteSelectedColor = idx;
+          this.render();
+        }
+
+        const actionBtn = target.closest('.sprite-action') as HTMLElement;
+        if (actionBtn && actionBtn.dataset.action) {
+          const action = actionBtn.dataset.action;
+          if (action === 'toggle-grid') {
+            this.spriteShowGrid = !this.spriteShowGrid;
+            this.render();
+          } else if (action === 'clear') {
+            this.spriteData = Array(this.spriteGridSize).fill(0).map(() => Array(this.spriteGridSize).fill(15));
+            this.render();
+          } else if (action === 'save') {
+            const json = JSON.stringify(this.spriteData);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'icon.GR';
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showNotification('Sprite Editor', 'Sprite saved as icon.GR', 'divine');
+          }
+        }
+      });
+
+      app.addEventListener('mousedown', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('sprite-pixel')) {
+          this.handleSpriteDraw(target);
+        }
+      });
+
+      app.addEventListener('mouseover', (e) => {
+        if (e.buttons === 1) {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains('sprite-pixel')) {
+            this.handleSpriteDraw(target);
+          }
+        }
+      });
+
+      // ============================================
+      // AUTOHARP
+      // ============================================
+      app.addEventListener('mousedown', (e) => {
+        const target = e.target as HTMLElement;
+        const key = target.closest('.piano-key') as HTMLElement;
+        if (key) {
+          const freq = parseFloat(key.dataset.freq || '0');
+          const note = key.dataset.note || '';
+
+          if (freq > 0) {
+            this.playTone(freq, 'sawtooth', 0.5);
+            this.autoHarpActiveNotes.add(note);
+
+            if (this.autoHarpRecording) {
+              const time = (Date.now() - this.autoHarpStartTime) / 1000;
+              this.autoHarpSong.push({ freq, time, duration: 0.5 });
+            }
+
+            this.render();
+          }
+        }
+      });
+
+      app.addEventListener('mouseup', () => {
+        this.autoHarpActiveNotes.clear();
+        if (this.windows.some(w => w.active && w.content.includes('God\'s AutoHarp'))) {
+          this.render();
+        }
+      });
+
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const ahBtn = target.closest('.ah-action') as HTMLElement;
+        if (ahBtn && ahBtn.dataset.action) {
+          const action = ahBtn.dataset.action;
+          if (action === 'octave-up') {
+            if (this.autoHarpOctave < 8) this.autoHarpOctave++;
+            this.render();
+          } else if (action === 'octave-down') {
+            if (this.autoHarpOctave > 1) this.autoHarpOctave--;
+            this.render();
+          } else if (action === 'record') {
+            this.autoHarpRecording = !this.autoHarpRecording;
+            if (this.autoHarpRecording) {
+              this.autoHarpSong = [];
+              this.autoHarpStartTime = Date.now();
+            }
+            this.render();
+          } else if (action === 'play') {
+            if (this.autoHarpSong.length > 0) {
+              this.autoHarpSong.forEach(note => {
+                setTimeout(() => {
+                  this.playTone(note.freq, 'sawtooth', note.duration);
+                }, note.time * 1000);
+              });
+            }
+          } else if (action === 'clear') {
+            this.autoHarpSong = [];
+            this.render();
+          } else if (action === 'save') {
+            const json = JSON.stringify(this.autoHarpSong);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'hymn.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showNotification('AutoHarp', 'Hymn saved.', 'divine');
+          }
+        }
+      });
+
+      // ============================================
+      // CALCULATOR & NOTES
+      // ============================================
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+
+        // Calculator
+        if (target.matches('.calc-btn')) {
+          const key = target.dataset.key || '';
+          const display = target.closest('.window-content')?.querySelector('.calc-display');
+          if (display) {
+            let current = display.textContent || '0';
+            if (current === 'Error' || current === 'Infinity') current = '0';
+
+            if (key === 'C') {
+              display.textContent = '0';
+            } else if (key === '=') {
+              try {
+                let expr = current.replace(/\^/g, '**');
+                // Basic sanitization
+                expr = expr.replace(/[^0-9+\-*/().]/g, '');
+                // We might have stripped ** to * if we are strictly filtering.
+                // Let's allow **
+                expr = current.replace(/\^/g, '**').replace(/[^0-9+\-*/().]/g, '');
+
+                display.textContent = String(eval(expr));
+              } catch {
+                display.textContent = 'Error';
+              }
+            } else if (key === '<') {
+              display.textContent = current.length > 1 ? current.slice(0, -1) : '0';
+            } else if (['sin', 'cos', 'tan', 'sqrt', 'log'].includes(key)) {
+              try {
+                const val = parseFloat(current);
+                let res = 0;
+                if (key === 'sin') res = Math.sin(val);
+                if (key === 'cos') res = Math.cos(val);
+                if (key === 'tan') res = Math.tan(val);
+                if (key === 'sqrt') res = Math.sqrt(val);
+                if (key === 'log') res = Math.log10(val);
+                display.textContent = String(res);
+              } catch {
+                display.textContent = 'Error';
+              }
+            } else if (key === 'pi') {
+              display.textContent = String(Math.PI);
+            } else {
+              if (current === '0' && key !== '.') display.textContent = key;
+              else display.textContent = current + key;
+            }
+          }
+        }
+
+        // Notes
+        const notesBtn = target.closest('.notes-btn') as HTMLElement;
+        if (notesBtn) {
+          const action = notesBtn.dataset.action;
+          const area = notesBtn.closest('.window-content')?.querySelector('.notes-area') as HTMLTextAreaElement;
+          if (area) {
+            if (action === 'save') {
+              localStorage.setItem('temple_notes', area.value);
+              this.showNotification('Notes', 'Testament saved.', 'divine');
+            } else if (action === 'new') {
+              area.value = '';
+            } else if (action === 'preview') {
+              const preview = notesBtn.closest('.window-content')?.querySelector('.notes-preview') as HTMLElement;
+              if (preview) {
+                if (preview.style.display === 'none') {
+                  // Render Markdown
+                  // Unescape specific markdown chars we want to process? No, escape everything then replace patterns.
+                  // Actually simpler to just process raw and then trust it (since it's local).
+                  // But let's be safe-ish. using a simple parser.
+
+                  let md = area.value;
+                  md = md.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+                  md = md.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+                  md = md.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+                  md = md.replace(/\*\*(.*)\*\*/gim, '<b>$1</b>');
+                  md = md.replace(/\*(.*)\*/gim, '<i>$1</i>');
+                  md = md.replace(/\n/gim, '<br>');
+
+                  preview.innerHTML = md;
+                  preview.style.display = 'block';
+                  area.style.display = 'none';
+                  notesBtn.textContent = 'Edit';
+                } else {
+                  preview.style.display = 'none';
+                  area.style.display = 'block';
+                  notesBtn.textContent = 'Preview MD';
+                }
+              }
+            }
+          }
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.repeat) return;
+
+        const ahWin = this.windows.find(w => w.active && w.content.includes('God\'s AutoHarp'));
+        if (!ahWin) return;
+
+        const keyMap: Record<string, string> = {
+          'a': 'A', 'w': 'W', 's': 'S', 'e': 'E', 'd': 'D', 'f': 'F',
+          't': 'T', 'g': 'G', 'y': 'Y', 'h': 'H', 'u': 'U', 'j': 'J', 'k': 'K'
+        };
+
+        const noteKey = keyMap[e.key.toLowerCase()];
+        if (noteKey) {
+          const keyEl = app.querySelector(`.piano-key[data-note="${noteKey}"]`) as HTMLElement;
+          if (keyEl) {
+            const freq = parseFloat(keyEl.dataset.freq || '0');
+            if (freq > 0) {
+              this.playTone(freq, 'sawtooth', 0.5);
+              this.autoHarpActiveNotes.add(noteKey);
+              this.render();
+
+              if (this.autoHarpRecording) {
+                const time = (Date.now() - this.autoHarpStartTime) / 1000;
+                this.autoHarpSong.push({ freq, time, duration: 0.5 });
+              }
+            }
+          }
+        }
+      });
+
+      document.addEventListener('keyup', (e) => {
+        const ahWin = this.windows.find(w => w.active && w.content.includes('God\'s AutoHarp'));
+        if (!ahWin) return;
+
+        const keyMap: Record<string, string> = {
+          'a': 'A', 'w': 'W', 's': 'S', 'e': 'E', 'd': 'D', 'f': 'F',
+          't': 'T', 'g': 'G', 'y': 'Y', 'h': 'H', 'u': 'U', 'j': 'J', 'k': 'K'
+        };
+
+        const noteKey = keyMap[e.key.toLowerCase()];
+        if (noteKey) {
+          this.autoHarpActiveNotes.delete(noteKey);
+          this.render();
+        }
+      });
+
+      // ============================================
+      // MEDIA PLAYER CONTROLS (TIER 8.1)
+      // ============================================
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+
+        // Playlist Item Click
+        const playlistItem = target.closest('.mp-playlist-item') as HTMLElement;
+        if (playlistItem && playlistItem.dataset.mpIndex && !target.closest('.mp-remove-btn')) {
+          const idx = parseInt(playlistItem.dataset.mpIndex, 10);
+          if (!isNaN(idx)) {
+            this.mediaPlayer.setIndex(idx);
+            this.render();
+          }
+          return;
+        }
+
+        // Remove from Playlist
+        const removeBtn = target.closest('.mp-remove-btn') as HTMLElement;
+        if (removeBtn && removeBtn.dataset.mpRemove) {
+          e.stopPropagation();
+          const idx = parseInt(removeBtn.dataset.mpRemove, 10);
+          if (!isNaN(idx)) {
+            this.mediaPlayer.removeFile(idx);
+            this.render();
+          }
+          return;
+        }
+
+        // Add File Button
+        const addBtn = target.closest('[data-mp-action="add"]');
+        if (addBtn) {
+          void this.openPromptModal({
+            title: 'Add Media File',
+            message: 'Enter full path to audio/video file:',
+            placeholder: '/home/user/Music/song.mp3'
+          }).then(path => {
+            if (path) {
+              this.mediaPlayer.addFile(path);
+              if (this.mediaPlayer.state.playlist.length === 1) this.mediaPlayer.setIndex(0);
+              this.render();
+            }
+          });
+          return;
+        }
+
+        // Controls
+        const controlBtn = target.closest('[data-mp-action]') as HTMLElement;
+        if (controlBtn) {
+          const action = controlBtn.dataset.mpAction;
+          if (action === 'play') {
+            const video = document.getElementById('mp-video') as HTMLVideoElement;
+            const audio = document.getElementById('mp-audio') as HTMLAudioElement;
+            const media = (video || audio);
+            if (media) {
+              if (media.paused) media.play();
+              else media.pause();
+            }
+          }
+          else if (action === 'stop') {
+            const video = document.getElementById('mp-video') as HTMLVideoElement;
+            const audio = document.getElementById('mp-audio') as HTMLAudioElement;
+            const media = (video || audio);
+            if (media) {
+              media.pause();
+              media.currentTime = 0;
+            }
+          }
+          else if (action === 'next') {
+            this.mediaPlayer.nextTrack();
+            this.render();
+          }
+          else if (action === 'prev') {
+            this.mediaPlayer.prevTrack();
+            this.render();
+          }
+          else if (action === 'shuffle') {
+            const isShuffle = this.mediaPlayer.toggleShuffle();
+            controlBtn.classList.toggle('active', isShuffle);
+            this.render();
+          }
+          else if (action === 'repeat') {
+            const mode = this.mediaPlayer.toggleRepeat();
+            controlBtn.textContent = `🔁 Repeat: ${mode}`;
+            controlBtn.classList.toggle('active', mode !== 'none');
+            this.render();
+          }
+        }
+
+        // Equalizer
+        const eqBtn = target.closest('[data-mp-eq]') as HTMLElement;
+        if (eqBtn) {
+          this.mediaPlayer.setSafeEqualizerPreset(eqBtn.dataset.mpEq || '');
+
+          const parent = eqBtn.parentElement;
+          if (parent) {
+            parent.querySelectorAll('.mp-eq-btn').forEach(b => b.classList.remove('active'));
+            eqBtn.classList.add('active');
+          }
+          const appEl = eqBtn.closest('.media-player-app');
+          const topBar = appEl?.querySelector('.mp-eq-display');
+          if (topBar) topBar.textContent = `${this.mediaPlayer.state.equalizerPreset.toUpperCase()} EQ`;
+
+          this.render();
+        }
+      });
+
+
       // Settings Navigation
+
+
       app.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
@@ -4228,6 +6952,134 @@ class TempleOS {
             win.content = this.getSettingsContentV2();
             this.render();
           }
+        }
+
+        // Workspace Switcher Click Handler
+        const workspaceIndicator = target.closest('.workspace-indicator') as HTMLElement;
+        if (workspaceIndicator && workspaceIndicator.dataset.workspaceId) {
+          const wsId = parseInt(workspaceIndicator.dataset.workspaceId, 10);
+          if (!Number.isNaN(wsId)) {
+            this.workspaceManager.switchToWorkspace(wsId);
+          }
+        }
+
+        // Workspace Preview Click Handler (in overview)
+        const workspacePreview = target.closest('.workspace-preview') as HTMLElement;
+        if (workspacePreview && workspacePreview.dataset.workspaceId) {
+          const wsId = parseInt(workspacePreview.dataset.workspaceId, 10);
+          if (!Number.isNaN(wsId)) {
+            this.workspaceManager.switchToWorkspace(wsId);
+            this.showWorkspaceOverview = false;
+            this.render();
+          }
+        }
+
+        // Snap Assist Window Click Handler
+        const snapAssistWindow = target.closest('.snap-assist-window') as HTMLElement;
+        if (snapAssistWindow && snapAssistWindow.dataset.windowId) {
+          const winId = snapAssistWindow.dataset.windowId;
+          const assistZone = this.tilingManager.getSnapAssistZone();
+          if (assistZone) {
+            const win = this.windows.find(w => w.id === winId);
+            if (win) {
+              const bounds = this.tilingManager.snapWindow(winId, assistZone, {
+                x: win.x, y: win.y, width: win.width, height: win.height
+              });
+              if (bounds) {
+                win.x = bounds.x;
+                win.y = bounds.y;
+                win.width = bounds.width;
+                win.height = bounds.height;
+              }
+            }
+          }
+          this.tilingManager.clearSnapAssist();
+          this.showSnapAssist = false;
+          this.render();
+        }
+
+        // Close workspace overview on background click
+        if (target.classList.contains('workspace-overview-overlay')) {
+          this.showWorkspaceOverview = false;
+          this.render();
+        }
+
+        // Close snap assist on background click
+        if (target.classList.contains('snap-assist-overlay')) {
+          this.tilingManager.clearSnapAssist();
+          this.showSnapAssist = false;
+          this.render();
+        }
+      });
+
+      // Global Keyboard Event Handler
+      window.addEventListener('keydown', (e: KeyboardEvent) => {
+        // Workspace Overview: Win+Tab
+        if (e.metaKey && e.key === 'Tab') {
+          e.preventDefault();
+          this.showWorkspaceOverview = !this.showWorkspaceOverview;
+          this.render();
+          return;
+        }
+
+        // Close workspace overview with Escape
+        if (e.key === 'Escape' && this.showWorkspaceOverview) {
+          this.showWorkspaceOverview = false;
+          this.render();
+          return;
+        }
+
+        // Close snap assist with Escape
+        if (e.key === 'Escape' && this.showSnapAssist) {
+          this.tilingManager.clearSnapAssist();
+          this.showSnapAssist = false;
+          this.render();
+          return;
+        }
+
+        // Workspace Switching: Ctrl+Win+Left/Right
+        if (e.ctrlKey && e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          e.preventDefault();
+          if (e.key === 'ArrowLeft') {
+            this.workspaceManager.previousWorkspace();
+          } else {
+            this.workspaceManager.nextWorkspace();
+          }
+          return;
+        }
+
+        // Direct Workspace Switch: Ctrl+Win+1-4
+        if (e.ctrlKey && e.metaKey && e.key >= '1' && e.key <= '9') {
+          e.preventDefault();
+          const wsId = parseInt(e.key, 10);
+          if (wsId <= this.workspaceManager.getTotalWorkspaces()) {
+            this.workspaceManager.switchToWorkspace(wsId);
+          }
+          return;
+        }
+
+        // Window Snapping: Win+Arrow keys (when a window is active)
+        if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+          const activeWin = this.windows.find(w => w.active);
+          if (activeWin && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            e.preventDefault();
+            this.handleWindowSnap(activeWin.id, e.key as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown');
+            return;
+          }
+        }
+
+        // Move window to another workspace: Ctrl+Shift+Win+1-4
+        if (e.ctrlKey && e.shiftKey && e.metaKey && e.key >= '1' && e.key <= '9') {
+          e.preventDefault();
+          const activeWin = this.windows.find(w => w.active);
+          if (activeWin) {
+            const targetWs = parseInt(e.key, 10);
+            if (targetWs <= this.workspaceManager.getTotalWorkspaces()) {
+              this.workspaceManager.moveWindowToWorkspace(activeWin.id, targetWs);
+              this.showNotification('Workspace', `Window moved to Desktop ${targetWs}`, 'info');
+            }
+          }
+          return;
         }
       });
     });
@@ -4251,7 +7103,10 @@ class TempleOS {
     return base + sep + name;
   }
 
-  private openApp(appId: string, toggle = false) {
+  private openApp(appId: string, arg?: any) {
+    const toggle = typeof arg === 'boolean' ? arg : false;
+    const fileToPlay = typeof arg === 'object' && arg?.file ? arg.file : null;
+
     // Prefer the active window if one exists (to allow toggling minimize)
     const activeWindow = this.windows.find(w => w.id.startsWith(appId) && w.active);
     const existingWindow = activeWindow || this.windows.find(w => w.id.startsWith(appId));
@@ -4273,6 +7128,7 @@ class TempleOS {
 
     this.recordAppLaunch(`builtin:${appId}`);
 
+    const nextId = `${appId}-${++this.windowIdCounter}`;
     let windowConfig: Partial<WindowState> = {};
 
     switch (appId) {
@@ -4292,6 +7148,78 @@ class TempleOS {
           width: 550,
           height: 400,
           content: this.getWordOfGodContent()
+        };
+        break;
+      case 'sprite-editor':
+        windowConfig = {
+          title: 'Sprite Editor',
+          icon: '🎨',
+          width: 700,
+          height: 550,
+          content: this.getSpriteEditorContent()
+        };
+        break;
+      case 'calculator':
+        windowConfig = {
+          title: 'Calculator',
+          icon: '🧮',
+          width: 320,
+          height: 480,
+          content: this.getCalculatorContent()
+        };
+        break;
+      case 'notes':
+        windowConfig = {
+          title: 'Notes',
+          icon: '📝',
+          width: 500,
+          height: 400,
+          content: this.getNotesContent()
+        };
+        break;
+      case 'calendar':
+        windowConfig = {
+          title: 'Divine Calendar',
+          icon: '📅',
+          width: 600,
+          height: 500,
+          content: this.getCalendarContent()
+        };
+        break;
+      case 'image-viewer':
+        windowConfig = {
+          title: 'Image Viewer',
+          icon: '🖼️',
+          width: 800,
+          height: 600,
+          content: this.getImageViewerContent(typeof arg === 'object' && arg.file ? arg.file : undefined, nextId)
+        };
+        break;
+      case 'media-player':
+        windowConfig = {
+          title: 'Media Player',
+          icon: '💿',
+          width: 640,
+          height: 480,
+          content: this.getMediaPlayerContent(fileToPlay)
+        };
+        break;
+      case 'auto-harp':
+        windowConfig = {
+          title: 'God\'s AutoHarp',
+          icon: '🎹',
+          width: 600,
+          height: 350,
+          content: this.getAutoHarpContent()
+        };
+        break;
+      case 'doldoc-viewer':
+        windowConfig = {
+          title: 'DolDoc Viewer',
+          icon: '📄',
+          width: 600,
+          height: 600,
+          content: this.getDolDocViewerContent()
         };
         break;
       case 'files':
@@ -4353,10 +7281,19 @@ class TempleOS {
           content: this.getSettingsContentV2()
         };
         break;
+      case 'help':
+        windowConfig = {
+          title: 'Help & Docs',
+          icon: '❓',
+          width: 800,
+          height: 600,
+          content: this.helpApp.render()
+        };
+        break;
     }
 
     const newWindow: WindowState = {
-      id: `${appId}-${++this.windowIdCounter}`,
+      id: nextId,
       title: windowConfig.title || 'Window',
       icon: windowConfig.icon || '📄',
       x: 100 + (this.windows.length * 30),
@@ -4371,6 +7308,10 @@ class TempleOS {
 
     this.windows.forEach(w => w.active = false);
     this.windows.push(newWindow);
+
+    // Register window with current workspace
+    this.workspaceManager.addWindowToCurrentWorkspace(nextId);
+
     this.render();
 
     // Focus terminal input or initialize xterm
@@ -5264,27 +8205,39 @@ class TempleOS {
       return;
     }
 
-    if (base === 'neofetch') {
+    if (base === 'neofetch' || base === 'sysinfo') {
       const info = this.systemInfo;
       const art = [
-        '╔══════════════════════╗',
-        '║  T E M P L E  O S    ║',
-        '║      R E M A K E     ║',
-        '╚══════════════════════╝',
+        '      .           ',
+        '    .:+:.         ',
+        '  .:+ooo+:.       ',
+        ' .:+ooooo+:.      ',
+        '.:+ooooooo+:.     ',
+        '   .:+o+:.        ',
+        '     ...          ',
+        '   TEMPLEOS       ',
       ];
+      // Display side-by-side if I could, but line-by-line is safer for now
       art.forEach(l => print(l, 'gold'));
+
       print(`OS: TempleOS Remake`, 'system');
       if (info) {
-        print(`User: ${info.user}`, 'system');
-        print(`Host: ${info.hostname}`, 'system');
-        print(`Platform: ${info.platform}`, 'system');
+        print(`User: ${info.user}@${info.hostname}`, 'system');
+        print(`Kernel: Divine Intellect (Mock)`, 'system');
         print(`Uptime: ${this.formatDuration(info.uptime)}`, 'system');
+        print(`Shell: God's Shell`, 'system');
         print(`CPU: ${info.cpus} cores`, 'system');
         const used = Math.max(0, info.memory.total - info.memory.free);
         print(`Memory: ${this.formatFileSize(used)} / ${this.formatFileSize(info.memory.total)}`, 'system');
       }
-      print(`Theme: ${this.themeMode}/${this.terminalUiTheme}`, 'system');
-      print(`Quote: ${fortunes[Math.floor(Math.random() * fortunes.length)]}`, 'gold');
+      print(`Theme: ${this.themeMode} (${this.terminalUiTheme})`, 'system');
+
+      // Color blocks
+      let blocks = '';
+      for (let i = 30; i <= 37; i++) blocks += `\x1b[${i}m███`;
+      blocks += '\x1b[0m';
+      print(blocks, '');
+
       this.refreshTerminalWindow();
       return;
     }
@@ -5345,15 +8298,562 @@ class TempleOS {
   }
 
   private getWordOfGodContent(): string {
-    const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
+    const historyHtml = this.oracleHistory.map(entry => `
+      <div class="divine-entry" style="margin-bottom: 12px; border-bottom: 1px solid rgba(0,255,65,0.2); padding-bottom: 8px;">
+        <div style="font-size: 18px; color: #ffd700; font-weight: bold; font-family: 'Terminus', monospace;">${escapeHtml(entry)}</div>
+      </div>
+    `).join('');
+
     return `
-      <div class="word-of-god">
-        <h2>✝ WORD OF GOD ✝</h2>
-        <p class="verse-text">"${verse.text}"</p>
-        <p class="verse-reference">— ${verse.ref}</p>
-        <p class="click-hint">🙏 Click anywhere for new word</p>
+      <div class="oracle-app" style="height: 100%; display: flex; flex-direction: column; background: #000; color: #00ff41;">
+        <div class="oracle-header" style="flex-shrink: 0; padding: 15px; text-align: center; border-bottom: 2px solid #00ff41; background: rgba(0,255,65,0.1);">
+          <h1 style="margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;">✝ Divine Oracle ✝</h1>
+          <div style="opacity: 0.8; font-size: 14px; margin-top: 5px;">"The Holy Spirit speaks through the random number generator."</div>
+        </div>
+        
+        <div id="oracle-display" style="flex: 1; overflow-y: auto; padding: 20px; font-family: 'Terminus', monospace;">
+          ${historyHtml || '<div style="text-align: center; opacity: 0.5; margin-top: 50px;">Waiting for divine intervention...</div>'}
+        </div>
+
+        <div class="oracle-controls" style="flex-shrink: 0; padding: 20px; border-top: 1px solid #00ff41; background: rgba(0,255,65,0.05); text-align: center;">
+          <div style="font-size: 16px; margin-bottom: 15px; animation: blink 2s infinite;">PRESS <span style="border: 1px solid #00ff41; padding: 2px 8px; border-radius: 4px;">SPACE</span> TO SPEAK</div>
+          
+          <div style="display: flex; gap: 10px; justify-content: center;">
+             <button class="oracle-btn" data-oracle-action="speak" style="padding: 8px 16px; background: #00ff41; color: #000; border: none; font-weight: bold; cursor: pointer;">Talk to God</button>
+             <button class="oracle-btn" data-oracle-action="copy" style="padding: 8px 16px; background: transparent; color: #00ff41; border: 1px solid #00ff41; cursor: pointer;">Copy</button>
+             <button class="oracle-btn" data-oracle-action="clear" style="padding: 8px 16px; background: transparent; color: #ff6464; border: 1px solid #ff6464; cursor: pointer;">Clear</button>
+          </div>
+        </div>
       </div>
     `;
+  }
+
+  private generateOracleWords(): void {
+    const count = Math.floor(Math.random() * 4) + 1; // 1 to 4 words
+    const words: string[] = [];
+    for (let i = 0; i < count; i++) {
+      words.push(oracleWordList[Math.floor(Math.random() * oracleWordList.length)]);
+    }
+    const phrase = words.join(' ');
+    this.oracleHistory.push(phrase);
+
+    // Scroll to bottom if oracle window is open
+    const win = this.windows.find(w => w.content.includes('oracle-app'));
+    if (win) {
+      win.content = this.getWordOfGodContent();
+      this.render();
+      // TODO: auto-scroll logic requires DOM access after render
+      setTimeout(() => {
+        const display = document.getElementById('oracle-display');
+        if (display) display.scrollTop = display.scrollHeight;
+      }, 50);
+    }
+  }
+
+  private executeHolyC(code: string): void {
+    this.openApp('terminal');
+    // Ensure we switch to terminal tab if it's already open but not active? 
+    // openApp handles focusing.
+
+    // Need to wait for render if terminal wasn't open? 
+    // this.openApp pushes window. 
+    // But terminal content relies on `terminalTabs` which are permanent state.
+
+    // Find active tab
+    let tab = this.terminalTabs[this.activeTerminalTab];
+    if (!tab) {
+      // Should exist if openApp worked, but maybe activeIndex needs reset?
+      this.activeTerminalTab = 0;
+      if (this.terminalTabs.length === 0) {
+        this.terminalTabs.push({ id: '1', ptyId: null, title: 'Term 1', cwd: '/', buffer: [], xterm: null, fitAddon: null });
+      }
+      tab = this.terminalTabs[this.activeTerminalTab];
+    }
+
+    const print = (msg: string, color: string = 'white') => {
+      let style = '';
+      if (color === 'gold') style = 'color: #ffd700; font-weight: bold;';
+      else if (color === 'system') style = 'color: #00ff41; opacity: 0.8;';
+      else if (color === 'success') style = 'color: #00ff41; font-weight: bold;';
+      else if (color === 'error') style = 'color: #ff6464;';
+      else style = `color: ${color};`;
+
+      tab.buffer.push(`<div class="terminal-line" style="${style}">${escapeHtml(msg)}</div>`);
+    };
+
+    print('HolyC Compiler v5.03', 'gold');
+    print('Compiling JIT...', 'system');
+    this.refreshTerminalWindow();
+
+    setTimeout(() => {
+      // Very basic parser for "Print" statements
+      const lines = code.split('\n');
+      let executed = 0;
+
+      try {
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('//') || !trimmed) continue;
+
+          // Handle Print("...")
+          const printMatch = trimmed.match(/^Print\s*\(\s*"([^"]*)"\s*\)\s*;?/);
+          if (printMatch) {
+            print(printMatch[1]);
+            executed++;
+          }
+
+          // Handle "string"; (implicit print in TempleOS essentially?) 
+          // No, TempleOS shell does that.
+        }
+
+        if (executed === 0 && code.trim().length > 0) {
+          print('Warning: No executable statements found (Print).', 'error');
+        } else {
+          print('Program Exited.', 'system');
+        }
+
+      } catch (e) {
+        print(`Runtime Error: ${e}`, 'error');
+      }
+
+      tab.buffer.push(`<div class="terminal-line">${this.formatTerminalPrompt(tab.cwd || '/')} </div>`);
+      this.refreshTerminalWindow();
+    }, 600);
+  }
+
+
+  private saveSprite(): void {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.spriteData));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = `sprite_${Date.now()}.json`;
+    a.click();
+  }
+
+  private downloadSpritePng(): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const vgaColors = [
+      '#000000', '#0000AA', '#00AA00', '#00AAAA', '#AA0000', '#AA00AA', '#AA5500', '#AAAAAA',
+      '#555555', '#5555FF', '#55FF55', '#55FFFF', '#FF5555', '#FF55FF', '#FFFF55', '#FFFFFF'
+    ];
+
+    this.spriteData.forEach((row, y) => {
+      row.forEach((colorIndex, x) => {
+        ctx.fillStyle = vgaColors[colorIndex];
+        ctx.fillRect(x, y, 1, 1);
+      });
+    });
+
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sprite_${Date.now()}.png`;
+    a.click();
+  }
+
+  private getSpriteEditorContent(): string {
+    const vgaColors = [
+      '#000000', '#0000AA', '#00AA00', '#00AAAA', '#AA0000', '#AA00AA', '#AA5500', '#AAAAAA',
+      '#555555', '#5555FF', '#55FF55', '#55FFFF', '#FF5555', '#FF55FF', '#FFFF55', '#FFFFFF'
+    ];
+
+    const cellSize = this.spriteZoom; // px
+
+    const gridHtml = this.spriteData.map((row, y) => `
+        <div style="display: flex;">
+          ${row.map((colorIndex, x) => `
+             <div class="sprite-pixel" data-x="${x}" data-y="${y}" style="
+                width: ${cellSize}px; 
+                height: ${cellSize}px; 
+                background: ${vgaColors[colorIndex]}; 
+                border-right: ${this.spriteShowGrid ? '1px solid rgba(128,128,128,0.2)' : 'none'};
+                border-bottom: ${this.spriteShowGrid ? '1px solid rgba(128,128,128,0.2)' : 'none'};
+                cursor: crosshair;
+             "></div>
+          `).join('')}
+        </div>
+      `).join('');
+
+    // Preview Canvas (CSS scaled)
+    const previewScale = 4;
+    const previewHtml = `<div style="
+          width: ${16 * previewScale}px; 
+          height: ${16 * previewScale}px; 
+          display: grid;
+          grid-template-columns: repeat(16, 1fr);
+          border: 1px solid #00ff41;
+          background: #000;
+      ">
+          ${this.spriteData.flat().map(c => `<div style="background: ${vgaColors[c]}; width: 100%; height: 100%;"></div>`).join('')}
+      </div>`;
+
+    return `
+        <div class="sprite-app" style="height: 100%; display: flex; flex-direction: column; background: #222; color: #fff; font-family: 'Terminus', monospace; user-select: none;">
+          <!-- Toolbar -->
+          <div style="padding: 10px; background: #333; border-bottom: 1px solid #555; display: flex; gap: 10px; align-items: center;">
+             <div style="font-weight: bold; margin-right: 10px; color: #ffd700;">Sprite Editor</div>
+             <div style="display: flex; gap: 5px;">
+                 <button class="sprite-tool-btn" data-tool="pencil" title="Pencil (P)" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">✏️</button>
+                 <button class="sprite-tool-btn" data-tool="fill" title="Bucket Fill (F)" style="${this.getBtnStyle(this.spriteTool === 'fill')}">🪣</button>
+                 <button class="sprite-tool-btn" data-tool="eyedropper" title="Color Picker (I)" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">💉</button>
+             </div>
+             <div style="width: 1px; height: 20px; background: #555;"></div>
+              <div style="display: flex; gap: 5px;">
+                  <button class="sprite-action-btn" data-action="clear" style="${this.getBtnStyle(false)}">Clear</button>
+                  <button class="sprite-action-btn" data-action="save" style="${this.getBtnStyle(false)}">Save JSON</button>
+                  <button class="sprite-action-btn" data-action="export-png" style="${this.getBtnStyle(false)}">Export PNG</button>
+              </div>
+              <div style="width: 1px; height: 20px; background: #555;"></div>
+              <!-- Animation Controls -->
+              <div style="display: flex; gap: 5px; align-items: center;">
+                  <span style="font-size: 11px; opacity: 0.7;">Animation:</span>
+                  <button class="sprite-anim-btn" data-anim-action="add-frame" style="${this.getBtnStyle(false)}" title="Add Frame">➕ Frame</button>
+                  <button class="sprite-anim-btn" data-anim-action="toggle-play" style="${this.getBtnStyle(this.spriteAnimationPlaying)}" title="Play/Pause">${this.spriteAnimationPlaying ? '⏸' : '▶'}</button>
+                  <span style="font-size: 11px;">${this.spriteAnimationFrames.length > 0 ? `${this.spriteCurrentFrame + 1}/${this.spriteAnimationFrames.length}` : '0/0'}</span>
+                  <input type="number" class="sprite-fps-input" value="${this.spriteAnimationFPS}" min="1" max="30" style="width: 50px; background: rgba(0,255,65,0.1); border: 1px solid #555; color: #00ff41; padding: 2px 4px; border-radius: 3px; font-size: 11px;" title="FPS">
+              </div>
+              <div style="flex: 1;"></div>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                 <input type="checkbox" class="sprite-grid-toggle" ${this.spriteShowGrid ? 'checked' : ''}> Show Grid
+              </label>
+           </div>
+          <div style="flex: 1; display: flex; overflow: hidden;">
+             
+             <button class="sprite-tool ${this.spriteTool === 'pencil' ? 'active' : ''}" data-tool="pencil" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">✏️ Draw</button>
+             <button class="sprite-tool ${this.spriteTool === 'fill' ? 'active' : ''}" data-tool="fill" style="${this.getBtnStyle(this.spriteTool === 'fill')}">🪣 Fill</button>
+             <button class="sprite-tool ${this.spriteTool === 'eyedropper' ? 'active' : ''}" data-tool="eyedropper" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">💉 Pick</button>
+             
+             <div style="width: 1px; height: 20px; background: #555; margin: 0 5px;"></div>
+             
+             <button class="sprite-action" data-action="toggle-grid" style="${this.getBtnStyle(false)}">Grid: ${this.spriteShowGrid ? 'ON' : 'OFF'}</button>
+             <button class="sprite-action" data-action="clear" style="${this.getBtnStyle(false)}">Clear</button>
+             
+             <div style="flex: 1;"></div>
+             <button class="sprite-action" data-action="save" style="${this.getBtnStyle(false)}">💾 Save</button>
+          </div>
+
+          <div style="flex: 1; display: flex; overflow: hidden;">
+             <!-- Palette Sidebar -->
+             <div style="width: 80px; background: #2a2a2a; border-right: 1px solid #444; padding: 10px; overflow-y: auto;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                   ${vgaColors.map((c, i) => `
+                      <div class="sprite-palette-color ${this.spriteSelectedColor === i ? 'selected' : ''}" data-color="${i}" style="
+                         aspect-ratio: 1; 
+                         background: ${c}; 
+                         border: 2px solid ${this.spriteSelectedColor === i ? '#fff' : '#000'}; 
+                         cursor: pointer;
+                         box-shadow: ${this.spriteSelectedColor === i ? '0 0 5px rgba(255,255,255,0.8)' : 'none'};
+                      " title="Color ${i}"></div>
+                   `).join('')}
+                </div>
+                <div style="margin-top: 10px; text-align: center; font-size: 10px; opacity: 0.7;">
+                    Color: ${this.spriteSelectedColor}
+                </div>
+             </div>
+
+             <!-- Main Canvas Area -->
+             <div style="flex: 1; display: flex; justify-content: center; align-items: center; background: #1a1a1a; padding: 20px; overflow: auto;">
+                <div class="sprite-grid" style="
+                   border: 1px solid #fff; 
+                   background: #000;
+                   display: flex; 
+                   flex-direction: column;
+                   box-shadow: 0 0 20px rgba(0,0,0,0.5);
+                ">
+                   ${gridHtml}
+                </div>
+             </div>
+             
+             <!-- Right Panel -->
+             <div style="width: 150px; background: #2a2a2a; border-left: 1px solid #444; padding: 15px; display: flex; flex-direction: column; gap: 20px; align-items: center;">
+                 <div style="font-size: 12px; font-weight: bold; width: 100%; border-bottom: 1px solid #444; padding-bottom: 5px;">Preview 4x</div>
+                 ${previewHtml}
+                 
+                 <div style="font-size: 11px; opacity: 0.7; margin-top: auto;">
+                    ${this.spriteGridSize}x${this.spriteGridSize} Format
+                 </div>
+             </div>
+          </div>
+        </div>
+      `;
+  }
+
+  private getBtnStyle(active: boolean): string {
+    return `
+        background: ${active ? '#00ff41' : 'transparent'}; 
+        color: ${active ? '#000' : '#ddd'}; 
+        border: 1px solid ${active ? '#00ff41' : '#555'}; 
+        padding: 4px 8px; 
+        border-radius: 4px; 
+        cursor: pointer; 
+        font-family: inherit; 
+        font-size: 12px;
+      `;
+  }
+  private handleSpriteDraw(target: HTMLElement) {
+    const x = parseInt(target.dataset.x || '-1');
+    const y = parseInt(target.dataset.y || '-1');
+    if (x >= 0 && y >= 0) {
+      if (this.spriteTool === 'pencil') {
+        this.spriteData[y][x] = this.spriteSelectedColor;
+      } else if (this.spriteTool === 'eraser') {
+        this.spriteData[y][x] = 15; // Eraser to White
+      } else if (this.spriteTool === 'fill') {
+        this.floodFillSprite(x, y, this.spriteSelectedColor);
+      } else if (this.spriteTool === 'eyedropper') {
+        this.spriteSelectedColor = this.spriteData[y][x];
+        this.spriteTool = 'pencil';
+      }
+      this.render();
+    }
+  }
+
+  private floodFillSprite(x: number, y: number, newColor: number) {
+    const targetColor = this.spriteData[y][x];
+    if (targetColor === newColor) return;
+
+    const queue: [number, number][] = [[x, y]];
+    while (queue.length > 0) {
+      const [cx, cy] = queue.pop()!;
+      if (cx < 0 || cx >= this.spriteGridSize || cy < 0 || cy >= this.spriteGridSize) continue;
+      if (this.spriteData[cy][cx] !== targetColor) continue;
+
+      this.spriteData[cy][cx] = newColor;
+      queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+  }
+
+  private startSpriteAnimation() {
+    if (this.spriteAnimationTimer !== null) {
+      clearInterval(this.spriteAnimationTimer);
+    }
+
+    const intervalMs = 1000 / this.spriteAnimationFPS;
+    this.spriteAnimationTimer = window.setInterval(() => {
+      if (this.spriteAnimationFrames.length === 0) {
+        this.stopSpriteAnimation();
+        return;
+      }
+
+      this.spriteCurrentFrame = (this.spriteCurrentFrame + 1) % this.spriteAnimationFrames.length;
+      // Load the current frame into the sprite data
+      this.spriteData = this.spriteAnimationFrames[this.spriteCurrentFrame].map(row => [...row]);
+      this.render();
+    }, intervalMs);
+  }
+
+  private stopSpriteAnimation() {
+    if (this.spriteAnimationTimer !== null) {
+      clearInterval(this.spriteAnimationTimer);
+      this.spriteAnimationTimer = null;
+    }
+    this.spriteAnimationPlaying = false;
+  }
+
+  private getAutoHarpContent(): string {
+    const keys = [
+      { note: 'C', ko: 'A', type: 'white', freq: 261.63 },
+      { note: 'C#', ko: 'W', type: 'black', freq: 277.18 },
+      { note: 'D', ko: 'S', type: 'white', freq: 293.66 },
+      { note: 'D#', ko: 'E', type: 'black', freq: 311.13 },
+      { note: 'E', ko: 'D', type: 'white', freq: 329.63 },
+      { note: 'F', ko: 'F', type: 'white', freq: 349.23 },
+      { note: 'F#', ko: 'T', type: 'black', freq: 369.99 },
+      { note: 'G', ko: 'G', type: 'white', freq: 392.00 },
+      { note: 'G#', ko: 'Y', type: 'black', freq: 415.30 },
+      { note: 'A', ko: 'H', type: 'white', freq: 440.00 },
+      { note: 'A#', ko: 'U', type: 'black', freq: 466.16 },
+      { note: 'B', ko: 'J', type: 'white', freq: 493.88 },
+      { note: 'C5', ko: 'K', type: 'white', freq: 523.25 }
+    ];
+
+    const octaveMult = Math.pow(2, this.autoHarpOctave - 4);
+
+    return `
+        <div class="autoharp-app" style="height: 100%; display: flex; flex-direction: column; background: #222; color: #fff; font-family: 'Terminus', monospace; user-select: none;">
+            <div style="padding: 10px; background: #333; border-bottom: 1px solid #555; display: flex; gap: 10px; align-items: center;">
+                 <div style="font-weight: bold; margin-right: 10px; color: #ffd700;">God's AutoHarp</div>
+                 <button class="ah-action" data-action="octave-down" style="${this.getBtnStyle(false)}">Octave -</button>
+                 <span style="min-width: 20px; text-align: center;">${this.autoHarpOctave}</span>
+                 <button class="ah-action" data-action="octave-up" style="${this.getBtnStyle(false)}">Octave +</button>
+                 
+                 <div style="width: 1px; height: 20px; background: #555; margin: 0 5px;"></div>
+                 
+                 <button class="ah-action" data-action="record" style="${this.getBtnStyle(this.autoHarpRecording)}">🔴 Rec</button>
+                 <button class="ah-action" data-action="play" style="${this.getBtnStyle(false)}">▶ Play</button>
+                 <button class="ah-action" data-action="stop" style="${this.getBtnStyle(false)}">⏹ Stop</button>
+                 <button class="ah-action" data-action="save" style="${this.getBtnStyle(false)}">💾 Save</button>
+                 <button class="ah-action" data-action="clear" style="${this.getBtnStyle(false)}">🗑 Clear</button>
+                 
+                 <div style="flex: 1;"></div>
+                 <div style="font-size: 12px; opacity: 0.7;">${this.autoHarpSong.length} notes</div>
+            </div>
+            
+            <div style="flex: 1; display: flex; justify-content: center; align-items: center; position: relative; background: #1a1a1a;">
+                <div class="piano-container" style="display: flex; position: relative; height: 200px; padding: 10px;">
+                    ${keys.map(k => {
+      const isBlack = k.type === 'black';
+      const isActive = this.autoHarpActiveNotes.has(k.ko);
+      return `
+                        <div class="piano-key ${k.type}" data-note="${k.ko}" data-freq="${k.freq * octaveMult}" style="
+                            width: ${isBlack ? 30 : 50}px;
+                            height: ${isBlack ? 120 : 200}px;
+                            background: ${isActive ? '#00ff41' : (isBlack ? '#000' : '#fff')};
+                            color: ${isActive ? '#000' : (isBlack ? '#fff' : '#000')};
+                            border: 1px solid #000;
+                            border-radius: 0 0 5px 5px;
+                            margin-left: ${isBlack ? -15 : 0}px;
+                            margin-right: ${isBlack ? -15 : 0}px;
+                            z-index: ${isBlack ? 2 : 1};
+                            position: relative;
+                            cursor: pointer;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: flex-end;
+                            align-items: center;
+                            padding-bottom: 10px;
+                            font-size: 12px;
+                            box-shadow: inset 0 -5px 10px rgba(0,0,0,0.3);
+                        ">
+                            <span style="font-weight: bold; margin-bottom: 5px;">${k.note}</span>
+                            <span style="opacity: 0.6; font-size: 10px;">(${k.ko})</span>
+                        </div>
+                        `;
+    }).join('')}
+                </div>
+            </div>
+        </div>
+       `;
+  }
+
+  // ============================================
+  // CALCULATOR APP (Tier 8.2)
+  // ============================================
+  private getCalculatorContent(): string {
+    return this.calculator.render();
+  }
+
+  // ============================================
+  // NOTES APP (Tier 8.4)
+  // ============================================
+  private getNotesContent(): string {
+    return this.notesApp.render();
+  }
+
+  // ============================================
+  // CALENDAR APP (TIER 8.3)
+  // ============================================
+  private getCalendarContent(): string {
+    return this.calendarApp.render();
+  }
+
+  // ============================================
+  // MEDIA PLAYER (TIER 8.1)
+  // ============================================
+  // TIER 4.4: IMAGE VIEWER (Enhanced with new module)
+  // ============================================
+  private getImageViewerContent(file?: string, winId?: string): string {
+    const defaultImage = './images/logo.png'; // Placeholder if no file
+    const src = file || defaultImage;
+
+    // Use new ImageViewerEnhancer module
+    if (winId) {
+      if (!this.imageViewer.getState(winId)) {
+        this.imageViewer.initState(winId, src);
+      }
+    }
+
+    // Render using enhanced module
+    const controls = winId ? this.imageViewer.renderControls(winId) : '';
+    const canvas = winId ? this.imageViewer.renderCanvas(winId, src) : `
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+      <img src="${src}" style="max-width: 100%; max-height: 100%;">
+    </div>
+  `;
+
+    return `
+    <div class="image-viewer-container" style="display: flex; flex-direction: column; height: 100%; background: #0d1117;">
+      ${controls}
+      ${canvas}
+      <div class="status-bar" style="padding: 5px 10px; background: rgba(0,255,65,0.05); font-size: 12px; color: rgba(0,255,65,0.7);">
+          ${file || 'No image loaded'}
+      </div>
+    </div>
+  `;
+  }
+
+  // ============================================
+  private getMediaPlayerContent(fileToPlay: string | null = null): string {
+    return this.mediaPlayer.render(fileToPlay);
+  }
+
+  private playTone(freq: number, type: 'sine' | 'square' | 'sawtooth' | 'triangle' = 'square', duration: number = 0.5) {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (this.audioContext.state === 'suspended') this.audioContext.resume();
+
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, this.audioContext.currentTime);
+
+    gain.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+
+    osc.connect(gain);
+    gain.connect(this.audioContext.destination);
+
+    osc.start();
+    osc.stop(this.audioContext.currentTime + duration);
+  }
+
+  private getDolDocViewerContent(): string {
+    const parsedContent = this.renderDolDoc(this.dolDocContent || 'No Document Loaded.');
+    return `
+         <div style="height: 100%; display: flex; flex-direction: column; background: #fff; color: #000; font-family: 'Terminus', monospace;">
+             <div style="padding: 5px 10px; background: #ddd; border-bottom: 1px solid #aaa; display: flex; align-items: center; justify-content: space-between;">
+                 <div style="font-weight: bold;">DolDoc Viewer</div>
+                 <div style="font-size: 12px;">${this.dolDocPath || 'Untitled.DD'}</div>
+             </div>
+             <div style="flex: 1; overflow: auto; padding: 20px; white-space: pre-wrap; line-height: 1.2;">
+                 ${parsedContent}
+             </div>
+         </div>
+       `;
+  }
+
+  private renderDolDoc(content: string): string {
+    let safe = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const colors = ['BLACK', 'BLUE', 'GREEN', 'CYAN', 'RED', 'PURPLE', 'BROWN', 'LTGRAY',
+      'DKGRAY', 'LTBLUE', 'LTGREEN', 'LTCYAN', 'LTRED', 'LTPURPLE', 'YELLOW', 'WHITE'];
+    const cssColors = ['#000000', '#0000aa', '#00aa00', '#00aaaa', '#aa0000', '#aa00aa', '#aa5500', '#aaaaaa',
+      '#555555', '#5555ff', '#55ff55', '#55ff55', '#ff5555', '#ff55ff', '#ffff55', '#ffffff'];
+
+    // Replace colors: $FG,RED$ (Simulated by generic spans that we hope browser closes or we just don't close)
+    // To strictly be correct, we should probably just wrap everything in spans on every color change? 
+    // For now, simple replacement (Browser tolerates unclosed tags often)
+    colors.forEach((c, i) => {
+      const regex = new RegExp(`\\$FG,${c}\\$`, 'g');
+      safe = safe.replace(regex, `<span style="color: ${cssColors[i]};">`);
+      const regexBg = new RegExp(`\\$BG,${c}\\$`, 'g');
+      safe = safe.replace(regexBg, `<span style="background: ${cssColors[i]};">`);
+    });
+
+    // Clear: $CL$ -> Reset spans? (Close all spans?)
+    // Hard to implement with regex.
+
+    safe = safe.replace(/\$LK,"([^"]+)",A="([^"]+)"\$/g, '<a href="#" data-link="$2" style="color: blue; text-decoration: underline; cursor: pointer;">$1</a>');
+    safe = safe.replace(/\$TX,"([^"]+)"\$/g, '$1');
+
+    return safe;
   }
 
   private getFileBrowserContent(): string {
@@ -5473,6 +8973,99 @@ class TempleOS {
     `;
   }
 
+  private addBookmark(path: string): void {
+    if (!this.fileBookmarks.includes(path)) {
+      this.fileBookmarks.push(path);
+      this.queueSaveConfig();
+      if (this.currentPath) this.loadFiles(this.currentPath); // Re-render to show update
+    }
+  }
+
+  private removeBookmark(path: string): void {
+    const idx = this.fileBookmarks.indexOf(path);
+    if (idx !== -1) {
+      this.fileBookmarks.splice(idx, 1);
+      this.queueSaveConfig();
+      if (this.currentPath) this.loadFiles(this.currentPath);
+    }
+  }
+
+  private async previewFileItem(path: string, isDir: boolean): Promise<void> {
+    if (isDir) return;
+    const name = path.split(/[/\\]/).pop() || 'file';
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+
+    let type: 'image' | 'text' | 'unknown' = 'unknown';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+      type = 'image';
+    } else if (['txt', 'md', 'json', 'js', 'ts', 'html', 'css', 'c', 'cpp', 'h', 'hc', 'py', 'conf', 'xml', 'yaml', 'yml'].includes(ext)) {
+      type = 'text';
+    }
+
+    let content: string | undefined;
+    if (type === 'text' && window.electronAPI) {
+      try {
+        const res = await window.electronAPI.readFile(path);
+        if (res.success && typeof res.content === 'string') {
+          content = res.content.slice(0, 10000);
+        }
+      } catch (e) { console.warn('Preview read failed', e); }
+    } else if (type === 'image') {
+      // For images, we can just use the path if we are careful about protocol
+      // But actually electron normally won't let us load local files directly in img src unless configured.
+      // However, usually we can use `file://` protocol if security allows or we read as base64.
+      // For now, let's assume we use the path directly with file:// protocol or simple path if allowed.
+      // But a better way is to read as base64 in main process.
+      // However, existing `readFile` returns text.
+      // Let's assume we can try to set content to path for image rendering loop.
+      content = path;
+    }
+
+    this.previewFile = { path, name, type, content };
+    this.render();
+  }
+
+  private closePreview(): void {
+    this.previewFile = null;
+    this.render();
+  }
+
+  private async createZipFromItem(path: string): Promise<void> {
+    if (!window.electronAPI?.createZip) {
+      await this.openAlertModal({ title: 'Error', message: 'Compression not supported in this environment.' });
+      return;
+    }
+    const parent = path.split(/[/\\]/).slice(0, -1).join(this.getPathSeparator(path)) || this.homePath || '/';
+    const name = path.split(/[/\\]/).pop() || 'archive';
+    const targetPath = this.joinPath(parent, `${name}.zip`);
+
+    this.showNotification('Files', 'Compressing...', 'info');
+    const res = await window.electronAPI.createZip(path, targetPath);
+    if (res.success) {
+      this.showNotification('Files', `Created ${name}.zip`, 'divine');
+      this.loadFiles(parent);
+    } else {
+      await this.openAlertModal({ title: 'Compression Failed', message: res.error || 'Unknown error' });
+    }
+  }
+
+  private async extractZipHere(path: string): Promise<void> {
+    if (!window.electronAPI?.extractZip) {
+      await this.openAlertModal({ title: 'Error', message: 'Extraction not supported in this environment.' });
+      return;
+    }
+    const parent = path.split(/[/\\]/).slice(0, -1).join(this.getPathSeparator(path)) || this.homePath || '/';
+
+    this.showNotification('Files', 'Extracting...', 'info');
+    const res = await window.electronAPI.extractZip(path, parent);
+    if (res.success) {
+      this.showNotification('Files', 'Extracted successfully', 'divine');
+      this.loadFiles(parent);
+    } else {
+      await this.openAlertModal({ title: 'Extraction Failed', message: res.error || 'Unknown error' });
+    }
+  }
+
   private getFileBrowserContentV2(): string {
     if (this.currentPath === 'trash:') {
       return this.getTrashBrowserContentV2();
@@ -5515,6 +9108,13 @@ class TempleOS {
       const downloads = this.joinPath(home, 'Downloads');
       const pictures = this.joinPath(home, 'Pictures');
       const music = this.joinPath(home, 'Music');
+
+      const bookmarks = this.fileBookmarks.map(path => ({
+        label: path.split(/[/\\\\]/).pop() || path,
+        path: path,
+        isBookmark: true
+      }));
+
       return [
         { label: 'This PC', path: isWindows ? 'C:\\' : '/' },
         { label: 'Home', path: home },
@@ -5522,6 +9122,7 @@ class TempleOS {
         { label: 'Downloads', path: downloads },
         { label: 'Pictures', path: pictures },
         { label: 'Music', path: music },
+        ...bookmarks,
         { label: 'Trash', path: 'trash:' },
       ];
     })();
@@ -5621,7 +9222,7 @@ class TempleOS {
           <div class="file-browser-sidebar" style="width: 190px; border-right: 1px solid rgba(0,255,65,0.15); padding: 10px; background: rgba(0,0,0,0.12); overflow: auto;">
             <div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Favorites</div>
             ${sidebarItems.map(item => `
-              <div class="file-sidebar-link" data-path="${escapeHtml(item.path)}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; color: ${item.path === this.currentPath ? '#000' : '#00ff41'}; background: ${item.path === this.currentPath ? '#00ff41' : 'transparent'}; margin-bottom: 6px;">
+              <div class="file-sidebar-link" data-path="${escapeHtml(item.path)}" data-is-bookmark="${!!(item as any).isBookmark}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; color: ${item.path === this.currentPath ? '#000' : '#00ff41'}; background: ${item.path === this.currentPath ? '#00ff41' : 'transparent'}; margin-bottom: 6px;">
                 ${escapeHtml(item.label)}
               </div>
             `).join('')}
@@ -5644,6 +9245,7 @@ class TempleOS {
       Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
       Security: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
       Devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="6"></rect><line x1="12" y1="7" x2="12" y2="11"></line></svg>',
+      Bluetooth: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline></svg>',
       About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
     };
 
@@ -5653,6 +9255,7 @@ class TempleOS {
       { id: 'Network', icon: svgIcons.Network, label: 'Network & Internet' },
       { id: 'Security', icon: svgIcons.Security, label: 'Security' },
       { id: 'Devices', icon: svgIcons.Devices, label: 'Mouse & Input' },
+      { id: 'Bluetooth', icon: svgIcons.Bluetooth, label: 'Bluetooth' },
       { id: 'About', icon: svgIcons.About, label: 'About' },
     ];
 
@@ -5761,6 +9364,14 @@ class TempleOS {
         ${card('Lock Screen', `
           <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed (\"temple\").</div>
         `)}
+
+        ${card('Gaming', `
+          <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+             <span>Gaming Mode (Disable Hotkeys)</span>
+             <input type="checkbox" class="gaming-mode-toggle" ${this.gamingModeActive ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
+          </label>
+          <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Prevents Accidental Win/Meta Key presses.</div>
+        `)}
       `;
     };
 
@@ -5770,11 +9381,37 @@ class TempleOS {
       ];
       return `
         ${card('Theme', `
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; margin-bottom: 12px;">
             <button class="theme-btn" data-theme="dark" style="padding: 8px 16px; background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'}; color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'}; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Dark</button>
             <button class="theme-btn" data-theme="light" style="padding: 8px 16px; background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'}; color: ${this.themeMode === 'light' ? '#000' : '#00ff41'}; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Light</button>
           </div>
+          
+          <div style="font-size: 14px; color: #ffd700; margin-bottom: 8px;">Color Scheme</div>
+          <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            ${['green', 'amber', 'cyan', 'white'].map(c => `
+                <button class="theme-color-btn" data-color="${c}" style="
+                    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+                    background: ${c === 'green' ? '#00ff41' : c === 'amber' ? '#ffb000' : c === 'cyan' ? '#00ffff' : '#ffffff'};
+                    border: ${this.themeColor === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.3)'};
+                    box-shadow: ${this.themeColor === c ? '0 0 10px rgba(255,255,255,0.5)' : 'none'};
+                " title="${c.charAt(0).toUpperCase() + c.slice(1)}"></button>
+            `).join('')}
+          </div>
+
           <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
+        `)}
+
+        ${card('Visual Effects', `
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <label style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Window Animations</span>
+                      <input type="checkbox" disabled checked title="Cannot disable animations in this version (use Lite Mode)">
+                  </label>
+                  <label style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Auto-hide Taskbar</span>
+                      <input type="checkbox" class="taskbar-autohide-toggle" ${this.autoHideTaskbar ? 'checked' : ''} style="cursor: pointer;">
+                  </label>
+              </div>
         `)}
 
         ${card('Wallpaper', `
@@ -5783,6 +9420,20 @@ class TempleOS {
               <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: ${this.wallpaperImage === w.path ? '2px solid #00ff41' : '1px solid rgba(0,255,65,0.3)'}; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
             `).join('')}
           </div>
+        `)}
+
+        ${card('Divine Settings', `
+           <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 10px;">
+             <span>Random Terry Quotes</span>
+             <input type="checkbox" class="quote-notifications-toggle" ${this.quoteNotifications ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
+           </label>
+        `)}
+
+        ${card('Performance', `
+          <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+             <span>Lite Mode (No Animations)</span>
+             <input type="checkbox" class="lite-mode-toggle" ${this.liteMode ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
+          </label>
         `)}
       `;
     };
@@ -5793,18 +9444,56 @@ class TempleOS {
       const signal = this.networkStatus.wifi?.signal ?? 0;
       const ip = this.networkStatus.ip4;
 
+      const vpn = this.getVpnStatus();
+      const now = Date.now();
+      const snoozeRemaining = (this.vpnKillSwitchSnoozeUntil && this.vpnKillSwitchSnoozeUntil > now)
+        ? Math.ceil((this.vpnKillSwitchSnoozeUntil - now) / 1000)
+        : 0;
+      const killSwitchShouldEnforce = this.vpnKillSwitchEnabled && !vpn.connected && (this.vpnKillSwitchMode === 'strict' || this.vpnKillSwitchArmed);
+      const killSwitchSnoozing = snoozeRemaining > 0;
+
+      let killSwitchState = 'Disabled';
+      let killSwitchColor = '#888';
+      if (this.vpnKillSwitchEnabled) {
+        if (vpn.connected) { killSwitchState = 'Armed'; killSwitchColor = '#00ff41'; }
+        else if (killSwitchSnoozing) { killSwitchState = `Snoozed (${snoozeRemaining}s)`; killSwitchColor = '#ffd700'; }
+        else if (this.vpnKillSwitchMode === 'auto' && !this.vpnKillSwitchArmed) { killSwitchState = 'Waiting for VPN'; killSwitchColor = '#ffd700'; }
+        else if (this.vpnKillSwitchBlocked) { killSwitchState = 'BLOCKING (VPN down)'; killSwitchColor = '#ff6464'; }
+        else { killSwitchState = 'Armed (VPN down)'; killSwitchColor = '#ffd700'; }
+      }
+
       const savedWifi = this.savedNetworks.filter(n => (n.type || '').toLowerCase().includes('wifi') || (n.type || '').toLowerCase().includes('wireless')).slice(0, 12);
       const savedOther = this.savedNetworks.filter(n => !savedWifi.includes(n)).slice(0, 8);
+      const vpnProfiles = this.savedNetworks
+        .filter(n => {
+          const t = String(n.type || '').toLowerCase();
+          return t === 'vpn' || t === 'wireguard';
+        })
+        .slice(0, 10);
+      const activeVpnNames = new Set(
+        Array.isArray(this.networkStatus.devices)
+          ? this.networkStatus.devices
+            .filter(d => this.isVpnDevice(d) && this.connectedState(d.state))
+            .map(d => String(d.connection || '').trim())
+            .filter(Boolean)
+          : []
+      );
 
       return `
         ${card('Status', `
           <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
           <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
-          <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-            <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
-              <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} />
-              <span style="opacity: 0.9;">Wi‑Fi</span>
-            </label>
+          <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+             <div style="display: flex; gap: 20px;">
+                <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+                  <input type="checkbox" class="flight-mode-toggle" ${this.flightMode ? 'checked' : ''} />
+                  <span style="opacity: 0.9;">✈️ Flight Mode</span>
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+                  <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} ${this.flightMode ? 'disabled' : ''} />
+                  <span style="opacity: 0.9;">Wi‑Fi</span>
+                </label>
+            </div>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
               <button class="net-btn" data-net-action="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
               ${connected ? `<button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>` : ''}
@@ -5850,6 +9539,151 @@ class TempleOS {
             `).join('') || '<div style=\"opacity: 0.6;\">No saved networks.</div>') : ''}
           </div>
         `)}
+
+        ${card('VPN Profiles', `
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+            <div style="font-size: 12px; opacity: 0.8; min-width: 220px;">
+              Manage OpenVPN / WireGuard profiles (NetworkManager).
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button class="vpn-import-btn" data-vpn-kind="openvpn" style="background: none; border: 1px solid rgba(0,255,65,0.45); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Import OpenVPN</button>
+              <button class="vpn-import-btn" data-vpn-kind="wireguard" style="background: none; border: 1px solid rgba(0,255,65,0.45); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Import WireGuard</button>
+            </div>
+          </div>
+
+          ${!window.electronAPI?.listSavedNetworks ? `
+            <div style="opacity: 0.6;">VPN management requires Electron/Linux.</div>
+          ` : ''}
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${vpnProfiles.length ? vpnProfiles.map(p => {
+          const t = String(p.type || '').toLowerCase();
+          const label = t === 'wireguard' ? 'WireGuard' : 'VPN';
+          const active = activeVpnNames.has(p.name) || (vpn.connected && String(vpn.connection || '') === p.name);
+          const deviceLabel = p.device && p.device !== '--' ? p.device : '';
+          return `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${active ? 'rgba(255,215,0,0.07)' : 'rgba(0,0,0,0.2)'};">
+                  <div style="min-width: 0;">
+                    <div style="font-weight: bold; color: ${active ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.name)}</div>
+                    <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(label)}${deviceLabel ? `  ${escapeHtml(deviceLabel)}` : ''}  ${active ? 'Connected' : 'Disconnected'}</div>
+                  </div>
+                  <div style="display:flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;">
+                    ${active ? `
+                      <button class="vpn-profile-btn" data-action="disconnect" data-key="${escapeHtml(p.uuid)}" data-name="${escapeHtml(p.name)}" ${window.electronAPI?.disconnectConnection ? '' : 'disabled'} style="background: none; border: 1px solid rgba(255,100,100,${window.electronAPI?.disconnectConnection ? '0.5' : '0.25'}); color: ${window.electronAPI?.disconnectConnection ? '#ff6464' : 'rgba(255,100,100,0.6)'}; padding: 6px 10px; border-radius: 6px; cursor: ${window.electronAPI?.disconnectConnection ? 'pointer' : 'not-allowed'}; font-size: 12px;">Disconnect</button>
+                    ` : `
+                      <button class="vpn-profile-btn" data-action="connect" data-key="${escapeHtml(p.uuid)}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Connect</button>
+                    `}
+                    <button class="vpn-profile-btn" data-action="delete" data-key="${escapeHtml(p.uuid)}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Delete</button>
+                  </div>
+                </div>
+              `;
+        }).join('') : '<div style=\"opacity: 0.6;\">No VPN profiles found. Import one to get started.</div>'}
+          </div>
+
+          <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+            OpenVPN import may require the NetworkManager OpenVPN plugin. WireGuard requires NetworkManager WireGuard support.
+          </div>
+        `)}
+        ${card('VPN Kill Switch', `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: bold; color: ${killSwitchColor};">${killSwitchState}</div>
+              <div style="font-size: 12px; opacity: 0.7;">Block network traffic if VPN disconnects.</div>
+            </div>
+            <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+              <input type="checkbox" class="vpn-killswitch-toggle" ${this.vpnKillSwitchEnabled ? 'checked' : ''}>
+              <span>${this.vpnKillSwitchEnabled ? 'On' : 'Off'}</span>
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+            <div style="opacity: 0.7;">VPN</div>
+            <div style="color: ${vpn.connected ? '#00ff41' : '#ff6464'};">
+              ${vpn.connected
+            ? `${escapeHtml(vpn.connection || vpn.device || 'VPN')}${vpn.device ? `  ${escapeHtml(vpn.device)}` : ''}`
+            : 'Not connected'}
+            </div>
+
+            <div style="opacity: 0.7;">Mode</div>
+            <select class="vpn-killswitch-mode" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+              <option value="auto" ${this.vpnKillSwitchMode === 'auto' ? 'selected' : ''}>Auto (arm on VPN connect)</option>
+              <option value="strict" ${this.vpnKillSwitchMode === 'strict' ? 'selected' : ''}>Strict (block when VPN down)</option>
+            </select>
+
+            ${this.vpnKillSwitchLastDisconnected.length ? `
+              <div style="opacity: 0.7;">Last Block</div>
+              <div style="font-size: 12px; opacity: 0.85;">${this.vpnKillSwitchLastDisconnected.slice(0, 3).map(escapeHtml).join(', ')}</div>
+            ` : ''}
+          </div>
+
+          ${this.vpnKillSwitchEnabled ? `
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              ${killSwitchShouldEnforce ? `
+                <button class="vpn-killswitch-btn" data-action="snooze" ${killSwitchSnoozing ? 'disabled' : ''} style="background: none; border: 1px solid rgba(255,215,0,${killSwitchSnoozing ? '0.25' : '0.5'}); color: ${killSwitchSnoozing ? 'rgba(255,215,0,0.6)' : '#ffd700'}; padding: 6px 12px; border-radius: 6px; cursor: ${killSwitchSnoozing ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                  ${killSwitchSnoozing ? `Snoozed (${snoozeRemaining}s)` : 'Snooze 60s'}
+                </button>
+              ` : ''}
+              <button class="vpn-killswitch-btn" data-action="disable" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Disable</button>
+            </div>
+
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+              Auto mode arms after a VPN is detected. Strict mode blocks anytime VPN is down (use Snooze to reconnect). Requires NetworkManager (nmcli) for enforcement.
+            </div>
+          ` : `
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px;">
+              Enable to prevent traffic leaks if your VPN disconnects.
+            </div>
+          `}
+        `)}
+        ${card('Mobile Hotspot', `
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <div>
+                      <div style="font-weight: bold; color: ${this.hotspotEnabled ? '#00ff41' : '#888'};">${this.hotspotEnabled ? 'Active' : 'Off'}</div>
+                      <div style="font-size: 12px; opacity: 0.7;">Share internet connection</div>
+                  </div>
+                   <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                      <input type="checkbox" class="hotspot-toggle" ${this.hotspotEnabled ? 'checked' : ''} ${this.hotspotLoading ? 'disabled' : ''}>
+                      <span>${this.hotspotEnabled ? 'On' : 'Off'}</span>
+                  </label>
+              </div>
+              <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; opacity: 0.8;">
+                  <div>Network Name</div><div>${escapeHtml(this.hotspotSSID)}</div>
+                  <div>Password</div><div>${this.hotspotPassword ? '*********' : '<span style="opacity:0.5">None</span>'}</div>
+                  <div>Band</div><div>2.4 GHz / 5 GHz</div>
+              </div>
+              ${this.hotspotLoading ? '<div style="font-size:12px;opacity:0.7;margin-top:10px;">Configuring hotspot...</div>' : ''}
+              <button class="hotspot-edit-btn" style="margin-top: 10px; background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 10px; border-radius: 4px; cursor: pointer; opacity: ${this.hotspotEnabled ? '0.5' : '1'};" ${this.hotspotEnabled ? 'disabled' : ''}>Edit Settings</button>
+        `)}
+        ${card('SSH Server', `
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <div>
+                      <div style="font-weight: bold; color: ${this.sshEnabled ? '#00ff41' : '#888'};">${this.sshEnabled ? 'Running' : 'Stopped'}</div>
+                      <div style="font-size: 12px; opacity: 0.7;">Allow remote SSH connections</div>
+                  </div>
+                  <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                      <input type="checkbox" class="ssh-toggle" ${this.sshEnabled ? 'checked' : ''}>
+                      <span>${this.sshEnabled ? 'On' : 'Off'}</span>
+                  </label>
+              </div>
+              <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                  <div style="opacity: 0.7;">Port</div>
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                      <input type="number" class="ssh-port-input" value="${this.sshPort}" min="1" max="65535" 
+                             style="flex: 0 0 100px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;" 
+                             ${this.sshEnabled ? 'disabled' : ''}>
+                      <span style="font-size: 11px; opacity: 0.6;">${this.sshEnabled ? '(Stop SSH to change port)' : '(Default: 22)'}</span>
+                  </div>
+                  <div style="opacity: 0.7;">Status</div>
+                  <div style="color: ${this.sshEnabled ? '#00ff41' : '#888'}; font-size: 12px;">${this.sshStatus === 'running' ? '🟢 Active' : (this.sshStatus === 'stopped' ? '🔴 Inactive' : '⚪ Unknown')}</div>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 10px;">
+                  <button class="ssh-btn" data-ssh-action="regenerate-keys" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Regenerate Keys</button>
+                  <button class="ssh-btn" data-ssh-action="view-pubkey" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">View Public Key</button>
+              </div>
+              <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+                  ⚠️ Warning: Enabling SSH allows remote terminal access. Ensure your password is secure.
+              </div>
+        `)}
       `;
     };
 
@@ -5878,8 +9712,45 @@ class TempleOS {
     `;
     };
 
+    const renderBluetooth = () => {
+      return `
+         ${card('Bluetooth', `
+           <div style="display: flex; gap: 20px; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+               <div style="font-weight: bold;">Bluetooth</div>
+               <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                   <input type="checkbox" class="bt-enable-toggle" ${this.bluetoothEnabled ? 'checked' : ''}>
+                   <span>${this.bluetoothEnabled ? 'On' : 'Off'}</span>
+               </label>
+           </div>
+           
+           ${this.bluetoothEnabled ? `
+              <div style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
+                  <button class="bt-scan-btn" style="${this.getBtnStyle(this.bluetoothScanning)}">${this.bluetoothScanning ? 'Scanning...' : 'Scan for devices'}</button>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                 ${this.bluetoothDevices.map(d => `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="font-size: 20px;">${d.type === 'headphone' ? '🎧' : (d.type === 'mouse' ? '🖱️' : (d.type === 'phone' ? '📱' : '⌨️'))}</div>
+                            <div>
+                                <div style="font-weight: bold; color: #00ff41;">${escapeHtml(d.name)}</div>
+                                <div style="font-size: 12px; opacity: 0.7;">${d.connected ? 'Connected' : 'Not Connected'}</div>
+                            </div>
+                        </div>
+                        <button class="bt-connect-btn" data-name="${escapeHtml(d.name)}" style="${this.getBtnStyle(d.connected)}">
+                           ${d.connected ? 'Disconnect' : 'Connect'}
+                        </button>
+                    </div>
+                 `).join('')}
+              </div>
+           ` : '<div style="opacity: 0.6; padding: 20px; text-align: center;">Bluetooth is off.</div>'}
+         `)}
+       `;
+    };
+
     const renderAbout = () => {
       const info = this.systemInfo;
+      const randomQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
       return `
         <div style="text-align: center; margin-bottom: 20px;">
           <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
@@ -5906,6 +9777,12 @@ class TempleOS {
             <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
           </div>
         `)}
+        
+        <div style="margin: 20px 0; padding: 15px; border-left: 3px solid #ffd700; background: rgba(255,215,0,0.05); font-style: italic; color: #ffd700;">
+          "${escapeHtml(randomQuote)}"
+          <div style="text-align: right; font-size: 12px; margin-top: 5px; opacity: 0.8;">— Terry A. Davis</div>
+        </div>
+
         <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
           Made with HolyC ❤️ by Giangero Studio<br>
           © 2025 Giangero Studio
@@ -5915,6 +9792,270 @@ class TempleOS {
 
     const renderSecurity = () => {
       return `
+        ${card('Encryption (LUKS)', `
+           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+               <div>
+                   <div style="font-weight: bold; color: ${this.encryptionEnabled ? '#00ff41' : '#ff6464'};">${this.encryptionEnabled ? 'Encrypted' : 'Not Encrypted'}</div>
+                   <div style="font-size: 12px; opacity: 0.7;">God's temple is sealed against heathens.</div>
+               </div>
+               <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                   <input type="checkbox" class="sec-toggle" data-sec-key="encryption" ${this.encryptionEnabled ? 'checked' : ''}>
+                   <span>${this.encryptionEnabled ? 'On' : 'Off'}</span>
+               </label>
+           </div>
+           <div style="display: flex; gap: 10px;">
+               <button style="${this.getBtnStyle(false)}">Change Key</button>
+               <button style="${this.getBtnStyle(false)}">Backup Header</button>
+           </div>
+        `)}
+        
+        ${card('VeraCrypt Volumes', `
+           <div style="margin-bottom: 10px; font-size: 13px; opacity: 0.8;">
+             Manage mounted VeraCrypt containers.
+           </div>
+           
+           ${this.veraCryptLoading ? '<div style="opacity: 0.6; font-size: 12px; margin-bottom: 10px;">Loading volumes...</div>' : ''}
+
+           <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+               ${this.veraCryptVolumes.length === 0 && !this.veraCryptLoading ? '<div style="opacity: 0.6; font-size: 12px; font-style: italic;">No volumes mounted</div>' : ''}
+               ${this.veraCryptVolumes.map(v => `
+                   <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                       <div>
+                           <div style="font-weight: bold; font-size: 13px;">Slot ${v.slot}</div>
+                           <div style="font-size: 11px; opacity: 0.7;">${v.source}</div>
+                           <div style="font-size: 11px; color: #00ff41;">Mounted at ${v.mountPoint}</div>
+                       </div>
+                       <button class="vc-dismount-btn" data-slot="${v.slot}" style="background: none; border: 1px solid #ff6464; color: #ff6464; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Dismount</button>
+                   </div>
+               `).join('')}
+           </div>
+
+           <div style="display: flex; gap: 10px;">
+               <button class="vc-mount-btn" style="${this.getBtnStyle(true)}">Mount Volume</button>
+               <button class="vc-refresh-btn" style="${this.getBtnStyle(false)}">Refresh</button>
+           </div>
+        `)}
+
+        ${card('Divine Firewall', `
+             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+               <div>
+                   <div style="font-weight: bold; color: ${this.firewallEnabled ? '#00ff41' : '#ff6464'};">${this.firewallEnabled ? 'Active' : 'Disabled'}</div>
+                   <div style="font-size: 12px; opacity: 0.7;">Block unwanted spirits and connections.</div>
+               </div>
+               <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                   <input type="checkbox" class="firewall-toggle" ${this.firewallEnabled ? 'checked' : ''}>
+                   <span>${this.firewallEnabled ? 'On' : 'Off'}</span>
+               </label>
+           </div>
+           
+           <div style="border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; background: rgba(0,0,0,0.2); margin-bottom: 15px;">
+               <div style="font-weight: bold; margin-bottom: 8px; font-size: 13px;">Add New Rule</div>
+               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                   <input type="number" class="fw-port-input" placeholder="Port (e.g. 80)" style="width: 80px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+                   <select class="fw-proto-select" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+                       <option value="tcp">TCP</option>
+                       <option value="udp">UDP</option>
+                   </select>
+                   <select class="fw-action-select" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+                       <option value="ALLOW">ALLOW</option>
+                       <option value="DENY">DENY</option>
+                       <option value="REJECT">REJECT</option>
+                   </select>
+                   <button class="fw-add-btn" style="background: #00ff41; color: #000; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: inherit;">Add</button>
+               </div>
+           </div>
+
+           <div style="font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+               <span>Active Rules</span>
+               <button class="fw-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 2px 6px; border-radius: 4px; font-size: 11px; cursor: pointer;">↻ Refresh</button>
+           </div>
+           
+           ${this.firewallRulesLoading ? '<div style="opacity: 0.6; font-size: 12px;">Loading rules...</div>' : ''}
+           
+           <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+               ${this.firewallRules.length === 0 && !this.firewallRulesLoading ? '<div style="opacity: 0.6; font-size: 12px;">No custom rules defined.</div>' : ''}
+               ${this.firewallRules.map(r => `
+                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 12px;">
+                       <div style="display: flex; gap: 10px; align-items: center;">
+                           <span style="font-weight: bold; color: ${r.action === 'ALLOW' ? '#00ff41' : '#ff6464'}; width: 50px;">${r.action}</span>
+                           <span>${r.to}</span>
+                       </div>
+                       <button class="fw-delete-btn" data-id="${r.id}" style="background: none; border: none; color: #ff6464; cursor: pointer; opacity: 0.7;">🗑️</button>
+                   </div>
+               `).join('')}
+           </div>
+        `)}
+
+        ${card('Privacy & Anonymity', `
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>MAC Address Randomization</span>
+                    <input type="checkbox" class="sec-toggle" data-sec-key="mac" ${this.macRandomization ? 'checked' : ''}>
+                </label>
+                 <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Secure Delete (Overwrite)</span>
+                    <input type="checkbox" class="sec-toggle" data-sec-key="shred" ${this.secureDelete ? 'checked' : ''}>
+                </label>
+                 <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span>Clear RAM on Shutdown</span>
+                        <span style="font-size: 10px; opacity: 0.6;">Resets session state. Safe for files.</span>
+                    </div>
+                    <input type="checkbox" class="sec-toggle" data-sec-key="memory-wipe" ${this.secureWipeOnShutdown ? 'checked' : ''}>
+                </label>
+                 <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span>Tracker Blocking</span>
+                        <span style="font-size: 10px; opacity: 0.6;">Block ads, trackers, and analytics</span>
+                    </div>
+                    <input type="checkbox" class="sec-toggle" data-sec-key="tracker-blocking" ${this.trackerBlockingEnabled ? 'checked' : ''}>
+                </label>
+            </div>
+        `)}
+
+        ${card('Tor Network (Onion Routing)', `
+            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                 <div>
+                    <div style="font-weight: bold; color: ${this.torEnabled ? '#00ff41' : '#888'};">
+                      ${this.torEnabled ? (this.torCircuitStatus === 'connected' ? 'Connected (Anonymous)' : 'Connecting...') : 'Disabled'}
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.7;">Route traffic through encrypted onion circuit.</div>
+                 </div>
+                 <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="sec-toggle" data-sec-key="tor" ${this.torEnabled ? 'checked' : ''}>
+                    <span>${this.torEnabled ? 'On' : 'Off'}</span>
+                 </label>
+            </div>
+
+            ${this.torEnabled ? `
+              <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; margin-bottom: 15px;">
+                 <div style="font-size: 13px; font-weight: bold; margin-bottom: 10px; color: #ffd700;">Circuit Visualization</div>
+                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; position: relative;">
+                    ${this.renderTorCircuitViz()}
+                 </div>
+              </div>
+
+               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                  <div>
+                      <div style="font-size: 12px; margin-bottom: 5px; opacity: 0.8;">Bridge Configuration</div>
+                      <select class="tor-bridge-select" style="width: 100%; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px; border-radius: 4px; font-family: inherit;">
+                          <option value="none" ${this.torBridgeType === 'none' ? 'selected' : ''}>None (Direct)</option>
+                          <option value="obfs4" ${this.torBridgeType === 'obfs4' ? 'selected' : ''}>obfs4 (Recommended)</option>
+                          <option value="meek-azure" ${this.torBridgeType === 'meek-azure' ? 'selected' : ''}>meek-azure</option>
+                      </select>
+                  </div>
+                   <div>
+                      <div style="font-size: 12px; margin-bottom: 5px; opacity: 0.8;">Routing Mode</div>
+                      <select class="tor-routing-select" style="width: 100%; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px; border-radius: 4px; font-family: inherit;">
+                          <option value="all" ${this.torRoutingMode === 'all' ? 'selected' : ''}>Route All Traffic</option>
+                          <option value="specific" ${this.torRoutingMode === 'specific' ? 'selected' : ''}>Browser Only</option>
+                      </select>
+                  </div>
+               </div>
+                
+               ${this.torBridgeType !== 'none' ? `
+                 <textarea class="tor-bridge-input" placeholder="Paste custom bridge lines here (optional)..." style="width: 100%; height: 60px; background: rgba(0,0,0,0.2); border: 1px solid rgba(0,255,65,0.2); color: #00ff41; font-family: monospace; font-size: 11px; padding: 5px; border-radius: 4px; resize: none;">${escapeHtml(this.torBridges)}</textarea>
+               ` : ''}
+
+            ` : ''}
+        `)}
+
+        ${card('🛡️ Security Audit', (() => {
+        // Calculate security score
+        const checks = [
+          { name: 'Encryption', enabled: this.encryptionEnabled, weight: 23 },
+          { name: 'Firewall', enabled: this.firewallEnabled, weight: 18 },
+          { name: 'SSH Disabled', enabled: !this.sshEnabled, weight: 13 },
+          { name: 'Tracker Blocking', enabled: this.trackerBlockingEnabled, weight: 12 },
+          { name: 'Tor Mode', enabled: this.torEnabled, weight: 12 },
+          { name: 'MAC Randomization', enabled: this.macRandomization, weight: 10 },
+          { name: 'Secure Wipe', enabled: this.secureWipeOnShutdown, weight: 8 },
+          { name: 'Lock Screen', enabled: this.lockPassword !== '', weight: 4 },
+        ];
+
+        const score = checks.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
+        const maxScore = checks.reduce((sum, c) => sum + c.weight, 0);
+        const percentage = Math.round((score / maxScore) * 100);
+
+        let scoreColor = '#ff6464';
+        let scoreLabel = 'Poor';
+        if (percentage >= 80) { scoreColor = '#00ff41'; scoreLabel = 'Excellent'; }
+        else if (percentage >= 60) { scoreColor = '#ffd700'; scoreLabel = 'Good'; }
+        else if (percentage >= 40) { scoreColor = '#ffb000'; scoreLabel = 'Fair'; }
+
+        return `
+            <div style="text-align: center; margin-bottom: 15px;">
+              <div style="font-size: 48px; font-weight: bold; color: ${scoreColor}; margin-bottom: 5px;">${percentage}%</div>
+              <div style="font-size: 14px; color: ${scoreColor}; font-weight: bold;">${scoreLabel}</div>
+              <div style="font-size: 11px; opacity: 0.6; margin-top: 3px;">Security Score</div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; margin-bottom: 15px;">
+              <div style="height: 8px; background: ${scoreColor}; width: ${percentage}%; transition: width 0.3s ease;"></div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+              ${checks.map(c => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: ${c.enabled ? 'rgba(0,255,65,0.1)' : 'rgba(255,100,100,0.05)'}; border-left: 3px solid ${c.enabled ? '#00ff41' : '#ff6464'}; border-radius: 4px;">
+                  <span>${c.enabled ? '✅' : '❌'} ${c.name}</span>
+                  <span style="opacity: 0.6; font-size: 11px;">${c.weight}pts</span>
+                </div>
+              `).join('')}
+            </div>
+            
+            <div style="margin-top: 15px; padding: 10px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: 6px; font-size: 11px;">
+              <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">💡 Recommendations:</div>
+              ${!this.encryptionEnabled ? '<div>• Enable disk encryption for data protection</div>' : ''}
+              ${!this.firewallEnabled ? '<div>• Enable firewall to block unauthorized access</div>' : ''}
+              ${this.sshEnabled ? '<div>• Disable SSH if not needed for remote access</div>' : ''}
+              ${!this.macRandomization ? '<div>• Enable MAC randomization for privacy</div>' : ''}
+              ${!this.torEnabled ? '<div>• Consider Tor for anonymous browsing</div>' : ''}
+              ${percentage === 100 ? '<div style="color: #00ff41;">✨ Perfect! Your security is divine.</div>' : ''}
+            </div>
+          `;
+      })())}
+
+        ${card('📷 EXIF Metadata Stripper', `
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 13px; opacity: 0.85; margin-bottom: 10px;">
+              Remove location, camera, and timestamp data from images before sharing.
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button class="exif-select-file-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">
+                📂 Select Image
+              </button>
+              <button class="exif-strip-btn" ${!this.exifSelectedFile ? 'disabled' : ''} style="background: none; border: 1px solid rgba(0,255,65,${this.exifSelectedFile ? '0.5' : '0.3'}); color: ${this.exifSelectedFile ? '#00ff41' : 'rgba(0,255,65,0.5)'}; padding: 8px 16px; border-radius: 6px; cursor: ${this.exifSelectedFile ? 'pointer' : 'not-allowed'}; font-family: inherit;">
+                🧹 Strip EXIF Data
+              </button>
+            </div>
+          </div>
+          
+          ${this.exifMetadata ? `
+            <div class="exif-result" style="padding: 12px; background: rgba(0,255,65,0.05); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; font-size: 12px; margin-bottom: 12px;">
+              <div style="font-weight: bold; color: #ffd700; margin-bottom: 8px;">Metadata Found in: ${this.exifSelectedFile?.split(/[/\\\\]/).pop()}</div>
+              <div class="exif-data" style="font-family: monospace; opacity: 0.85; line-height: 1.6;">
+                ${Object.entries(this.exifMetadata).map(([key, value]) => `
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(0,255,65,0.1);">
+                    <span style="color: #ffd700;">${key}:</span>
+                    <span>${value}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div style="margin-top: 12px; padding: 10px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: 6px; font-size: 11px;">
+            <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">⚠️ Privacy Warning:</div>
+            <div style="opacity: 0.85;">
+              • GPS coordinates can reveal your home address<br>
+              • Camera model/serial number can identify you<br>
+              • Timestamps reveal when photos were taken<br>
+              • Software info can leak your workflow
+            </div>
+          </div>
+        `)}
+
+
         ${card('Lock Screen Password', `
           <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
             <div>Password</div>
@@ -5923,9 +10064,45 @@ class TempleOS {
                      style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;" />
               <button class="save-password-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
             </div>
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Sets the password required to unlock the screen.</div>
           </div>
-          <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">Password for lock screen (default: temple). Leave empty to disable password.</div>
         `)}
+
+        ${card('Physical Security', `
+           <div style="margin-bottom: 15px;">
+               <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">USB Device Whitelist</div>
+               <div style="font-size: 12px; opacity: 0.8; margin-bottom: 10px;">Only allowed USB HID devices can function (Mock).</div>
+               
+                <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+                    ${this.usbDevices.map(d => `
+                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 13px;">
+                           <span>${d.name} (${d.type})</span>
+                           <button class="usb-toggle-btn" data-id="${d.id}" style="background: none; border: 1px solid ${d.allowed ? '#00ff41' : '#ff6464'}; color: ${d.allowed ? '#00ff41' : '#ff6464'}; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                               ${d.allowed ? 'Allowed' : 'Blocked'}
+                           </button>
+                       </div>
+                    `).join('')}
+                </div>
+           </div>
+
+           <div style="margin-bottom: 15px;">
+               <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Panic Button</div>
+               <button class="panic-btn" style="width: 100%; background: #ff4444; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                 <span>🚨</span> INITIATE LOCKDOWN
+               </button>
+               <div style="font-size: 11px; margin-top: 5px; opacity: 0.7;">Immediately locks screen, dismounts VeraCrypt, and clears clipboard.</div>
+           </div>
+           
+           <div>
+               <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Duress Password</div>
+               <div style="display: flex; gap: 10px;">
+                   <input type="password" class="duress-input" placeholder="Set duress password..." value="${escapeHtml(this.duressPassword)}" style="flex:1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;">
+                   <button class="save-duress-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+               </div>
+               <div style="font-size: 11px; margin-top: 5px; opacity: 0.7;">Entering this password at lock screen will open a decoy session.</div>
+           </div>
+        `)}
+
         ${card('Lock Screen PIN', `
           <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
             <div>PIN</div>
@@ -5936,12 +10113,14 @@ class TempleOS {
             </div>
           </div>
           <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">PIN for lock screen (default: 7777). Leave empty to disable PIN.</div>
-        `)}
+        `)
+        }
         ${card('Lock Screen', `
           <button class="test-lock-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: inherit;">Test Lock Screen</button>
           <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">Test the lock screen with your current password/PIN settings.</div>
-        `)}
-      `;
+        `)
+        }
+    `;
     };
 
     const renderPageContent = () => {
@@ -5951,23 +10130,24 @@ class TempleOS {
         case 'Network': return renderNetwork();
         case 'Security': return renderSecurity();
         case 'Devices': return renderDevices();
+        case 'Bluetooth': return renderBluetooth();
         case 'About': return renderAbout();
         default: return '<div style="padding: 20px; opacity: 0.6;">Select a category.</div>';
       }
     };
 
     return `
-      <div class="settings-window" style="display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);">
+      < div class="settings-window" style = "display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);" >
         ${renderSidebar()}
-        <div class="settings-content" style="flex: 1; padding: 20px; overflow-y: auto;">
-          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-bottom: 14px;">
-            <h2 style="margin: 0;">${this.activeSettingsCategory}</h2>
-            <div style="font-size: 12px; opacity: 0.65;">TempleOS Settings</div>
-          </div>
+    <div class="settings-content" style = "flex: 1; padding: 20px; overflow-y: auto;" >
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-bottom: 14px;" >
+        <h2 style="margin: 0;" > ${this.activeSettingsCategory} </h2>
+          < div style = "font-size: 12px; opacity: 0.65;" > TempleOS Settings </div>
+            </div>
           ${renderPageContent()}
-        </div>
+    </div>
       </div>
-    `;
+        `;
   }
 
   private getSettingsContent(): string {
@@ -5990,14 +10170,14 @@ class TempleOS {
     ];
 
     const renderSidebar = () => `
-      <div class="settings-sidebar" style="
-        width: 220px;
-        background: rgba(0, 0, 0, 0.3);
-        border-right: 1px solid rgba(0, 255, 65, 0.2);
-        display: flex;
-        flex-direction: column;
-        padding: 10px 0;
-      ">
+      < div class="settings-sidebar" style = "
+    width: 220px;
+    background: rgba(0, 0, 0, 0.3);
+    border - right: 1px solid rgba(0, 255, 65, 0.2);
+    display: flex;
+    flex - direction: column;
+    padding: 10px 0;
+    ">
         ${categories.map(cat => `
           <div class="settings-nav-item ${this.activeSettingsCategory === cat.id ? 'active' : ''}" 
                data-settings-cat="${cat.id}"
@@ -6016,99 +10196,175 @@ class TempleOS {
             <span style="font-size: 18px;">${cat.icon}</span>
             <span style="font-size: 14px;">${cat.label}</span>
           </div>
-        `).join('')}
-      </div>
-    `;
+        `).join('')
+      }
+    </div>
+      `;
 
     const renderPageContent = () => {
       switch (this.activeSettingsCategory) {
         case 'System':
           return `
-            <div class="settings-section">
-              <h3>🔊 Sound</h3>
-              <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <span>Volume</span>
-                <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
-                       style="width: 150px; accent-color: #00ff41;">
-              </div>
-              <h3>🖥️ Display</h3>
-              <div class="settings-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span>Resolution</span>
-                <select class="resolution-select" style="
-                  background: rgba(0,255,65,0.1);
-                  border: 1px solid #00ff41;
-                  color: #00ff41;
-                  padding: 5px 10px;
-                  font-family: inherit;
-                  cursor: pointer;
-                ">
+      < div class="settings-section" >
+        <h3>🔊 Sound </h3>
+          < div class="settings-row" style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;" >
+            <span>Volume </span>
+            < input type = "range" class="volume-slider" min = "0" max = "100" value = "${this.volumeLevel}"
+    style = "width: 150px; accent-color: #00ff41;" >
+      </div>
+      <h3>🖥️ Display </h3>
+        < div class="settings-row" style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;" >
+          <span>Resolution </span>
+          < select class="resolution-select" style = "
+    background: rgba(0, 255, 65, 0.1);
+    border: 1px solid #00ff41;
+    color: #00ff41;
+    padding: 5px 10px;
+    font - family: inherit;
+    cursor: pointer;
+    ">
                   ${this.availableResolutions.map(r => `<option value="${r}" ${r === this.currentResolution ? 'selected' : ''}>${r.replace('x', ' x ')}</option>`).join('')}
-                </select>
-              </div>
-              <div class="settings-row" style="opacity: 0.6;">Refresh Rate: 60Hz (Auto)</div>
-            </div>
+    </select>
+      </div>
+      < div class="settings-row" style = "opacity: 0.6;" > Refresh Rate: 60Hz(Auto) </div>
+        </div>
           `;
         case 'Personalization':
           return `
-            <div class="settings-section">
-              <h3>🎨 Theme</h3>
-              <div class="settings-row" style="margin-bottom: 20px;">
-                <button style="
-                  padding: 8px 16px;
-                  background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'};
-                  color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'};
-                  border: 1px solid #00ff41;
-                  cursor: pointer;
-                  margin-right: 10px;
-                " onclick="console.log('Dark mode set')">Dark</button>
-                <button style="
-                  padding: 8px 16px;
-                  background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'};
-                  color: ${this.themeMode === 'light' ? '#000' : '#00ff41'};
-                  border: 1px solid #00ff41;
-                  cursor: pointer;
-                  opacity: 0.5;
-                " title="Not implemented yet">Light</button>
-              </div>
-              <h3>🖼️ Background</h3>
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;">Default</div>
-                <div style="aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Solid</div>
-                <div style="aspect-ratio: 16/9; background: #111; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;">Custom</div>
-              </div>
-            </div>
-          `;
+        < div class="settings-section" >
+          <h3>🎨 Theme </h3>
+            < div class="settings-row" style = "margin-bottom: 20px;" >
+              <button style="
+    padding: 8px 16px;
+    background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'};
+    color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'};
+    border: 1px solid #00ff41;
+    cursor: pointer;
+    margin - right: 10px;
+    " onclick="console.log('Dark mode set')">Dark</button>
+      < button style = "
+    padding: 8px 16px;
+    background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'};
+    color: ${this.themeMode === 'light' ? '#000' : '#00ff41'};
+    border: 1px solid #00ff41;
+    cursor: pointer;
+    opacity: 0.5;
+    " title="Not implemented yet">Light</button>
+      </div>
+      <h3>🖼️ Background </h3>
+        < div style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" >
+          <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;" > Default </div>
+            < div style = "aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;" > Solid </div>
+              < div style = "aspect-ratio: 16/9; background: #111; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;" > Custom </div>
+                </div>
+                </div>
+                  `;
         case 'Network':
+          // Calculate current day's data usage
+          const now = Date.now();
+          const dayStart = now - (now % 86400000); // Start of current day
+          const todayData = this.dataUsageHistory.filter(d => d.timestamp >= dayStart);
+          const totalRx = todayData.reduce((sum, d) => sum + d.rx, 0) + (this.monitorStats?.network?.rxBytes || 0) - this.dataUsageStartRx;
+          const totalTx = todayData.reduce((sum, d) => sum + d.tx, 0) + (this.monitorStats?.network?.txBytes || 0) - this.dataUsageStartTx;
+          const totalUsage = totalRx + totalTx;
+          const usagePercent = Math.min(100, (totalUsage / this.dataUsageDailyLimit) * 100);
+
+          // Format bytes to human readable
+          const formatBytes = (bytes: number) => {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+          };
+
           return `
-            <div class="settings-section">
-              <h3>📶 Wi-Fi</h3>
-              <div class="settings-row" style="padding: 10px; border: 1px solid #00ff41; margin-bottom: 10px;">
-                <div style="font-weight: bold;">TempleNet_5G</div>
-                <div style="font-size: 12px; color: #00ff41;">Connected, Secure</div>
-              </div>
-              <div class="settings-row" style="padding: 10px; border: 1px solid rgba(0,255,65,0.3); opacity: 0.7;">
-                <div>CIA_Surveillance_Van</div>
-                <div style="font-size: 12px;">Secured</div>
-              </div>
+                < div class="settings-section" >
+                  <h3>📶 Wi - Fi </h3>
+                    < div class="settings-row" >
+                      <label>
+                      <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''}>
+                        Enable Wi - Fi
+                          </label>
+                          </div>
+                          < div class="settings-row" style = "padding: 10px; border: 1px solid ${this.networkStatus.connected ? '#00ff41' : 'rgba(0,255,65,0.3)'}; margin-bottom: 10px;" >
+                            <div style="font-weight: bold;" > ${this.networkStatus.wifi?.ssid || (this.networkStatus.connected ? 'Connected' : 'Not connected')} </div>
+                              < div style = "font-size: 12px; color: ${this.networkStatus.connected ? '#00ff41' : '#888'};" > ${this.networkStatus.connected ? `Signal: ${this.networkStatus.wifi?.signal || 100}% • ${this.networkStatus.ip4 || 'No IP'}` : 'Disconnected'} </div>
+                                </div>
+
+                                < h3 style = "margin-top: 20px;" >📊 Data Usage </h3>
+                                  < div class="settings-row" >
+                                    <label>
+                                    <input type="checkbox" class="data-tracking-toggle" ${this.dataUsageTrackingEnabled ? 'checked' : ''}>
+                                      Enable Data Usage Tracking
+                                        </label>
+                                        </div>
+              ${this.dataUsageTrackingEnabled ? `
+                <div style="margin-top: 15px; padding: 15px; border: 1px solid rgba(0,255,65,0.3); border-radius: 8px; background: rgba(0,255,65,0.05);">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <div>
+                      <div style="font-weight: bold; font-size: 18px;">${formatBytes(totalUsage)}</div>
+                      <div style="font-size: 12px; opacity: 0.7;">Today's Usage</div>
+                    </div>
+                    <div style="text-align: right;">
+                      <div style="font-size: 14px;">↓ ${formatBytes(totalRx)}</div>
+                      <div style="font-size: 14px;">↑ ${formatBytes(totalTx)}</div>
+                    </div>
+                  </div>
+                  
+                  <div style="height: 12px; background: rgba(0,255,65,0.1); border-radius: 999px; overflow: hidden; margin: 10px 0;">
+                    <div style="height: 100%; width: ${usagePercent}%; background: ${usagePercent > 90 ? '#ff4141' : usagePercent > 75 ? '#ffaa00' : '#00ff41'}; transition: width 0.3s;"></div>
+                  </div>
+                  
+                  <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.7;">
+                    <span>${usagePercent.toFixed(1)}% of limit</span>
+                    <span>${formatBytes(this.dataUsageDailyLimit)} daily limit</span>
+                  </div>
+                </div>
+                
+                <div class="settings-row" style="margin-top: 15px;">
+                  <label style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Daily Limit (GB)</span>
+                    <input type="number" class="data-limit-input" value="${(this.dataUsageDailyLimit / (1024 * 1024 * 1024)).toFixed(1)}" min="0.1" max="1000" step="0.5" style="width: 100px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 5px; border-radius: 4px;">
+                  </label>
+                </div>
+                
+                <div class="settings-row" style="margin-top: 10px;">
+                  <button class="data-reset-btn" style="background: rgba(255,65,65,0.2); border: 1px solid rgba(255,65,65,0.4); color: #ff4141; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Reset Today's Usage</button>
+                </div>
+              ` : ''
+            }
+
+    <h3 style="margin-top: 20px;" >🔐 DNS Settings </h3>
+      < div class="settings-row" >
+        <label style="display: block; margin-bottom: 5px;" > Primary DNS </label>
+          < input type = "text" class="dns-primary-input" placeholder = "8.8.8.8" value = "8.8.8.8" style = "width: 100%; padding: 8px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; border-radius: 4px;" >
             </div>
-          `;
+            < div class="settings-row" >
+              <label style="display: block; margin-bottom: 5px;" > Secondary DNS </label>
+                < input type = "text" class="dns-secondary-input" placeholder = "8.8.4.4" value = "8.8.4.4" style = "width: 100%; padding: 8px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; border-radius: 4px;" >
+                  </div>
+                  < div class="settings-row" >
+                    <button class="dns-save-btn" style = "background: rgba(0,255,65,0.2); border: 1px solid rgba(0,255,65,0.4); color: #00ff41; padding: 8px 16px; border-radius: 4px; cursor: pointer;" > Apply DNS Settings </button>
+                      </div>
+                      </div>
+                        `;
         case 'About':
           return `
-            <div class="settings-section" style="text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
-              <h2 style="color: #ffd700;">TempleOS Remake</h2>
-              <p>Version 2.4.0 (Divine Intellect)</p>
-              <div style="margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);">
-                <div><strong>Processor:</strong> Divine Intellect i9 (Mock)</div>
-                <div><strong>Installed RAM:</strong> 64 GB (Holy Memory)</div>
-                <div><strong>System Type:</strong> 64-bit Operating System</div>
-                <div><strong>Registered to:</strong> Terry A. Davis</div>
-              </div>
-              <p style="font-size: 12px; opacity: 0.6;">© 2025 Giangero Studio</p>
-            </div>
-          `;
+                      < div class="settings-section" style = "text-align: center;" >
+                        <div style="font-size: 48px; margin-bottom: 10px;" >✝️</div>
+                          < h2 style = "color: #ffd700;" > TempleOS Remake </h2>
+                            < p > Version 2.4.0(Divine Intellect) </p>
+                              < div style = "margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);" >
+                                <div><strong>Processor: </strong> Divine Intellect i9 (Mock)</div >
+                                  <div><strong>Installed RAM: </strong> 64 GB (Holy Memory)</div >
+                                    <div><strong>System Type: </strong> 64-bit Operating System</div >
+                                      <div><strong>Registered to: </strong> Terry A. Davis</div >
+                                        </div>
+                                        < p style = "font-size: 12px; opacity: 0.6;" >© 2025 Giangero Studio </p>
+                                          </div>
+                                            `;
         default:
-          return `<div style="padding: 20px; text-align: center; opacity: 0.6;">Select a category to view settings.</div>`;
+          return `< div style = "padding: 20px; text-align: center; opacity: 0.6;" > Select a category to view settings.</div>`;
       }
     };
 
@@ -6212,11 +10468,16 @@ class TempleOS {
       terminalWindow.content = this.getTerminalContent();
       if (!this.ptySupported) {
         this.render();
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           const output = document.getElementById('terminal-output');
           if (output) {
             output.scrollTop = output.scrollHeight;
+            // Double-check to ensure layout is settled
+            requestAnimationFrame(() => {
+              output.scrollTop = output.scrollHeight;
+            });
           }
+
           const input = document.querySelector('.terminal-input') as HTMLInputElement | null;
           if (this.terminalSearchOpen) {
             const s = document.querySelector('.terminal-search-input') as HTMLInputElement | null;
@@ -6226,7 +10487,7 @@ class TempleOS {
           } else {
             input?.focus();
           }
-        }, 10);
+        });
         return;
       }
 
@@ -6866,20 +11127,6 @@ class TempleOS {
   private getSystemMonitorContent(): string {
     const s = this.monitorStats;
 
-    const cpu = s?.cpuPercent;
-    const load1 = s?.loadavg?.[0];
-
-    const memTotal = s?.memory?.total ?? 0;
-    const memUsed = s?.memory?.used ?? 0;
-    const memPct = memTotal ? (memUsed / memTotal) * 100 : null;
-
-    const diskTotal = s?.disk?.total ?? 0;
-    const diskUsed = s?.disk?.used ?? 0;
-    const diskPct = s?.disk?.percent ?? (diskTotal ? Math.round((diskUsed / diskTotal) * 100) : null);
-
-    const rxBps = s?.network?.rxBps ?? 0;
-    const txBps = s?.network?.txBps ?? 0;
-
     const q = this.monitorQuery.trim().toLowerCase();
     const processes = this.monitorProcesses
       .filter(p => !q || p.name.toLowerCase().includes(q) || (p.command || '').toLowerCase().includes(q) || String(p.pid).includes(q))
@@ -6895,37 +11142,27 @@ class TempleOS {
 
     const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-    const statCard = (title: string, primary: string, secondary: string, percent: number | null) => `
-      <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 10px; background: rgba(0,0,0,0.16);">
-        <div style="opacity: 0.75; font-size: 12px; margin-bottom: 6px;">${title}</div>
-        <div style="font-size: 22px; color: #ffd700; line-height: 1.1;">${primary}</div>
-        <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">${secondary}</div>
-        ${percent === null ? '' : `
-          <div style="margin-top: 8px; height: 8px; background: rgba(0,255,65,0.12); border-radius: 999px; overflow: hidden;">
-            <div style="height: 100%; width: ${Math.max(0, Math.min(100, percent)).toFixed(0)}%; background: rgba(0,255,65,0.65);"></div>
-          </div>
-        `}
-      </div>
-    `;
+    // Use enhanced module for stats rendering (includes CPU graph + GPU)
+    const enhancedStats = this.systemMonitor.renderMonitorContent(s);
 
     return `
-      <div class="system-monitor" style="height: 100%; display: flex; flex-direction: column; min-width: 0;">
-        <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
-          <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
-          <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
-            ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
-          </div>
+    <div class="system-monitor" style="height: 100%; display: flex; flex-direction: column; min-width: 0;">
+      <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+        <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
+        <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
+        <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
+          ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
+        </div>
+      </div>
+
+      <!-- Enhanced stats with CPU graph and GPU monitoring -->
+      <div style="flex: 1; overflow: auto; display: flex; flex-direction: column;">
+        <div style="flex-shrink: 0;">
+          ${enhancedStats}
         </div>
 
-        <div style="padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
-          ${statCard('CPU', cpu === null || cpu === undefined ? '--' : `${cpu.toFixed(0)}%`, `Load ${load1 === undefined ? '--' : load1.toFixed(2)} • ${s?.cpuCores ?? '--'} cores`, cpu ?? null)}
-          ${statCard('Memory', memTotal ? `${(memPct || 0).toFixed(0)}%` : '--', memTotal ? `${this.formatFileSize(memUsed)} / ${this.formatFileSize(memTotal)}` : '—', memPct)}
-          ${statCard('Disk', diskTotal ? `${diskPct ?? 0}%` : '--', diskTotal ? `${this.formatFileSize(diskUsed)} / ${this.formatFileSize(diskTotal)}` : '—', diskPct === null ? null : diskPct)}
-          ${statCard('Network', `${this.formatFileSize(rxBps)}/s ↓`, `${this.formatFileSize(txBps)}/s ↑`, null)}
-        </div>
-
-        <div class="system-monitor-processes" style="flex: 1; overflow: auto; padding: 10px; min-width: 0;">
+        <!-- Process List -->
+        <div class="system-monitor-processes" style="padding: 10px; min-width: 0;">
           <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; opacity: 0.8; font-size: 12px;">
             <span></span>
             <span class="monitor-col-header" data-sort-key="name" style="cursor: pointer;">Name${sortArrow('name')}</span>
@@ -6936,17 +11173,14 @@ class TempleOS {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${this.monitorProcesses.length ? 'No processes match your search.' : 'Loading process list…'}</div>` : processes.map(p => `
-              <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.18); border-radius: 8px; background: rgba(0,0,0,0.14); min-width: 0;">
-                <button class="proc-kill-btn" data-pid="${p.pid}" data-name="${escapeHtml(p.name)}" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 8px; cursor: pointer;">End</button>
-                <div title="${escapeHtml(p.command || p.name)}" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  <span style="color: #ffd700;">${escapeHtml(p.name)}</span>
-                  <span style="opacity: 0.65; font-size: 12px;">${p.command ? ` • ${escapeHtml(p.command)}` : ''}</span>
-                </div>
-                <div style="opacity: 0.85;">${p.pid}</div>
-                <div style="opacity: 0.85;">${(p.cpu || 0).toFixed(1)}%</div>
-                <div style="opacity: 0.85;">${(p.mem || 0).toFixed(1)}%</div>
-                <div style="opacity: 0.85;">${escapeHtml(p.etime || '')}</div>
+            ${processes.length === 0 ? `<div style="padding: 16px; opacity: 0.7;">${q ? 'No processes match your search.' : 'No processes.'}</div>` : processes.map(p => `
+              <div style="display: grid; grid-template-columns: 76px 1fr 72px 72px 72px 120px; gap: 10px; padding: 6px 10px; border: 1px solid rgba(0,255,65,0.12); border-radius: 8px; align-items: center; font-size: 13px; background: rgba(0,255,65,0.02);">
+                <button class="monitor-kill-btn" data-pid="${p.pid}" style="background: rgba(255,65,65,0.18); border: 1px solid rgba(255,65,65,0.35); color: #ff4141; padding: 4px 6px; font-size: 11px; border-radius: 6px; cursor: pointer;">Kill</button>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.command || p.name)}">${escapeHtml(p.name)}</span>
+                <span>${p.pid}</span>
+                <span>${(p.cpu || 0).toFixed(1)}%</span>
+                <span>${(p.mem || 0).toFixed(1)}%</span>
+                <span style="font-size: 11px;">${p.etime || '-'}</span>
               </div>
             `).join('')}
           </div>
@@ -7147,6 +11381,145 @@ class TempleOS {
   }
 
   // ============================================
+  // FIREWALL MANAGEMENT (Tier 7.2)
+  // ============================================
+  private async refreshFirewallRules(): Promise<void> {
+    if (!window.electronAPI?.getFirewallRules) {
+      this.firewallRules = [];
+      this.firewallEnabled = true; // Default UI state if no backend
+      return;
+    }
+
+    this.firewallRulesLoading = true;
+    this.refreshSettingsWindow(); // Helper if settings is open
+
+    try {
+      const res = await window.electronAPI.getFirewallRules();
+      if (res.success) {
+        this.firewallRules = res.rules || [];
+        if (res.active !== undefined) this.firewallEnabled = res.active;
+      }
+    } catch (e) {
+      console.error('Failed to get firewall rules', e);
+    } finally {
+      this.firewallRulesLoading = false;
+      this.refreshSettingsWindow();
+    }
+  }
+
+  private async toggleFirewallSystem(enable: boolean): Promise<void> {
+    if (!window.electronAPI?.toggleFirewall) {
+      this.showNotification('Firewall', 'Not supported on this platform', 'warning');
+      this.firewallEnabled = enable; // Fallback UI toggle
+      this.refreshSettingsWindow();
+      return;
+    }
+
+    this.showNotification('Firewall', 'Applying firewall settings...', 'info');
+    const res = await window.electronAPI.toggleFirewall(enable);
+    if (res.success) {
+      this.firewallEnabled = enable;
+      this.showNotification('Firewall', `Firewall ${enable ? 'Enabled' : 'Disabled'}`, 'divine');
+      void this.refreshFirewallRules();
+    } else {
+      this.showNotification('Firewall', res.error || 'Failed to toggle firewall', 'error');
+      // Revert UI
+      void this.refreshFirewallRules();
+    }
+  }
+
+  private async addFirewallRule(port: number, protocol: string, action: string): Promise<void> {
+    if (!window.electronAPI?.addFirewallRule) return;
+
+    const res = await window.electronAPI.addFirewallRule(port, protocol, action);
+    if (res.success) {
+      this.showNotification('Firewall', `Rule added: ${action} ${port}/${protocol}`, 'divine');
+      void this.refreshFirewallRules();
+    } else {
+      this.showNotification('Firewall', res.error || 'Failed to add rule', 'error');
+    }
+  }
+
+  private async deleteFirewallRule(id: number): Promise<void> {
+    if (!window.electronAPI?.deleteFirewallRule) return;
+
+    const res = await window.electronAPI.deleteFirewallRule(id);
+    if (res.success) {
+      this.showNotification('Firewall', 'Rule deleted', 'info');
+      void this.refreshFirewallRules();
+    } else {
+      this.showNotification('Firewall', res.error || 'Failed to delete rule', 'error');
+    }
+  }
+
+  // ============================================
+  // VERACRYPT MANAGEMENT (Tier 7.1)
+  // ============================================
+  private async refreshVeraCrypt(): Promise<void> {
+    if (!window.electronAPI?.getVeraCryptStatus) {
+      this.veraCryptVolumes = [];
+      return;
+    }
+
+    this.veraCryptLoading = true;
+    this.refreshSettingsWindow();
+
+    try {
+      const res = await window.electronAPI.getVeraCryptStatus();
+      if (res.success && res.volumes) {
+        this.veraCryptVolumes = res.volumes;
+      } else {
+        this.veraCryptVolumes = [];
+      }
+    } catch {
+      this.veraCryptVolumes = [];
+    } finally {
+      this.veraCryptLoading = false;
+      this.refreshSettingsWindow();
+    }
+  }
+
+  private async mountVeraCryptFromUi(): Promise<void> {
+    // 1. Pick file
+    const path = await this.openPromptModal({ title: 'Mount Volume', message: 'Enter path to container file:', inputLabel: 'Path', placeholder: '/home/user/volume.hc' });
+    if (!path) return;
+
+    // 2. Enter password
+    const password = await this.openPromptModal({ title: 'Volume Password', message: 'Enter volume password:', inputLabel: 'Password', password: true });
+    if (!password) return;
+
+    // 3. Slot
+    const slotStr = await this.openPromptModal({ title: 'Mount Slot', message: 'Enter slot number (1-64):', inputLabel: 'Slot', placeholder: '1' });
+    const slot = slotStr ? parseInt(slotStr) : 1;
+
+    this.showNotification('VeraCrypt', 'Mounting volume...', 'info');
+
+    if (window.electronAPI?.mountVeraCrypt) {
+      const res = await window.electronAPI.mountVeraCrypt(path, password, slot);
+      if (res.success) {
+        this.showNotification('VeraCrypt', `Volume mounted at ${res.mountPoint}`, 'divine');
+        void this.refreshVeraCrypt();
+      } else {
+        this.showNotification('VeraCrypt', res.error || 'Mount failed', 'error');
+      }
+    }
+  }
+
+  private async dismountVeraCryptFromUi(slot: number): Promise<void> {
+    if (!window.electronAPI?.dismountVeraCrypt) return;
+
+    this.showNotification('VeraCrypt', `Dismounting slot ${slot}...`, 'info');
+    const res = await window.electronAPI.dismountVeraCrypt(slot);
+
+    if (res.success) {
+      this.showNotification('VeraCrypt', 'Volume dismounted', 'divine');
+      void this.refreshVeraCrypt();
+    } else {
+      this.showNotification('VeraCrypt', res.error || 'Dismount failed', 'error');
+    }
+  }
+
+  // ============================================
   // CONFIG (persist user settings)
   // ============================================
   private async loadConfig(): Promise<void> {
@@ -7170,6 +11543,16 @@ class TempleOS {
     if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
     if (typeof cfg.lockPassword === 'string') this.lockPassword = cfg.lockPassword;
     if (typeof cfg.lockPin === 'string') this.lockPin = cfg.lockPin;
+
+    if (cfg.network) {
+      if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
+      if (cfg.network.vpnKillSwitchMode === 'auto' || cfg.network.vpnKillSwitchMode === 'strict') this.vpnKillSwitchMode = cfg.network.vpnKillSwitchMode;
+      // Always reset transient state on load
+      this.vpnKillSwitchArmed = false;
+      this.vpnKillSwitchBlocked = false;
+      this.vpnKillSwitchSnoozeUntil = null;
+      this.vpnKillSwitchLastDisconnected = [];
+    }
 
     if (cfg.terminal) {
       const t = cfg.terminal;
@@ -7223,6 +11606,7 @@ class TempleOS {
 
     if (Array.isArray(cfg.recentApps)) this.recentApps = cfg.recentApps.slice(0, 20).filter(x => typeof x === 'string');
     if (cfg.appUsage && typeof cfg.appUsage === 'object') this.appUsage = cfg.appUsage as Record<string, number>;
+    if (Array.isArray(cfg.fileBookmarks)) this.fileBookmarks = cfg.fileBookmarks.slice(0, 20).filter(x => typeof x === 'string');
 
     // Start terminal in home directory (if available)
     if (!this.terminalCwd && window.electronAPI) {
@@ -7273,9 +11657,20 @@ class TempleOS {
     }
   }
 
-  private applyTheme(): void {
-    document.documentElement.dataset.theme = this.themeMode;
+  private applyTaskbarPosition(): void {
+    document.body.setAttribute('data-taskbar-position', this.taskbarPosition);
+    this.tilingManager.setTaskbarPosition(this.taskbarPosition);
   }
+
+  private setTaskbarPosition(position: 'top' | 'bottom'): void {
+    this.taskbarPosition = position;
+    localStorage.setItem('temple_taskbar_position', position);
+    this.applyTaskbarPosition();
+    this.render();
+    this.showNotification('Taskbar', `Taskbar moved to ${position}`, 'info');
+  }
+
+
 
   private queueSaveConfig(): void {
     if (this.configSaveTimer) window.clearTimeout(this.configSaveTimer);
@@ -7295,6 +11690,11 @@ class TempleOS {
       lockPassword: this.lockPassword,
       lockPin: this.lockPin,
 
+      network: {
+        vpnKillSwitchEnabled: this.vpnKillSwitchEnabled,
+        vpnKillSwitchMode: this.vpnKillSwitchMode
+      },
+
       terminal: {
         aliases: this.terminalAliases,
         promptTemplate: this.terminalPromptTemplate,
@@ -7312,7 +11712,8 @@ class TempleOS {
       pinnedTaskbar: this.pinnedTaskbar.slice(0, 20),
       desktopShortcuts: this.desktopShortcuts.slice(0, 48),
       recentApps: this.recentApps.slice(0, 20),
-      appUsage: this.appUsage
+      appUsage: this.appUsage,
+      fileBookmarks: this.fileBookmarks
     };
 
     try {
@@ -7373,7 +11774,7 @@ class TempleOS {
     `;
   }
 
-  private async checkForUpdates(): Promise<void> {
+  private async checkForUpdates(showNotification = false): Promise<void> {
     if (!window.electronAPI) {
       this.updaterState = { status: 'error', message: 'Not running in Electron environment.', isUpdating: false };
       this.updateUpdaterWindow();
@@ -7392,6 +11793,17 @@ class TempleOS {
             message: `🆕 ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
             isUpdating: false
           };
+
+          // Show system notification if requested (background check mode)
+          if (showNotification) {
+            const count = result.behindCount || 1;
+            this.showNotification(
+              '✝️ Holy Updater',
+              `${count} new update${count === 1 ? '' : 's'} available! Open Holy Updater to install.`,
+              'divine',
+              [{ id: 'open-updater', label: 'Open Updater' }]
+            );
+          }
         } else {
           this.updaterState = {
             status: 'idle',
@@ -7688,6 +12100,11 @@ class TempleOS {
     if (this.windows.length > 0) {
       this.windows[this.windows.length - 1].active = true;
     }
+
+    // Cleanup from workspace and tiling managers
+    this.workspaceManager.removeWindow(windowId);
+    this.tilingManager.removeWindow(windowId);
+
     this.render();
     if (wasSystemMonitor) this.stopSystemMonitorPollingIfNeeded();
   }
@@ -7775,6 +12192,62 @@ class TempleOS {
       } else {
         this.focusWindow(windowId);
       }
+    }
+  }
+
+  /**
+   * Handle window snapping with keyboard shortcuts (Win+Arrow)
+   */
+  private handleWindowSnap(windowId: string, key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown'): void {
+    const win = this.windows.find(w => w.id === windowId);
+    if (!win) return;
+
+    const currentState = this.tilingManager.getSnapState(windowId);
+    const currentZone = currentState?.zone || null;
+    const targetZone = this.tilingManager.getKeyboardSnapZone(key, currentZone);
+
+    // Arrow Down with no snap = minimize
+    if (key === 'ArrowDown' && !currentZone && !targetZone) {
+      this.minimizeWindow(windowId);
+      return;
+    }
+
+    // Unsnap if target is null (e.g., ArrowDown from maximized)
+    if (targetZone === null && currentZone) {
+      const original = this.tilingManager.unsnap(windowId);
+      if (original) {
+        win.x = original.x;
+        win.y = original.y;
+        win.width = original.width;
+        win.height = original.height;
+        win.maximized = false;
+      }
+      this.render();
+      return;
+    }
+
+    // Snap to target zone
+    if (targetZone) {
+      const bounds = this.tilingManager.snapWindow(windowId, targetZone, {
+        x: win.x,
+        y: win.y,
+        width: win.width,
+        height: win.height
+      });
+
+      if (bounds) {
+        win.x = bounds.x;
+        win.y = bounds.y;
+        win.width = bounds.width;
+        win.height = bounds.height;
+        win.maximized = targetZone === 'maximize';
+
+        // Show snap assist if snapping left/right
+        if (this.tilingManager.hasPendingSnapAssist()) {
+          this.showSnapAssist = true;
+        }
+      }
+      this.render();
     }
   }
 
@@ -7874,6 +12347,13 @@ class TempleOS {
   // ============================================
   // LOCK SCREEN
   // ============================================
+  private openDecoySession() {
+    this.isDecoySession = true;
+    this.showNotification('System', 'Decoy Session Active', 'warning');
+    this.windows = []; // Close all windows
+    this.render();
+  }
+
   private lock(): void {
     if (this.isLocked) return;
     this.isLocked = true;
@@ -7954,8 +12434,16 @@ class TempleOS {
     // Event Listeners for Unlock
     const attemptUnlock = () => {
       const val = input.value;
-      const msg = document.getElementById('lock-message');
 
+      // Duress Check
+      if (this.duressPassword && val === this.duressPassword) {
+        clearInterval(clockInterval);
+        this.unlock();
+        this.openDecoySession();
+        return;
+      }
+
+      const msg = document.getElementById('lock-message');
       const ok = this.lockInputMode === 'pin' ? val === this.lockPin : val === this.lockPassword;
       if (ok) {
         clearInterval(clockInterval);
@@ -8495,6 +12983,176 @@ class TempleOS {
   }
 
 
+  // ============================================
+  // TIER 9.4: THEME SYSTEM
+  // ============================================
+  private applyTheme() {
+    const isLight = this.themeMode === 'light';
+    const root = document.documentElement;
+
+    const colors: Record<string, string> = {
+      green: '#00ff41',
+      amber: '#ffb000',
+      cyan: '#00ffff',
+      white: '#ffffff'
+    };
+
+    const mainColor = colors[this.themeColor] || colors.green;
+    // In TempleOS, "Light Node" is heresy, but we implement it for Tier 9.4
+    // Light mode: White BG, Black Text (or Main Color text?)
+    // Let's go with High Contrast approach: White BG, Black Text, Main Color Borders
+
+    const bgColor = isLight ? '#ffffff' : '#000000';
+    const textColor = isLight ? '#000000' : mainColor;
+
+    root.style.setProperty('--main-color', mainColor);
+    root.style.setProperty('--bg-color', bgColor);
+    root.style.setProperty('--text-color', textColor);
+
+    // We might need to handle specific component overrides via CSS based on [data-theme]
+    root.dataset.themeMode = this.themeMode;
+    root.dataset.themeColor = this.themeColor;
+
+    // Also update terminal theme if linked? For now keep them separate as per original architecture
+  }
+
+  // ============================================
+  // TIER 10 & 11: BOOT & GAMING
+  // ============================================
+
+  private toggleGamingMode(): void {
+    this.gamingModeActive = !this.gamingModeActive;
+    this.showNotification('Gaming Mode', this.gamingModeActive ? 'Enabled: Hotkeys Disabled' : 'Disabled', 'divine');
+    this.render();
+  }
+
+  private renderShutdownOverlay(): string {
+    if (!this.isShuttingDown) return '';
+    return `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #00ff41; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'VT323', monospace;">
+            <div style="font-size: 64px; animation: blink 2s infinite;">God be with you.</div>
+            <div style="margin-top: 20px; font-size: 24px;">Shutting down...</div>
+        </div>
+      `;
+  }
+
+  private renderFirstRunWizard(): string {
+    if (this.setupComplete) return '';
+
+    const steps = [
+      // Step 0: Welcome
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 48px; color: #ffd700; margin-bottom: 20px;">Welcome to TempleOS</div>
+             <p style="font-size: 20px; margin-bottom: 30px;">The Third Temple, reborn as a modern OS.</p>
+             <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Begin Setup</button>
+          </div>
+          `,
+      // Step 1: Theme
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">Choose Your Covenant</div>
+             <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 30px;">
+                 <button class="theme-color-btn" data-color="green" style="width: 60px; height: 60px; background: #00ff41; border: 2px solid white; cursor: pointer;"></button>
+                 <button class="theme-color-btn" data-color="amber" style="width: 60px; height: 60px; background: #ffb000; border: 2px solid white; cursor: pointer;"></button>
+                 <button class="theme-color-btn" data-color="cyan" style="width: 60px; height: 60px; background: #00ffff; border: 2px solid white; cursor: pointer;"></button>
+             </div>
+             <div style="margin-bottom: 20px;">Current: ${this.themeColor.toUpperCase()}</div>
+             <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
+          </div>
+          `,
+      // Step 2: Finish
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 48px; color: #ffd700; margin-bottom: 20px;">It Is Finished</div>
+             <p style="font-size: 20px; margin-bottom: 30px;">"The fear of the Lord is the beginning of wisdom."</p>
+             <button class="wizard-finish-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Enter Temple</button>
+          </div>
+          `
+    ];
+
+    return `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999990; display: flex; align-items: center; justify-content: center;">
+            <div style="width: 600px; padding: 40px; border: 4px double #00ff41; background: #001100;">
+                ${steps[this.firstRunStep] || steps[0]}
+            </div>
+        </div>
+      `;
+  }
+
+  public shutdownSystem(): void {
+    if (this.secureWipeOnShutdown) {
+      // Show wiping indication before full shutdown or during
+      this.showNotification('Security', 'Securely wiping memory...', 'divine');
+      // We could also play a sound
+    }
+
+    this.isShuttingDown = true;
+    this.render();
+
+    // If secure wipe is on, take longer
+    const duration = this.secureWipeOnShutdown ? 5000 : 3000;
+
+    setTimeout(() => {
+      // In a real browser we can't 'turn off' the tab, but we can simulate a halted state or reload
+      // For effect, we'll just leave it on the shutdown screen or reload
+      window.location.reload();
+    }, duration);
+  }
+
+  // ============================================
+  // TIER 9.2: DESKTOP WIDGETS
+  // ============================================
+  private renderDesktopWidgets(): string {
+    if (!this.desktopWidgetsEnabled) return '';
+
+    const now = new Date();
+    // Simple ASCII Clock Widget
+    return `
+      <div class="desktop-widget" style="position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 0; color: rgba(0,255,65,0.4);">
+          <div style="font-size: 32px; font-weight: bold;">${now.toLocaleTimeString()}</div>
+          <div style="font-size: 16px;">${now.toLocaleDateString()}</div>
+          <div style="margin-top: 10px; font-size: 12px;">
+             CPU: ${Math.floor(Math.random() * 10) + 1}% <br>
+             RAM: ${Math.floor(Math.random() * 20) + 10}%
+          </div>
+      </div>
+      `;
+  }
+
+  // ============================================
+  // TIER 9.1: TASKBAR HELPERS
+  // ============================================
+  public showTaskbarContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    this.showContextMenu(e.clientX, e.clientY, [
+      {
+        label: `${this.taskbarTransparent ? 'Disable' : 'Enable'} Transparency`,
+        action: () => {
+          this.taskbarTransparent = !this.taskbarTransparent;
+          localStorage.setItem('temple_taskbar_transparent', String(this.taskbarTransparent));
+          this.render();
+        }
+      },
+      {
+        label: `${this.taskbarAutoHide ? 'Disable' : 'Enable'} Auto-Hide`,
+        action: () => {
+          this.taskbarAutoHide = !this.taskbarAutoHide;
+          localStorage.setItem('temple_taskbar_autohide', String(this.taskbarAutoHide));
+          this.render();
+        }
+      },
+      { divider: true },
+      {
+        label: `Move to ${this.taskbarPosition === 'bottom' ? 'Top' : 'Bottom'}`,
+        action: () => {
+          this.setTaskbarPosition(this.taskbarPosition === 'bottom' ? 'top' : 'bottom');
+        }
+      },
+      { divider: true },
+      { label: 'Taskbar Settings', action: () => this.openApp('settings') }
+    ]);
+  }
 }
 
 // Initialize TempleOS

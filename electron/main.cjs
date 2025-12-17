@@ -39,6 +39,398 @@ function shEscape(value) {
     return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+function isJpegBuffer(buf) {
+    return Buffer.isBuffer(buf) && buf.length >= 3 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+}
+
+function isPngBuffer(buf) {
+    return Buffer.isBuffer(buf) && buf.length >= 8
+        && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+        && buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A;
+}
+
+function parseTiffExif(tiffBuf) {
+    try {
+        if (!Buffer.isBuffer(tiffBuf) || tiffBuf.length < 8) return {};
+        const endian = tiffBuf.toString('ascii', 0, 2);
+        const le = endian === 'II';
+        const be = endian === 'MM';
+        if (!le && !be) return {};
+
+        const readU16 = (off) => {
+            if (off < 0 || off + 2 > tiffBuf.length) return null;
+            return le ? tiffBuf.readUInt16LE(off) : tiffBuf.readUInt16BE(off);
+        };
+        const readU32 = (off) => {
+            if (off < 0 || off + 4 > tiffBuf.length) return null;
+            return le ? tiffBuf.readUInt32LE(off) : tiffBuf.readUInt32BE(off);
+        };
+        const readI32 = (off) => {
+            if (off < 0 || off + 4 > tiffBuf.length) return null;
+            return le ? tiffBuf.readInt32LE(off) : tiffBuf.readInt32BE(off);
+        };
+
+        const magic = readU16(2);
+        if (magic !== 0x2A) return {};
+        const ifd0Off = readU32(4);
+        if (ifd0Off === null) return {};
+
+        const tagMap0 = new Map([
+            [0x010F, 'Make'],
+            [0x0110, 'Model'],
+            [0x0131, 'Software'],
+            [0x0132, 'DateTime'],
+            [0x010E, 'ImageDescription'],
+            [0x013B, 'Artist'],
+            [0x8298, 'Copyright'],
+            [0x0112, 'Orientation'],
+        ]);
+
+        const tagMapExif = new Map([
+            [0x9003, 'DateTimeOriginal'],
+            [0x9004, 'DateTimeDigitized'],
+            [0x829A, 'ExposureTime'],
+            [0x829D, 'FNumber'],
+            [0x8827, 'ISO'],
+            [0x920A, 'FocalLength'],
+            [0xA002, 'PixelXDimension'],
+            [0xA003, 'PixelYDimension'],
+            [0xA405, 'FocalLengthIn35mmFilm'],
+        ]);
+
+        const typeSize = (type) => {
+            if (type === 1) return 1; // BYTE
+            if (type === 2) return 1; // ASCII
+            if (type === 3) return 2; // SHORT
+            if (type === 4) return 4; // LONG
+            if (type === 5) return 8; // RATIONAL
+            if (type === 7) return 1; // UNDEFINED
+            if (type === 9) return 4; // SLONG
+            if (type === 10) return 8; // SRATIONAL
+            return 0;
+        };
+
+        const safeAscii = (buf) => String(buf || '')
+            .replace(/\0/g, '')
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+            .trim();
+
+        const readRational = (off, signed) => {
+            if (off < 0 || off + 8 > tiffBuf.length) return null;
+            const num = signed ? readI32(off) : readU32(off);
+            const den = signed ? readI32(off + 4) : readU32(off + 4);
+            if (num === null || den === null) return null;
+            return { num, den };
+        };
+
+        const rationalToString = (r) => {
+            if (!r) return '';
+            const den = r.den;
+            if (!den) return String(r.num);
+            const val = r.num / den;
+            if (!Number.isFinite(val)) return `${r.num}/${r.den}`;
+            // Prefer a fraction-like display for common camera values.
+            if (Math.abs(val) < 1 && r.num !== 0 && den <= 1000000) return `${r.num}/${r.den}`;
+            if (Number.isInteger(val)) return String(val);
+            return String(Math.round(val * 1000000) / 1000000);
+        };
+
+        const readValue = (entryOff, type, count, valueOrOff) => {
+            const size = typeSize(type);
+            if (!size) return null;
+            const total = size * count;
+            const dataOff = total <= 4 ? (entryOff + 8) : valueOrOff;
+            if (dataOff < 0 || dataOff + total > tiffBuf.length) return null;
+
+            if (type === 2) {
+                return safeAscii(tiffBuf.slice(dataOff, dataOff + total));
+            }
+            if (type === 3) {
+                if (count === 1) return String(readU16(dataOff) ?? '');
+                const vals = [];
+                for (let i = 0; i < count; i++) vals.push(readU16(dataOff + i * 2));
+                return vals.filter(v => v !== null).join(', ');
+            }
+            if (type === 4) {
+                if (count === 1) return String(readU32(dataOff) ?? '');
+                const vals = [];
+                for (let i = 0; i < count; i++) vals.push(readU32(dataOff + i * 4));
+                return vals.filter(v => v !== null).join(', ');
+            }
+            if (type === 9) {
+                if (count === 1) return String(readI32(dataOff) ?? '');
+                const vals = [];
+                for (let i = 0; i < count; i++) vals.push(readI32(dataOff + i * 4));
+                return vals.filter(v => v !== null).join(', ');
+            }
+            if (type === 5) {
+                if (count === 1) return rationalToString(readRational(dataOff, false));
+                const vals = [];
+                for (let i = 0; i < count; i++) vals.push(rationalToString(readRational(dataOff + i * 8, false)));
+                return vals.filter(Boolean).join(', ');
+            }
+            if (type === 10) {
+                if (count === 1) return rationalToString(readRational(dataOff, true));
+                const vals = [];
+                for (let i = 0; i < count; i++) vals.push(rationalToString(readRational(dataOff + i * 8, true)));
+                return vals.filter(Boolean).join(', ');
+            }
+
+            // Fallback: raw bytes
+            return safeAscii(tiffBuf.slice(dataOff, dataOff + Math.min(total, 256)));
+        };
+
+        const out = {};
+        let exifIfdOff = null;
+        let gpsIfdOff = null;
+
+        const parseIfd = (ifdOff, tagMap, collectGps) => {
+            if (ifdOff === null || ifdOff < 0 || ifdOff + 2 > tiffBuf.length) return;
+            const count = readU16(ifdOff);
+            if (count === null) return;
+            let entryOff = ifdOff + 2;
+            for (let i = 0; i < count; i++) {
+                if (entryOff + 12 > tiffBuf.length) break;
+                const tag = readU16(entryOff);
+                const type = readU16(entryOff + 2);
+                const num = readU32(entryOff + 4);
+                const valueOrOff = readU32(entryOff + 8);
+                if (tag === null || type === null || num === null || valueOrOff === null) break;
+
+                // pointers
+                if (tag === 0x8769) exifIfdOff = valueOrOff;
+                if (tag === 0x8825) gpsIfdOff = valueOrOff;
+
+                const name = tagMap && tagMap.get(tag);
+                if (name) {
+                    const val = readValue(entryOff, type, num, valueOrOff);
+                    if (val !== null && String(val).trim()) out[name] = String(val);
+                }
+
+                if (collectGps) {
+                    const val = readValue(entryOff, type, num, valueOrOff);
+                    // GPS tags handled below via collectGps object.
+                    collectGps(tag, type, num, valueOrOff, entryOff, val);
+                }
+
+                entryOff += 12;
+            }
+        };
+
+        // IFD0
+        parseIfd(ifd0Off, tagMap0);
+
+        // Exif IFD
+        if (exifIfdOff !== null) parseIfd(exifIfdOff, tagMapExif);
+
+        // GPS IFD
+        if (gpsIfdOff !== null) {
+            const gps = { latRef: null, lonRef: null, lat: null, lon: null, alt: null, altRef: null };
+
+            const collectGps = (tag, type, count, valueOrOff, entryOff) => {
+                const size = typeSize(type);
+                const total = size * count;
+                const dataOff = total <= 4 ? (entryOff + 8) : valueOrOff;
+
+                if (tag === 0x0001) { // LatRef
+                    const v = readValue(entryOff, type, count, valueOrOff);
+                    gps.latRef = v ? String(v).trim().toUpperCase() : null;
+                } else if (tag === 0x0003) { // LonRef
+                    const v = readValue(entryOff, type, count, valueOrOff);
+                    gps.lonRef = v ? String(v).trim().toUpperCase() : null;
+                } else if (tag === 0x0002 && type === 5 && count >= 3) { // Lat
+                    const r0 = readRational(dataOff, false);
+                    const r1 = readRational(dataOff + 8, false);
+                    const r2 = readRational(dataOff + 16, false);
+                    if (r0 && r1 && r2 && r0.den && r1.den && r2.den) {
+                        gps.lat = (r0.num / r0.den) + (r1.num / r1.den) / 60 + (r2.num / r2.den) / 3600;
+                    }
+                } else if (tag === 0x0004 && type === 5 && count >= 3) { // Lon
+                    const r0 = readRational(dataOff, false);
+                    const r1 = readRational(dataOff + 8, false);
+                    const r2 = readRational(dataOff + 16, false);
+                    if (r0 && r1 && r2 && r0.den && r1.den && r2.den) {
+                        gps.lon = (r0.num / r0.den) + (r1.num / r1.den) / 60 + (r2.num / r2.den) / 3600;
+                    }
+                } else if (tag === 0x0005) { // AltRef
+                    const v = readValue(entryOff, type, count, valueOrOff);
+                    gps.altRef = v ? String(v).trim() : null;
+                } else if (tag === 0x0006 && type === 5 && count === 1) { // Altitude
+                    const r = readRational(dataOff, false);
+                    if (r && r.den) gps.alt = r.num / r.den;
+                }
+            };
+
+            parseIfd(gpsIfdOff, new Map(), collectGps);
+
+            if (typeof gps.lat === 'number' && Number.isFinite(gps.lat) && gps.latRef) {
+                const sign = gps.latRef === 'S' ? -1 : 1;
+                const val = Math.abs(gps.lat) * sign;
+                out['GPS Latitude'] = `${Math.round(val * 1000000) / 1000000} ${gps.latRef}`;
+            }
+            if (typeof gps.lon === 'number' && Number.isFinite(gps.lon) && gps.lonRef) {
+                const sign = gps.lonRef === 'W' ? -1 : 1;
+                const val = Math.abs(gps.lon) * sign;
+                out['GPS Longitude'] = `${Math.round(val * 1000000) / 1000000} ${gps.lonRef}`;
+            }
+            if (typeof gps.alt === 'number' && Number.isFinite(gps.alt)) {
+                const neg = gps.altRef === '1';
+                out['GPS Altitude'] = `${Math.round((neg ? -gps.alt : gps.alt) * 100) / 100} m`;
+            }
+        }
+
+        // Friendly rename for a couple common fields
+        if (out.DateTimeOriginal && !out.DateTime) out.DateTime = out.DateTimeOriginal;
+
+        // Cap size
+        const limited = {};
+        for (const [k, v] of Object.entries(out)) {
+            limited[k] = String(v).slice(0, 300);
+            if (Object.keys(limited).length >= 80) break;
+        }
+        return limited;
+    } catch (e) {
+        return {};
+    }
+}
+
+function extractExifFromBuffer(buf) {
+    if (isJpegBuffer(buf)) {
+        // Find APP1 Exif segment
+        let pos = 2;
+        while (pos + 4 < buf.length) {
+            if (buf[pos] !== 0xFF) { pos++; continue; }
+            const marker = buf[pos + 1];
+            if (marker === 0xDA) break; // SOS
+            if (marker === 0xD9) break; // EOI
+            if (marker >= 0xD0 && marker <= 0xD7) { pos += 2; continue; }
+            if (marker === 0x01) { pos += 2; continue; }
+            if (pos + 3 >= buf.length) break;
+            const segLen = buf.readUInt16BE(pos + 2);
+            if (segLen < 2) break;
+            const dataStart = pos + 4;
+            const dataEnd = pos + 2 + segLen;
+            if (dataEnd > buf.length) break;
+            if (marker === 0xE1 && dataEnd - dataStart >= 6) {
+                const head = buf.slice(dataStart, dataStart + 6).toString('ascii');
+                if (head === 'Exif\0\0') {
+                    const tiff = buf.slice(dataStart + 6, dataEnd);
+                    return parseTiffExif(tiff);
+                }
+            }
+            pos = dataEnd;
+        }
+        return null;
+    }
+
+    if (isPngBuffer(buf)) {
+        let pos = 8;
+        while (pos + 12 <= buf.length) {
+            const len = buf.readUInt32BE(pos);
+            const type = buf.slice(pos + 4, pos + 8).toString('ascii');
+            const chunkStart = pos + 8;
+            const chunkEnd = chunkStart + len;
+            const totalEnd = chunkEnd + 4;
+            if (totalEnd > buf.length) break;
+
+            if (type === 'eXIf') {
+                let tiff = buf.slice(chunkStart, chunkEnd);
+                if (tiff.length >= 6 && tiff.slice(0, 6).toString('ascii') === 'Exif\0\0') {
+                    tiff = tiff.slice(6);
+                }
+                const meta = parseTiffExif(tiff);
+                return Object.keys(meta).length ? meta : null;
+            }
+
+            if (type === 'IEND') break;
+            pos = totalEnd;
+        }
+        return null;
+    }
+
+    return null;
+}
+
+function stripJpegMetadata(buf) {
+    if (!isJpegBuffer(buf)) return null;
+    const out = [buf.slice(0, 2)]; // SOI
+    let pos = 2;
+    while (pos + 1 < buf.length) {
+        if (buf[pos] !== 0xFF) {
+            // Unexpected; copy rest
+            out.push(buf.slice(pos));
+            break;
+        }
+        const marker = buf[pos + 1];
+
+        // Start of Scan: keep the rest verbatim
+        if (marker === 0xDA) {
+            out.push(buf.slice(pos));
+            break;
+        }
+        // EOI
+        if (marker === 0xD9) {
+            out.push(buf.slice(pos, pos + 2));
+            break;
+        }
+        // Standalone markers
+        if (marker === 0xD8 || (marker >= 0xD0 && marker <= 0xD7) || marker === 0x01) {
+            out.push(buf.slice(pos, pos + 2));
+            pos += 2;
+            continue;
+        }
+
+        if (pos + 3 >= buf.length) break;
+        const segLen = buf.readUInt16BE(pos + 2);
+        if (segLen < 2) break;
+        const segEnd = pos + 2 + segLen;
+        if (segEnd > buf.length) break;
+
+        const dataStart = pos + 4;
+        const dataEnd = segEnd;
+        const data = buf.slice(dataStart, dataEnd);
+
+        let drop = false;
+        if (marker === 0xE1) {
+            const head6 = data.length >= 6 ? data.slice(0, 6).toString('ascii') : '';
+            if (head6 === 'Exif\0\0') drop = true;
+            const head29 = data.length >= 29 ? data.slice(0, 29).toString('ascii') : '';
+            if (head29 === 'http://ns.adobe.com/xap/1.0/') drop = true; // XMP
+        }
+        if (marker === 0xFE) drop = true; // COM
+        if (marker === 0xED) drop = true; // APP13 Photoshop
+
+        if (!drop) out.push(buf.slice(pos, segEnd));
+        pos = segEnd;
+    }
+    return Buffer.concat(out);
+}
+
+function stripPngMetadata(buf) {
+    if (!isPngBuffer(buf)) return null;
+    const out = [buf.slice(0, 8)];
+    let pos = 8;
+    while (pos + 12 <= buf.length) {
+        const len = buf.readUInt32BE(pos);
+        const type = buf.slice(pos + 4, pos + 8).toString('ascii');
+        const total = 12 + len;
+        if (pos + total > buf.length) break;
+
+        const drop = type === 'eXIf' || type === 'tEXt' || type === 'iTXt' || type === 'zTXt';
+        if (!drop) out.push(buf.slice(pos, pos + total));
+
+        pos += total;
+        if (type === 'IEND') break;
+    }
+    return Buffer.concat(out);
+}
+
+function stripImageMetadata(buf) {
+    if (isJpegBuffer(buf)) return stripJpegMetadata(buf);
+    if (isPngBuffer(buf)) return stripPngMetadata(buf);
+    return null;
+}
+
 function buildSwayEnvPrefix() {
     if (process.env.SWAYSOCK) return `SWAYSOCK="${shEscape(process.env.SWAYSOCK)}"`;
     if (process.env.XDG_RUNTIME_DIR) return `SWAYSOCK=$(ls "${shEscape(process.env.XDG_RUNTIME_DIR)}"/sway*.sock 2>/dev/null | head -1)`;
@@ -494,6 +886,42 @@ ipcMain.handle('fs:copy', async (event, srcPath, destPath) => {
     }
 });
 
+// ============================================
+// ZIP ARCHIVE IPC
+// ============================================
+let AdmZip = null;
+try { AdmZip = require('adm-zip'); } catch (e) { console.warn('adm-zip not found', e); }
+
+ipcMain.handle('fs:createZip', async (event, sourcePath, targetZipPath) => {
+    if (!AdmZip) return { success: false, error: 'adm-zip dependency missing' };
+    try {
+        const zip = new AdmZip();
+        const stat = await fs.promises.stat(sourcePath);
+        if (stat.isDirectory()) {
+            zip.addLocalFolder(sourcePath);
+        } else {
+            zip.addLocalFile(sourcePath);
+        }
+        zip.writeZip(targetZipPath);
+        // Verify creation
+        await fs.promises.access(targetZipPath);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('fs:extractZip', async (event, zipPath, targetDir) => {
+    if (!AdmZip) return { success: false, error: 'adm-zip dependency missing' };
+    try {
+        const zip = new AdmZip(zipPath);
+        zip.extractAllTo(targetDir, true); // true = overwrite
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
 ipcMain.handle('fs:getHome', () => os.homedir());
 ipcMain.handle('fs:getAppPath', () => app.getAppPath());
 
@@ -508,6 +936,63 @@ ipcMain.handle('fs:openExternal', async (event, filePath) => {
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };
+    }
+});
+
+// ============================================
+// EXIF METADATA (best-effort)
+// ============================================
+ipcMain.handle('exif:extract', async (event, imagePath) => {
+    try {
+        const target = String(imagePath || '').trim();
+        if (!target) return { success: false, error: 'Invalid image path' };
+
+        const buf = await fs.promises.readFile(target);
+        const metadata = extractExifFromBuffer(buf);
+        if (!metadata || !Object.keys(metadata).length) {
+            return { success: false, error: 'No EXIF data found in image' };
+        }
+        return { success: true, metadata };
+    } catch (error) {
+        return { success: false, error: error.message || String(error) };
+    }
+});
+
+ipcMain.handle('exif:strip', async (event, imagePath) => {
+    try {
+        const target = String(imagePath || '').trim();
+        if (!target) return { success: false, error: 'Invalid image path' };
+
+        const buf = await fs.promises.readFile(target);
+        const stripped = stripImageMetadata(buf);
+        if (!stripped) return { success: false, error: 'Unsupported image format (supported: JPEG, PNG)' };
+
+        // Backup original with ".original" suffix (or ".original.<timestamp>" if exists)
+        const backupBase = `${target}.original`;
+        let backupPath = backupBase;
+        try {
+            await fs.promises.access(backupPath, fs.constants.F_OK);
+            const ts = new Date().toISOString().replace(/[:.]/g, '-');
+            backupPath = `${backupBase}.${ts}`;
+        } catch {
+            // ok (does not exist)
+        }
+
+        await fs.promises.writeFile(backupPath, buf);
+
+        // Write stripped file (best-effort atomic replace)
+        const tmpPath = `${target}.tmp`;
+        await fs.promises.writeFile(tmpPath, stripped);
+        try {
+            await fs.promises.unlink(target);
+        } catch {
+            // ignore
+        }
+        await fs.promises.rename(tmpPath, target);
+
+        return { success: true, outputPath: target };
+    } catch (error) {
+        return { success: false, error: error.message || String(error) };
     }
 });
 
@@ -901,6 +1386,94 @@ ipcMain.handle('network:disconnect', async () => {
     return res.error ? { success: false, error: res.stderr || res.error.message } : { success: true };
 });
 
+ipcMain.handle('network:disconnectNonVpn', async () => {
+    if (process.platform !== 'linux') return { success: false, disconnected: [], error: 'Not supported on this platform' };
+
+    const status = await execAsync('nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status 2>/dev/null');
+    if (status.error) return { success: false, disconnected: [], error: status.error.message };
+
+    const rows = (status.stdout || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const unesc = (v) => String(v || '').replace(/\\:/g, ':');
+    const parsed = rows.map(line => {
+        const parts = line.split(':');
+        const device = unesc(parts[0] || '');
+        const type = unesc(parts[1] || '');
+        const state = unesc(parts[2] || '');
+        const connection = unesc(parts.slice(3).join(':') || '');
+        return { device, type, state, connection };
+    });
+
+    const isConnected = (s) => {
+        const t = String(s || '').toLowerCase();
+        return t === 'connected' || t.startsWith('connected');
+    };
+
+    const isVpn = (r) => {
+        const t = String(r.type || '').toLowerCase();
+        const d = String(r.device || '').toLowerCase();
+        return t === 'tun' || t === 'vpn' || t.includes('wireguard') || d.startsWith('tun') || d.startsWith('wg');
+    };
+
+    const targets = parsed.filter(r => isConnected(r.state) && !isVpn(r));
+    if (!targets.length) return { success: true, disconnected: [] };
+
+    const disconnected = [];
+    const errors = [];
+    for (const t of targets) {
+        const res = await execAsync(`nmcli dev disconnect "${shEscape(t.device)}" 2>/dev/null`);
+        if (res.error) {
+            errors.push(res.stderr || res.error.message);
+            continue;
+        }
+        const label = t.connection && t.connection !== '--' ? t.connection : t.device;
+        disconnected.push(label);
+    }
+
+    const errMsg = errors.filter(Boolean).join('; ');
+    if (errMsg && disconnected.length === 0) return { success: false, disconnected, error: errMsg || 'Disconnect failed' };
+    return { success: true, disconnected, error: errMsg || undefined };
+});
+
+ipcMain.handle('network:createHotspot', async (event, ssid, password) => {
+    if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
+
+    // 1. Find wifi device
+    const status = await execAsync('nmcli -t -f DEVICE,TYPE,STATE dev status 2>/dev/null');
+    if (status.error) return { success: false, error: 'Failed to get network devices' };
+
+    const lines = status.stdout.split('\n');
+    let wifiDev = null;
+    for (const line of lines) {
+        const parts = line.split(':');
+        if (parts[1] === 'wifi') {
+            wifiDev = parts[0];
+            break;
+        }
+    }
+
+    if (!wifiDev) return { success: false, error: 'No Wi-Fi device found' };
+
+    // 2. Start hotspot
+    // Syntax: nmcli device wifi hotspot [ifname] [con-name] [ssid] [password]
+    const conName = 'TempleOS_Hotspot';
+    const pwArg = password ? `"${shEscape(password)}"` : '';
+    const ssidArg = ssid ? `"${shEscape(ssid)}"` : `"${conName}"`;
+
+    const cmd = `nmcli device wifi hotspot "${shEscape(wifiDev)}" "${conName}" ${ssidArg} ${pwArg}`;
+
+    const res = await execAsync(cmd);
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+
+    return { success: true, output: res.stdout };
+});
+
+ipcMain.handle('network:stopHotspot', async () => {
+    if (process.platform !== 'linux') return { success: true };
+    const conName = 'TempleOS_Hotspot';
+    const res = await execAsync(`nmcli connection down "${conName}" 2>/dev/null`);
+    return { success: true };
+});
+
 ipcMain.handle('network:getWifiEnabled', async () => {
     if (process.platform !== 'linux') return { success: true, enabled: true };
     const res = await execAsync('nmcli -t -f WIFI radio 2>/dev/null');
@@ -941,6 +1514,15 @@ ipcMain.handle('network:connectSaved', async (event, nameOrUuid) => {
     return { success: true, output: res.stdout };
 });
 
+ipcMain.handle('network:disconnectConnection', async (event, nameOrUuid) => {
+    if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
+    const key = String(nameOrUuid || '').trim();
+    if (!key) return { success: false, error: 'Invalid connection' };
+    const res = await execAsync(`nmcli connection down "${shEscape(key)}" 2>/dev/null`);
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+    return { success: true, output: res.stdout };
+});
+
 ipcMain.handle('network:forgetSaved', async (event, nameOrUuid) => {
     if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
     const key = String(nameOrUuid || '').trim();
@@ -949,6 +1531,463 @@ ipcMain.handle('network:forgetSaved', async (event, nameOrUuid) => {
     if (res.error) return { success: false, error: res.stderr || res.error.message };
     return { success: true };
 });
+
+ipcMain.handle('network:importVpnProfile', async (event, kind, filePath) => {
+    if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
+
+    const k = String(kind || '').toLowerCase();
+    const pathValue = String(filePath || '').trim();
+    if (!pathValue) return { success: false, error: 'Invalid file path' };
+
+    const type = k === 'wireguard' ? 'wireguard' : (k === 'openvpn' ? 'openvpn' : null);
+    if (!type) return { success: false, error: 'Invalid VPN type' };
+
+    const cmd = `nmcli connection import type ${type} file "${shEscape(pathValue)}" 2>/dev/null`;
+    const res = await execAsync(cmd, { timeout: 10000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+    return { success: true, output: res.stdout };
+});
+
+// ============================================
+// SSH SERVER (OpenSSH) (best-effort)
+// ============================================
+function shQuote(value) {
+    // Single-quote for /bin/sh: foo'bar -> 'foo'"'"'bar'
+    return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+}
+
+let cachedPrivMethod = undefined; // 'pkexec' | 'sudo' | null
+async function hasCommand(bin) {
+    const safe = String(bin || '').trim().replace(/[^a-zA-Z0-9._+-]/g, '');
+    if (!safe) return false;
+    const res = await execAsync(`command -v ${safe} 2>/dev/null`, { timeout: 1500 });
+    return !!String(res.stdout || '').trim();
+}
+
+async function getPrivMethod() {
+    if (cachedPrivMethod !== undefined) return cachedPrivMethod;
+    if (await hasCommand('pkexec')) { cachedPrivMethod = 'pkexec'; return cachedPrivMethod; }
+    if (await hasCommand('sudo')) { cachedPrivMethod = 'sudo'; return cachedPrivMethod; }
+    cachedPrivMethod = null;
+    return cachedPrivMethod;
+}
+
+async function runPrivilegedSh(command, options = {}) {
+    const method = await getPrivMethod();
+    const timeout = typeof options.timeout === 'number' ? options.timeout : 120000;
+    if (!method) return { error: new Error('No privilege escalation tool (pkexec/sudo) available'), stdout: '', stderr: '' };
+    const prefix = method === 'pkexec' ? 'pkexec' : 'sudo -n';
+    return await execAsync(`${prefix} sh -lc ${shQuote(command)}`, { timeout });
+}
+
+async function getSshServiceName() {
+    if (!(await hasCommand('systemctl'))) return null;
+    const candidates = ['ssh', 'sshd', 'ssh.service', 'sshd.service'];
+    for (const name of candidates) {
+        const res = await execAsync(`systemctl show -p LoadState --value ${name} 2>/dev/null`, { timeout: 1500 });
+        const state = String(res.stdout || '').trim();
+        if (state === 'loaded') return name;
+    }
+    return null;
+}
+
+async function getSshServiceStatus(serviceName) {
+    if (!serviceName) return 'unknown';
+    const res = await execAsync(`systemctl is-active ${serviceName} 2>/dev/null`, { timeout: 1500 });
+    const out = String(res.stdout || '').trim().toLowerCase();
+    if (out === 'active') return 'running';
+    if (out === 'inactive' || out === 'failed' || out === 'deactivating') return 'stopped';
+    return 'unknown';
+}
+
+async function ensureSshPort(port) {
+    const p = Number.isFinite(port) ? Math.floor(port) : parseInt(String(port || ''), 10);
+    if (!Number.isFinite(p) || p < 1 || p > 65535) return { success: false, error: 'Invalid SSH port' };
+
+    const sshdConfigPath = '/etc/ssh/sshd_config';
+    let sshdConfig = '';
+    try {
+        sshdConfig = await fs.promises.readFile(sshdConfigPath, 'utf-8');
+    } catch {
+        sshdConfig = '';
+    }
+
+    const hasInclude = /^\s*Include\s+\/etc\/ssh\/sshd_config\.d\/\*\.conf\s*$/mi.test(sshdConfig);
+    const hasActivePort = /^\s*Port\s+\d+\s*$/mi.test(sshdConfig);
+
+    const userData = app.getPath('userData');
+    if (hasInclude && !hasActivePort) {
+        const dropDir = '/etc/ssh/sshd_config.d';
+        const dropPath = `${dropDir}/templeos.conf`;
+        const tmp = path.join(userData, 'templeos-sshd-port.conf');
+        const content = `# Managed by TempleOS Remake\nPort ${p}\n`;
+        await fs.promises.writeFile(tmp, content, 'utf-8');
+
+        const cmd = `mkdir -p ${shQuote(dropDir)} && cp ${shQuote(tmp)} ${shQuote(dropPath)} && chmod 0644 ${shQuote(dropPath)}`;
+        const res = await runPrivilegedSh(cmd, { timeout: 120000 });
+        if (res.error) return { success: false, error: res.stderr || res.error.message || 'Failed to write sshd drop-in config' };
+        return { success: true };
+    }
+
+    if (!sshdConfig) return { success: false, error: 'sshd_config not readable' };
+
+    const markerStart = '# --- TempleOS Remake ---';
+    const markerEnd = '# --- /TempleOS Remake ---';
+
+    const lines = sshdConfig.replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let skipping = false;
+    for (const line of lines) {
+        const trim = line.trim();
+        if (trim === markerStart) { skipping = true; continue; }
+        if (trim === markerEnd) { skipping = false; continue; }
+        if (skipping) continue;
+        // Remove active Port directives (so we don't end up listening on multiple ports)
+        if (/^\s*Port\s+\d+\s*$/i.test(line)) continue;
+        out.push(line);
+    }
+
+    out.push('');
+    out.push(markerStart);
+    out.push(`Port ${p}`);
+    out.push(markerEnd);
+    out.push('');
+
+    const tmp = path.join(userData, 'templeos-sshd_config.tmp');
+    await fs.promises.writeFile(tmp, out.join('\n'), 'utf-8');
+
+    const bak = `${sshdConfigPath}.templeos.bak`;
+    const cmd = `cp ${shQuote(sshdConfigPath)} ${shQuote(bak)} 2>/dev/null || true; cp ${shQuote(tmp)} ${shQuote(sshdConfigPath)} && chmod 0644 ${shQuote(sshdConfigPath)}`;
+    const res = await runPrivilegedSh(cmd, { timeout: 120000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'Failed to update sshd_config' };
+    return { success: true };
+}
+
+async function readFirstExistingTextFile(paths) {
+    for (const p of paths) {
+        try {
+            const txt = await fs.promises.readFile(p, 'utf-8');
+            const cleaned = String(txt || '').trim();
+            if (cleaned) return { path: p, text: cleaned };
+        } catch {
+            // ignore
+        }
+    }
+    return null;
+}
+
+ipcMain.handle('ssh:control', async (event, action, port) => {
+    if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
+
+    const act = String(action || '').toLowerCase();
+    const p = port === undefined || port === null ? null : parseInt(String(port), 10);
+
+    if (!(await hasCommand('systemctl'))) return { success: false, error: 'systemctl not available' };
+    const service = await getSshServiceName();
+    if (!service) return { success: false, error: 'SSH service not found (ssh/sshd)' };
+
+    if (act === 'status') {
+        const status = await getSshServiceStatus(service);
+        return { success: true, status };
+    }
+
+    if (act === 'start') {
+        if (p !== null) {
+            const portRes = await ensureSshPort(p);
+            if (!portRes.success) return { success: false, error: portRes.error || 'Failed to set SSH port' };
+        }
+
+        const res = await runPrivilegedSh(`systemctl start ${service}`, { timeout: 120000 });
+        if (res.error) return { success: false, error: res.stderr || res.error.message || 'Failed to start SSH service' };
+        const status = await getSshServiceStatus(service);
+        return { success: true, status };
+    }
+
+    if (act === 'stop') {
+        const res = await runPrivilegedSh(`systemctl stop ${service}`, { timeout: 120000 });
+        if (res.error) return { success: false, error: res.stderr || res.error.message || 'Failed to stop SSH service' };
+        const status = await getSshServiceStatus(service);
+        return { success: true, status };
+    }
+
+    if (act === 'regenerate-keys') {
+        if (!(await hasCommand('ssh-keygen'))) return { success: false, error: 'ssh-keygen not available' };
+
+        const wasRunning = (await getSshServiceStatus(service)) === 'running';
+        await runPrivilegedSh(`systemctl stop ${service} 2>/dev/null || true`, { timeout: 120000 });
+
+        const regen = await runPrivilegedSh('rm -f /etc/ssh/ssh_host_* && ssh-keygen -A', { timeout: 120000 });
+        if (regen.error) return { success: false, error: regen.stderr || regen.error.message || 'Failed to regenerate host keys' };
+
+        if (wasRunning) {
+            await runPrivilegedSh(`systemctl start ${service} 2>/dev/null || true`, { timeout: 120000 });
+        }
+
+        return { success: true };
+    }
+
+    if (act === 'get-pubkey') {
+        const home = os.homedir();
+        const userPaths = [
+            path.join(home, '.ssh', 'id_ed25519.pub'),
+            path.join(home, '.ssh', 'id_rsa.pub'),
+            path.join(home, '.ssh', 'id_ecdsa.pub')
+        ];
+        const hostPaths = [
+            '/etc/ssh/ssh_host_ed25519_key.pub',
+            '/etc/ssh/ssh_host_rsa_key.pub',
+            '/etc/ssh/ssh_host_ecdsa_key.pub'
+        ];
+
+        let userKey = await readFirstExistingTextFile(userPaths);
+        if (!userKey && await hasCommand('ssh-keygen')) {
+            try {
+                const sshDir = path.join(home, '.ssh');
+                await fs.promises.mkdir(sshDir, { recursive: true });
+                const keyBase = path.join(sshDir, 'id_ed25519');
+                const gen = await execAsync(`ssh-keygen -t ed25519 -N "" -f "${shEscape(keyBase)}" -q 2>/dev/null`, { timeout: 15000 });
+                if (!gen.error) {
+                    userKey = await readFirstExistingTextFile([keyBase + '.pub']);
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        const hostKey = await readFirstExistingTextFile(hostPaths);
+        if (!userKey && !hostKey) return { success: false, error: 'No SSH public keys found' };
+
+        const parts = [];
+        if (userKey) parts.push(`# User public key (${userKey.path})\n${userKey.text}`);
+        if (hostKey) parts.push(`# Host public key (${hostKey.path})\n${hostKey.text}`);
+        return { success: true, pubkey: parts.join('\n\n').trim() };
+    }
+
+    return { success: false, error: 'Invalid action' };
+});
+
+
+// ============================================
+// TRACKER BLOCKING (Best Effort via /etc/hosts)
+// ============================================
+ipcMain.handle('security:trackerBlocking', async (event, enabled) => {
+    if (process.platform !== 'linux') {
+        // Mock success on Windows to pretend it worked (for demo purposes)
+        if (process.platform === 'win32') {
+            console.log(`[Mock] Tracker blocking set to ${enabled}`);
+            return { success: true };
+        }
+        return { success: false, error: 'Not supported on this platform' };
+    }
+
+    const startMarker = '# --- TempleOS Remake Tracker Blocklist ---';
+    const endMarker = '# --- /TempleOS Remake Tracker Blocklist ---';
+    const hostsPath = '/etc/hosts';
+
+    if (!enabled) {
+        // Remove blocklist
+        const cmd = `sed -i '/${startMarker}/,/${endMarker}/d' ${hostsPath}`;
+        const res = await runPrivilegedSh(cmd);
+        if (res.error) return { success: false, error: res.stderr || res.error.message || 'Failed to remove blocklist' };
+        return { success: true };
+    }
+
+    // Enable blocklist
+    const trackers = [
+        'google-analytics.com', 'www.google-analytics.com',
+        'doubleclick.net', 'ad.doubleclick.net',
+        'facebook.com', 'www.facebook.com', 'graph.facebook.com', 'connect.facebook.net',
+        'analytics.twitter.com', 'ads.twitter.com', 'ads-api.twitter.com',
+        'telemetry.microsoft.com', 'vortex.data.microsoft.com',
+        'adservice.google.com'
+    ];
+
+    const lines = [startMarker, ...trackers.map(t => `0.0.0.0 ${t}`), endMarker];
+    const content = lines.join('\\n'); // Escaped for printf
+
+    // 1. Remove existing
+    // 2. Append new
+    const cleanCmd = `sed -i '/${startMarker}/,/${endMarker}/d' ${hostsPath}`;
+    const appendCmd = `printf "${content}\\n" | tee -a ${hostsPath} >/dev/null`;
+    const fullCmd = `${cleanCmd} && ${appendCmd}`;
+
+    const res = await runPrivilegedSh(fullCmd); // handles sudo/pkexec
+
+    if (res.error) {
+        console.error('Tracker block failed:', res.stderr);
+        return { success: false, error: res.stderr || res.error.message || 'Failed to apply blocklist' };
+    }
+    return { success: true };
+});
+
+// ============================================
+// FIREWALL MANAGEMENT (UFW wrapper)
+// ============================================
+ipcMain.handle('security:getFirewallRules', async () => {
+    if (process.platform !== 'linux') {
+        return { success: true, active: false, rules: [] };
+    }
+
+    // Check status
+    const statusRes = await runPrivilegedSh('ufw status numbered');
+    if (statusRes.error) {
+        // Fallback: Check if ufw is installed
+        if ((statusRes.stderr || '').includes('command not found')) {
+            return { success: false, error: 'UFW not installed' };
+        }
+        // If inactive, it might just say "Status: inactive"
+        if ((statusRes.stdout || '').includes('Status: inactive')) {
+            return { success: true, active: false, rules: [] };
+        }
+        return { success: false, error: statusRes.stderr || 'Failed to get status' };
+    }
+
+    // Parse rules
+    // Output format often:
+    // Status: active
+    //
+    //      To                         Action      From
+    //      --                         ------      ----
+    // [ 1] 22/tcp                     ALLOW IN    Anywhere
+
+    const lines = (statusRes.stdout || '').split('\n');
+    const rules = [];
+    const active = lines.some(l => l.toLowerCase().includes('status: active'));
+
+    // Scan for rule lines (starting with [ digit ])
+    for (const line of lines) {
+        // Regex to parse detailed ufw status numbered output
+        // [ 1] 22/tcp                     ALLOW IN    Anywhere
+        const match = line.match(/^\[\s*(\d+)\] (.+?)\s+(ALLOW|DENY|REJECT)(?: IN)?\s+(.+)$/i);
+        if (match) {
+            rules.push({
+                id: parseInt(match[1], 10),
+                to: match[2].trim(),
+                action: match[3].toUpperCase(),
+                from: match[4].trim()
+            });
+        }
+    }
+
+    return { success: true, active, rules };
+});
+
+ipcMain.handle('security:addFirewallRule', async (event, port, protocol, action) => {
+    if (process.platform !== 'linux') return { success: true };
+
+    // Validate inputs
+    const p = parseInt(port, 10);
+    if (!Number.isFinite(p) || p < 1 || p > 65535) return { success: false, error: 'Invalid port' };
+
+    const proto = (protocol || 'tcp').toLowerCase();
+    if (!['tcp', 'udp'].includes(proto)) return { success: false, error: 'Invalid protocol' };
+
+    const act = (action || 'allow').toLowerCase();
+    if (!['allow', 'deny', 'reject'].includes(act)) return { success: false, error: 'Invalid action' };
+
+    // e.g. "ufw allow 8080/tcp"
+    const cmd = `ufw ${act} ${p}/${proto}`;
+    const res = await runPrivilegedSh(cmd);
+
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+    return { success: true };
+});
+
+ipcMain.handle('security:deleteFirewallRule', async (event, ruleId) => {
+    if (process.platform !== 'linux') return { success: true };
+
+    const id = parseInt(ruleId, 10);
+    if (!Number.isFinite(id)) return { success: false, error: 'Invalid rule ID' };
+
+    // "ufw delete <number>" is interactive, need "--force" to suppress confirmation
+    const cmd = `ufw --force delete ${id}`;
+    const res = await runPrivilegedSh(cmd);
+
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+    return { success: true };
+});
+
+ipcMain.handle('security:toggleFirewall', async (event, enable) => {
+    if (process.platform !== 'linux') return { success: true };
+    const cmd = enable ? 'ufw enable' : 'ufw disable';
+    const res = await runPrivilegedSh(cmd);
+    if (res.error) return { success: false, error: res.stderr || res.error.message };
+    return { success: true };
+});
+
+// ============================================
+// VERACRYPT INTEGRATION (Tier 7.1)
+// ============================================
+ipcMain.handle('security:getVeraCryptStatus', async () => {
+    if (process.platform !== 'linux') {
+        return { success: true, volumes: [] };
+    }
+
+    // List mounted volumes: `veracrypt -t -l`
+    try {
+        const res = await execAsync('veracrypt -t -l');
+        if (res.error) {
+            if ((res.stderr || '').includes('No volumes mounted') || (res.stdout || '').includes('No volumes mounted') || res.code === 1) {
+                return { success: true, volumes: [] };
+            }
+            if ((res.stderr || '').includes('not found')) {
+                return { success: false, error: 'VeraCrypt not installed' };
+            }
+            return { success: true, volumes: [] };
+        }
+
+        const volumes = [];
+        const lines = res.stdout.split('\n');
+        for (const line of lines) {
+            const match = line.match(/^(\d+):\s+(.+?)\s+(.+?)\s+(.+)$/);
+            if (match) {
+                volumes.push({
+                    slot: parseInt(match[1]),
+                    source: match[2],
+                    mountPoint: match[3],
+                    mapper: match[4]
+                });
+            }
+        }
+        return { success: true, volumes };
+    } catch (e) {
+        return { success: false, error: String(e) };
+    }
+});
+
+ipcMain.handle('security:mountVeraCrypt', async (event, path, password, slot) => {
+    if (process.platform !== 'linux') return { success: false, error: 'Not supported on this platform' };
+
+    // veracrypt -t --non-interactive --password="pass" --pim="0" --keyfiles="" --protect-hidden="no" /path/to/container /mnt/dest
+    const slotNum = slot || 1;
+    const mountPoint = `/mnt/veracrypt${slotNum}`;
+
+    // Ensure mount point exists
+    await execAsync(`mkdir -p ${mountPoint}`);
+
+    const cmd = `veracrypt -t --non-interactive --password="${shEscape(password)}" --pim="0" --keyfiles="" --protect-hidden="no" --slot=${slotNum} "${shEscape(path)}" "${mountPoint}"`;
+
+    const res = await runPrivilegedSh(cmd);
+
+    if (res.error) {
+        return { success: false, error: res.stderr || res.stdout || 'Failed to mount volume' };
+    }
+    return { success: true, mountPoint };
+});
+
+ipcMain.handle('security:dismountVeraCrypt', async (event, slot) => {
+    if (process.platform !== 'linux') return { success: true };
+
+    const cmd = `veracrypt -t -d ${slot ? '--slot=' + slot : ''}`;
+    const res = await runPrivilegedSh(cmd);
+
+    if (res.error) {
+        return { success: false, error: res.stderr || 'Failed to dismount' };
+    }
+    return { success: true };
+});
+
+
 
 // ============================================
 // MOUSE / POINTER SETTINGS (best-effort)

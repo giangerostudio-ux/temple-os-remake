@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getHome: () => ipcRenderer.invoke('fs:getHome'),
     getAppPath: () => ipcRenderer.invoke('fs:getAppPath'),
     openExternal: (path) => ipcRenderer.invoke('fs:openExternal', path),
+    createZip: (sourcePath, targetZipPath) => ipcRenderer.invoke('fs:createZip', sourcePath, targetZipPath),
+    extractZip: (zipPath, targetDir) => ipcRenderer.invoke('fs:extractZip', zipPath, targetDir),
 
     // ============================================
     // SYSTEM
@@ -62,11 +64,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listWifiNetworks: () => ipcRenderer.invoke('network:listWifi'),
     connectWifi: (ssid, password) => ipcRenderer.invoke('network:connectWifi', ssid, password),
     disconnectNetwork: () => ipcRenderer.invoke('network:disconnect'),
+    disconnectNonVpnNetwork: () => ipcRenderer.invoke('network:disconnectNonVpn'),
+    disconnectConnection: (nameOrUuid) => ipcRenderer.invoke('network:disconnectConnection', nameOrUuid),
     getWifiEnabled: () => ipcRenderer.invoke('network:getWifiEnabled'),
     setWifiEnabled: (enabled) => ipcRenderer.invoke('network:setWifiEnabled', enabled),
     listSavedNetworks: () => ipcRenderer.invoke('network:listSaved'),
     connectSavedNetwork: (nameOrUuid) => ipcRenderer.invoke('network:connectSaved', nameOrUuid),
     forgetSavedNetwork: (nameOrUuid) => ipcRenderer.invoke('network:forgetSaved', nameOrUuid),
+    importVpnProfile: (kind, filePath) => ipcRenderer.invoke('network:importVpnProfile', kind, filePath),
+
+    // ============================================
+    // SSH SERVER
+    // ============================================
+    sshControl: (action, port) => ipcRenderer.invoke('ssh:control', action, port),
+
+    // ============================================
+    // EXIF METADATA
+    // ============================================
+    extractExif: (imagePath) => ipcRenderer.invoke('exif:extract', imagePath),
+    stripExif: (imagePath) => ipcRenderer.invoke('exif:strip', imagePath),
+    setTrackerBlocking: (enabled) => ipcRenderer.invoke('security:trackerBlocking', enabled),
+
+    // Firewall (Tier 7.2)
+    getFirewallRules: () => ipcRenderer.invoke('security:getFirewallRules'),
+    addFirewallRule: (port, protocol, action) => ipcRenderer.invoke('security:addFirewallRule', port, protocol, action),
+    deleteFirewallRule: (id) => ipcRenderer.invoke('security:deleteFirewallRule', id),
+    toggleFirewall: (enable) => ipcRenderer.invoke('security:toggleFirewall', enable),
+
+    // VeraCrypt (Tier 7.1)
+    getVeraCryptStatus: () => ipcRenderer.invoke('security:getVeraCryptStatus'),
+    mountVeraCrypt: (path, password, slot) => ipcRenderer.invoke('security:mountVeraCrypt', path, password, slot),
+    dismountVeraCrypt: (slot) => ipcRenderer.invoke('security:dismountVeraCrypt', slot),
+
+    // Hotspot (Tier 6.4)
+    createHotspot: (ssid, password) => ipcRenderer.invoke('network:createHotspot', ssid, password),
+    stopHotspot: () => ipcRenderer.invoke('network:stopHotspot'),
 
     // ============================================
     // DISPLAY (multi-monitor / scale / refresh)

@@ -1,0 +1,39 @@
+        ${card('📷 EXIF Metadata Stripper', `
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 13px; opacity: 0.85; margin-bottom: 10px;">
+              Remove location, camera, and timestamp data from images before sharing.
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button class="exif-select-file-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">
+                📂 Select Image
+              </button>
+              <button class="exif-strip-btn" ${!this.exifSelectedFile ? 'disabled' : ''} style="background: none; border: 1px solid rgba(0,255,65,${this.exifSelectedFile ? '0.5' : '0.3'}); color: ${this.exifSelectedFile ? '#00ff41' : 'rgba(0,255,65,0.5)'}; padding: 8px 16px; border-radius: 6px; cursor: ${this.exifSelectedFile ? 'pointer' : 'not-allowed'}; font-family: inherit;">
+                🧹 Strip EXIF Data
+              </button>
+            </div>
+          </div>
+          
+          ${this.exifMetadata ? `
+            <div class="exif-result" style="padding: 12px; background: rgba(0,255,65,0.05); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; font-size: 12px; margin-bottom: 12px;">
+              <div style="font-weight: bold; color: #ffd700; margin-bottom: 8px;">Metadata Found in: ${this.exifSelectedFile?.split(/[/\\\\]/).pop()}</div>
+              <div class="exif-data" style="font-family: monospace; opacity: 0.85; line-height: 1.6;">
+                ${Object.entries(this.exifMetadata).map(([key, value]) => `
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(0,255,65,0.1);">
+                    <span style="color: #ffd700;">${key}:</span>
+                    <span>${value}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div style="margin-top: 12px; padding: 10px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: 6px; font-size: 11px;">
+            <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">⚠️ Privacy Warning:</div>
+            <div style="opacity: 0.85;">
+              • GPS coordinates can reveal your home address<br>
+              • Camera model/serial number can identify you<br>
+              • Timestamps reveal when photos were taken<br>
+              • Software info can leak your workflow
+            </div>
+          </div>
+        `)}

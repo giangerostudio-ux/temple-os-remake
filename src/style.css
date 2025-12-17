@@ -714,6 +714,7 @@ body {
 /* Range Slider */
 input[type=range] {
   -webkit-appearance: none;
+  appearance: none;
   background: rgba(0, 255, 65, 0.2);
   height: 4px;
   border-radius: 2px;
@@ -2339,4 +2340,464 @@ input[type=range]::-webkit-slider-thumb {
 
 .editor-content::placeholder {
   color: rgba(0, 255, 65, 0.35);
+}
+
+/* ============================================
+   LITE MODE (Tier 14.4)
+   ============================================ */
+body.lite-mode *,
+body.lite-mode *::before,
+body.lite-mode *::after {
+  transition: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+body.lite-mode {
+  background: #000 !important;
+}
+
+body.lite-mode #app::before {
+  display: none !important;
+  /* No scanlines */
+}
+
+body.lite-mode .window {
+  border: 4px solid var(--tos-green) !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+}
+
+body.lite-mode .window.active {
+  border-color: #fff !important;
+}
+
+body.lite-mode .taskbar {
+  background: #000 !important;
+  border-top: 4px solid var(--tos-green) !important;
+}
+
+body.lite-mode .start-menu {
+  border: 4px solid var(--tos-green) !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+}
+
+/* Window Animation - Tier 9.3 */
+@keyframes windowPopIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.window.window-opening {
+  animation: windowPopIn 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+/* ============================================
+   WORKSPACE SWITCHER (Tier 9.2)
+   ============================================ */
+.workspace-switcher {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.workspace-indicator {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--tos-light-gray);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workspace-indicator:hover {
+  background: rgba(0, 255, 65, 0.15);
+  border-color: rgba(0, 255, 65, 0.4);
+  color: var(--tos-green);
+}
+
+.workspace-indicator.active {
+  background: var(--tos-green);
+  color: var(--bg-primary);
+  border-color: var(--tos-green);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.workspace-indicator.has-windows::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  background: var(--tos-cyan);
+  border-radius: 50%;
+}
+
+.workspace-indicator.active.has-windows::after {
+  background: var(--bg-primary);
+}
+
+/* Workspace Overview Overlay */
+.workspace-overview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.15s ease;
+}
+
+.workspace-overview-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 16px;
+  color: var(--tos-green);
+  text-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+  margin-bottom: 30px;
+  letter-spacing: 2px;
+}
+
+.workspace-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 200px);
+  gap: 20px;
+}
+
+.workspace-preview {
+  width: 200px;
+  height: 120px;
+  background: var(--bg-secondary);
+  border: 2px solid rgba(0, 255, 65, 0.2);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.workspace-preview:hover {
+  border-color: var(--tos-green);
+  background: rgba(0, 255, 65, 0.1);
+  transform: scale(1.05);
+}
+
+.workspace-preview.active {
+  border-color: var(--tos-green);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+.workspace-preview-label {
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.workspace-preview-count {
+  font-size: 12px;
+  color: var(--tos-light-gray);
+}
+
+.workspace-overview-hint {
+  margin-top: 30px;
+  font-size: 14px;
+  color: var(--tos-light-gray);
+  opacity: 0.7;
+}
+
+/* ============================================
+   SNAP PREVIEW & ASSIST (Tier 14.1)
+   ============================================ */
+.snap-preview {
+  position: fixed;
+  background: rgba(0, 255, 65, 0.15);
+  border: 2px dashed var(--tos-green);
+  border-radius: 8px;
+  z-index: 49;
+  pointer-events: none;
+  animation: snapPreviewPulse 1s ease infinite;
+}
+
+@keyframes snapPreviewPulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.snap-assist-overlay {
+  position: fixed;
+  background: rgba(13, 17, 23, 0.95);
+  border: 2px solid var(--tos-green);
+  border-radius: 8px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: snapAssistFadeIn 0.2s ease;
+}
+
+@keyframes snapAssistFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.snap-assist-content {
+  padding: 20px;
+  text-align: center;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.snap-assist-header {
+  font-size: 16px;
+  color: var(--tos-green);
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.snap-assist-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.snap-assist-window {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.snap-assist-window:hover {
+  background: rgba(0, 255, 65, 0.15);
+  border-color: var(--tos-green);
+}
+
+.snap-assist-icon {
+  font-size: 20px;
+}
+
+.snap-assist-title {
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   TASKBAR POSITIONING (Tier 14.4)
+   ============================================ */
+
+/* Taskbar at Top */
+body[data-taskbar-position="top"] .taskbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: auto;
+  border-top: none;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  background: linear-gradient(0deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+}
+
+body[data-taskbar-position="top"] .start-menu {
+  bottom: auto;
+  top: 50px;
+  border-radius: 0 0 8px 8px;
+  animation-name: startMenuSlideInTop;
+}
+
+@keyframes startMenuSlideInTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body[data-taskbar-position="top"] .desktop {
+  padding-top: 70px;
+}
+
+body[data-taskbar-position="top"] .notification-toast-container {
+  top: auto;
+  bottom: 20px;
+}
+
+body[data-taskbar-position="top"] #app {
+  flex-direction: column-reverse;
+}
+
+/* Taskbar at Bottom (default) - explicit selector for clarity */
+body[data-taskbar-position="bottom"] .taskbar,
+body:not([data-taskbar-position]) .taskbar {
+  position: relative;
+  bottom: 0;
+  border-top: 1px solid rgba(0, 255, 65, 0.2);
+}
+
+/* Volume/Network/Calendar popups adjust for taskbar position */
+body[data-taskbar-position="top"] .tray-popup {
+  top: 100%;
+  bottom: auto;
+  margin-top: 5px;
+}
+
+body[data-taskbar-position="top"] .volume-popup,
+body[data-taskbar-position="top"] .calendar-popup,
+body[data-taskbar-position="top"] .network-popup,
+body[data-taskbar-position="top"] .notification-popup {
+  bottom: auto;
+  top: 100%;
+  margin-top: 5px;
+  margin-bottom: 0;
+}
+
+/* Active Taskbar button styling */
+.start-btn.active {
+  background: var(--tos-green);
+  color: var(--bg-primary);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+/* ============================================
+   WINDOW SNAPPED STATES
+   ============================================ */
+.window.snapped {
+  border-radius: 0;
+  transition: none;
+}
+
+.window.snapped-left {
+  border-right: 2px solid var(--tos-green);
+}
+
+.window.snapped-right {
+  border-left: 2px solid var(--tos-green);
+}
+
+.window.snapped-maximized {
+  border-radius: 0;
+}
+
+/* ============================================
+   KEYBOARD SHORTCUT HINTS
+   ============================================ */
+.shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--tos-light-gray);
+  margin-left: 8px;
+}
+
+.shortcut-key {
+  font-weight: bold;
+  color: var(--tos-green);
+  margin: 0 2px;
+}
+
+/* ============================================
+   TASKBAR HOVER PREVIEW (Tier 9.1)
+   ============================================ */
+@keyframes taskbar-preview-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+body[data-taskbar-position="top"] .taskbar-preview-popup {
+  animation: taskbar-preview-fade-in-top 0.15s ease-out;
+}
+
+@keyframes taskbar-preview-fade-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.taskbar-preview-popup {
+  font-family: 'VT323', monospace;
+}
+
+.taskbar-preview-popup:hover {
+  border-color: #00ff41;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.15);
+}
+
+#taskbar-hover-preview {
+  pointer-events: none;
+}
+
+#taskbar-hover-preview .taskbar-preview-popup {
+  pointer-events: auto;
 }

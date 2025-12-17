@@ -20,10 +20,16 @@ let lastNetAt = 0;
 
 
 function execAsync(command, options = {}) {
+    const timeoutMs = options.timeout || 3000; // Default 3s timeout to prevent hangs in VMs
     return new Promise((resolve) => {
-        exec(command, { maxBuffer: 1024 * 1024 * 10, ...options }, (error, stdout, stderr) => {
+        const child = exec(command, { maxBuffer: 1024 * 1024 * 10, ...options }, (error, stdout, stderr) => {
             resolve({ error, stdout: stdout || '', stderr: stderr || '' });
         });
+        // Kill process if it takes too long (common with nmcli in VMs without WiFi)
+        setTimeout(() => {
+            try { child.kill('SIGTERM'); } catch { }
+            resolve({ error: new Error('Command timed out'), stdout: '', stderr: '' });
+        }, timeoutMs);
     });
 }
 
@@ -843,7 +849,8 @@ ipcMain.handle('network:getStatus', async () => {
 ipcMain.handle('network:listWifi', async () => {
     if (process.platform !== 'linux') return { success: true, networks: [] };
 
-    const res = await execAsync('nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list --rescan yes 2>/dev/null');
+    // Use --rescan no to avoid 10-20s blocking scan (especially slow in VMs without WiFi hardware)
+    const res = await execAsync('nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list --rescan no 2>/dev/null', { timeout: 5000 });
     if (res.error) return { success: false, error: res.error.message };
 
     const networks = res.stdout

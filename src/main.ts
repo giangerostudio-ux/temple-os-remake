@@ -634,13 +634,13 @@ class TempleOS {
       window.electronAPI.onLockScreen(() => this.lock());
     }
 
-    // Hide boot screen after animation completes (reduced from 4.5s for snappier startup)
+    // Hide boot screen after animation completes
     setTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.display = 'none';
       }
-    }, 2000);
+    }, 4500);
 
     // Bootstrap async OS integration + persisted settings
     void this.bootstrap();
@@ -657,21 +657,28 @@ class TempleOS {
     void this.handleTerminalCommand;
   }
 
+  // Timeout wrapper for IPC calls that may hang (e.g., nmcli in VMs without WiFi)
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+    ]);
+  }
+
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
 
-    // Phase 2: Run independent operations in parallel for faster startup
+    // Phase 2: Run independent operations in parallel with timeouts (3s max per call)
+    // This prevents VMs without WiFi/audio hardware from blocking startup
     await Promise.all([
-      this.loadResolutions(),
-      this.loadInstalledApps(),
-      this.refreshMouseDpiInfo(),
-      this.refreshDisplayOutputs(),
-      this.refreshAudioDevices(),
-      this.refreshNetworkStatus(),
-      this.refreshWifiEnabled(),
-      this.refreshSavedNetworks(),
-      this.refreshSystemInfo(),
+      this.withTimeout(this.loadResolutions(), 3000, undefined),
+      this.withTimeout(this.loadInstalledApps(), 3000, undefined),
+      this.withTimeout(this.refreshMouseDpiInfo(), 3000, undefined),
+      this.withTimeout(this.refreshDisplayOutputs(), 3000, undefined),
+      this.withTimeout(this.refreshAudioDevices(), 3000, undefined),
+      this.withTimeout(this.refreshNetworkStatus(), 3000, undefined),
+      this.withTimeout(this.refreshSystemInfo(), 3000, undefined),
       this.checkPtySupport(),
     ]);
 

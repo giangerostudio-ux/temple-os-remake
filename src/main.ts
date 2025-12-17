@@ -474,6 +474,7 @@ class TempleOS {
   // Notifications State
   private notifications: Notification[] = [];
   private activeToasts: Notification[] = [];
+  private recentNotificationKeyTimestamps = new Map<string, number>();
 
 
   private audioContext: AudioContext | null = null;
@@ -709,12 +710,42 @@ class TempleOS {
     type: 'info' | 'warning' | 'error' | 'divine' = 'info',
     actions?: Array<{ id: string; label: string }>
   ) {
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const normalizedTitle = title.trim().toLowerCase();
+    const normalizedMessage = message.trim().toLowerCase();
+
+    // Suppress legacy debug spam (e.g. right-click/menu diagnostics).
+    if (normalizedTitle === 'system' && (
+      normalizedMessage === 'menu active' ||
+      normalizedMessage === 'context menu active' ||
+      normalizedMessage === 'start menu active'
+    )) {
+      return;
+    }
+
+    const now = Date.now();
+
+    // De-dupe identical notifications arriving in a burst.
+    const dedupeKey = `${type}\n${title}\n${message}`;
+    const last = this.recentNotificationKeyTimestamps.get(dedupeKey);
+    if (last && (now - last) < 800) return;
+    this.recentNotificationKeyTimestamps.set(dedupeKey, now);
+
+    // Prevent unbounded growth.
+    if (this.recentNotificationKeyTimestamps.size > 200) {
+      const it = this.recentNotificationKeyTimestamps.keys();
+      for (let i = 0; i < 50; i++) {
+        const k = it.next();
+        if (k.done) break;
+        this.recentNotificationKeyTimestamps.delete(k.value);
+      }
+    }
+
+    const id = now.toString() + Math.random().toString(36).substr(2, 9);
     const notification: Notification = {
       id,
       title,
       message,
-      timestamp: Date.now(),
+      timestamp: now,
       read: false,
       type,
       actions
@@ -3827,34 +3858,7 @@ class TempleOS {
       // CONTEXT MENU (Right-Click)
       // ============================================
 
-      // 1. Desktop Background Listener (Direct attachment for reliability)
-      const desktop = document.getElementById('desktop');
-      if (desktop) {
-        desktop.addEventListener('contextmenu', (e) => {
-          // Check if we clicked the desktop itself or the windows container (empty space)
-          // We intentionally EXCLUDE children like icons or windows here.
-          const target = e.target as HTMLElement;
-          const isBackground = target === desktop || target.id === 'windows-container';
 
-          if (isBackground) {
-            e.preventDefault();
-            e.stopPropagation(); // Stop bubbling (don't trigger app listener)
-            this.closeContextMenu();
-
-
-
-            this.showContextMenu(e.clientX, e.clientY, [
-              { label: '📁 Open Files', action: () => this.openApp('files') },
-              { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
-              { divider: true },
-              { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
-              { label: '⚙️ Settings', action: () => this.openApp('settings') },
-              { divider: true },
-              { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
-            ]);
-          }
-        });
-      }
 
       // 2. Global Item Listener (Delegation for Icons, Taskbar, etc)
       app.addEventListener('contextmenu', (e) => {
@@ -3866,6 +3870,28 @@ class TempleOS {
         const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
         const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
+
+        // Desktop Background Check
+        // Check if we clicked on desktop area but NOT on a desktop icon or window
+        const clickedOnDesktopArea = target.closest('#desktop') !== null;
+        const clickedOnIcon = target.closest('.desktop-icon') !== null;
+        const clickedOnWindow = target.closest('.window') !== null;
+        const isBackground = clickedOnDesktopArea && !clickedOnIcon && !clickedOnWindow && !desktopIcon && !fileItem && !fileBrowserEl;
+
+        if (isBackground) {
+          e.preventDefault();
+          this.closeContextMenu();
+          this.showContextMenu(e.clientX, e.clientY, [
+            { label: '📁 Open Files', action: () => this.openApp('files') },
+            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+            { divider: true },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '⚙️ Settings', action: () => this.openApp('settings') },
+            { divider: true },
+            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+          ]);
+          return;
+        }
 
         if (startAppItem || taskbarItem || desktopIcon || fileItem || fileBrowserEl) {
           e.preventDefault();
@@ -3994,8 +4020,19 @@ class TempleOS {
         }
       });
 
-      // Close context menu on any click
-      document.addEventListener('click', () => this.closeContextMenu());
+      // Close context menu on outside left-click/tap (keep right-click working).
+      const closeContextMenuOnPointer = (ev: MouseEvent) => {
+        const menu = document.querySelector('.context-menu') as HTMLElement | null;
+        if (!menu) return;
+        const t = ev.target as HTMLElement | null;
+        if (t && t.closest('.context-menu')) return;
+        if (ev.button === 2) return; // right-click should open/reposition, not instantly close
+        this.closeContextMenu();
+      };
+      document.addEventListener('mousedown', closeContextMenuOnPointer, true);
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') this.closeContextMenu();
+      });
 
       // Start Menu Search
       app.addEventListener('input', (e) => {

@@ -748,6 +748,9 @@ class TempleOS {
   private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
   private taskbarHoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Taskbar App Grouping (Tier 9.1)
+  private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
+
   // Helper for Random Quotes
   public getRandomQuote(): string {
     return terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
@@ -1946,30 +1949,71 @@ class TempleOS {
         .map(k => k.slice('builtin:'.length))
     );
 
+    // For pinned apps, show count badge if multiple windows
     const pinnedHtml = pinned.map(key => {
       const display = this.launcherDisplayForKey(key);
       if (!display) return '';
       const builtinId = key.startsWith('builtin:') ? key.slice('builtin:'.length) : '';
-      const active = builtinId ? !!this.windows.find(w => w.active && w.id.startsWith(builtinId)) : false;
-      const running = builtinId ? !!this.windows.find(w => w.id.startsWith(builtinId) && !w.minimized) : false;
+      const appWindows = builtinId ? this.windows.filter(w => w.id.startsWith(builtinId)) : [];
+      const windowCount = appWindows.length;
+      const active = appWindows.some(w => w.active);
+      const running = appWindows.some(w => !w.minimized);
+      const countBadge = windowCount > 1 ? `<span class="taskbar-count-badge">${windowCount}</span>` : '';
+
       return `
-        <div class="taskbar-app pinned ${active ? 'active' : ''} ${running ? 'running' : ''}" data-launch-key="${escapeHtml(key)}" title="${escapeHtml(display.label)}">
+        <div class="taskbar-app pinned ${active ? 'active' : ''} ${running ? 'running' : ''}" 
+             data-launch-key="${escapeHtml(key)}" 
+             data-app-type="${escapeHtml(builtinId)}"
+             data-window-count="${windowCount}"
+             title="${escapeHtml(display.label)}${windowCount > 1 ? ` (${windowCount} windows)` : ''}">
           <span class="taskbar-icon">${display.icon}</span>
           <span class="taskbar-title">${escapeHtml(display.label)}</span>
+          ${countBadge}
         </div>
       `;
     }).join('');
 
+    // Group unpinned windows by app type
     const unpinnedWindows = this.windows.filter(w => {
       const appId = w.id.split('-')[0];
       return !pinnedBuiltinIds.has(appId);
     });
 
-    const windowsHtml = unpinnedWindows.map(w => `
-      <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
-        ${w.icon} ${w.title}
-      </div>
-    `).join('');
+    // Group by app type
+    const groupedWindows = new Map<string, typeof unpinnedWindows>();
+    for (const w of unpinnedWindows) {
+      const appType = w.id.split('-')[0];
+      if (!groupedWindows.has(appType)) {
+        groupedWindows.set(appType, []);
+      }
+      groupedWindows.get(appType)!.push(w);
+    }
+
+    // Render grouped unpinned windows
+    const windowsHtml = Array.from(groupedWindows.entries()).map(([appType, windows]) => {
+      if (windows.length === 1) {
+        // Single window - show directly
+        const w = windows[0];
+        return `
+          <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}">
+            ${w.icon} ${w.title}
+          </div>
+        `;
+      } else {
+        // Multiple windows - show grouped with count
+        const anyActive = windows.some(w => w.active);
+        const anyMinimized = windows.every(w => w.minimized);
+        const firstWindow = windows[0];
+        return `
+          <div class="taskbar-app taskbar-group ${anyActive ? 'active' : ''} ${anyMinimized ? 'minimized' : ''}" 
+               data-app-group="${appType}"
+               data-window-count="${windows.length}">
+            ${firstWindow.icon} ${firstWindow.title.split(' ')[0]}
+            <span class="taskbar-count-badge">${windows.length}</span>
+          </div>
+        `;
+      }
+    }).join('');
 
     const sep = (pinnedHtml && windowsHtml) ? `<div class="taskbar-sep"></div>` : '';
     return `${pinnedHtml}${sep}${windowsHtml}`;
@@ -2175,6 +2219,116 @@ class TempleOS {
     `;
   }
 
+  // ============================================
+  // TASKBAR APP GROUPING (Tier 9.1)
+  // ============================================
+  private showTaskbarGroupPopup(appType: string, targetElement: HTMLElement): void {
+    // Hide hover preview when showing group popup
+    this.hideTaskbarHoverPreview();
+
+    const rect = targetElement.getBoundingClientRect();
+    const popupWidth = 260;
+
+    // Center above/below the taskbar item
+    let x = Math.max(10, rect.left + rect.width / 2 - popupWidth / 2);
+    if (x + popupWidth > window.innerWidth - 10) {
+      x = window.innerWidth - popupWidth - 10;
+    }
+
+    // Position above or below taskbar
+    let y: number;
+    if (this.taskbarPosition === 'bottom') {
+      y = rect.top - 10; // Will be positioned from bottom in render
+    } else {
+      y = rect.bottom + 10;
+    }
+
+    this.taskbarGroupPopup = { appType, x, y };
+    this.updateTaskbarGroupPopupDom();
+  }
+
+  private hideTaskbarGroupPopup(): void {
+    if (this.taskbarGroupPopup) {
+      this.taskbarGroupPopup = null;
+      this.updateTaskbarGroupPopupDom();
+    }
+  }
+
+  private updateTaskbarGroupPopupDom(): void {
+    let container = document.getElementById('taskbar-group-popup');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'taskbar-group-popup';
+      document.body.appendChild(container);
+    }
+
+    if (!this.taskbarGroupPopup) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const { appType, x, y } = this.taskbarGroupPopup;
+    const windows = this.windows.filter(w => w.id.startsWith(appType));
+
+    if (windows.length === 0) {
+      container.innerHTML = '';
+      this.taskbarGroupPopup = null;
+      return;
+    }
+
+    const windowItems = windows.map(w => `
+      <div class="taskbar-group-item ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" 
+           data-group-window="${w.id}">
+        <span class="taskbar-group-icon">${w.icon}</span>
+        <span class="taskbar-group-title">${escapeHtml(w.title)}</span>
+        <button class="taskbar-group-close" data-group-close="${w.id}" title="Close">×</button>
+      </div>
+    `).join('');
+
+    // Calculate height based on number of windows
+    const itemHeight = 40;
+    const headerHeight = 36;
+    const popupHeight = Math.min(windows.length * itemHeight + headerHeight + 16, 300);
+
+    const positionY = this.taskbarPosition === 'bottom'
+      ? y - popupHeight
+      : y;
+
+    container.innerHTML = `
+      <div class="taskbar-group-popup" style="
+        position: fixed;
+        left: ${x}px;
+        top: ${positionY}px;
+        width: 260px;
+        max-height: 300px;
+        background: rgba(0, 0, 0, 0.95);
+        border: 2px solid #00ff41;
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 99999;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.1);
+        animation: taskbar-preview-fade-in 0.15s ease-out;
+        font-family: 'VT323', monospace;
+      ">
+        <div class="taskbar-group-header" style="
+          padding: 8px 12px;
+          background: linear-gradient(180deg, rgba(0, 255, 65, 0.15) 0%, transparent 100%);
+          border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+          color: #00ff41;
+          font-weight: bold;
+          font-size: 14px;
+        ">
+          ${windows.length} ${appType.charAt(0).toUpperCase() + appType.slice(1)} Windows
+        </div>
+        <div class="taskbar-group-list" style="
+          max-height: 250px;
+          overflow-y: auto;
+        ">
+          ${windowItems}
+        </div>
+      </div>
+    `;
+  }
 
   private getTrayHTML(): string {
     return `
@@ -3658,8 +3812,18 @@ class TempleOS {
     }, true);
 
     // Also hide preview when clicking anywhere
-    app.addEventListener('mousedown', () => {
+    app.addEventListener('mousedown', (e) => {
       this.hideTaskbarHoverPreview();
+
+      // Close group popup when clicking outside
+      if (this.taskbarGroupPopup) {
+        const target = e.target as HTMLElement;
+        const isInsidePopup = target.closest('#taskbar-group-popup');
+        const isTaskbarGroup = target.closest('[data-app-group]') || target.closest('[data-window-count]');
+        if (!isInsidePopup && !isTaskbarGroup) {
+          this.hideTaskbarGroupPopup();
+        }
+      }
     });
 
 
@@ -4492,14 +4656,48 @@ class TempleOS {
         return;
       }
 
+      // Taskbar Group Popup: Close button
+      const groupCloseBtn = target.closest('[data-group-close]') as HTMLElement;
+      if (groupCloseBtn && groupCloseBtn.dataset.groupClose) {
+        e.stopPropagation();
+        this.closeWindow(groupCloseBtn.dataset.groupClose);
+        this.updateTaskbarGroupPopupDom();
+        return;
+      }
+
+      // Taskbar Group Popup: Window item click
+      const groupWindowItem = target.closest('[data-group-window]') as HTMLElement;
+      if (groupWindowItem && groupWindowItem.dataset.groupWindow) {
+        this.hideTaskbarGroupPopup();
+        this.toggleWindow(groupWindowItem.dataset.groupWindow);
+        return;
+      }
+
       // Taskbar app click
       const taskbarApp = target.closest('.taskbar-app') as HTMLElement;
       if (taskbarApp) {
+        // Handle grouped apps with multiple windows
+        if (taskbarApp.dataset.appGroup) {
+          this.showTaskbarGroupPopup(taskbarApp.dataset.appGroup, taskbarApp);
+          return;
+        }
+
+        // Handle pinned apps with multiple windows
+        if (taskbarApp.dataset.launchKey && taskbarApp.dataset.appType && taskbarApp.dataset.windowCount) {
+          const windowCount = parseInt(taskbarApp.dataset.windowCount, 10);
+          if (windowCount > 1) {
+            this.showTaskbarGroupPopup(taskbarApp.dataset.appType, taskbarApp);
+            return;
+          }
+        }
+
         if (taskbarApp.dataset.launchKey) {
+          this.hideTaskbarGroupPopup();
           this.launchByKey(taskbarApp.dataset.launchKey, true);
           return;
         }
         if (taskbarApp.dataset.taskbarWindow) {
+          this.hideTaskbarGroupPopup();
           this.toggleWindow(taskbarApp.dataset.taskbarWindow);
           return;
         }

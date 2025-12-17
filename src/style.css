@@ -2801,3 +2801,102 @@ body[data-taskbar-position="top"] .taskbar-preview-popup {
 #taskbar-hover-preview .taskbar-preview-popup {
   pointer-events: auto;
 }
+
+/* ============================================
+   TASKBAR APP GROUPING (Tier 9.1)
+   ============================================ */
+.taskbar-app {
+  position: relative;
+}
+
+.taskbar-count-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: linear-gradient(145deg, #00ff41, #00cc33);
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 255, 65, 0.4);
+}
+
+.taskbar-app.taskbar-group {
+  cursor: pointer;
+}
+
+.taskbar-group-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+}
+
+.taskbar-group-item:last-child {
+  border-bottom: none;
+}
+
+.taskbar-group-item:hover {
+  background: rgba(0, 255, 65, 0.15);
+}
+
+.taskbar-group-item.active {
+  background: rgba(0, 255, 65, 0.1);
+  border-left: 3px solid #00ff41;
+}
+
+.taskbar-group-item.minimized {
+  opacity: 0.6;
+}
+
+.taskbar-group-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.taskbar-group-title {
+  flex: 1;
+  color: #ccc;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskbar-group-item:hover .taskbar-group-title {
+  color: #00ff41;
+}
+
+.taskbar-group-close {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  color: #ff6464;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.taskbar-group-item:hover .taskbar-group-close {
+  opacity: 1;
+}
+
+.taskbar-group-close:hover {
+  background: rgba(255, 100, 100, 0.2);
+  border-color: #ff6464;
+}

@@ -72,10 +72,18 @@
 - Fade-in animation with smooth scaling
 - Auto-hides on click or when mouse leaves
 
+### Tier 9.1 - App Grouping: ✅ Completed
+- Multiple windows of same app type grouped into one taskbar button
+- Count badge shows number of windows (e.g., "3" for 3 Terminal windows)
+- Clicking grouped button shows popup with all windows in group
+- Each window item shows icon, title, active state, and minimized state
+- Close button (×) on each item to close individual windows
+- Click window item to focus/restore that window
+- Popup auto-closes when clicking outside
+
 ---
 
 ## Next Steps / Future Enhancements
-- **App Grouping (9.1)**: Combine multiple windows of the same app in taskbar
 - **Multi-monitor Support (9.3)**: Handle multiple displays correctly
 - **Continue Refactoring**: Extract more logic from main.ts into modules
 

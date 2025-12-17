@@ -3862,6 +3862,7 @@ class TempleOS {
 
       // 2. Global Item Listener (Delegation for Icons, Taskbar, etc)
       app.addEventListener('contextmenu', (e) => {
+        console.log('⚡ CONTEXTMENU EVENT FIRED!');
         const target = e.target as HTMLElement;
 
         // Determine context (Items only)
@@ -3877,6 +3878,27 @@ class TempleOS {
         const clickedOnIcon = target.closest('.desktop-icon') !== null;
         const clickedOnWindow = target.closest('.window') !== null;
         const isBackground = clickedOnDesktopArea && !clickedOnIcon && !clickedOnWindow && !desktopIcon && !fileItem && !fileBrowserEl;
+
+        // DEBUG: Comprehensive logging
+        console.group('🖱️ RIGHT-CLICK EVENT');
+        console.log('📍 Position:', { x: e.clientX, y: e.clientY });
+        console.log('🎯 Target:', target);
+        console.log('  - tagName:', target.tagName);
+        console.log('  - className:', target.className);
+        console.log('  - id:', target.id);
+        console.log('📦 Detected Context Items:');
+        console.log('  - startAppItem:', !!startAppItem, startAppItem);
+        console.log('  - taskbarItem:', !!taskbarItem, taskbarItem);
+        console.log('  - desktopIcon:', !!desktopIcon, desktopIcon);
+        console.log('  - fileItem:', !!fileItem, fileItem);
+        console.log('  - fileBrowserEl:', !!fileBrowserEl, fileBrowserEl);
+        console.log('🖥️ Desktop Detection:');
+        console.log('  - clickedOnDesktopArea:', clickedOnDesktopArea);
+        console.log('  - clickedOnIcon:', clickedOnIcon);
+        console.log('  - clickedOnWindow:', clickedOnWindow);
+        console.log('✅ Final Result:');
+        console.log('  - isBackground:', isBackground);
+        console.groupEnd();
 
         if (isBackground) {
           e.preventDefault();

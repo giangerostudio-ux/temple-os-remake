@@ -6213,6 +6213,10 @@ class TempleOS {
       if (!this.ptySupported) {
         this.render();
         setTimeout(() => {
+          const output = document.getElementById('terminal-output');
+          if (output) {
+            output.scrollTop = output.scrollHeight;
+          }
           const input = document.querySelector('.terminal-input') as HTMLInputElement | null;
           if (this.terminalSearchOpen) {
             const s = document.querySelector('.terminal-search-input') as HTMLInputElement | null;

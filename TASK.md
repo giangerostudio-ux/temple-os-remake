@@ -75,6 +75,15 @@
 
 ---
 
+## 🔎 Integration Audit TODOs (Backend Reality)
+
+- [ ] Decide whether the "Ubuntu server backend" is meant to be remote (SSH/HTTP). Current IPC runs locally in the Electron main process (see `INTEGRATION_AUDIT.md`).
+- [ ] Implement a real OS lock for Linux (`system:lock` is currently UI-only; consider `loginctl lock-session` / `xdg-screensaver lock` / `dm-tool lock`).
+- [ ] Add battery status IPC + UI (no `upower`/`acpi` integration exists yet).
+- [ ] Add Linux `bounds` to `display:getOutputs` (sway `rect` / xrandr geometry) so Settings "Move Here" can reposition the window on Ubuntu.
+- [ ] Replace or clearly label simulated features (e.g., Tor circuit is currently fake in the UI; no IPC).
+- [ ] Replace/disable non-Linux mock fallbacks (apps list, network status, WiFi enabled, tracker blocking, volume set, display fallback output, updater dev-mode fallback).
+
 ## 🔨 TIER 3: SIGNIFICANT EFFORT (In Progress)
 
 ### 3.1 Settings Panel ✅
@@ -257,7 +266,7 @@
 
 ## 🌐 TIER 6: NETWORKING & CONNECTIVITY
 
-### 6.1 Network Manager UI
+- [x] Network Manager UI
 - [x] WiFi network selector
 - [x] Connect/disconnect
 - [x] Saved networks list
@@ -268,6 +277,8 @@
 - [x] VPN profiles (OpenVPN, WireGuard) - functional (nmcli import/connect/disconnect)
 - [x] Kill switch (block if VPN drops) - functional (disconnect non-VPN via nmcli)
 - [x] DNS settings
+- [x] Network management refactored into dedicated manager module
+
 
 ### 6.2 Bluetooth Manager
 - [x] Bluetooth toggle
@@ -295,9 +306,11 @@
 - [x] Key management
 
 ### 6.4 Hotspot Creation
-- [x] Create WiFi hotspot
-- [x] Password configuration
-- [ ] Connected devices list
+- [x] Share connection
+- [x] Set SSID/Password (UI only)
+- [x] Hotspot created via dedicated manager
+- [x] Connected devices list (UI placeholder)
+
 
 ---
 

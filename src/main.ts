@@ -25,9 +25,14 @@ import { CalculatorApp } from './apps/Calculator';
 import { NotesApp } from './apps/Notes';
 import { CalendarApp } from './apps/Calendar';
 import { HelpApp } from './apps/Help';
-import type { FirewallRule, VeraCryptVolume } from './utils/types';
+import type {
+  DisplayOutput, FirewallRule, VeraCryptVolume, MonitorStats,
+  NetworkDeviceStatus, VpnStatus, FileEntry, SystemInfo, ProcessInfo, InstalledApp
+} from './utils/types';
 import { WorkspaceManager } from './system/WorkspaceManager';
 import { TilingManager } from './system/TilingManager';
+import { NotificationManager } from './system/NotificationManager';
+import { NetworkManager } from './system/NetworkManager';
 
 // ============================================
 // ELECTRON API TYPE DECLARATION
@@ -78,6 +83,7 @@ declare global {
       connectWifi?: (ssid: string, password?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       disconnectNetwork?: () => Promise<{ success: boolean; error?: string }>;
       disconnectNonVpnNetwork?: () => Promise<{ success: boolean; disconnected?: string[]; error?: string }>;
+      disconnectNonVpn: () => Promise<{ success: boolean; disconnected?: string[]; error?: string }>;
       disconnectConnection?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
       getWifiEnabled?: () => Promise<{ success: boolean; enabled?: boolean; error?: string }>;
       setWifiEnabled?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -133,8 +139,11 @@ declare global {
       closeWindow: () => Promise<void>;
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;
+      setWindowBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<{ success: boolean; error?: string }>;
       // Events
       onLockScreen?: (callback: () => void) => void;
+
+
 
     };
   }
@@ -142,96 +151,11 @@ declare global {
 
 
 
-interface FileEntry {
-  name: string;
-  isDirectory: boolean;
-  path: string;
-  size: number;
-  modified: string | null;
-}
 
-interface SystemInfo {
-  platform: string;
-  hostname: string;
-  uptime: number;
-  memory: { total: number; free: number };
-  cpus: number;
-  user: string;
-}
 
-interface MonitorStats {
-  platform: string;
-  hostname: string;
-  uptime: number;
-  loadavg: number[];
-  cpuPercent: number | null;
-  cpuCores: number;
-  memory: { total: number; free: number; used: number };
-  disk: { total: number; used: number; avail: number; percent: number | null } | null;
-  network: { rxBps: number; txBps: number; rxBytes: number; txBytes: number } | null;
-}
 
-interface ProcessInfo {
-  pid: number;
-  name: string;
-  cpu: number;
-  mem: number;
-  rssKb: number;
-  etime: string;
-  command: string;
-}
 
-interface InstalledApp {
-  name: string;
-  icon: string;
-  exec: string;
-  categories: string[];
-  comment?: string;
-  desktopFile?: string;
-}
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: number;
-  read: boolean;
-  type: 'info' | 'warning' | 'error' | 'divine';
-  actions?: Array<{ id: string; label: string }>;
-}
-
-interface NetworkDeviceStatus {
-  device: string;
-  type: string;
-  state: string;
-  connection: string;
-}
-
-interface VpnStatus {
-  connected: boolean;
-  device?: string;
-  type?: string;
-  connection?: string;
-  state?: string;
-}
-
-interface NetworkStatus {
-  connected: boolean;
-  device?: string;
-  type?: string;
-  connection?: string;
-  ip4?: string | null;
-  wifi?: { ssid: string; signal: number; security: string } | null;
-  devices?: NetworkDeviceStatus[];
-  vpn?: VpnStatus;
-}
-
-interface WifiNetwork {
-  inUse: boolean;
-  ssid: string;
-  signal: number;
-  security: string;
-}
 
 interface AudioDevice {
   id: string;
@@ -258,6 +182,10 @@ interface TempleConfig {
   network?: {
     vpnKillSwitchEnabled?: boolean;
     vpnKillSwitchMode?: 'auto' | 'strict';
+    hotspotSSID?: string;
+    hotspotPassword?: string;
+    dataUsageDailyLimit?: number;
+    dataUsageTrackingEnabled?: boolean;
   };
   terminal?: {
     aliases?: Record<string, string>;
@@ -549,9 +477,8 @@ class TempleOS {
   private launcherView: 'all' | 'recent' | 'frequent' = 'all';
 
   // Notifications State
-  private notifications: Notification[] = [];
-  private activeToasts: Notification[] = [];
-  private recentNotificationKeyTimestamps = new Map<string, number>();
+  private notificationManager = new NotificationManager();
+  // removed legacy internal state: notifications, activeToasts, etc.
 
 
   private audioContext: AudioContext | null = null;
@@ -564,29 +491,7 @@ class TempleOS {
   private lockPassword = 'temple'; // User-configurable lock screen password (default: temple)
   private lockPin = '7777'; // User-configurable lock screen PIN (default: 7777)
 
-  // Network State
-  private networkStatus: NetworkStatus = { connected: false };
-  private wifiNetworks: WifiNetwork[] = [];
-  private networkLastError: string | null = null;
-  private wifiEnabled = true;
-  private flightMode = false;
-  private savedNetworks: Array<{ name: string; uuid: string; type: string; device: string }> = [];
 
-  // VPN Kill Switch (Tier 6.2)
-  private vpnKillSwitchEnabled = false;
-  private vpnKillSwitchMode: 'auto' | 'strict' = 'auto';
-  private vpnKillSwitchArmed = false;
-  private vpnKillSwitchBlocked = false;
-  private vpnKillSwitchSnoozeUntil: number | null = null;
-  private vpnKillSwitchLastDisconnected: string[] = [];
-  private vpnKillSwitchLastEnforceAt = 0;
-
-  // Data Usage Tracking
-  private dataUsageHistory: Array<{ timestamp: number; rx: number; tx: number }> = []; // Last 24 hours
-  private dataUsageDailyLimit: number = 10 * 1024 * 1024 * 1024; // 10 GB default
-  private dataUsageTrackingEnabled = true;
-  private dataUsageStartRx: number = 0;
-  private dataUsageStartTx: number = 0;
 
   // Bluetooth State
   private bluetoothEnabled = false;
@@ -603,6 +508,8 @@ class TempleOS {
     defaultSink: null,
     defaultSource: null
   };
+
+  private flightMode = false; // Restored (controls both Wifi and BT)
 
   // Security State
   private encryptionEnabled = true;
@@ -637,11 +544,7 @@ class TempleOS {
   private exifSelectedFile: string | null = null;
   private exifMetadata: Record<string, string> | null = null;
 
-  // Hotspot State (Tier 6.4)
-  private hotspotEnabled = false;
-  private hotspotSSID = 'TempleOS_Hotspot';
-  private hotspotPassword = '';
-  private hotspotLoading = false;
+
 
   // Tracker Blocking State (Tier 7.4)
   private trackerBlockingEnabled = false;
@@ -662,7 +565,7 @@ class TempleOS {
   private monitorBusy = false;
 
   // Display State (multi-monitor, scale, refresh)
-  private displayOutputs: Array<{ name: string; active: boolean; scale: number; transform: string; currentMode: string; modes: Array<{ width: number; height: number; refreshHz: number | null }> }> = [];
+  private displayOutputs: DisplayOutput[] = [];
   private activeDisplayOutput: string | null = null;
 
   // Mouse / Pointer State
@@ -740,6 +643,9 @@ class TempleOS {
   private tilingManager = new TilingManager();
   private snapPreview: { x: number; y: number; width: number; height: number; zone: string } | null = null;
   private showSnapAssist = false;
+
+  // Network Manager
+  private networkManager = new NetworkManager();
 
   // Taskbar Position (Tier 14.4)
   private taskbarPosition: 'top' | 'bottom' = (localStorage.getItem('temple_taskbar_position') as 'top' | 'bottom') || 'bottom';
@@ -885,8 +791,25 @@ class TempleOS {
       this.render();
     });
 
-    // Sync tiling manager taskbar position
+    // Setup Tiling Manager
     this.tilingManager.setTaskbarPosition(this.taskbarPosition);
+
+    // Setup Notification Manager callbacks
+    this.notificationManager.setOnChangeCallback(() => this.render());
+    this.notificationManager.setOnPlaySoundCallback((type) => this.playNotificationSound(type));
+    // Sync DND state
+    this.notificationManager.setDoNotDisturb(this.doNotDisturb);
+
+    // Setup Network Manager callbacks
+    this.networkManager.setCallbacks(
+      () => {
+        this.render();
+        if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+      },
+      (t, m, type) => this.showNotification(t, m, type),
+      (opts) => this.openPromptModal(opts),
+      (opts) => this.openConfirmModal(opts)
+    );
 
     // Electron main-process lock request
     if (window.electronAPI?.onLockScreen) {
@@ -922,7 +845,7 @@ class TempleOS {
     void this.renderNetworkPopup;
     void this.renderNotificationPopup;
     void this.getFileBrowserContent;
-    void this.getSettingsContent;
+
     void this.cycleWindows;
     void this.handleTerminalCommand;
     // Tier 14.1: snapPreview is referenced via DOM element #snap-preview
@@ -981,6 +904,7 @@ class TempleOS {
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
+    this.notificationManager.setDoNotDisturb(this.doNotDisturb);
 
     // Phase 2: Run independent operations in parallel with timeouts (3s max per call)
     // This prevents VMs without WiFi/audio hardware from blocking startup
@@ -1040,65 +964,7 @@ class TempleOS {
     type: 'info' | 'warning' | 'error' | 'divine' = 'info',
     actions?: Array<{ id: string; label: string }>
   ) {
-    const normalizedTitle = title.trim().toLowerCase();
-    const normalizedMessage = message.trim().toLowerCase();
-
-    // Suppress legacy debug spam (e.g. right-click/menu diagnostics).
-    if (normalizedTitle === 'system' && (
-      normalizedMessage === 'menu active' ||
-      normalizedMessage === 'context menu active' ||
-      normalizedMessage === 'start menu active'
-    )) {
-      return;
-    }
-
-    const now = Date.now();
-
-    // De-dupe identical notifications arriving in a burst.
-    const dedupeKey = `${type}\n${title}\n${message}`;
-    const last = this.recentNotificationKeyTimestamps.get(dedupeKey);
-    if (last && (now - last) < 800) return;
-    this.recentNotificationKeyTimestamps.set(dedupeKey, now);
-
-    // Prevent unbounded growth.
-    if (this.recentNotificationKeyTimestamps.size > 200) {
-      const it = this.recentNotificationKeyTimestamps.keys();
-      for (let i = 0; i < 50; i++) {
-        const k = it.next();
-        if (k.done) break;
-        this.recentNotificationKeyTimestamps.delete(k.value);
-      }
-    }
-
-    const id = now.toString() + Math.random().toString(36).substr(2, 9);
-    const notification: Notification = {
-      id,
-      title,
-      message,
-      timestamp: now,
-      read: false,
-      type,
-      actions
-    };
-
-    // Add to history
-    this.notifications.unshift(notification);
-
-    if (!this.doNotDisturb) {
-      // Add to active toasts
-      this.activeToasts.push(notification);
-
-      // Play sound
-      this.playNotificationSound(type);
-
-      // Auto dismiss toast after 5 seconds
-      setTimeout(() => {
-        this.activeToasts = this.activeToasts.filter(t => t.id !== id);
-        this.render();
-      }, 5000);
-    }
-
-    this.render();
+    this.notificationManager.show(title, message, type, actions);
   }
 
   private playNotificationSound(type: string) {
@@ -1625,12 +1491,12 @@ class TempleOS {
   }
 
   private renderNetworkPopupV2() {
-    const connected = this.networkStatus.connected;
-    const ssid = this.networkStatus.wifi?.ssid;
-    const signal = this.networkStatus.wifi?.signal ?? 0;
-    const ip = this.networkStatus.ip4;
+    const connected = this.networkManager.status.connected;
+    const ssid = this.networkManager.status.wifi?.ssid;
+    const signal = this.networkManager.status.wifi?.signal ?? 0;
+    const ip = this.networkManager.status.ip4;
 
-    const networks = this.wifiNetworks.slice(0, 8).map(n => `
+    const networks = this.networkManager.wifiNetworks.slice(0, 8).map(n => `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
         <div style="min-width: 0; display: flex; flex-direction: column;">
           <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
@@ -1666,8 +1532,8 @@ class TempleOS {
         </div>
 
         <div style="padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,255,65,0.08); margin-bottom: 10px;">
-          <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto;">
@@ -1678,126 +1544,18 @@ class TempleOS {
   }
 
   private renderNotificationPopup() {
-    return `
-      <div class="tray-popup notification-popup" style="
-        position: absolute; 
-        bottom: 40px; 
-        right: 40px; 
-        width: 300px;
-        max-height: 400px;
-        overflow-y: auto; 
-        background: rgba(13,17,23,0.95); 
-        border: 2px solid #ffd700; 
-        z-index: 10000; 
-        padding: 10px; 
-        font-family: 'VT323', monospace; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      ">
-      ">
-        <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
-          <span>Notifications</span>
-          <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '🔕' : '🔔'}
-          </button>
-        </div>
-        <div style="padding: 5px; color: #fff;">
-          ${this.notifications.length === 0 ? `
-            <div style="text-align: center; margin: 20px 0;">
-              <div style="font-size: 14px; margin-bottom: 5px;">No new earthly notifications.</div>
-              <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
-            </div>
-          ` : this.notifications.map(n => `
-            <div class="notification-item ${!n.read ? 'unread' : ''}">
-              <div style="font-weight: bold; color: ${this.getNotificationColor(n.type)}">${n.title}</div>
-              <div style="font-size: 14px;">${n.message}</div>
-              <span class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    return this.notificationManager.renderPopup();
   }
 
   private renderNotificationPopupV2() {
-    const unread = this.notifications.filter(n => !n.read).length;
-    return `
-      <div class="tray-popup notification-popup" style="
-        position: absolute;
-        bottom: 40px;
-        right: 40px;
-        width: 320px;
-        max-height: 420px;
-        overflow-y: auto;
-        background: rgba(13,17,23,0.96);
-        border: 2px solid #ffd700;
-        z-index: 10000;
-        padding: 10px;
-        font-family: 'VT323', monospace;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      ">
-        <div style="border-bottom: 1px solid rgba(255,215,0,0.25); padding-bottom: 6px; margin-bottom: 10px; font-weight: bold; color: #ffd700; display: flex; justify-content: space-between; align-items: center;">
-          <span>Notifications ${unread ? `(${unread})` : ''}</span>
-          <button class="dnd-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;" title="${this.doNotDisturb ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb'}">
-            ${this.doNotDisturb ? '🔕' : '🔔'}
-          </button>
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-          <button class="notif-btn" data-notif-action="mark-all-read" style="flex: 1; background: none; border: 1px solid rgba(255,215,0,0.35); color: #ffd700; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Mark all read</button>
-          <button class="notif-btn" data-notif-action="clear" style="flex: 1; background: none; border: 1px solid rgba(255,215,0,0.35); color: #ffd700; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Clear</button>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 8px; color: #fff;">
-          ${this.notifications.length === 0 ? `
-            <div style="text-align: center; padding: 20px 10px; opacity: 0.8;">
-              <div style="font-size: 14px; margin-bottom: 5px;">No notifications.</div>
-              <div style="font-size: 12px; color: #00ff41; font-style: italic;">"Be still, and know that I am God."</div>
-              <div style="font-size: 11px; opacity: 0.7;">Psalm 46:10</div>
-            </div>
-          ` : this.notifications.slice(0, 25).map(n => `
-            <div class="notification-item ${!n.read ? 'unread' : ''}" data-notif-id="${n.id}" style="cursor: pointer;">
-              <div style="font-weight: bold; color: ${this.getNotificationColor(n.type)}">${n.title}</div>
-              <div style="font-size: 14px;">${n.message}</div>
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                <span class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</span>
-                <button class="notif-btn" data-notif-action="dismiss" data-notif-id="${n.id}" style="background: none; border: 1px solid rgba(255,215,0,0.25); color: #ffd700; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 12px;">Dismiss</button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    return this.notificationManager.renderPopup();
   }
 
   private renderToasts() {
-    if (this.activeToasts.length === 0) return '';
-
-    return this.activeToasts.map(toast => `
-      <div class="toast ${toast.type}" data-toast-id="${toast.id}">
-        <div class="toast-header">
-          <span style="color: ${this.getNotificationColor(toast.type)}">${toast.title}</span>
-          <button class="toast-close" data-toast-action="dismiss" data-toast-id="${toast.id}" style="background: none; border: none; font: inherit;">x</button>
-        </div>
-        <div class="toast-body">${toast.message}</div>
-        ${toast.actions && toast.actions.length ? `
-          <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end;">
-            ${toast.actions.map(a => `
-              <button class="toast-action-btn" data-toast-action="action" data-toast-id="${toast.id}" data-action-id="${a.id}" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px;">${a.label}</button>
-            `).join('')}
-          </div>
-        ` : ''}
-      </div>
-    `).join('');
+    return this.notificationManager.renderToasts();
   }
 
-  private getNotificationColor(type: string): string {
-    switch (type) {
-      case 'divine': return '#00ff41';
-      case 'error': return '#ff0000';
-      case 'warning': return '#ffff00';
-      default: return '#fff';
-    }
-  }
+
 
   private formatTime() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2332,7 +2090,7 @@ class TempleOS {
 
   private getTrayHTML(): string {
     return `
-      <div class="tray-icon" id="tray-network" title="Network: ${this.networkStatus.connected ? (this.networkStatus.wifi?.ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}" style="position: relative; color: ${this.networkStatus.connected ? '#00ff41' : '#888'};">
+      <div class="tray-icon" id="tray-network" title="Network: ${this.networkManager.status.connected ? (this.networkManager.status.wifi?.ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}" style="position: relative; color: ${this.networkManager.status.connected ? '#00ff41' : '#888'};">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
           <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
@@ -2746,94 +2504,10 @@ class TempleOS {
   }
 
   private async refreshNetworkStatus(): Promise<void> {
-    if (!window.electronAPI?.getNetworkStatus) return;
-
-    try {
-      const res = await window.electronAPI.getNetworkStatus();
-      if (res.success && res.status) {
-        this.networkStatus = res.status as NetworkStatus;
-        this.networkLastError = null;
-      } else {
-        this.networkLastError = res.error || 'Failed to read network status';
-        this.networkStatus = { connected: false };
-      }
-    } catch (e) {
-      this.networkLastError = String(e);
-      this.networkStatus = { connected: false };
-    }
-
-    await this.evaluateVpnKillSwitch();
-
-    await this.refreshWifiNetworks();
-    await this.refreshWifiEnabled();
-    await this.refreshSavedNetworks();
-
-    // Update tray (contains popups + status icon)
-    const tray = document.querySelector('.taskbar-tray') as HTMLElement | null;
-    if (tray) tray.innerHTML = this.getTrayHTML();
-
-    if (this.activeSettingsCategory === 'Network') {
-      this.refreshSettingsWindow();
-    }
+    await this.networkManager.refreshStatus();
   }
 
-  private async refreshWifiNetworks(): Promise<void> {
-    if (!window.electronAPI?.listWifiNetworks) return;
 
-    try {
-      const res = await window.electronAPI.listWifiNetworks();
-      if (res.success && Array.isArray(res.networks)) {
-        this.wifiNetworks = res.networks as WifiNetwork[];
-      } else {
-        this.wifiNetworks = [];
-      }
-    } catch {
-      this.wifiNetworks = [];
-    }
-
-    // Easter egg: Inject a fake CIA surveillance network (Terry would approve)
-    const ciaNetwork: WifiNetwork = {
-      inUse: false,
-      ssid: 'CIA_SURVEILLANCE_VAN_7',
-      signal: 66, // Number of the beast divided, fitting for glowies
-      security: 'WPA2'
-    };
-    // Add it near the end so it doesn't look too suspicious
-    if (!this.wifiNetworks.some(n => n.ssid === 'CIA_SURVEILLANCE_VAN_7')) {
-      this.wifiNetworks.push(ciaNetwork);
-    }
-  }
-
-  private async refreshWifiEnabled(): Promise<void> {
-    if (!window.electronAPI?.getWifiEnabled) return;
-    try {
-      const res = await window.electronAPI.getWifiEnabled();
-      if (res.success && typeof res.enabled === 'boolean') {
-        this.wifiEnabled = res.enabled;
-      }
-    } catch {
-      // ignore
-    }
-
-    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-  }
-
-  private async refreshSavedNetworks(): Promise<void> {
-    if (!window.electronAPI?.listSavedNetworks) return;
-    try {
-      const res = await window.electronAPI.listSavedNetworks();
-      if (res.success && Array.isArray(res.networks)) {
-        this.savedNetworks = (res.networks as any[])
-          .filter(n => n && typeof n.name === 'string' && typeof n.uuid === 'string')
-          .map(n => ({ name: String(n.name), uuid: String(n.uuid), type: String(n.type || ''), device: String(n.device || '') }))
-          .slice(0, 50);
-      }
-    } catch {
-      // ignore
-    }
-
-    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-  }
 
   private connectedState(state: string | undefined): boolean {
     const s = String(state || '').toLowerCase();
@@ -2847,10 +2521,10 @@ class TempleOS {
   }
 
   private getVpnStatus(): VpnStatus {
-    const vpn = this.networkStatus.vpn;
+    const vpn = this.networkManager.status.vpn;
     if (vpn && typeof vpn.connected === 'boolean') return vpn;
 
-    const devices = this.networkStatus.devices;
+    const devices = this.networkManager.status.devices;
     if (Array.isArray(devices)) {
       const hit = devices.find(d => this.isVpnDevice(d) && this.connectedState(d.state));
       if (hit) {
@@ -2861,232 +2535,17 @@ class TempleOS {
     return { connected: false };
   }
 
-  private async restoreConnections(keys: string[]): Promise<void> {
-    const unique = Array.from(new Set(keys.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 6);
-    if (!unique.length) return;
-    if (!window.electronAPI?.connectSavedNetwork) return;
 
-    for (const key of unique) {
-      try {
-        await window.electronAPI.connectSavedNetwork(key);
-      } catch {
-        // ignore; user can reconnect manually
-      }
-    }
-  }
 
-  private async snoozeVpnKillSwitch(seconds: number): Promise<void> {
-    const sec = Math.max(5, Math.min(600, Math.floor(seconds)));
-    this.vpnKillSwitchSnoozeUntil = Date.now() + sec * 1000;
-    await this.restoreConnections(this.vpnKillSwitchLastDisconnected);
 
-    this.showNotification('VPN Kill Switch', `Snoozed for ${sec}s. Reconnect your VPN now.`, 'warning', [
-      { id: 'open-settings', label: 'Open Settings' }
-    ]);
-
-    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-    window.setTimeout(() => void this.refreshNetworkStatus(), 750);
-  }
-
-  private async evaluateVpnKillSwitch(): Promise<void> {
-    if (!this.vpnKillSwitchEnabled) {
-      this.vpnKillSwitchArmed = false;
-      this.vpnKillSwitchBlocked = false;
-      this.vpnKillSwitchSnoozeUntil = null;
-      this.vpnKillSwitchLastDisconnected = [];
-      return;
-    }
-
-    const vpn = this.getVpnStatus();
-    if (vpn.connected) {
-      const firstArm = !this.vpnKillSwitchArmed;
-      const wasBlocked = this.vpnKillSwitchBlocked;
-      this.vpnKillSwitchArmed = true;
-      this.vpnKillSwitchBlocked = false;
-      this.vpnKillSwitchSnoozeUntil = null;
-      this.vpnKillSwitchLastDisconnected = [];
-
-      if (firstArm) {
-        this.showNotification('VPN Kill Switch', 'Armed (VPN detected).', 'info');
-      } else if (wasBlocked) {
-        this.showNotification('VPN Kill Switch', 'VPN restored. Network is safe again.', 'info');
-      }
-      return;
-    }
-
-    const now = Date.now();
-    const snoozing = this.vpnKillSwitchSnoozeUntil !== null && this.vpnKillSwitchSnoozeUntil > now;
-    if (snoozing) return;
-
-    const shouldEnforce = this.vpnKillSwitchMode === 'strict' || this.vpnKillSwitchArmed;
-    if (!shouldEnforce) return;
-
-    const hasActiveNonVpn = Array.isArray(this.networkStatus.devices)
-      ? this.networkStatus.devices.some(d => this.connectedState(d.state) && !this.isVpnDevice(d))
-      : this.networkStatus.connected;
-
-    if (!hasActiveNonVpn) {
-      this.vpnKillSwitchBlocked = true;
-      return;
-    }
-
-    if (now - this.vpnKillSwitchLastEnforceAt < 4000) return;
-    this.vpnKillSwitchLastEnforceAt = now;
-
-    const wasBlocked = this.vpnKillSwitchBlocked;
-
-    try {
-      if (window.electronAPI?.disconnectNonVpnNetwork) {
-        const res = await window.electronAPI.disconnectNonVpnNetwork();
-        if (!res.success) {
-          this.vpnKillSwitchBlocked = true;
-          if (!wasBlocked) this.showNotification('VPN Kill Switch', res.error || 'Failed to enforce kill switch', 'error');
-          return;
-        }
-        if (Array.isArray(res.disconnected) && res.disconnected.length) {
-          this.vpnKillSwitchLastDisconnected = res.disconnected.slice(0, 8);
-        }
-      } else if (window.electronAPI?.disconnectNetwork) {
-        const res = await window.electronAPI.disconnectNetwork();
-        if (!res.success) {
-          this.vpnKillSwitchBlocked = true;
-          if (!wasBlocked) this.showNotification('VPN Kill Switch', res.error || 'Failed to enforce kill switch', 'error');
-          return;
-        }
-        if (this.networkStatus.connection) this.vpnKillSwitchLastDisconnected = [this.networkStatus.connection];
-      } else {
-        this.vpnKillSwitchBlocked = true;
-        if (!wasBlocked) this.showNotification('VPN Kill Switch', 'Kill switch requires Electron/Linux integration.', 'warning');
-        return;
-      }
-
-      this.vpnKillSwitchBlocked = true;
-      if (!wasBlocked) {
-        this.showNotification('VPN Kill Switch', 'VPN disconnected. Network blocked to prevent leaks.', 'warning', [
-          { id: 'open-settings', label: 'Open Settings' }
-        ]);
-      }
-    } catch (e) {
-      this.vpnKillSwitchBlocked = true;
-      if (!wasBlocked) this.showNotification('VPN Kill Switch', `Kill switch failed: ${String(e)}`, 'error');
-    }
-  }
 
   private async importVpnProfile(kind: 'openvpn' | 'wireguard'): Promise<void> {
-    if (!window.electronAPI?.importVpnProfile) {
-      this.showNotification('VPN', 'VPN import requires Electron/Linux integration.', 'warning');
-      return;
-    }
-
-    const title = kind === 'wireguard' ? 'Import WireGuard Profile' : 'Import OpenVPN Profile';
-    const placeholder = kind === 'wireguard' ? '/home/user/wg0.conf' : '/home/user/vpn.ovpn';
-
-    const filePath = await this.openPromptModal({
-      title,
-      message: 'Enter the full path to the VPN config file:',
-      placeholder,
-      confirmText: 'Import',
-      cancelText: 'Cancel'
-    });
-
-    if (!filePath) return;
-
-    const lower = filePath.toLowerCase();
-    const ok = kind === 'wireguard'
-      ? lower.endsWith('.conf') || lower.endsWith('.wg')
-      : lower.endsWith('.ovpn') || lower.endsWith('.conf');
-    if (!ok) {
-      this.showNotification('VPN', `Unexpected file type for ${kind}.`, 'warning');
-      return;
-    }
-
-    try {
-      this.showNotification('VPN', 'Importing profile...', 'info');
-      const res = await window.electronAPI.importVpnProfile(kind, filePath);
-      if (!res.success) {
-        this.showNotification('VPN', res.error || 'Import failed', 'error');
-        return;
-      }
-      this.showNotification('VPN', 'Profile imported successfully.', 'info');
-      await this.refreshSavedNetworks();
-      await this.refreshNetworkStatus();
-    } catch (e) {
-      this.showNotification('VPN', `Import failed: ${String(e)}`, 'error');
-    }
+    await this.networkManager.importVpnProfile(kind);
   }
 
-  private async toggleHotspot(enable: boolean): Promise<void> {
-    if (!window.electronAPI?.createHotspot) {
-      this.hotspotEnabled = false;
-      this.showNotification('Hotspot', 'Hotspot control not available.', 'warning');
-      if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-      return;
-    }
 
-    this.hotspotLoading = true;
-    this.hotspotEnabled = enable;
-    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
 
-    try {
-      if (enable) {
-        const res = await window.electronAPI.createHotspot(this.hotspotSSID, this.hotspotPassword);
-        if (!res.success) {
-          this.hotspotEnabled = false;
-          this.showNotification('Hotspot', res.error || 'Failed to start hotspot', 'error');
-        } else {
-          this.showNotification('Hotspot', 'Hotspot active: ' + this.hotspotSSID, 'info');
-        }
-      } else if (window.electronAPI?.stopHotspot) {
-        const res = await window.electronAPI.stopHotspot();
-        if (!res.success) {
-          this.showNotification('Hotspot', res.error || 'Failed to stop hotspot', 'warning');
-        }
-      }
-    } catch (e) {
-      this.hotspotEnabled = !enable;
-      this.showNotification('Hotspot', `Error: ${e}`, 'error');
-    } finally {
-      this.hotspotLoading = false;
-      if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-      void this.refreshNetworkStatus();
-    }
-  }
 
-  private async editHotspotSettings(): Promise<void> {
-    const ssid = await this.openPromptModal({
-      title: 'Hotspot Settings',
-      message: 'Enter Network Name (SSID):',
-      defaultValue: this.hotspotSSID,
-      placeholder: 'TempleOS_Hotspot'
-    });
-    if (ssid === null) return;
-
-    const pwd = await this.openPromptModal({
-      title: 'Hotspot Settings',
-      message: 'Enter Password (min 8 chars, leave empty for open):',
-      defaultValue: this.hotspotPassword,
-      placeholder: '********'
-    });
-    if (pwd === null) return;
-
-    this.hotspotSSID = ssid || 'TempleOS_Hotspot';
-    this.hotspotPassword = pwd;
-    this.queueSaveConfig();
-    if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
-
-    if (this.hotspotEnabled) {
-      const confirm = await this.openConfirmModal({
-        title: 'Restart Hotspot?',
-        message: 'Settings changed. Restart hotspot to apply?',
-        confirmText: 'Restart',
-        cancelText: 'Later'
-      });
-      if (confirm) {
-        await this.toggleHotspot(false);
-        await this.toggleHotspot(true);
-      }
-    }
-  }
 
   private renderTorCircuitViz(): string {
     if (this.torCircuitStatus !== 'connected') {
@@ -3165,6 +2624,7 @@ class TempleOS {
 
   // VPN profile management (Tier 6.1)
   private async connectWifiFromUi(ssid: string, security: string): Promise<void> {
+    await this.networkManager.connectWifi(ssid, security); return; /*
     // Easter egg: Handle the fake CIA surveillance network
     if (ssid === 'CIA_SURVEILLANCE_VAN_7') {
       const pw = await this.openPromptModal({
@@ -3239,42 +2699,9 @@ class TempleOS {
     }
 
     void this.refreshNetworkStatus();
-  }
+  */ }
 
-  private getCiaEasterEggContent(): string {
-    return `
-      <div style="padding: 20px; font-family: 'VT323', monospace; background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 100%); color: #00ff41; height: 100%; box-sizing: border-box; overflow: auto;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 48px; margin-bottom: 10px;">✝️</div>
-          <h2 style="color: #ffd700; margin: 0; text-shadow: 0 0 10px #ffd700;">CLASSIFIED: EYES ONLY</h2>
-          <div style="font-size: 12px; opacity: 0.7; margin-top: 5px;">DIVINE INTELLIGENCE AGENCY</div>
-        </div>
-        
-        <div style="border: 1px solid #00ff41; padding: 15px; margin-bottom: 15px; background: rgba(0,255,65,0.05);">
-          <div style="color: #ff6464; font-weight: bold; margin-bottom: 10px;">⚠️ INTERCEPTED TRANSMISSION:</div>
-          <p style="margin: 0; line-height: 1.6;">
-            "The glowies have been trying to infiltrate TempleOS for decades. 
-            They don't understand that God's operating system is 100% transparent - 
-            640x480, 16 colors, and divine inspiration."
-          </p>
-        </div>
 
-        <div style="border: 1px solid #ffd700; padding: 15px; margin-bottom: 15px; background: rgba(255,215,0,0.05);">
-          <div style="color: #ffd700; font-weight: bold; margin-bottom: 10px;">📜 TERRY'S WISDOM:</div>
-          <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li>"An idiot admires complexity, a genius admires simplicity."</li>
-            <li>"God said 640x480 16 color was a sacred and good resolution."</li>
-            <li>"The CIA glows in the dark. You can see them if you're driving."</li>
-          </ul>
-        </div>
-
-        <div style="text-align: center; padding: 15px; border: 2px solid #00ff41; background: rgba(0,255,65,0.1);">
-          <div style="font-size: 14px; color: #00ff41;">🙏 Keep building temples, not surveillance states 🙏</div>
-          <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">Terry A. Davis (1969-2018) - God's Programmer</div>
-        </div>
-      </div>
-    `;
-  }
 
   private async refreshAudioDevices(): Promise<void> {
     if (!window.electronAPI?.listAudioDevices) return;
@@ -3569,8 +2996,10 @@ class TempleOS {
           .filter(o => o && typeof o.name === 'string')
           .map(o => ({
             name: String(o.name),
+            id: typeof o.id === 'number' ? o.id : undefined,
             active: !!o.active,
             scale: typeof o.scale === 'number' ? o.scale : 1,
+            bounds: o.bounds,
             transform: String(o.transform || 'normal'),
             currentMode: String(o.currentMode || ''),
             modes: Array.isArray(o.modes)
@@ -3595,6 +3024,18 @@ class TempleOS {
     }
 
     if (this.activeSettingsCategory === 'System') this.refreshSettingsWindow();
+  }
+
+  private async moveWindowToDisplay(outputName: string): Promise<void> {
+    const output = this.displayOutputs.find(o => o.name === outputName);
+    if (!output || !output.bounds || !window.electronAPI?.setWindowBounds) return;
+
+    try {
+      await window.electronAPI.setWindowBounds(output.bounds);
+      this.showNotification('Display', `Moved to ${output.name}`, 'info');
+    } catch (e) {
+      this.showNotification('Display', 'Failed to move window', 'error');
+    }
   }
 
   private async refreshMouseDpiInfo(): Promise<void> {
@@ -4014,7 +3455,7 @@ class TempleOS {
 
       if (target.matches('.vpn-killswitch-mode')) {
         const mode = target.value === 'strict' ? 'strict' : 'auto';
-        this.vpnKillSwitchMode = mode;
+        this.networkManager.vpnKillSwitchMode = mode;
         this.queueSaveConfig();
         void this.refreshNetworkStatus();
         if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
@@ -4060,11 +3501,11 @@ class TempleOS {
       }
 
       if (inputTarget.matches('.wifi-enabled-toggle')) {
-        this.wifiEnabled = inputTarget.checked;
+        this.networkManager.wifiEnabled = inputTarget.checked;
         this.queueSaveConfig();
         if (window.electronAPI?.setWifiEnabled) {
-          void window.electronAPI.setWifiEnabled(this.wifiEnabled).then(res => {
-            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle WiΓÇæFi', 'warning');
+          void window.electronAPI.setWifiEnabled(this.networkManager.wifiEnabled).then(res => {
+            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle Wi‑Fi', 'warning');
             void this.refreshNetworkStatus();
           });
         }
@@ -4074,24 +3515,24 @@ class TempleOS {
         const enabled = inputTarget.checked;
 
         if (!enabled) {
-          const toRestore = this.vpnKillSwitchLastDisconnected.slice();
-          this.vpnKillSwitchEnabled = false;
-          this.vpnKillSwitchArmed = false;
-          this.vpnKillSwitchBlocked = false;
-          this.vpnKillSwitchSnoozeUntil = null;
+          const toRestore = this.networkManager.vpnKillSwitchLastDisconnected.slice();
+          this.networkManager.vpnKillSwitchEnabled = false;
+          this.networkManager.vpnKillSwitchArmed = false;
+          this.networkManager.vpnKillSwitchBlocked = false;
+          this.networkManager.vpnKillSwitchSnoozeUntil = null;
           this.queueSaveConfig();
-          void this.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
+          void this.networkManager.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
           if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
           return;
         }
 
-        this.vpnKillSwitchEnabled = true;
-        this.vpnKillSwitchBlocked = false;
-        this.vpnKillSwitchSnoozeUntil = null;
+        this.networkManager.vpnKillSwitchEnabled = true;
+        this.networkManager.vpnKillSwitchBlocked = false;
+        this.networkManager.vpnKillSwitchSnoozeUntil = null;
         this.queueSaveConfig();
         this.showNotification(
           'VPN Kill Switch',
-          this.vpnKillSwitchMode === 'strict' ? 'Enabled (strict). Traffic will be blocked when VPN is down.' : 'Enabled. It will arm when a VPN is detected.',
+          this.networkManager.vpnKillSwitchMode === 'strict' ? 'Enabled (strict). Traffic will be blocked when VPN is down.' : 'Enabled. It will arm when a VPN is detected.',
           'info'
         );
         void this.refreshNetworkStatus();
@@ -4106,7 +3547,7 @@ class TempleOS {
       if (inputTarget.matches('.flight-mode-toggle')) {
         this.flightMode = inputTarget.checked;
         if (this.flightMode) {
-          this.wifiEnabled = false;
+          this.networkManager.wifiEnabled = false;
           this.bluetoothEnabled = false;
         }
         this.refreshSettingsWindow();
@@ -4114,11 +3555,11 @@ class TempleOS {
 
       // Data Usage Tracking
       if (inputTarget.matches('.data-tracking-toggle')) {
-        this.dataUsageTrackingEnabled = inputTarget.checked;
-        if (this.dataUsageTrackingEnabled && this.monitorStats?.network) {
+        this.networkManager.dataUsageTrackingEnabled = inputTarget.checked;
+        if (this.networkManager.dataUsageTrackingEnabled && this.monitorStats?.network) {
           // Start tracking from current values
-          this.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
-          this.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
+          this.networkManager.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
+          this.networkManager.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
         }
         this.refreshSettingsWindow();
       }
@@ -4126,7 +3567,7 @@ class TempleOS {
       if (inputTarget.matches('.data-limit-input')) {
         const limitGB = parseFloat(inputTarget.value);
         if (!Number.isNaN(limitGB) && limitGB > 0) {
-          this.dataUsageDailyLimit = limitGB * 1024 * 1024 * 1024; // Convert GB to bytes
+          this.networkManager.dataUsageDailyLimit = limitGB * 1024 * 1024 * 1024; // Convert GB to bytes
           this.refreshSettingsWindow();
         }
       }
@@ -4191,7 +3632,7 @@ class TempleOS {
       }
 
       if (inputTarget.matches('.hotspot-toggle')) {
-        this.toggleHotspot(inputTarget.checked);
+        this.networkManager.toggleHotspot(inputTarget.checked);
       }
 
       if (inputTarget.matches('.firewall-toggle')) {
@@ -4315,7 +3756,7 @@ class TempleOS {
       }
 
       if (target.matches('.hotspot-edit-btn')) {
-        void this.editHotspotSettings();
+        void this.networkManager.editHotspotSettings();
         return;
       }
 
@@ -4508,10 +3949,10 @@ class TempleOS {
       // Data Usage Reset Button
       const dataResetBtn = target.closest('.data-reset-btn') as HTMLElement;
       if (dataResetBtn) {
-        this.dataUsageHistory = [];
+        this.networkManager.dataUsageHistory = [];
         if (this.monitorStats?.network) {
-          this.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
-          this.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
+          this.networkManager.dataUsageStartRx = this.monitorStats.network.rxBytes || 0;
+          this.networkManager.dataUsageStartTx = this.monitorStats.network.txBytes || 0;
         }
         this.refreshSettingsWindow();
         this.showNotification('Data Usage', 'Usage statistics reset for today', 'info');
@@ -4642,6 +4083,13 @@ class TempleOS {
           this.launchByKey(desktopIcon.dataset.launchKey);
           return;
         }
+      }
+
+      // Settings: Move Display
+      const displayMoveBtn = target.closest('.display-move-btn') as HTMLElement;
+      if (displayMoveBtn && displayMoveBtn.dataset.output) {
+        this.moveWindowToDisplay(displayMoveBtn.dataset.output);
+        return;
       }
 
       // Help App Navigation
@@ -4832,6 +4280,7 @@ class TempleOS {
       const dndBtn = target.closest('.dnd-btn');
       if (dndBtn) {
         this.doNotDisturb = !this.doNotDisturb;
+        this.notificationManager.setDoNotDisturb(this.doNotDisturb);
         this.queueSaveConfig();
         this.render();
         return;
@@ -4849,19 +4298,17 @@ class TempleOS {
         const action = notifBtn.dataset.notifAction;
         const id = notifBtn.dataset.notifId;
         if (action === 'clear') {
-          this.notifications = [];
-          this.activeToasts = [];
+          this.notificationManager.clearAll();
           this.render();
           return;
         }
         if (action === 'mark-all-read') {
-          this.notifications.forEach(n => n.read = true);
+          this.notificationManager.markAllRead();
           this.render();
           return;
         }
         if (action === 'dismiss' && id) {
-          this.notifications = this.notifications.filter(n => n.id !== id);
-          this.activeToasts = this.activeToasts.filter(t => t.id !== id);
+          this.notificationManager.dismissNotification(id);
           this.render();
           return;
         }
@@ -4869,12 +4316,9 @@ class TempleOS {
 
       const notifItem = target.closest('.notification-item') as HTMLElement;
       if (notifItem && notifItem.dataset.notifId) {
-        const n = this.notifications.find(x => x.id === notifItem.dataset.notifId);
-        if (n) {
-          n.read = true;
-          this.render();
-          return;
-        }
+        this.notificationManager.markAsRead(notifItem.dataset.notifId);
+        this.render();
+        return;
       }
 
       // Toast actions
@@ -4884,9 +4328,7 @@ class TempleOS {
         const action = toastActionEl.dataset.toastAction;
 
         if (action === 'dismiss') {
-          this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
-          const notif = this.notifications.find(n => n.id === toastId);
-          if (notif) notif.read = true;
+          this.notificationManager.dismissToast(toastId);
           this.render();
           return;
         }
@@ -4898,9 +4340,8 @@ class TempleOS {
           } else if (actionId === 'open-updater') {
             this.openApp('updater');
           }
-          this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
-          const notif = this.notifications.find(n => n.id === toastId);
-          if (notif) notif.read = true;
+          this.notificationManager.dismissToast(toastId);
+          this.notificationManager.markAsRead(toastId);
           this.render();
           return;
         }
@@ -5358,7 +4799,7 @@ class TempleOS {
             if (!ok) return;
             void window.electronAPI!.forgetSavedNetwork!(key).then(res => {
               if (!res.success) this.showNotification('VPN', res.error || 'Delete failed', 'error');
-              void this.refreshSavedNetworks();
+              void this.networkManager.refreshSavedNetworks();
               void this.refreshNetworkStatus();
             });
           });
@@ -5372,15 +4813,15 @@ class TempleOS {
       if (vpnKillBtn && vpnKillBtn.dataset.action) {
         const action = vpnKillBtn.dataset.action;
         if (action === 'snooze') {
-          void this.snoozeVpnKillSwitch(60);
+          void this.networkManager.snoozeVpnKillSwitch(60);
         } else if (action === 'disable') {
-          const toRestore = this.vpnKillSwitchLastDisconnected.slice();
-          this.vpnKillSwitchEnabled = false;
-          this.vpnKillSwitchArmed = false;
-          this.vpnKillSwitchBlocked = false;
-          this.vpnKillSwitchSnoozeUntil = null;
+          const toRestore = this.networkManager.vpnKillSwitchLastDisconnected.slice();
+          this.networkManager.vpnKillSwitchEnabled = false;
+          this.networkManager.vpnKillSwitchArmed = false;
+          this.networkManager.vpnKillSwitchBlocked = false;
+          this.networkManager.vpnKillSwitchSnoozeUntil = null;
           this.queueSaveConfig();
-          void this.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
+          void this.networkManager.restoreConnections(toRestore).then(() => this.refreshNetworkStatus());
           if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
         }
         return;
@@ -5408,7 +4849,7 @@ class TempleOS {
             if (!ok) return;
             void window.electronAPI!.forgetSavedNetwork!(key).then(res => {
               if (!res.success) this.showNotification('Network', res.error || 'Forget failed', 'error');
-              void this.refreshSavedNetworks();
+              void this.networkManager.refreshSavedNetworks();
             });
           });
         }
@@ -9531,9 +8972,12 @@ class TempleOS {
         ${card('Display', `
           <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
             <div>Monitor</div>
-            <select class="display-output-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-              ${outputs.map(o => `<option value="${escapeHtml(o.name)}" ${o.name === (selectedOutput?.name || '') ? 'selected' : ''}>${escapeHtml(o.name)}${o.active ? '' : ' (off)'}</option>`).join('') || '<option value=\"\">Display</option>'}
-            </select>
+            <div style="display: flex; gap: 8px;">
+              <select class="display-output-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                ${outputs.map(o => `<option value="${escapeHtml(o.name)}" ${o.name === (selectedOutput?.name || '') ? 'selected' : ''}>${escapeHtml(o.name)}${o.active ? '' : ' (off)'}</option>`).join('') || '<option value=\"\">Display</option>'}
+              </select>
+              <button class="display-move-btn" data-output="${escapeHtml(selectedOutput?.name || '')}" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;" ${selectedOutput ? '' : 'disabled'}>Move Here</button>
+            </div>
 
             <div>Mode</div>
             <select class="display-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
@@ -9637,40 +9081,40 @@ class TempleOS {
     };
 
     const renderNetwork = () => {
-      const connected = this.networkStatus.connected;
-      const ssid = this.networkStatus.wifi?.ssid;
-      const signal = this.networkStatus.wifi?.signal ?? 0;
-      const ip = this.networkStatus.ip4;
+      const connected = this.networkManager.status.connected;
+      const ssid = this.networkManager.status.wifi?.ssid;
+      const signal = this.networkManager.status.wifi?.signal ?? 0;
+      const ip = this.networkManager.status.ip4;
 
       const vpn = this.getVpnStatus();
       const now = Date.now();
-      const snoozeRemaining = (this.vpnKillSwitchSnoozeUntil && this.vpnKillSwitchSnoozeUntil > now)
-        ? Math.ceil((this.vpnKillSwitchSnoozeUntil - now) / 1000)
+      const snoozeRemaining = (this.networkManager.vpnKillSwitchSnoozeUntil && this.networkManager.vpnKillSwitchSnoozeUntil > now)
+        ? Math.ceil((this.networkManager.vpnKillSwitchSnoozeUntil - now) / 1000)
         : 0;
-      const killSwitchShouldEnforce = this.vpnKillSwitchEnabled && !vpn.connected && (this.vpnKillSwitchMode === 'strict' || this.vpnKillSwitchArmed);
+      const killSwitchShouldEnforce = this.networkManager.vpnKillSwitchEnabled && !vpn.connected && (this.networkManager.vpnKillSwitchMode === 'strict' || this.networkManager.vpnKillSwitchArmed);
       const killSwitchSnoozing = snoozeRemaining > 0;
 
       let killSwitchState = 'Disabled';
       let killSwitchColor = '#888';
-      if (this.vpnKillSwitchEnabled) {
+      if (this.networkManager.vpnKillSwitchEnabled) {
         if (vpn.connected) { killSwitchState = 'Armed'; killSwitchColor = '#00ff41'; }
         else if (killSwitchSnoozing) { killSwitchState = `Snoozed (${snoozeRemaining}s)`; killSwitchColor = '#ffd700'; }
-        else if (this.vpnKillSwitchMode === 'auto' && !this.vpnKillSwitchArmed) { killSwitchState = 'Waiting for VPN'; killSwitchColor = '#ffd700'; }
-        else if (this.vpnKillSwitchBlocked) { killSwitchState = 'BLOCKING (VPN down)'; killSwitchColor = '#ff6464'; }
+        else if (this.networkManager.vpnKillSwitchMode === 'auto' && !this.networkManager.vpnKillSwitchArmed) { killSwitchState = 'Waiting for VPN'; killSwitchColor = '#ffd700'; }
+        else if (this.networkManager.vpnKillSwitchBlocked) { killSwitchState = 'BLOCKING (VPN down)'; killSwitchColor = '#ff6464'; }
         else { killSwitchState = 'Armed (VPN down)'; killSwitchColor = '#ffd700'; }
       }
 
-      const savedWifi = this.savedNetworks.filter(n => (n.type || '').toLowerCase().includes('wifi') || (n.type || '').toLowerCase().includes('wireless')).slice(0, 12);
-      const savedOther = this.savedNetworks.filter(n => !savedWifi.includes(n)).slice(0, 8);
-      const vpnProfiles = this.savedNetworks
+      const savedWifi = this.networkManager.savedNetworks.filter(n => (n.type || '').toLowerCase().includes('wifi') || (n.type || '').toLowerCase().includes('wireless')).slice(0, 12);
+      const savedOther = this.networkManager.savedNetworks.filter(n => !savedWifi.includes(n)).slice(0, 8);
+      const vpnProfiles = this.networkManager.savedNetworks
         .filter(n => {
           const t = String(n.type || '').toLowerCase();
           return t === 'vpn' || t === 'wireguard';
         })
         .slice(0, 10);
       const activeVpnNames = new Set(
-        Array.isArray(this.networkStatus.devices)
-          ? this.networkStatus.devices
+        Array.isArray(this.networkManager.status.devices)
+          ? this.networkManager.status.devices
             .filter(d => this.isVpnDevice(d) && this.connectedState(d.state))
             .map(d => String(d.connection || '').trim())
             .filter(Boolean)
@@ -9679,8 +9123,8 @@ class TempleOS {
 
       return `
         ${card('Status', `
-          <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkStatus.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkStatus.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkLastError ? this.networkLastError : 'Not connected')}</div>
+          <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
           <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
              <div style="display: flex; gap: 20px;">
                 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
@@ -9688,7 +9132,7 @@ class TempleOS {
                   <span style="opacity: 0.9;">✈️ Flight Mode</span>
                 </label>
                 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
-                  <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''} ${this.flightMode ? 'disabled' : ''} />
+                  <input type="checkbox" class="wifi-enabled-toggle" ${this.networkManager.wifiEnabled ? 'checked' : ''} ${this.flightMode ? 'disabled' : ''} />
                   <span style="opacity: 0.9;">Wi‑Fi</span>
                 </label>
             </div>
@@ -9701,7 +9145,7 @@ class TempleOS {
 
         ${card('Wi‑Fi Networks', `
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${window.electronAPI?.listWifiNetworks ? (this.wifiNetworks.slice(0, 10).map(n => `
+            ${window.electronAPI?.listWifiNetworks ? (this.networkManager.wifiNetworks.slice(0, 10).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
@@ -9789,8 +9233,8 @@ class TempleOS {
               <div style="font-size: 12px; opacity: 0.7;">Block network traffic if VPN disconnects.</div>
             </div>
             <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
-              <input type="checkbox" class="vpn-killswitch-toggle" ${this.vpnKillSwitchEnabled ? 'checked' : ''}>
-              <span>${this.vpnKillSwitchEnabled ? 'On' : 'Off'}</span>
+              <input type="checkbox" class="vpn-killswitch-toggle" ${this.networkManager.vpnKillSwitchEnabled ? 'checked' : ''}>
+              <span>${this.networkManager.vpnKillSwitchEnabled ? 'On' : 'Off'}</span>
             </label>
           </div>
 
@@ -9798,23 +9242,23 @@ class TempleOS {
             <div style="opacity: 0.7;">VPN</div>
             <div style="color: ${vpn.connected ? '#00ff41' : '#ff6464'};">
               ${vpn.connected
-            ? `${escapeHtml(vpn.connection || vpn.device || 'VPN')}${vpn.device ? `  ${escapeHtml(vpn.device)}` : ''}`
+            ? `${escapeHtml(vpn.connection || vpn.device || 'VPN')}${vpn.device ? `   ${escapeHtml(vpn.device)}` : ''}`
             : 'Not connected'}
             </div>
 
             <div style="opacity: 0.7;">Mode</div>
             <select class="vpn-killswitch-mode" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
-              <option value="auto" ${this.vpnKillSwitchMode === 'auto' ? 'selected' : ''}>Auto (arm on VPN connect)</option>
-              <option value="strict" ${this.vpnKillSwitchMode === 'strict' ? 'selected' : ''}>Strict (block when VPN down)</option>
+              <option value="auto" ${this.networkManager.vpnKillSwitchMode === 'auto' ? 'selected' : ''}>Auto (arm on VPN connect)</option>
+              <option value="strict" ${this.networkManager.vpnKillSwitchMode === 'strict' ? 'selected' : ''}>Strict (block when VPN down)</option>
             </select>
 
-            ${this.vpnKillSwitchLastDisconnected.length ? `
+            ${this.networkManager.vpnKillSwitchLastDisconnected.length ? `
               <div style="opacity: 0.7;">Last Block</div>
-              <div style="font-size: 12px; opacity: 0.85;">${this.vpnKillSwitchLastDisconnected.slice(0, 3).map(escapeHtml).join(', ')}</div>
+              <div style="font-size: 12px; opacity: 0.85;">${this.networkManager.vpnKillSwitchLastDisconnected.slice(0, 3).map(escapeHtml).join(', ')}</div>
             ` : ''}
           </div>
 
-          ${this.vpnKillSwitchEnabled ? `
+          ${this.networkManager.vpnKillSwitchEnabled ? `
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
               ${killSwitchShouldEnforce ? `
                 <button class="vpn-killswitch-btn" data-action="snooze" ${killSwitchSnoozing ? 'disabled' : ''} style="background: none; border: 1px solid rgba(255,215,0,${killSwitchSnoozing ? '0.25' : '0.5'}); color: ${killSwitchSnoozing ? 'rgba(255,215,0,0.6)' : '#ffd700'}; padding: 6px 12px; border-radius: 6px; cursor: ${killSwitchSnoozing ? 'not-allowed' : 'pointer'}; font-size: 12px;">
@@ -9836,21 +9280,21 @@ class TempleOS {
         ${card('Mobile Hotspot', `
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                   <div>
-                      <div style="font-weight: bold; color: ${this.hotspotEnabled ? '#00ff41' : '#888'};">${this.hotspotEnabled ? 'Active' : 'Off'}</div>
+                      <div style="font-weight: bold; color: ${this.networkManager.hotspotEnabled ? '#00ff41' : '#888'};">${this.networkManager.hotspotEnabled ? 'Active' : 'Off'}</div>
                       <div style="font-size: 12px; opacity: 0.7;">Share internet connection</div>
                   </div>
                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
-                      <input type="checkbox" class="hotspot-toggle" ${this.hotspotEnabled ? 'checked' : ''} ${this.hotspotLoading ? 'disabled' : ''}>
-                      <span>${this.hotspotEnabled ? 'On' : 'Off'}</span>
+                      <input type="checkbox" class="hotspot-toggle" ${this.networkManager.hotspotEnabled ? 'checked' : ''} ${this.networkManager.hotspotLoading ? 'disabled' : ''}>
+                      <span>${this.networkManager.hotspotEnabled ? 'On' : 'Off'}</span>
                   </label>
               </div>
               <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; opacity: 0.8;">
-                  <div>Network Name</div><div>${escapeHtml(this.hotspotSSID)}</div>
-                  <div>Password</div><div>${this.hotspotPassword ? '*********' : '<span style="opacity:0.5">None</span>'}</div>
+                  <div>Network Name</div><div>${escapeHtml(this.networkManager.hotspotSSID)}</div>
+                  <div>Password</div><div>${this.networkManager.hotspotPassword ? '*********' : '<span style="opacity:0.5">None</span>'}</div>
                   <div>Band</div><div>2.4 GHz / 5 GHz</div>
               </div>
-              ${this.hotspotLoading ? '<div style="font-size:12px;opacity:0.7;margin-top:10px;">Configuring hotspot...</div>' : ''}
-              <button class="hotspot-edit-btn" style="margin-top: 10px; background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 10px; border-radius: 4px; cursor: pointer; opacity: ${this.hotspotEnabled ? '0.5' : '1'};" ${this.hotspotEnabled ? 'disabled' : ''}>Edit Settings</button>
+              ${this.networkManager.hotspotLoading ? '<div style="font-size:12px;opacity:0.7;margin-top:10px;">Configuring hotspot...</div>' : ''}
+              <button class="hotspot-edit-btn" style="margin-top: 10px; background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 10px; border-radius: 4px; cursor: pointer; opacity: ${this.networkManager.hotspotEnabled ? '0.5' : '1'};" ${this.networkManager.hotspotEnabled ? 'disabled' : ''}>Edit Settings</button>
         `)}
         ${card('SSH Server', `
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -10348,234 +9792,7 @@ class TempleOS {
         `;
   }
 
-  private getSettingsContent(): string {
-    // SVG icons for settings sidebar (emojis don't render properly in some VMs)
-    const svgIcons: Record<string, string> = {
-      System: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
-      Personalization: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="19" cy="17" r="2"></circle><circle cx="6" cy="12" r="3"></circle></svg>',
-      Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
-      Apps: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
-      Time: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
-      About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
-    };
-    const categories = [
-      { id: 'System', icon: svgIcons.System, label: 'System' },
-      { id: 'Personalization', icon: svgIcons.Personalization, label: 'Personalization' },
-      { id: 'Network', icon: svgIcons.Network, label: 'Network & Internet' },
-      { id: 'Apps', icon: svgIcons.Apps, label: 'Apps' },
-      { id: 'Time', icon: svgIcons.Time, label: 'Time & Language' },
-      { id: 'About', icon: svgIcons.About, label: 'About' },
-    ];
 
-    const renderSidebar = () => `
-      < div class="settings-sidebar" style = "
-    width: 220px;
-    background: rgba(0, 0, 0, 0.3);
-    border - right: 1px solid rgba(0, 255, 65, 0.2);
-    display: flex;
-    flex - direction: column;
-    padding: 10px 0;
-    ">
-        ${categories.map(cat => `
-          <div class="settings-nav-item ${this.activeSettingsCategory === cat.id ? 'active' : ''}" 
-               data-settings-cat="${cat.id}"
-               style="
-                 padding: 10px 20px;
-                 cursor: pointer;
-                 display: flex;
-                 align-items: center;
-                 gap: 12px;
-                 color: ${this.activeSettingsCategory === cat.id ? '#000' : '#00ff41'};
-                 background: ${this.activeSettingsCategory === cat.id ? '#00ff41' : 'transparent'};
-                 transition: all 0.2s;
-               "
-               onmouseenter="if(!this.classList.contains('active')) this.style.background='rgba(0,255,65,0.1)'"
-               onmouseleave="if(!this.classList.contains('active')) this.style.background='transparent'">
-            <span style="font-size: 18px;">${cat.icon}</span>
-            <span style="font-size: 14px;">${cat.label}</span>
-          </div>
-        `).join('')
-      }
-    </div>
-      `;
-
-    const renderPageContent = () => {
-      switch (this.activeSettingsCategory) {
-        case 'System':
-          return `
-      < div class="settings-section" >
-        <h3>🔊 Sound </h3>
-          < div class="settings-row" style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;" >
-            <span>Volume </span>
-            < input type = "range" class="volume-slider" min = "0" max = "100" value = "${this.volumeLevel}"
-    style = "width: 150px; accent-color: #00ff41;" >
-      </div>
-      <h3>🖥️ Display </h3>
-        < div class="settings-row" style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;" >
-          <span>Resolution </span>
-          < select class="resolution-select" style = "
-    background: rgba(0, 255, 65, 0.1);
-    border: 1px solid #00ff41;
-    color: #00ff41;
-    padding: 5px 10px;
-    font - family: inherit;
-    cursor: pointer;
-    ">
-                  ${this.availableResolutions.map(r => `<option value="${r}" ${r === this.currentResolution ? 'selected' : ''}>${r.replace('x', ' x ')}</option>`).join('')}
-    </select>
-      </div>
-      < div class="settings-row" style = "opacity: 0.6;" > Refresh Rate: 60Hz(Auto) </div>
-        </div>
-          `;
-        case 'Personalization':
-          return `
-        < div class="settings-section" >
-          <h3>🎨 Theme </h3>
-            < div class="settings-row" style = "margin-bottom: 20px;" >
-              <button style="
-    padding: 8px 16px;
-    background: ${this.themeMode === 'dark' ? '#00ff41' : 'transparent'};
-    color: ${this.themeMode === 'dark' ? '#000' : '#00ff41'};
-    border: 1px solid #00ff41;
-    cursor: pointer;
-    margin - right: 10px;
-    " onclick="console.log('Dark mode set')">Dark</button>
-      < button style = "
-    padding: 8px 16px;
-    background: ${this.themeMode === 'light' ? '#00ff41' : 'transparent'};
-    color: ${this.themeMode === 'light' ? '#000' : '#00ff41'};
-    border: 1px solid #00ff41;
-    cursor: pointer;
-    opacity: 0.5;
-    " title="Not implemented yet">Light</button>
-      </div>
-      <h3>🖼️ Background </h3>
-        < div style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" >
-          <div style="aspect-ratio: 16/9; background: #333; border: 2px solid #00ff41; display:flex; align-items:center; justify-content:center; cursor:pointer;" > Default </div>
-            < div style = "aspect-ratio: 16/9; background: #222; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;" > Solid </div>
-              < div style = "aspect-ratio: 16/9; background: #111; border: 1px solid rgba(0,255,65,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0.5;" > Custom </div>
-                </div>
-                </div>
-                  `;
-        case 'Network':
-          // Calculate current day's data usage
-          const now = Date.now();
-          const dayStart = now - (now % 86400000); // Start of current day
-          const todayData = this.dataUsageHistory.filter(d => d.timestamp >= dayStart);
-          const totalRx = todayData.reduce((sum, d) => sum + d.rx, 0) + (this.monitorStats?.network?.rxBytes || 0) - this.dataUsageStartRx;
-          const totalTx = todayData.reduce((sum, d) => sum + d.tx, 0) + (this.monitorStats?.network?.txBytes || 0) - this.dataUsageStartTx;
-          const totalUsage = totalRx + totalTx;
-          const usagePercent = Math.min(100, (totalUsage / this.dataUsageDailyLimit) * 100);
-
-          // Format bytes to human readable
-          const formatBytes = (bytes: number) => {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-          };
-
-          return `
-                < div class="settings-section" >
-                  <h3>📶 Wi - Fi </h3>
-                    < div class="settings-row" >
-                      <label>
-                      <input type="checkbox" class="wifi-enabled-toggle" ${this.wifiEnabled ? 'checked' : ''}>
-                        Enable Wi - Fi
-                          </label>
-                          </div>
-                          < div class="settings-row" style = "padding: 10px; border: 1px solid ${this.networkStatus.connected ? '#00ff41' : 'rgba(0,255,65,0.3)'}; margin-bottom: 10px;" >
-                            <div style="font-weight: bold;" > ${this.networkStatus.wifi?.ssid || (this.networkStatus.connected ? 'Connected' : 'Not connected')} </div>
-                              < div style = "font-size: 12px; color: ${this.networkStatus.connected ? '#00ff41' : '#888'};" > ${this.networkStatus.connected ? `Signal: ${this.networkStatus.wifi?.signal || 100}% • ${this.networkStatus.ip4 || 'No IP'}` : 'Disconnected'} </div>
-                                </div>
-
-                                < h3 style = "margin-top: 20px;" >📊 Data Usage </h3>
-                                  < div class="settings-row" >
-                                    <label>
-                                    <input type="checkbox" class="data-tracking-toggle" ${this.dataUsageTrackingEnabled ? 'checked' : ''}>
-                                      Enable Data Usage Tracking
-                                        </label>
-                                        </div>
-              ${this.dataUsageTrackingEnabled ? `
-                <div style="margin-top: 15px; padding: 15px; border: 1px solid rgba(0,255,65,0.3); border-radius: 8px; background: rgba(0,255,65,0.05);">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <div>
-                      <div style="font-weight: bold; font-size: 18px;">${formatBytes(totalUsage)}</div>
-                      <div style="font-size: 12px; opacity: 0.7;">Today's Usage</div>
-                    </div>
-                    <div style="text-align: right;">
-                      <div style="font-size: 14px;">↓ ${formatBytes(totalRx)}</div>
-                      <div style="font-size: 14px;">↑ ${formatBytes(totalTx)}</div>
-                    </div>
-                  </div>
-                  
-                  <div style="height: 12px; background: rgba(0,255,65,0.1); border-radius: 999px; overflow: hidden; margin: 10px 0;">
-                    <div style="height: 100%; width: ${usagePercent}%; background: ${usagePercent > 90 ? '#ff4141' : usagePercent > 75 ? '#ffaa00' : '#00ff41'}; transition: width 0.3s;"></div>
-                  </div>
-                  
-                  <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.7;">
-                    <span>${usagePercent.toFixed(1)}% of limit</span>
-                    <span>${formatBytes(this.dataUsageDailyLimit)} daily limit</span>
-                  </div>
-                </div>
-                
-                <div class="settings-row" style="margin-top: 15px;">
-                  <label style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Daily Limit (GB)</span>
-                    <input type="number" class="data-limit-input" value="${(this.dataUsageDailyLimit / (1024 * 1024 * 1024)).toFixed(1)}" min="0.1" max="1000" step="0.5" style="width: 100px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 5px; border-radius: 4px;">
-                  </label>
-                </div>
-                
-                <div class="settings-row" style="margin-top: 10px;">
-                  <button class="data-reset-btn" style="background: rgba(255,65,65,0.2); border: 1px solid rgba(255,65,65,0.4); color: #ff4141; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Reset Today's Usage</button>
-                </div>
-              ` : ''
-            }
-
-    <h3 style="margin-top: 20px;" >🔐 DNS Settings </h3>
-      < div class="settings-row" >
-        <label style="display: block; margin-bottom: 5px;" > Primary DNS </label>
-          < input type = "text" class="dns-primary-input" placeholder = "8.8.8.8" value = "8.8.8.8" style = "width: 100%; padding: 8px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; border-radius: 4px;" >
-            </div>
-            < div class="settings-row" >
-              <label style="display: block; margin-bottom: 5px;" > Secondary DNS </label>
-                < input type = "text" class="dns-secondary-input" placeholder = "8.8.4.4" value = "8.8.4.4" style = "width: 100%; padding: 8px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; border-radius: 4px;" >
-                  </div>
-                  < div class="settings-row" >
-                    <button class="dns-save-btn" style = "background: rgba(0,255,65,0.2); border: 1px solid rgba(0,255,65,0.4); color: #00ff41; padding: 8px 16px; border-radius: 4px; cursor: pointer;" > Apply DNS Settings </button>
-                      </div>
-                      </div>
-                        `;
-        case 'About':
-          return `
-                      < div class="settings-section" style = "text-align: center;" >
-                        <div style="font-size: 48px; margin-bottom: 10px;" >✝️</div>
-                          < h2 style = "color: #ffd700;" > TempleOS Remake </h2>
-                            < p > Version 2.4.0(Divine Intellect) </p>
-                              < div style = "margin: 20px 0; text-align: left; padding: 15px; border: 1px solid rgba(0,255,65,0.3);" >
-                                <div><strong>Processor: </strong> Divine Intellect i9 (Mock)</div >
-                                  <div><strong>Installed RAM: </strong> 64 GB (Holy Memory)</div >
-                                    <div><strong>System Type: </strong> 64-bit Operating System</div >
-                                      <div><strong>Registered to: </strong> Terry A. Davis</div >
-                                        </div>
-                                        < p style = "font-size: 12px; opacity: 0.6;" >© 2025 Giangero Studio </p>
-                                          </div>
-                                            `;
-        default:
-          return `< div style = "padding: 20px; text-align: center; opacity: 0.6;" > Select a category to view settings.</div>`;
-      }
-    };
-
-    return `
-      <div class="settings-window" style="display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);">
-        ${renderSidebar()}
-        <div class="settings-content" style="flex: 1; padding: 20px; overflow-y: auto;">
-          <h2 style="border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-top: 0;">${this.activeSettingsCategory}</h2>
-          ${renderPageContent()}
-        </div>
-      </div>
-    `;
-  }
 
   private async loadFiles(path?: string): Promise<void> {
     if (!window.electronAPI) {
@@ -11743,13 +10960,18 @@ class TempleOS {
     if (typeof cfg.lockPin === 'string') this.lockPin = cfg.lockPin;
 
     if (cfg.network) {
-      if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
-      if (cfg.network.vpnKillSwitchMode === 'auto' || cfg.network.vpnKillSwitchMode === 'strict') this.vpnKillSwitchMode = cfg.network.vpnKillSwitchMode;
+      if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.networkManager.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
+      if (cfg.network.vpnKillSwitchMode === 'auto' || cfg.network.vpnKillSwitchMode === 'strict') this.networkManager.vpnKillSwitchMode = cfg.network.vpnKillSwitchMode;
       // Always reset transient state on load
-      this.vpnKillSwitchArmed = false;
-      this.vpnKillSwitchBlocked = false;
-      this.vpnKillSwitchSnoozeUntil = null;
-      this.vpnKillSwitchLastDisconnected = [];
+      this.networkManager.vpnKillSwitchArmed = false;
+      this.networkManager.vpnKillSwitchBlocked = false;
+      this.networkManager.vpnKillSwitchSnoozeUntil = null;
+      this.networkManager.vpnKillSwitchLastDisconnected = [];
+
+      this.networkManager.hotspotSSID = cfg.network.hotspotSSID ?? 'TempleOS_Hotspot';
+      this.networkManager.hotspotPassword = cfg.network.hotspotPassword ?? '';
+      this.networkManager.dataUsageDailyLimit = cfg.network.dataUsageDailyLimit ?? 0;
+      this.networkManager.dataUsageTrackingEnabled = cfg.network.dataUsageTrackingEnabled ?? false;
     }
 
     if (cfg.terminal) {
@@ -11889,8 +11111,12 @@ class TempleOS {
       lockPin: this.lockPin,
 
       network: {
-        vpnKillSwitchEnabled: this.vpnKillSwitchEnabled,
-        vpnKillSwitchMode: this.vpnKillSwitchMode
+        vpnKillSwitchEnabled: this.networkManager.vpnKillSwitchEnabled,
+        vpnKillSwitchMode: this.networkManager.vpnKillSwitchMode,
+        hotspotSSID: this.networkManager.hotspotSSID,
+        hotspotPassword: this.networkManager.hotspotPassword,
+        dataUsageDailyLimit: this.networkManager.dataUsageDailyLimit,
+        dataUsageTrackingEnabled: this.networkManager.dataUsageTrackingEnabled
       },
 
       terminal: {

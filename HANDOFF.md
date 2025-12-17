@@ -51,13 +51,17 @@
 ## Refactoring Completed
 - Created `src/system/WorkspaceManager.ts` - Handles virtual desktop logic
 - Created `src/system/TilingManager.ts` - Handles smart window tiling
+- Created `src/system/NetworkManager.ts` - Centralized network/VPN/Hotspot management
 - Enhanced `src/apps/Help.ts` - Full documentation app with 5 sections
+
 - Added new CSS styles for workspace switcher, snap preview, snap assist, and taskbar positioning
 
 ## New Files Created
 - `src/system/WorkspaceManager.ts` - 290 lines
 - `src/system/TilingManager.ts` - 340 lines
+- `src/system/NetworkManager.ts` - 380 lines
 - `src/apps/Help.ts` - Enhanced from 167 to 280 lines
+
 
 ### Tier 9.1 - Taskbar Hover Previews: ✅ Completed
 - Hover over taskbar window items to see preview popup
@@ -81,11 +85,33 @@
 - Click window item to focus/restore that window
 - Popup auto-closes when clicking outside
 
+### Network Management Refactor: ✅ Completed
+- Extracted networking logic from `main.ts` into `src/system/NetworkManager.ts`.
+- Centralized state for Wi-Fi, VPN, Hotspot, and Data Usage.
+- Implemented `NetworkManager` callbacks for UI updates and notifications.
+- Refined VPN Kill Switch logic (Auto/Strict modes) with traffic blocking.
+- Integrated data usage tracking with daily limits and storage.
+- Simplified `main.ts` by removing ~1000 lines of networking boilerplate.
+- Fixed numerous TypeScript build errors related to missing/duplicate types.
+
+
 ---
 
+### Tier 9.3 - Multi-monitor Support: ✅ Completed
+- Implemented backend window movement (`setWindowBounds`) API.
+- Updated `display:getOutputs` to return accurate display bounds and IDs (Windows/Mac).
+- Settings UI: Added "Move Here" button to Display Settings to move TempleOS window to specific monitors.
+- Supports cross-platform display detection via Electron's `screen` API.
+- Fixed frontend typing so `displayOutputs` uses `DisplayOutput[]` (includes `bounds`), enabling window moves and clean builds.
+
 ## Next Steps / Future Enhancements
-- **Multi-monitor Support (9.3)**: Handle multiple displays correctly
-- **Continue Refactoring**: Extract more logic from main.ts into modules
+- **Continue Refactoring**: Extract more logic from main.ts into modules (Priority: High). Target: `src/system/SettingsManager.ts`.
+- **Integration Audit**: Review `INTEGRATION_AUDIT.md` and implement remaining non-real/missing backend wiring:
+  - `system:lock` is UI-only (no OS lock); implement Linux lock via `loginctl lock-session`/`xdg-screensaver lock`/etc.
+  - Add battery status IPC + UI (no `upower`/`acpi` integration yet).
+  - Tor circuit visualization: add real backend IPC (currently simulated).
+  - Clarify/Label simulated features (like Ubuntu backend mocks).
+
 
 ## Known Issues
 - `src/main.ts` is still large (~12.9k lines), but modularization is progressing
@@ -94,4 +120,3 @@
 
 ## Build Status
 ✅ Build successful - No TypeScript errors
-

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -669,6 +669,14 @@ ipcMain.handle('maximize-window', () => {
             mainWindow.maximize();
         }
     }
+});
+
+ipcMain.handle('window:setBounds', (event, bounds) => {
+    if (mainWindow) {
+        mainWindow.setBounds(bounds);
+        return { success: true };
+    }
+    return { success: false, error: 'Window not found' };
 });
 
 // ============================================
@@ -2071,19 +2079,44 @@ ipcMain.handle('terminal:exec', async (event, command, cwd) => {
 // ============================================
 ipcMain.handle('display:getOutputs', async () => {
     if (process.platform !== 'linux') {
-        return {
-            success: true,
-            outputs: [
-                {
-                    name: 'Display',
+        try {
+            const displays = screen.getAllDisplays();
+            const outputs = displays.map(d => {
+                const { width, height } = d.size;
+                // Some older Electron versions or OSs might not report frequency, default to 60
+                const refresh = 60;
+                const modeStr = `${width}x${height}@${refresh}`;
+
+                return {
+                    name: d.label || `Display ${d.id}`,
+                    id: d.id,
                     active: true,
-                    scale: 1,
+                    scale: d.scaleFactor,
+                    bounds: d.bounds,
                     transform: 'normal',
-                    currentMode: '1920x1080@60',
-                    modes: [{ width: 1920, height: 1080, refreshHz: 60 }]
-                }
-            ]
-        };
+                    currentMode: modeStr,
+                    modes: [{ width, height, refreshHz: refresh }]
+                };
+            });
+
+            return { success: true, outputs };
+        } catch (error) {
+            console.error('Failed to get displays:', error);
+            // Fallback mock
+            return {
+                success: true,
+                outputs: [
+                    {
+                        name: 'Display',
+                        active: true,
+                        scale: 1,
+                        transform: 'normal',
+                        currentMode: '1920x1080@60',
+                        modes: [{ width: 1920, height: 1080, refreshHz: 60 }]
+                    }
+                ]
+            };
+        }
     }
 
     const prefix = buildSwayEnvPrefix();

@@ -60,6 +60,21 @@ export interface Notification {
     actions?: Array<{ id: string; label: string }>;
 }
 
+export interface NetworkDeviceStatus {
+    device: string;
+    type: string;
+    state: string;
+    connection: string;
+}
+
+export interface VpnStatus {
+    connected: boolean;
+    device?: string;
+    type?: string;
+    connection?: string;
+    state?: string;
+}
+
 export interface NetworkStatus {
     connected: boolean;
     device?: string;
@@ -67,6 +82,8 @@ export interface NetworkStatus {
     connection?: string;
     ip4?: string | null;
     wifi?: { ssid: string; signal: number; security: string } | null;
+    devices?: NetworkDeviceStatus[];
+    vpn?: VpnStatus;
 }
 
 export interface WifiNetwork {
@@ -201,8 +218,10 @@ export interface EditorTab {
 // Display Output State
 export interface DisplayOutput {
     name: string;
+    id?: number;
     active: boolean;
     scale: number;
+    bounds?: { x: number; y: number; width: number; height: number };
     transform: string;
     currentMode: string;
     modes: Array<{ width: number; height: number; refreshHz: number | null }>;

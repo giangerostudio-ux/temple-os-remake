@@ -824,10 +824,20 @@ class TempleOS {
     this.notificationManager.setDoNotDisturb(this.doNotDisturb);
 
     // Setup Network Manager callbacks
+    // NOTE: Do NOT call render() here - it causes constant window refresh every 15s!
+    // Only update the settings window if viewing Network settings
     this.networkManager.setCallbacks(
       () => {
-        this.render();
-        if (this.activeSettingsCategory === 'Network') this.refreshSettingsWindow();
+        // Only refresh settings if actively viewing Network settings
+        if (this.activeSettingsCategory === 'Network') {
+          this.refreshSettingsWindow();
+        }
+        // Update the network tray icon if visible
+        const networkIcon = document.getElementById('tray-network');
+        if (networkIcon) {
+          const connected = this.networkManager.status.connected;
+          networkIcon.innerHTML = connected ? '📶' : '📵';
+        }
       },
       (t, m, type) => this.showNotification(t, m, type),
       (opts) => this.openPromptModal(opts),

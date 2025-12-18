@@ -51,6 +51,13 @@ This document tracks all bug fixes applied in this session.
 **Fix:** This requires additional investigation - the drag event listeners may need to be implemented.
 **Status:** 📋 NEEDS INVESTIGATION
 
+### 8. Windows Constantly Refreshing (CRITICAL)
+**File:** `src/main.ts`
+**Lines:** 827-835
+**Problem:** The Network Manager's `refreshStatus()` is called every 15 seconds, and its callback was calling `this.render()` which caused ALL windows to completely refresh/re-render constantly.
+**Fix:** Removed the unnecessary `render()` call from the network manager callback. Now only updates the network tray icon and refreshes the settings window when viewing Network settings.
+**Status:** ✅ FIXED
+
 ---
 
 ## Applied Fixes Summary

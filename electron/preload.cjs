@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stripExif: (imagePath) => ipcRenderer.invoke('exif:strip', imagePath),
     setTrackerBlocking: (enabled) => ipcRenderer.invoke('security:trackerBlocking', enabled),
     getTorStatus: () => ipcRenderer.invoke('security:getTorStatus'),
+    setTorEnabled: (enabled) => ipcRenderer.invoke('security:setTorEnabled', enabled),
 
     // Firewall (Tier 7.2)
     getFirewallRules: () => ipcRenderer.invoke('security:getFirewallRules'),

@@ -2208,6 +2208,17 @@ ipcMain.handle('security:trackerBlocking', async (event, enabled) => {
 // ============================================
 // TOR STATUS (Best-effort: service/process presence)
 // ============================================
+async function getTorServiceName() {
+    if (!(await hasCommand('systemctl'))) return null;
+    const candidates = ['tor', 'tor@default', 'tor.service', 'tor@default.service'];
+    for (const name of candidates) {
+        const res = await execAsync(`systemctl show -p LoadState --value ${name} 2>/dev/null`, { timeout: 1500 });
+        const state = String(res.stdout || '').trim();
+        if (state === 'loaded') return name;
+    }
+    return null;
+}
+
 ipcMain.handle('security:getTorStatus', async () => {
     if (process.platform !== 'linux') {
         return { success: true, supported: false, running: false };
@@ -2243,6 +2254,24 @@ ipcMain.handle('security:getTorStatus', async () => {
     }
 
     return { success: true, supported: true, running, backend, version };
+});
+
+ipcMain.handle('security:setTorEnabled', async (event, enabled) => {
+    if (process.platform !== 'linux') {
+        return { success: false, unsupported: true, error: 'Not supported on this platform' };
+    }
+
+    const on = !!enabled;
+    const service = await getTorServiceName();
+    if (!service) return { success: false, error: 'Tor service not found (install tor)' };
+
+    const cmd = `systemctl ${on ? 'start' : 'stop'} ${service}`;
+    const res = await runPrivilegedSh(cmd, { timeout: 120000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || `Failed to ${on ? 'start' : 'stop'} Tor` };
+
+    const status = await execAsync(`systemctl is-active ${service} 2>/dev/null`, { timeout: 2000 });
+    const running = !status.error && (String(status.stdout || '').trim() === 'active');
+    return { success: true, running, backend: `systemctl:${service}` };
 });
 
 // ============================================

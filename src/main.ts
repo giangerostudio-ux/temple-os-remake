@@ -111,6 +111,7 @@ declare global {
       stripExif?: (imagePath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
       setTrackerBlocking?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       getTorStatus?: () => Promise<{ success: boolean; supported: boolean; running: boolean; backend?: string; version?: string | null; error?: string }>;
+      setTorEnabled?: (enabled: boolean) => Promise<{ success: boolean; running?: boolean; backend?: string; unsupported?: boolean; error?: string }>;
       // Firewall (Tier 7.2)
       getFirewallRules?: () => Promise<{ success: boolean; active?: boolean; rules?: FirewallRule[]; error?: string }>;
       addFirewallRule?: (port: number, protocol: string, action: string) => Promise<{ success: boolean; error?: string }>;
@@ -2783,6 +2784,9 @@ class TempleOS {
   }
 
   private async toggleTor(enabled: boolean): Promise<void> {
+    const prevEnabled = this.torEnabled;
+    const setTor = window.electronAPI?.setTorEnabled;
+
     this.torEnabled = enabled;
     this.torCircuitRelays = [];
 
@@ -2790,30 +2794,90 @@ class TempleOS {
       this.torCircuitStatus = 'connecting';
       if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
 
-      this.showNotification('Tor Network', 'Checking Tor daemon status...', 'info');
+      if (setTor) {
+        this.showNotification('Tor Network', 'Starting Tor daemon...', 'info');
+        try {
+          const res = await setTor(true);
+          if (!this.torEnabled) return; // Cancelled
+          if (!res?.success) {
+            this.torEnabled = prevEnabled;
+            this.torCircuitStatus = 'disconnected';
+            this.showNotification('Tor Network', res?.error || 'Failed to start Tor', 'error');
+            await this.refreshTorDaemonStatus();
+            return;
+          }
+        } catch (e) {
+          if (!this.torEnabled) return;
+          this.torEnabled = prevEnabled;
+          this.torCircuitStatus = 'disconnected';
+          this.showNotification('Tor Network', `Failed to start Tor: ${String(e)}`, 'error');
+          await this.refreshTorDaemonStatus();
+          return;
+        }
+      } else {
+        this.showNotification('Tor Network', 'Tor control not available — checking status only.', 'warning');
+      }
 
-      await this.refreshTorDaemonStatus();
-      if (!this.torEnabled) return; // Cancelled
+      // Poll briefly to avoid false negatives while systemd is still "activating"
+      for (let i = 0; i < 6; i++) {
+        await this.refreshTorDaemonStatus();
+        if (!this.torEnabled) return;
+        if (this.torDaemonSupported && this.torDaemonRunning) break;
+        await new Promise<void>(r => setTimeout(r, 750));
+      }
 
       if (!this.torDaemonSupported) {
         this.torCircuitStatus = 'failed';
         this.showNotification('Tor Network', this.torDaemonLastError || 'Tor status unavailable on this platform.', 'warning');
-      } else if (!this.torDaemonRunning) {
-        this.torCircuitStatus = 'failed';
-        this.showNotification('Tor Network', 'Tor daemon is not running. Install/start tor to enable.', 'warning');
-      } else {
-        this.torCircuitStatus = 'connected';
-        this.showNotification('Tor Network', 'Tor daemon is running. Circuit relay details require ControlPort.', 'divine');
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+        return;
       }
 
+      if (!this.torDaemonRunning) {
+        this.torCircuitStatus = 'failed';
+        this.showNotification('Tor Network', this.torDaemonLastError || 'Tor daemon did not start (check install/permissions).', 'warning');
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+        return;
+      }
+
+      this.torCircuitStatus = 'connected';
+      this.showNotification('Tor Network', 'Tor daemon is running.', 'divine');
       if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
-    } else {
-      this.torCircuitStatus = 'disconnected';
-      this.showNotification('Tor Network', 'Tor disabled.', 'info');
-      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+      return;
     }
 
-    // NOTE: Traffic routing is not enforced by the UI toggle yet.
+    // Disabling
+    this.torCircuitStatus = 'disconnected';
+    if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+
+    if (setTor) {
+      this.showNotification('Tor Network', 'Stopping Tor daemon...', 'info');
+      try {
+        const res = await setTor(false);
+        if (this.torEnabled) return; // Cancelled
+        if (!res?.success) {
+          this.torEnabled = prevEnabled;
+          this.showNotification('Tor Network', res?.error || 'Failed to stop Tor', 'error');
+        } else {
+          this.showNotification('Tor Network', 'Tor disabled.', 'info');
+        }
+      } catch (e) {
+        if (this.torEnabled) return;
+        this.torEnabled = prevEnabled;
+        this.showNotification('Tor Network', `Failed to stop Tor: ${String(e)}`, 'error');
+      }
+    } else {
+      this.showNotification('Tor Network', 'Tor disabled.', 'info');
+    }
+
+    // Best-effort: refresh status, and if we reverted, reflect daemon state.
+    await this.refreshTorDaemonStatus();
+    if (this.torEnabled) {
+      this.torCircuitStatus = this.torDaemonRunning ? 'connected' : 'failed';
+    }
+    if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+
+    // NOTE: Traffic routing is not enforced by this toggle yet.
   }
 
   // VPN profile management (Tier 6.1)
@@ -4031,6 +4095,24 @@ class TempleOS {
         }
       }
 
+      // ============================================
+      // THEME EDITOR INPUT HANDLERS (Tier 9.4)
+      // ============================================
+      if (inputTarget.matches('.theme-editor-color')) {
+        const key = inputTarget.dataset.key as 'mainColor' | 'bgColor' | 'textColor';
+        if (key && (key === 'mainColor' || key === 'bgColor' || key === 'textColor')) {
+          this.themeEditorState[key] = inputTarget.value;
+          this.refreshSettingsWindow();
+        }
+      }
+
+      if (inputTarget.matches('.theme-editor-input')) {
+        const key = inputTarget.dataset.key;
+        if (key === 'name') {
+          this.themeEditorState.name = inputTarget.value;
+        }
+      }
+
       if (inputTarget.matches('.wifi-enabled-toggle')) {
         this.networkManager.wifiEnabled = inputTarget.checked;
         this.queueSaveConfig();
@@ -4329,6 +4411,41 @@ class TempleOS {
             }
           }
         }
+        return;
+      }
+
+      // Setup Wizard Handlers
+      if (target.matches('.wizard-next-btn')) {
+        this.firstRunStep++;
+        this.render();
+        return;
+      }
+
+      if (target.matches('.wizard-finish-btn')) {
+        this.setupComplete = true;
+        this.firstRunStep = 0;
+        localStorage.setItem('temple_setup_complete', 'true');
+        this.queueSaveConfig();
+        this.showNotification('System', 'Setup Complete. Welcome to TempleOS.', 'divine');
+        this.render();
+        return;
+      }
+
+      if (target.matches('.theme-color-btn')) {
+        const color = target.dataset.color;
+        if (color) {
+          this.themeColor = color as any;
+          this.applyTheme();
+          this.queueSaveConfig();
+          this.render();
+        }
+        return;
+      }
+
+      if (target.matches('.setup-again-btn')) {
+        this.setupComplete = false;
+        this.firstRunStep = 0;
+        this.render();
         return;
       }
 
@@ -5675,6 +5792,77 @@ class TempleOS {
       const aboutRefreshBtn = target.closest('.about-refresh-btn') as HTMLElement;
       if (aboutRefreshBtn) {
         void this.refreshSystemInfo().then(() => this.refreshSettingsWindow());
+        return;
+      }
+
+      // ============================================
+      // CUSTOM THEME HANDLERS (Tier 9.4)
+      // ============================================
+      const customThemeCreateBtn = target.closest('.custom-theme-create-btn') as HTMLElement;
+      if (customThemeCreateBtn) {
+        // Initialize editor state for a new theme
+        this.themeEditorState = {
+          name: 'New Theme',
+          mainColor: '#00ff41',
+          bgColor: '#0a0a0f',
+          textColor: '#00ff41'
+        };
+        this.settingsSubView = 'theme-editor';
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      const customThemeImportBtn = target.closest('.custom-theme-import-btn') as HTMLElement;
+      if (customThemeImportBtn) {
+        void this.importCustomTheme();
+        return;
+      }
+
+      const customThemeExportBtn = target.closest('.custom-theme-export-btn') as HTMLElement;
+      if (customThemeExportBtn && customThemeExportBtn.dataset.themeName) {
+        this.exportCustomTheme(customThemeExportBtn.dataset.themeName);
+        return;
+      }
+
+      const customThemeDeleteBtn = target.closest('.custom-theme-delete-btn') as HTMLElement;
+      if (customThemeDeleteBtn && customThemeDeleteBtn.dataset.themeName) {
+        this.deleteCustomTheme(customThemeDeleteBtn.dataset.themeName);
+        return;
+      }
+
+      const customThemeItem = target.closest('.custom-theme-item') as HTMLElement;
+      if (customThemeItem && customThemeItem.dataset.themeName && !target.closest('.custom-theme-export-btn') && !target.closest('.custom-theme-delete-btn')) {
+        const themeName = customThemeItem.dataset.themeName;
+        if (this.activeCustomTheme === themeName) {
+          // Deactivate if clicking the active theme
+          this.activeCustomTheme = null;
+        } else {
+          this.activeCustomTheme = themeName;
+        }
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      // Theme Editor Controls
+      const themeEditorBackBtn = target.closest('.theme-editor-back-btn') as HTMLElement;
+      if (themeEditorBackBtn) {
+        this.settingsSubView = 'main';
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      const themeEditorCancelBtn = target.closest('.theme-editor-cancel-btn') as HTMLElement;
+      if (themeEditorCancelBtn) {
+        this.settingsSubView = 'main';
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      const themeEditorSaveBtn = target.closest('.theme-editor-save-btn') as HTMLElement;
+      if (themeEditorSaveBtn) {
+        this.saveCustomThemeFromEditor();
         return;
       }
 

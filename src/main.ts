@@ -3054,7 +3054,10 @@ class TempleOS {
       const res = await window.electronAPI.setBluetoothEnabled(enabled);
 
       // If it fails specifically due to permissions or backend explicitly requests password
-      if (!res.success && (res.needsPassword || (res.error && (res.error.includes('permission') || res.error.includes('Privilege escalation'))))) {
+      const err = (res.error || '').toLowerCase();
+      const isPermissionErr = /permission|privilege|sudo|auth|polkit/i.test(err);
+
+      if (!res.success && (res.needsPassword || isPermissionErr)) {
 
         // Revert UI while we ask
         this.bluetoothEnabled = prevEnabled;

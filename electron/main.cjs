@@ -1874,7 +1874,7 @@ ipcMain.handle('bluetooth:setEnabled', async (event, enabled) => {
     const errors = [];
 
     // Try bluetoothctl without elevation first (works in most cases)
-    const btctl = await execAsync(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null`, { timeout: 8000 });
+    const btctl = await execAsync(`bluetoothctl power ${on ? 'on' : 'off'}`, { timeout: 8000 });
     if (!btctl.error) return { success: true, backend: 'bluetoothctl' };
     errors.push(btctl.stderr || btctl.error.message || 'bluetoothctl failed');
 
@@ -1884,7 +1884,7 @@ ipcMain.handle('bluetooth:setEnabled', async (event, enabled) => {
     errors.push(rfkillPriv.stderr || rfkillPriv.error.message || 'rfkill (privileged) failed');
 
     // Try rfkill without privileges as last resort
-    const rfkill = await execAsync(`rfkill ${on ? 'unblock' : 'block'} bluetooth 2>/dev/null`, { timeout: 8000 });
+    const rfkill = await execAsync(`rfkill ${on ? 'unblock' : 'block'} bluetooth`, { timeout: 8000 });
     if (!rfkill.error) return { success: true, backend: 'rfkill' };
     errors.push(rfkill.stderr || rfkill.error.message || 'rfkill failed');
 

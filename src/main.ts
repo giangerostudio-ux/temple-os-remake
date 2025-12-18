@@ -396,6 +396,7 @@ interface WindowState {
 
 class TempleOS {
   private windows: WindowState[] = [];
+  private _wizardCoolingDown = false;
   private windowIdCounter = 0;
   private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
   private snapState: { type: string; rect: { x: number; y: number; width: number; height: number } } | null = null;
@@ -1285,10 +1286,10 @@ class TempleOS {
     // Update Decoy Session Overlay
     const decoyRoot = document.getElementById('decoy-overlay-root');
     if (decoyRoot) {
-      decoyRoot.innerHTML = this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : '';
+      decoyRoot.innerHTML = this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : '';
     }
 
-    // Update Desktop Icons
+    // Update Desktop Icons (Fixed: Ensure they are direct grid items by removing wrapper or using display: contents)
     const iconsRoot = document.getElementById('desktop-icons');
     if (iconsRoot) {
       iconsRoot.innerHTML = this.renderDesktopIcons();
@@ -1297,11 +1298,11 @@ class TempleOS {
 
   private renderDesktop(): string {
     return `
-      <div id="decoy-overlay-root">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
-      <div id="shutdown-overlay-root">${this.renderShutdownOverlay()}</div>
-      <div id="first-run-wizard-root">${this.renderFirstRunWizard()}</div>
-      <div id="desktop-widgets-root">${this.renderDesktopWidgets()}</div>
-      <div class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" id="desktop-icons">
+      <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
+      <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
+      <div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10001;">${this.renderFirstRunWizard()}</div>
+      <div id="desktop-widgets-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 5;">${this.renderDesktopWidgets()}</div>
+      <div id="desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style="display: contents;">
         ${this.renderDesktopIcons()}
       </div>
     `;
@@ -3495,6 +3496,11 @@ class TempleOS {
       if (!target) return;
 
       if (target.matches('.wizard-next-btn')) {
+        // Small debounce to prevent accidental double-clicks skipping steps
+        if (this._wizardCoolingDown) return;
+        this._wizardCoolingDown = true;
+        setTimeout(() => this._wizardCoolingDown = false, 500);
+
         this.firstRunStep++;
         this.render();
       }

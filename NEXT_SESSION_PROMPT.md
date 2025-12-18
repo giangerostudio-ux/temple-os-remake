@@ -1,50 +1,28 @@
-# TempleOS Remake - Fix All Broken Settings
+# TempleOS Remake - Next Session Instructions
 
-## Context
-You are fixing a custom Linux OS frontend (TypeScript/Electron). The main file is `src/main.ts` (~14K lines). Most settings in the Settings panel don't work because event handlers are missing or backend integration is incomplete.
+## Project Context
+You are working on the **TempleOS Remake**, a project that recreates the aesthetic and feeling of TempleOS but runs as a custom frontend on top of a standard **Ubuntu 24.04** installation.
 
-## Your Task
-Fix ALL broken settings by:
-1. Adding missing event handlers to `setupEventListeners()` in `src/main.ts`
-2. Ensuring Electron IPC handlers exist for Ubuntu 24.04 backend commands
-3. Testing each fix works
+- **Architecture:** Electron + TypeScript (Frontend) communicating with Node.js (Backend) which calls system commands (`wpctl`, `nmcli`, `xrandr`, `bluetoothctl`, etc.).
+- **Current State:** The frontend UI for settings is largely complete and "wired" to event listeners, but the backend IPC handlers in `electron/main.cjs` are **MISSING**. This results in a "fake OS" feel where controls move but nothing happens.
 
-## Read These Files (in order):
+## Your Mission
+Your goal is to make the settings functional by implementing the missing Backend Logic.
 
-### 1. CRITICAL FIXES FIRST
-- **`BROKEN_FEATURES.md`** - Complete audit of what's broken and why
-- **`FIX_THEMES.md`** - **DO THIS FIRST** - 1-line fix that restores ALL theme/accessibility features
+## Critical Resource
+**READ THIS FILE FIRST:** `COMPREHENSIVE_AUDIT.md` (Located in the root of this project).
+This file contains the **Exact Implementation Specification** for every missing feature. It lists the IPC channel names, the required function signatures, and even the shell commands you need to run.
 
-### 2. SYSTEM SETTINGS
-- **`FIX_AUDIO.md`** - Volume, audio device selection (uses `wpctl` on Ubuntu 24.04)
-- **`FIX_DISPLAY.md`** - Resolution, refresh rate, orientation (uses `xrandr`)
+## Tasks
+1.  **Read `COMPREHENSIVE_AUDIT.md`** carefully.
+2.  **Edit `electron/main.cjs`**:
+    - Implement the missing IPC handlers (Audio, Display, Mouse, Network, Bluetooth).
+    - Use the helper function `execAsync` (which already exists in the file) to run the shell commands defined in the audit.
+    - **IMPORTANT:** Adhere strictly to the parameter signatures defined in the audit. The frontend (`preload.cjs`) sends arguments in specific ways (sometimes wrapped in objects). Mismatches will cause runtime errors.
+3.  **Edit `src/main.ts` (Frontend)**:
+    - There is one known missing handler: The **Bluetooth Scan Button** (`.bt-scan-btn`).
+    - Add the click event listener for this button to trigger the `bluetooth:scan` IPC call.
 
-### 3. INPUT DEVICES
-- **`FIX_MOUSE.md`** - Pointer speed, DPI, raw input (uses `xinput`)
-- **`FIX_BLUETOOTH.md`** - Toggle, scan, connect devices (uses `bluetoothctl`)
-
-### 4. NETWORK & SECURITY
-- **`FIX_NETWORK.md`** - WiFi, VPN, hotspot, SSH (uses `nmcli`)
-- **`FIX_SECURITY.md`** - Firewall, VeraCrypt, Tor (uses `ufw`, `veracrypt`, `systemctl`)
-
-## Key Files to Modify
-- `src/main.ts` - Add event handlers + add missing `applyTheme()` method
-- Electron main process - Add IPC handlers for shell commands
-
-## Priority Order
-1. Add `applyTheme()` method (1 line - fixes themes + accessibility)
-2. Add missing apps to launcher (6 entries)
-3. Wire up audio settings
-4. Wire up display settings
-5. Wire up mouse settings
-6. Wire up bluetooth settings
-7. Verify network/security handlers
-
-Each FIX_*.md file contains:
-- Problem description
-- Missing CSS classes
-- Ubuntu 24.04 shell commands
-- Electron IPC code
-- Frontend event handler code
-
-Start with `FIX_THEMES.md` then work through each file.
+## Verification
+- After implementing a backend handler (e.g., Audio), verify that the CLI command works on Ubuntu 24.04 (mock it if you can't run it).
+- Ensure the IPC response matches what the frontend expects (success/error objects).

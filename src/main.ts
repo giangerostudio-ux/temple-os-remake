@@ -1677,13 +1677,6 @@ class TempleOS {
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
       { id: 'help', icon: '❓', label: 'Help' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
-      { key: 'builtin:help', label: 'Help & Docs', kind: 'builtin', category: 'System', iconText: '❓', iconKind: 'emoji' },
-      { key: 'builtin:notes', label: 'Notes', kind: 'builtin', category: 'Office', iconText: '🗒️', iconKind: 'emoji' },
-      { key: 'builtin:godly-notes', label: 'Godly Notes', kind: 'builtin', category: 'Office', iconText: '🗂️', iconKind: 'emoji' },
-      { key: 'builtin:calculator', label: 'Calculator', kind: 'builtin', category: 'Utilities', iconText: '🧮', iconKind: 'emoji' },
-      { key: 'builtin:calendar', label: 'Calendar', kind: 'builtin', category: 'Office', iconText: '📅', iconKind: 'emoji' },
-      { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '🎬', iconKind: 'emoji' },
-      { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '🖼️', iconKind: 'emoji' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -1701,9 +1694,9 @@ class TempleOS {
 
     return [
       ...icons.map(icon => `
-      <div class="desktop-icon" data-app="${icon.id}" tabindex="0" role="button" aria-label="${icon.label}">
+      <div class="desktop-icon" data-app="${escapeHtml(icon.id)}" tabindex="0" role="button" aria-label="${escapeHtml(icon.label)}">
         <span class="icon" aria-hidden="true">${icon.icon}</span>
-        <span class="label">${icon.label}</span>
+        <span class="label">${escapeHtml(icon.label)}</span>
       </div>
     `),
       ...shortcutIcons.map(s => `
@@ -2547,6 +2540,13 @@ class TempleOS {
       { key: 'builtin:word-of-god', label: 'Word of God', kind: 'builtin', category: 'Utilities', iconText: '✝️', iconKind: 'emoji' },
       { key: 'builtin:files', label: 'Files', kind: 'builtin', category: 'System', iconText: '📁', iconKind: 'emoji' },
       { key: 'builtin:editor', label: 'HolyC Editor', kind: 'builtin', category: 'Development', iconText: '📝', iconKind: 'emoji' },
+      { key: 'builtin:help', label: 'Help & Docs', kind: 'builtin', category: 'System', iconText: '❓', iconKind: 'emoji' },
+      { key: 'builtin:notes', label: 'Notes', kind: 'builtin', category: 'Office', iconText: '🗒️', iconKind: 'emoji' },
+      { key: 'builtin:godly-notes', label: 'Godly Notes', kind: 'builtin', category: 'Office', iconText: '🗂️', iconKind: 'emoji' },
+      { key: 'builtin:calculator', label: 'Calculator', kind: 'builtin', category: 'Utilities', iconText: '🧮', iconKind: 'emoji' },
+      { key: 'builtin:calendar', label: 'Calendar', kind: 'builtin', category: 'Office', iconText: '📅', iconKind: 'emoji' },
+      { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '🎬', iconKind: 'emoji' },
+      { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '🖼️', iconKind: 'emoji' },
       { key: 'builtin:hymns', label: 'Hymn Player', kind: 'builtin', category: 'Multimedia', iconText: '🎵', iconKind: 'emoji' },
       { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '⬇️', iconKind: 'emoji' },
       { key: 'builtin:system-monitor', label: 'Task Manager', kind: 'builtin', category: 'System', iconText: '📊', iconKind: 'emoji' },
@@ -3823,6 +3823,38 @@ class TempleOS {
 
     // Resolution Dropdown Change
     app.addEventListener('change', (e) => {
+      const accTarget = e.target as HTMLInputElement;
+      if (accTarget.matches('.high-contrast-toggle')) {
+        this.highContrast = accTarget.checked;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+      }
+      if (accTarget.matches('.large-text-toggle')) {
+        this.largeText = accTarget.checked;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+      }
+      if (accTarget.matches('.reduce-motion-toggle')) {
+        this.reduceMotion = accTarget.checked;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+      }
+      if (accTarget.matches('.jelly-mode-toggle')) {
+        this.jellyMode = accTarget.checked;
+        this.effectsManager.setJellyMode(this.jellyMode);
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+      }
+      if (accTarget.matches('.color-blind-select') || (e.target as HTMLElement).matches('.color-blind-select')) {
+        const t = (accTarget.tagName === 'SELECT' ? accTarget : e.target) as HTMLSelectElement;
+        this.colorBlindMode = t.value as any;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+      }
       const target = e.target as HTMLInputElement;
 
       // Gaming Mode Toggle

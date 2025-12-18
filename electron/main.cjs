@@ -1516,12 +1516,18 @@ ipcMain.handle('audio:setDefaultSource', async (event, sourceName) => {
 });
 
 ipcMain.handle('audio:setVolume', async (event, level) => {
-    const safeLevel = Math.max(0, Math.min(100, parseInt(level)));
     if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
 
+    const raw = typeof level === 'number' ? level : parseInt(String(level), 10);
+    if (!Number.isFinite(raw)) return { success: false, error: 'Invalid volume level' };
+    const safeLevel = Math.max(0, Math.min(100, Math.round(raw)));
+
     // Ubuntu 24.04 / PipeWire: prefer wpctl; fall back to pactl and amixer.
-    const wpctlResult = await execAsync(`wpctl set-volume @DEFAULT_SINK@ ${safeLevel}% 2>/dev/null`);
-    if (!wpctlResult.error) return { success: true, backend: 'wpctl' };
+    // wpctl prefers @DEFAULT_AUDIO_SINK@; keep @DEFAULT_SINK@ for compatibility.
+    for (const target of ['@DEFAULT_AUDIO_SINK@', '@DEFAULT_SINK@']) {
+        const wpctlResult = await execAsync(`wpctl set-volume ${target} ${safeLevel}% 2>/dev/null`);
+        if (!wpctlResult.error) return { success: true, backend: 'wpctl' };
+    }
 
     const pactlResult = await execAsync(`pactl set-sink-volume @DEFAULT_SINK@ ${safeLevel}% 2>/dev/null`);
     if (!pactlResult.error) return { success: true, backend: 'pactl' };
@@ -1865,9 +1871,22 @@ async function enrichBluetoothDevices(devices, max = 20) {
 ipcMain.handle('bluetooth:setEnabled', async (event, enabled) => {
     if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
     const on = !!enabled;
-    const res = await execAsync(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null`, { timeout: 8000 });
-    if (res.error) return { success: false, error: res.stderr || res.error.message || 'bluetoothctl failed' };
-    return { success: true };
+    const errors = [];
+
+    // Prefer bluetoothctl (typically non-root); fall back to rfkill (often requires root).
+    const btctl = await execAsync(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null`, { timeout: 8000 });
+    if (!btctl.error) return { success: true, backend: 'bluetoothctl' };
+    errors.push(btctl.stderr || btctl.error.message || 'bluetoothctl failed');
+
+    const rfkill = await execAsync(`rfkill ${on ? 'unblock' : 'block'} bluetooth 2>/dev/null`, { timeout: 8000 });
+    if (!rfkill.error) return { success: true, backend: 'rfkill' };
+    errors.push(rfkill.stderr || rfkill.error.message || 'rfkill failed');
+
+    const rfkillPriv = await runPrivilegedSh(`rfkill ${on ? 'unblock' : 'block'} bluetooth`, { timeout: 15000 });
+    if (!rfkillPriv.error) return { success: true, backend: 'rfkill', privileged: true };
+    errors.push(rfkillPriv.stderr || rfkillPriv.error.message || 'rfkill (privileged) failed');
+
+    return { success: false, error: errors.filter(Boolean).join('; ') || 'Failed to toggle Bluetooth' };
 });
 
 ipcMain.handle('bluetooth:listPaired', async () => {
@@ -2630,7 +2649,14 @@ ipcMain.handle('display:setScale', async (event, payload) => {
     const prefix = buildSwayEnvPrefix();
     const sway = await execAsync(`${prefix ? prefix + ' ' : ''}swaymsg output "${shEscape(outputName)}" scale ${scale} 2>/dev/null`);
     if (!sway.error) return { success: true, backend: 'swaymsg' };
-    return { success: false, error: 'Scale control requires Wayland/Sway' };
+
+    // X11 fallback (xrandr)
+    const env = { ...process.env, DISPLAY: process.env.DISPLAY || ':0' };
+    const scaleStr = String(scale);
+    const xr = await execAsync(`xrandr --output "${shEscape(outputName)}" --scale ${scaleStr}x${scaleStr} 2>/dev/null`, { env });
+    if (!xr.error) return { success: true, backend: 'xrandr' };
+
+    return { success: false, error: sway.stderr || (sway.error ? sway.error.message : '') || xr.stderr || (xr.error ? xr.error.message : '') || 'Failed to set scale' };
 });
 
 ipcMain.handle('display:setTransform', async (event, payload) => {

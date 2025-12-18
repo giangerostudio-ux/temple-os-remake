@@ -83,7 +83,8 @@ declare global {
       setDefaultSource?: (sourceName: string) => Promise<{ success: boolean; error?: string }>;
       setAudioVolume?: (level: number) => Promise<{ success: boolean; error?: string }>;
       // Bluetooth (BlueZ)
-      setBluetoothEnabled?: (enabled: boolean) => Promise<{ success: boolean; unsupported?: boolean; error?: string }>;
+      setBluetoothEnabled?: (enabled: boolean) => Promise<{ success: boolean; unsupported?: boolean; error?: string; needsPassword?: boolean }>;
+      setBluetoothEnabledWithPassword?: (enabled: boolean, password: string) => Promise<{ success: boolean; backend?: string; error?: string; wrongPassword?: boolean }>;
       scanBluetoothDevices?: () => Promise<{ success: boolean; devices?: Array<{ mac: string; name: string; connected: boolean; paired?: boolean }>; error?: string }>;
       getPairedBluetoothDevices?: () => Promise<{ success: boolean; devices?: Array<{ mac: string; name: string; connected: boolean; paired?: boolean }>; error?: string }>;
       connectBluetoothDevice?: (mac: string) => Promise<{ success: boolean; connected?: boolean; error?: string }>;
@@ -3049,7 +3050,56 @@ class TempleOS {
     }
 
     try {
+      // First try standard toggle (works if polkit is set up or running as root)
       const res = await window.electronAPI.setBluetoothEnabled(enabled);
+
+      // If it fails specifically due to permissions or backend explicitly requests password
+      if (!res.success && (res.needsPassword || (res.error && (res.error.includes('permission') || res.error.includes('Privilege escalation'))))) {
+
+        // Revert UI while we ask
+        this.bluetoothEnabled = prevEnabled;
+        if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+
+        // Prompt for password
+        const password = await this.openPromptModal({
+          title: 'Authentication Required',
+          message: 'Bluetooth control requires administrator privileges. Enter your system password:',
+          inputLabel: 'Password',
+          placeholder: 'sudo password',
+          password: true,
+          confirmText: 'Authenticate',
+          cancelText: 'Cancel'
+        });
+
+        if (!password) {
+          // User cancelled
+          return;
+        }
+
+        // Retry with password
+        this.showNotification('Bluetooth', 'Authenticating...', 'info');
+        if (window.electronAPI.setBluetoothEnabledWithPassword) {
+          const retryRes = await window.electronAPI.setBluetoothEnabledWithPassword(enabled, password);
+
+          if (retryRes.success) {
+            this.bluetoothEnabled = enabled;
+            if (!enabled) {
+              this.bluetoothScanning = false;
+              this.bluetoothDevices = [];
+            }
+            this.showNotification('Bluetooth', enabled ? 'Bluetooth enabled (via sudo)' : 'Bluetooth disabled (via sudo)', 'divine');
+            if (enabled) {
+              await this.refreshPairedBluetoothDevices();
+            }
+            if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+            return;
+          } else {
+            this.showNotification('Bluetooth', retryRes.error || 'Authentication failed', 'error');
+            return;
+          }
+        }
+      }
+
       if (!res?.success) {
         this.bluetoothEnabled = prevEnabled;
         this.bluetoothDevices = prevDevices;
@@ -3058,8 +3108,6 @@ class TempleOS {
         let errorMsg = res?.error || 'Failed to toggle Bluetooth';
         if (res?.unsupported) {
           errorMsg = 'No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware.';
-        } else if (errorMsg.includes('password') || errorMsg.includes('sudo')) {
-          errorMsg = 'Bluetooth requires administrator privileges. Please run with elevated permissions or configure polkit.';
         } else if (errorMsg.includes('rfkill') || errorMsg.includes('blocked')) {
           errorMsg = 'Bluetooth is blocked by hardware switch or rfkill. Check your physical Bluetooth switch.';
         } else if (errorMsg.includes('bluetoothctl') || errorMsg.includes('not found')) {
@@ -3079,11 +3127,7 @@ class TempleOS {
       this.bluetoothEnabled = prevEnabled;
       this.bluetoothDevices = prevDevices;
       const errStr = String(e);
-      let errorMsg = errStr;
-      if (errStr.includes('password') || errStr.includes('sudo')) {
-        errorMsg = 'Bluetooth requires administrator privileges.\n\nStart the app with:\nsudo npm run dev';
-      }
-      this.showNotification('Bluetooth', errorMsg, 'error');
+      this.showNotification('Bluetooth', errStr, 'error');
       if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
     }
   }

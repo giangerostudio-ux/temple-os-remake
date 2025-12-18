@@ -13,12 +13,11 @@
 **Environment:** VMware without Bluetooth adapter
 
 **Fix Applied:**
-- Improved error handling in `setBluetoothEnabledFromUi()` in `main.ts`
-- Now shows user-friendly messages for common errors:
-  - Missing adapter: "No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware."
-  - Permission issues: "Bluetooth requires administrator privileges..."
-  - rfkill blocked: "Bluetooth is blocked by hardware switch..."
-  - Missing service: "Bluetooth service not available. Please install bluez package."
+- Implemented `bluetooth:setEnabledWithPassword` to allow `sudo -S` privilege escalation
+- Updated `setBluetoothEnabledFromUi()` to catch permission errors
+- Added **Password Prompt Modal**: App now asks for password if admin rights are needed
+- Seamlessly retries operation with provided password
+- Still handles missing adapter / rfkill blocks gracefully
 
 ---
 

@@ -1888,7 +1888,39 @@ ipcMain.handle('bluetooth:setEnabled', async (event, enabled) => {
     if (!rfkill.error) return { success: true, backend: 'rfkill' };
     errors.push(rfkill.stderr || rfkill.error.message || 'rfkill failed');
 
-    return { success: false, error: errors.filter(Boolean).join('; ') || 'Failed to toggle Bluetooth' };
+    return { success: false, error: errors.filter(Boolean).join('; ') || 'Failed to toggle Bluetooth', needsPassword: true };
+});
+
+// Bluetooth with password - allows user to provide admin password for privilege escalation
+ipcMain.handle('bluetooth:setEnabledWithPassword', async (event, enabled, password) => {
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
+    const on = !!enabled;
+    const pwd = String(password || '');
+
+    if (!pwd) return { success: false, error: 'Password is required' };
+
+    // Use echo with sudo -S to provide password via stdin
+    // rfkill is the most reliable way to control Bluetooth hardware state
+    const cmd = on ? 'rfkill unblock bluetooth' : 'rfkill block bluetooth';
+
+    // Escape the password for shell (handle special chars)
+    const escapedPwd = pwd.replace(/'/g, "'\"'\"'");
+    const fullCmd = `echo '${escapedPwd}' | sudo -S ${cmd} 2>&1`;
+
+    const res = await execAsync(fullCmd, { timeout: 15000 });
+
+    if (res.error) {
+        const errText = (res.stderr || res.stdout || res.error.message || '').toLowerCase();
+        if (errText.includes('incorrect password') || errText.includes('sorry') || errText.includes('try again')) {
+            return { success: false, error: 'Incorrect password', wrongPassword: true };
+        }
+        return { success: false, error: res.stderr || res.error.message || 'Failed to toggle Bluetooth' };
+    }
+
+    // Also try bluetoothctl to fully power on/off the adapter
+    await execAsync(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null`, { timeout: 5000 });
+
+    return { success: true, backend: 'sudo+rfkill' };
 });
 
 ipcMain.handle('bluetooth:listPaired', async () => {

@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // BLUETOOTH (BlueZ via bluetoothctl)
     // ============================================
     setBluetoothEnabled: (enabled) => ipcRenderer.invoke('bluetooth:setEnabled', enabled),
+    setBluetoothEnabledWithPassword: (enabled, password) => ipcRenderer.invoke('bluetooth:setEnabledWithPassword', enabled, password),
     scanBluetoothDevices: () => ipcRenderer.invoke('bluetooth:scan'),
     getPairedBluetoothDevices: () => ipcRenderer.invoke('bluetooth:listPaired'),
     connectBluetoothDevice: (mac) => ipcRenderer.invoke('bluetooth:connect', mac),

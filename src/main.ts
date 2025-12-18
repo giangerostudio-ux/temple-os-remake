@@ -1144,6 +1144,14 @@ class TempleOS {
 
   // Only update windows and taskbar, not the boot screen
   private render() {
+    // FORCE CLEANUP: Ensure boot screen is removed if it lingers past 5s
+    // This fixes the "unresponsive for 1 minute" bug caused by the overlay blocking clicks
+    if (performance.now() > 5000) {
+      const bootScreen = document.querySelector('.boot-screen');
+      if (bootScreen) {
+        bootScreen.remove();
+      }
+    }
 
 
     const windowsContainer = document.getElementById('windows-container')!;
@@ -8374,6 +8382,64 @@ class TempleOS {
           win.content = this.godlyNotes.render();
           this.render();
         }
+      }
+    });
+
+    // ============================================
+    // CONTEXT MENU HANDLER (Missing in original code)
+    // ============================================
+    app.addEventListener('contextmenu', (e) => {
+      e.preventDefault(); // Always prevent default browser menu
+
+      // Don't show custom menu if setup isn't done
+      if (!this.setupComplete) return;
+
+      const target = e.target as HTMLElement;
+
+      // Taskbar Context Menu
+      if (target.closest('.taskbar')) {
+        this.showTaskbarContextMenu(e);
+        return;
+      }
+
+      // Desktop Context Menu
+      // Check if clicking on desktop directly or desktop icons
+      if (target.closest('.desktop') || target.closest('#desktop')) {
+        // Exclude windows
+        if (target.closest('.window')) return;
+
+        this.showContextMenu(e.clientX, e.clientY, [
+          { label: 'New Folder', action: () => this.promptNewFolder() },
+          { label: 'New Text File', action: () => this.promptNewFile() },
+          { label: 'Paste', action: () => this.pasteIntoCurrentFolder() },
+          { divider: true },
+          { label: 'Refresh', action: () => this.render() },
+          { divider: true },
+          {
+            label: 'Change Wallpaper', action: () => {
+              this.openApp('settings');
+              this.activeSettingsCategory = 'Personalization';
+              this.refreshSettingsWindow();
+            }
+          },
+          {
+            label: 'Display Settings', action: () => {
+              this.openApp('settings');
+              this.activeSettingsCategory = 'System';
+              this.refreshSettingsWindow();
+            }
+          },
+          { label: 'Open Terminal', action: () => this.openApp('terminal') },
+        ]);
+        return;
+      }
+    });
+
+    // Global click to close context menus if clicking outside
+    document.addEventListener('mousedown', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.context-menu')) {
+        this.closeContextMenu();
       }
     });
   }

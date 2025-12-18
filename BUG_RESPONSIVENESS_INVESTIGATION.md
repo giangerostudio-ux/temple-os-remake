@@ -84,3 +84,10 @@ Check if there's a `setupComplete` flag that blocks context menu:
 - Date: 2025-12-18
 - Context tokens used: approximately 100k
 - We have ~80-100k tokens remaining in this session
+
+## Resolution (2025-12-18)
+
+**Fixed by Antigravity:**
+1.  **Boot Screen Blocking**: Added strict cleanup in `render()` to force-remove the boot screen overlay after 5 seconds. This ensures the UI is never blocked by a "stuck" boot screen.
+2.  **Missing Context Menu**: Added the missing `contextmenu` event listener to `setupEventListeners()`, restoring right-click functionality on the desktop.
+

@@ -1,38 +1,50 @@
+# TempleOS Remake - Fix All Broken Settings
 
-# Next Session Prompt
+## Context
+You are fixing a custom Linux OS frontend (TypeScript/Electron). The main file is `src/main.ts` (~14K lines). Most settings in the Settings panel don't work because event handlers are missing or backend integration is incomplete.
 
-## 🎯 Current Context & Objectives
-The user has requested 3 specific new features to "complete" the OS functionality before moving on to distribution:
-1.  **Godly Notes (Kanban Board)**: A Trello-like app integrated into the system (Tier 8).
-2.  **Time & Date Management**: Ability to change GMT/Timezone automatically or manually (currently just uses system local time).
-3.  **Memory Cleaner**: A "Mem Reduct" clone that cleans RAM when it hits 90% usage (for Linux/Ubuntu Server context).
+## Your Task
+Fix ALL broken settings by:
+1. Adding missing event handlers to `setupEventListeners()` in `src/main.ts`
+2. Ensuring Electron IPC handlers exist for Ubuntu 24.04 backend commands
+3. Testing each fix works
 
-## 📋 Immediate Action Items (Prioritized)
-1.  **Develop "Godly Notes" (Kanban App)**:
-    - Create `src/apps/GodlyNotes.ts`.
-    - Implement a column-based board (ToDo, Doing, Done).
-    - Allow adding cards, dragging cards (using HTML5 Drag & Drop).
-    - Persist data to `localStorage`.
-    - Add to Start Menu and Desktop.
+## Read These Files (in order):
 
-2.  **Implement Timezone Settings**:
-    - Update `SettingsManager` to store `timezone` (e.g., 'UTC', 'America/New_York') and `autoTime` (boolean).
-    - Update `TempleOS.updateClock()` to respect the selected timezone using `Intl.DateTimeFormat`.
-    - Add UI in Settings > Date & Time.
+### 1. CRITICAL FIXES FIRST
+- **`BROKEN_FEATURES.md`** - Complete audit of what's broken and why
+- **`FIX_THEMES.md`** - **DO THIS FIRST** - 1-line fix that restores ALL theme/accessibility features
 
-3.  **Implement Memory Cleaner**:
-    - Create `src/system/MemoryOptimizer.ts`.
-    - If running in Electron/Node context, use `os` module or `exec` to check memory.
-    - Implement a `clean()` method. On Windows, this is limited; on Linux (`os.platform() === 'linux'`), run `sync; echo 3 > /proc/sys/vm/drop_caches` via `sudo` (or assume root/configured sudoers).
-    - **Crucial Note**: Since this is likely running in a non-privileged Electron container on Windows for development, mock standard "cleaning" (garbage collection `global.gc()` if available) for the demo, but implement the backend command for Linux.
-    - Add a small UI widget or System Tray icon for "Mem Reduct" style manual trigger.
+### 2. SYSTEM SETTINGS
+- **`FIX_AUDIO.md`** - Volume, audio device selection (uses `wpctl` on Ubuntu 24.04)
+- **`FIX_DISPLAY.md`** - Resolution, refresh rate, orientation (uses `xrandr`)
 
-## ⚠️ Constraints & Knowledge
-- **Environment**: You are in a Windows VDI content but the target might be a "custom OS" for Ubuntu Server.
-- **Tools**: Use `EffectsManager` for visual flair (jelly mode is active!).
-- **Style**: Maintain the "Divine" aesthetic (Green/Gold/Black).
+### 3. INPUT DEVICES
+- **`FIX_MOUSE.md`** - Pointer speed, DPI, raw input (uses `xinput`)
+- **`FIX_BLUETOOTH.md`** - Toggle, scan, connect devices (uses `bluetoothctl`)
 
-## 🚀 Status
-- **Basic OS**: Complete.
-- **Visuals**: Tier 14 (Jelly Mode) Complete.
-- **Next**: These 3 user requests.
+### 4. NETWORK & SECURITY
+- **`FIX_NETWORK.md`** - WiFi, VPN, hotspot, SSH (uses `nmcli`)
+- **`FIX_SECURITY.md`** - Firewall, VeraCrypt, Tor (uses `ufw`, `veracrypt`, `systemctl`)
+
+## Key Files to Modify
+- `src/main.ts` - Add event handlers + add missing `applyTheme()` method
+- Electron main process - Add IPC handlers for shell commands
+
+## Priority Order
+1. Add `applyTheme()` method (1 line - fixes themes + accessibility)
+2. Add missing apps to launcher (6 entries)
+3. Wire up audio settings
+4. Wire up display settings
+5. Wire up mouse settings
+6. Wire up bluetooth settings
+7. Verify network/security handlers
+
+Each FIX_*.md file contains:
+- Problem description
+- Missing CSS classes
+- Ubuntu 24.04 shell commands
+- Electron IPC code
+- Frontend event handler code
+
+Start with `FIX_THEMES.md` then work through each file.

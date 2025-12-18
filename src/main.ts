@@ -82,6 +82,12 @@ declare global {
       setDefaultSink?: (sinkName: string) => Promise<{ success: boolean; error?: string }>;
       setDefaultSource?: (sourceName: string) => Promise<{ success: boolean; error?: string }>;
       setAudioVolume?: (level: number) => Promise<{ success: boolean; error?: string }>;
+      // Bluetooth (BlueZ)
+      setBluetoothEnabled?: (enabled: boolean) => Promise<{ success: boolean; unsupported?: boolean; error?: string }>;
+      scanBluetoothDevices?: () => Promise<{ success: boolean; devices?: Array<{ mac: string; name: string; connected: boolean; paired?: boolean }>; error?: string }>;
+      getPairedBluetoothDevices?: () => Promise<{ success: boolean; devices?: Array<{ mac: string; name: string; connected: boolean; paired?: boolean }>; error?: string }>;
+      connectBluetoothDevice?: (mac: string) => Promise<{ success: boolean; connected?: boolean; error?: string }>;
+      disconnectBluetoothDevice?: (mac: string) => Promise<{ success: boolean; connected?: boolean; error?: string }>;
       // Network
       getNetworkStatus?: () => Promise<{ success: boolean; status?: any; error?: string }>;
       listWifiNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
@@ -482,10 +488,7 @@ class TempleOS {
 
   // Bluetooth State
   private bluetoothEnabled = false;
-  private bluetoothDevices: { name: string; connected: boolean; type: 'headphone' | 'phone' | 'mouse' | 'keyboard' }[] = [
-    { name: 'Divine Headset', connected: false, type: 'headphone' },
-    { name: 'God\'s Mouse', connected: false, type: 'mouse' }
-  ];
+  private bluetoothDevices: { name: string; mac: string; connected: boolean; paired: boolean; type: 'headphone' | 'phone' | 'mouse' | 'keyboard' | 'unknown' }[] = [];
   private bluetoothScanning = false;
 
   // Audio Devices State
@@ -1674,6 +1677,13 @@ class TempleOS {
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
       { id: 'help', icon: '❓', label: 'Help' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
+      { key: 'builtin:help', label: 'Help & Docs', kind: 'builtin', category: 'System', iconText: '❓', iconKind: 'emoji' },
+      { key: 'builtin:notes', label: 'Notes', kind: 'builtin', category: 'Office', iconText: '🗒️', iconKind: 'emoji' },
+      { key: 'builtin:godly-notes', label: 'Godly Notes', kind: 'builtin', category: 'Office', iconText: '🗂️', iconKind: 'emoji' },
+      { key: 'builtin:calculator', label: 'Calculator', kind: 'builtin', category: 'Utilities', iconText: '🧮', iconKind: 'emoji' },
+      { key: 'builtin:calendar', label: 'Calendar', kind: 'builtin', category: 'Office', iconText: '📅', iconKind: 'emoji' },
+      { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '🎬', iconKind: 'emoji' },
+      { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '🖼️', iconKind: 'emoji' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -2910,6 +2920,154 @@ class TempleOS {
   }
 
   // ============================================
+  // BLUETOOTH (Ubuntu/BlueZ via bluetoothctl)
+  // ============================================
+  private inferBluetoothDeviceType(name: string): 'headphone' | 'phone' | 'mouse' | 'keyboard' | 'unknown' {
+    const n = String(name || '').toLowerCase();
+    if (/(headphone|headset|earbud|earbuds|buds|airpods)/.test(n)) return 'headphone';
+    if (/(mouse|trackball)/.test(n)) return 'mouse';
+    if (/(keyboard)/.test(n)) return 'keyboard';
+    if (/(phone|iphone|android|pixel|galaxy)/.test(n)) return 'phone';
+    return 'unknown';
+  }
+
+  private setBluetoothDevicesFromApi(devices: any[], merge: boolean): void {
+    const byMac = new Map<string, { name: string; mac: string; connected: boolean; paired: boolean; type: 'headphone' | 'phone' | 'mouse' | 'keyboard' | 'unknown' }>();
+
+    if (merge) {
+      for (const d of this.bluetoothDevices) byMac.set(d.mac, d);
+    }
+
+    for (const raw of (Array.isArray(devices) ? devices : [])) {
+      const mac = String(raw?.mac || '').trim().toUpperCase();
+      if (!mac) continue;
+      const name = String(raw?.name || '').trim() || mac;
+      const connected = !!raw?.connected;
+      const paired = !!raw?.paired;
+      const existing = byMac.get(mac);
+      const type = existing?.type ?? this.inferBluetoothDeviceType(name);
+      byMac.set(mac, { mac, name, connected, paired, type });
+    }
+
+    this.bluetoothDevices = [...byMac.values()]
+      .sort((a, b) => (Number(b.connected) - Number(a.connected)) || (Number(b.paired) - Number(a.paired)) || a.name.localeCompare(b.name));
+  }
+
+  private async refreshPairedBluetoothDevices(): Promise<void> {
+    if (!window.electronAPI?.getPairedBluetoothDevices) return;
+
+    try {
+      const res = await window.electronAPI.getPairedBluetoothDevices();
+      if (res.success && Array.isArray(res.devices)) {
+        this.setBluetoothDevicesFromApi(res.devices, false);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+  }
+
+  private async setBluetoothEnabledFromUi(enabled: boolean): Promise<void> {
+    const prevEnabled = this.bluetoothEnabled;
+    const prevDevices = this.bluetoothDevices.slice();
+
+    this.bluetoothEnabled = enabled;
+    if (!enabled) {
+      this.bluetoothScanning = false;
+      this.bluetoothDevices = [];
+    }
+    if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+
+    if (!window.electronAPI?.setBluetoothEnabled) {
+      this.showNotification('Bluetooth', 'Bluetooth control not available (requires Electron/Linux)', 'warning');
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.setBluetoothEnabled(enabled);
+      if (!res?.success) {
+        this.bluetoothEnabled = prevEnabled;
+        this.bluetoothDevices = prevDevices;
+        this.showNotification('Bluetooth', res?.error || 'Failed to toggle Bluetooth', 'error');
+        if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+        return;
+      }
+
+      this.showNotification('Bluetooth', enabled ? 'Bluetooth enabled' : 'Bluetooth disabled', 'info');
+      if (enabled) {
+        await this.refreshPairedBluetoothDevices();
+      }
+    } catch (e) {
+      this.bluetoothEnabled = prevEnabled;
+      this.bluetoothDevices = prevDevices;
+      this.showNotification('Bluetooth', String(e), 'error');
+      if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+    }
+  }
+
+  private async scanBluetoothDevicesFromUi(): Promise<void> {
+    if (!this.bluetoothEnabled) {
+      this.showNotification('Bluetooth', 'Turn on Bluetooth first', 'warning');
+      return;
+    }
+    if (this.bluetoothScanning) return;
+
+    if (!window.electronAPI?.scanBluetoothDevices) {
+      this.showNotification('Bluetooth', 'Bluetooth scanning not available', 'warning');
+      return;
+    }
+
+    this.bluetoothScanning = true;
+    if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+
+    try {
+      const res = await window.electronAPI.scanBluetoothDevices();
+      if (res.success && Array.isArray(res.devices)) {
+        this.setBluetoothDevicesFromApi(res.devices, true);
+      } else {
+        this.showNotification('Bluetooth', res.error || 'Scan failed', 'error');
+      }
+    } catch (e) {
+      this.showNotification('Bluetooth', String(e), 'error');
+    } finally {
+      this.bluetoothScanning = false;
+      if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+    }
+  }
+
+  private async toggleBluetoothDeviceConnectionFromUi(mac: string): Promise<void> {
+    const addr = String(mac || '').trim().toUpperCase();
+    if (!addr) return;
+    const device = this.bluetoothDevices.find(d => d.mac === addr);
+    if (!device) return;
+
+    const connectFn = window.electronAPI?.connectBluetoothDevice;
+    const disconnectFn = window.electronAPI?.disconnectBluetoothDevice;
+    if (!connectFn || !disconnectFn) {
+      this.showNotification('Bluetooth', 'Bluetooth device control not available', 'warning');
+      return;
+    }
+
+    const wasConnected = device.connected;
+    this.showNotification('Bluetooth', `${wasConnected ? 'Disconnecting from' : 'Connecting to'} ${device.name}...`, 'info');
+
+    try {
+      const res = wasConnected ? await disconnectFn(addr) : await connectFn(addr);
+      if (res.success) {
+        device.connected = typeof res.connected === 'boolean' ? res.connected : !wasConnected;
+        this.showNotification('Bluetooth', `${device.connected ? 'Connected to' : 'Disconnected from'} ${device.name}`, 'divine');
+      } else {
+        this.showNotification('Bluetooth', res.error || `${wasConnected ? 'Disconnect' : 'Connect'} failed`, 'error');
+      }
+    } catch (e) {
+      this.showNotification('Bluetooth', String(e), 'error');
+    }
+
+    if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+  }
+
+  // ============================================
   // SSH SERVER MANAGEMENT (TIER 6.3)
   // ============================================
 
@@ -3353,6 +3511,11 @@ class TempleOS {
       case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
       case 'help': return { label: 'Help & Docs', icon: '❓' };
       case 'godly-notes': return { label: 'Godly Notes', icon: '📋' };
+      case 'notes': return { label: 'Notes', icon: '🗒️' };
+      case 'calculator': return { label: 'Calculator', icon: '🧮' };
+      case 'calendar': return { label: 'Calendar', icon: '📅' };
+      case 'media-player': return { label: 'Media Player', icon: '🎬' };
+      case 'image-viewer': return { label: 'Image Viewer', icon: '🖼️' };
       default: return null;
     }
   }
@@ -3876,17 +4039,23 @@ class TempleOS {
       }
 
       if (inputTarget.matches('.bt-enable-toggle')) {
-        this.bluetoothEnabled = inputTarget.checked;
-        if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
+        void this.setBluetoothEnabledFromUi(inputTarget.checked);
+        return;
       }
 
       if (inputTarget.matches('.flight-mode-toggle')) {
         this.flightMode = inputTarget.checked;
         if (this.flightMode) {
+          // Flight mode disables all radios (best-effort)
           this.networkManager.wifiEnabled = false;
-          this.bluetoothEnabled = false;
+          this.queueSaveConfig();
+          if (window.electronAPI?.setWifiEnabled) {
+            void window.electronAPI.setWifiEnabled(false).then(() => this.refreshNetworkStatus());
+          }
+          void this.setBluetoothEnabledFromUi(false);
         }
         this.refreshSettingsWindow();
+        return;
       }
 
       // Data Usage Tracking
@@ -4789,25 +4958,13 @@ class TempleOS {
 
       // Bluetooth Actions
       if (target.matches('.bt-scan-btn')) {
-        this.bluetoothScanning = true;
-        this.refreshSettingsWindow();
-        setTimeout(() => {
-          this.bluetoothScanning = false;
-          this.bluetoothDevices.forEach(d => d.connected = Math.random() > 0.7);
-          this.refreshSettingsWindow();
-        }, 2000);
+        void this.scanBluetoothDevicesFromUi();
         return;
       }
 
       const btConnectBtn = target.closest('.bt-connect-btn') as HTMLElement;
-      if (btConnectBtn) {
-        const name = btConnectBtn.dataset.name;
-        const device = this.bluetoothDevices.find(d => d.name === name);
-        if (device) {
-          device.connected = !device.connected;
-          this.showNotification('Bluetooth', `${device.connected ? 'Connected to' : 'Disconnected from'} ${device.name}`, 'info');
-          this.refreshSettingsWindow();
-        }
+      if (btConnectBtn && btConnectBtn.dataset.mac) {
+        void this.toggleBluetoothDeviceConnectionFromUi(btConnectBtn.dataset.mac);
         return;
       }
 
@@ -5290,6 +5447,41 @@ class TempleOS {
         if (input) {
           this.setDuressPassword(input.value);
         }
+        return;
+      }
+
+      // Security: Lock Screen Password
+      const savePasswordBtn = target.closest('.save-password-btn') as HTMLElement;
+      if (savePasswordBtn) {
+        const input = savePasswordBtn.parentElement?.querySelector('.lock-password-field') as HTMLInputElement;
+        const val = input ? String(input.value || '') : '';
+        this.lockPassword = val;
+        this.queueSaveConfig();
+        this.showNotification('Lock Screen', val ? 'Password saved' : 'Password cleared (unlock may be weakened)', val ? 'divine' : 'warning');
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+        return;
+      }
+
+      // Security: Lock Screen PIN
+      const savePinBtn = target.closest('.save-pin-btn') as HTMLElement;
+      if (savePinBtn) {
+        const input = savePinBtn.parentElement?.querySelector('.lock-pin-field') as HTMLInputElement;
+        const raw = input ? String(input.value || '').trim() : '';
+        if (raw && !/^\d+$/.test(raw)) {
+          this.showNotification('Lock Screen', 'PIN must be numbers only', 'warning');
+          return;
+        }
+        this.lockPin = raw;
+        this.queueSaveConfig();
+        this.showNotification('Lock Screen', raw ? 'PIN saved' : 'PIN cleared', 'divine');
+        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+        return;
+      }
+
+      // Security: Test Lock Screen
+      const testLockBtn = target.closest('.test-lock-btn') as HTMLElement;
+      if (testLockBtn) {
+        this.lock();
         return;
       }
 
@@ -7279,6 +7471,9 @@ class TempleOS {
         const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
         if (settingsItem && settingsItem.dataset.settingsCat) {
           this.activeSettingsCategory = settingsItem.dataset.settingsCat;
+          if (this.activeSettingsCategory === 'Bluetooth' && this.bluetoothEnabled) {
+            void this.refreshPairedBluetoothDevices();
+          }
           // Use targeted refresh instead of full render to avoid flicker
           this.refreshSettingsWindow();
         }
@@ -10786,10 +10981,11 @@ class TempleOS {
                             <div style="font-size: 20px;">${d.type === 'headphone' ? '🎧' : (d.type === 'mouse' ? '🖱️' : (d.type === 'phone' ? '📱' : '⌨️'))}</div>
                             <div>
                                 <div style="font-weight: bold; color: #00ff41;">${escapeHtml(d.name)}</div>
-                                <div style="font-size: 12px; opacity: 0.7;">${d.connected ? 'Connected' : 'Not Connected'}</div>
+                                <div style="font-size: 12px; opacity: 0.7;">${d.connected ? 'Connected' : 'Not Connected'}${d.paired ? ' • Paired' : ''}</div>
+                                <div style="font-size: 11px; opacity: 0.5; font-family: monospace;">${escapeHtml(d.mac)}</div>
                             </div>
                         </div>
-                        <button class="bt-connect-btn" data-name="${escapeHtml(d.name)}" style="${this.getBtnStyle(d.connected)}">
+                        <button class="bt-connect-btn" data-mac="${escapeHtml(d.mac)}" style="${this.getBtnStyle(d.connected)}">
                            ${d.connected ? 'Disconnect' : 'Connect'}
                         </button>
                     </div>

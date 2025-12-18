@@ -1373,6 +1373,45 @@ ipcMain.handle('system:setVolume', (event, level) => {
 // ============================================
 // AUDIO DEVICES (PulseAudio / PipeWire via pactl)
 // ============================================
+function parseWpctlStatusDevices(statusText) {
+    const lines = String(statusText || '').split('\n').map(l => l.replace(/\r/g, ''));
+    let section = null; // 'sinks' | 'sources' | null
+
+    const sinks = [];
+    const sources = [];
+    let defaultSink = null;
+    let defaultSource = null;
+
+    for (const line of lines) {
+        const secMatch = line.match(/\b(Sinks|Sources):\s*$/);
+        if (secMatch) {
+            section = secMatch[1].toLowerCase();
+            continue;
+        }
+
+        if (section !== 'sinks' && section !== 'sources') continue;
+
+        // Example: "  * 47. alsa_output.pci-0000_00_1f.3.analog-stereo  [vol: 0.65]"
+        const m = line.match(/^\s*(\*)?\s*(\d+)\.\s+(\S+)/);
+        if (!m) continue;
+
+        const isDefault = !!m[1];
+        const id = m[2];
+        const name = m[3];
+        const entry = { id, name, driver: 'wpctl', state: '', description: name };
+
+        if (section === 'sinks') {
+            sinks.push(entry);
+            if (isDefault && !defaultSink) defaultSink = name;
+        } else {
+            sources.push(entry);
+            if (isDefault && !defaultSource) defaultSource = name;
+        }
+    }
+
+    return { sinks, sources, defaultSink, defaultSource };
+}
+
 ipcMain.handle('audio:listDevices', async () => {
     if (process.platform !== 'linux') {
         return { success: true, sinks: [], sources: [], defaultSink: null, defaultSource: null };
@@ -1383,7 +1422,20 @@ ipcMain.handle('audio:listDevices', async () => {
     const sources = await execAsync('pactl list sources short 2>/dev/null');
 
     if (sinks.error && sources.error) {
-        return { success: false, error: 'pactl not available' };
+        // Ubuntu 24.04 / PipeWire: try wpctl (wireplumber) as fallback.
+        const wpctl = await execAsync('wpctl status 2>/dev/null');
+        if (!wpctl.error && wpctl.stdout) {
+            const parsed = parseWpctlStatusDevices(wpctl.stdout);
+            return {
+                success: true,
+                sinks: parsed.sinks,
+                sources: parsed.sources,
+                defaultSink: parsed.defaultSink,
+                defaultSource: parsed.defaultSource,
+                backend: 'wpctl'
+            };
+        }
+        return { success: false, error: 'Audio tools not available (pactl/wpctl missing)' };
     }
 
     const parseShort = (txt) => txt
@@ -1415,26 +1467,67 @@ ipcMain.handle('audio:listDevices', async () => {
 
 ipcMain.handle('audio:setDefaultSink', async (event, sinkName) => {
     if (process.platform !== 'linux') return { success: true };
-    const { error } = await execAsync(`pactl set-default-sink "${shEscape(sinkName)}" 2>/dev/null`);
-    return error ? { success: false, error: error.message } : { success: true };
+    const sink = String(sinkName || '').trim();
+    if (!sink) return { success: false, error: 'Invalid sink' };
+
+    // Prefer wpctl on PipeWire; fall back to pactl.
+    const wpctlDirect = await execAsync(`wpctl set-default "${shEscape(sink)}" 2>/dev/null`);
+    if (!wpctlDirect.error) return { success: true, backend: 'wpctl' };
+
+    // If wpctl doesn't accept the name, try mapping name -> ID from wpctl status.
+    const wpctlStatus = await execAsync('wpctl status 2>/dev/null');
+    if (!wpctlStatus.error && wpctlStatus.stdout) {
+        const parsed = parseWpctlStatusDevices(wpctlStatus.stdout);
+        const match = parsed.sinks.find(s => s.name === sink || s.id === sink);
+        if (match) {
+            const wpctlById = await execAsync(`wpctl set-default "${shEscape(match.id)}" 2>/dev/null`);
+            if (!wpctlById.error) return { success: true, backend: 'wpctl' };
+        }
+    }
+
+    const pactl = await execAsync(`pactl set-default-sink "${shEscape(sink)}" 2>/dev/null`);
+    if (!pactl.error) return { success: true, backend: 'pactl' };
+
+    return { success: false, error: (pactl.stderr || wpctlDirect.stderr || (pactl.error ? pactl.error.message : '') || (wpctlDirect.error ? wpctlDirect.error.message : '') || '').trim() || 'Failed to set default sink' };
 });
 
 ipcMain.handle('audio:setDefaultSource', async (event, sourceName) => {
     if (process.platform !== 'linux') return { success: true };
-    const { error } = await execAsync(`pactl set-default-source "${shEscape(sourceName)}" 2>/dev/null`);
-    return error ? { success: false, error: error.message } : { success: true };
+    const source = String(sourceName || '').trim();
+    if (!source) return { success: false, error: 'Invalid source' };
+
+    const wpctlDirect = await execAsync(`wpctl set-default "${shEscape(source)}" 2>/dev/null`);
+    if (!wpctlDirect.error) return { success: true, backend: 'wpctl' };
+
+    const wpctlStatus = await execAsync('wpctl status 2>/dev/null');
+    if (!wpctlStatus.error && wpctlStatus.stdout) {
+        const parsed = parseWpctlStatusDevices(wpctlStatus.stdout);
+        const match = parsed.sources.find(s => s.name === source || s.id === source);
+        if (match) {
+            const wpctlById = await execAsync(`wpctl set-default "${shEscape(match.id)}" 2>/dev/null`);
+            if (!wpctlById.error) return { success: true, backend: 'wpctl' };
+        }
+    }
+
+    const pactl = await execAsync(`pactl set-default-source "${shEscape(source)}" 2>/dev/null`);
+    if (!pactl.error) return { success: true, backend: 'pactl' };
+
+    return { success: false, error: (pactl.stderr || wpctlDirect.stderr || (pactl.error ? pactl.error.message : '') || (wpctlDirect.error ? wpctlDirect.error.message : '') || '').trim() || 'Failed to set default source' };
 });
 
 ipcMain.handle('audio:setVolume', async (event, level) => {
     const safeLevel = Math.max(0, Math.min(100, parseInt(level)));
     if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
 
-    // Prefer pactl when available; fall back to amixer.
+    // Ubuntu 24.04 / PipeWire: prefer wpctl; fall back to pactl and amixer.
+    const wpctlResult = await execAsync(`wpctl set-volume @DEFAULT_SINK@ ${safeLevel}% 2>/dev/null`);
+    if (!wpctlResult.error) return { success: true, backend: 'wpctl' };
+
     const pactlResult = await execAsync(`pactl set-sink-volume @DEFAULT_SINK@ ${safeLevel}% 2>/dev/null`);
-    if (!pactlResult.error) return { success: true };
+    if (!pactlResult.error) return { success: true, backend: 'pactl' };
 
     const amixerResult = await execAsync(`amixer -q set Master ${safeLevel}% 2>/dev/null`);
-    return amixerResult.error ? { success: false, error: amixerResult.error.message } : { success: true };
+    return amixerResult.error ? { success: false, error: amixerResult.error.message } : { success: true, backend: 'amixer' };
 });
 
 // ============================================
@@ -1709,6 +1802,121 @@ ipcMain.handle('network:importVpnProfile', async (event, kind, filePath) => {
     const res = await execAsync(cmd, { timeout: 10000 });
     if (res.error) return { success: false, error: res.stderr || res.error.message };
     return { success: true, output: res.stdout };
+});
+
+// ============================================
+// BLUETOOTH (BlueZ via bluetoothctl)
+// ============================================
+function normalizeBluetoothMac(value) {
+    const raw = String(value || '').trim();
+    if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(raw)) return null;
+    return raw.toUpperCase();
+}
+
+function parseBluetoothctlDeviceList(text) {
+    const devices = [];
+    for (const line of String(text || '').split('\n')) {
+        const m = line.trim().match(/^Device\s+([0-9A-Fa-f:]{17})\s+(.+?)\s*$/);
+        if (!m) continue;
+        devices.push({ mac: m[1].toUpperCase(), name: m[2].trim() });
+    }
+    // De-dupe by MAC, keep first name
+    const seen = new Set();
+    return devices.filter(d => {
+        if (!d.mac || seen.has(d.mac)) return false;
+        seen.add(d.mac);
+        return true;
+    });
+}
+
+async function bluetoothctlInfo(mac) {
+    const addr = normalizeBluetoothMac(mac);
+    if (!addr) return { connected: null, paired: null, error: 'Invalid MAC address' };
+    const info = await execAsync(`bluetoothctl info "${shEscape(addr)}" 2>/dev/null`, { timeout: 3000 });
+    if (info.error) return { connected: null, paired: null, error: info.stderr || info.error.message || 'Failed to query device info' };
+    const connectedMatch = info.stdout.match(/\bConnected:\s*(yes|no)\b/i);
+    const pairedMatch = info.stdout.match(/\bPaired:\s*(yes|no)\b/i);
+    return {
+        connected: connectedMatch ? connectedMatch[1].toLowerCase() === 'yes' : null,
+        paired: pairedMatch ? pairedMatch[1].toLowerCase() === 'yes' : null,
+        error: null
+    };
+}
+
+async function enrichBluetoothDevices(devices, max = 20) {
+    const out = [];
+    const limited = Array.isArray(devices) ? devices.slice(0, max) : [];
+    for (const d of limited) {
+        const info = await bluetoothctlInfo(d.mac);
+        out.push({
+            mac: d.mac,
+            name: d.name,
+            connected: info.connected === true,
+            paired: info.paired === true
+        });
+    }
+    // Add remaining (without expensive info queries)
+    for (const d of (Array.isArray(devices) ? devices.slice(out.length) : [])) {
+        out.push({ mac: d.mac, name: d.name, connected: false, paired: false });
+    }
+    return out;
+}
+
+ipcMain.handle('bluetooth:setEnabled', async (event, enabled) => {
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
+    const on = !!enabled;
+    const res = await execAsync(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null`, { timeout: 8000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'bluetoothctl failed' };
+    return { success: true };
+});
+
+ipcMain.handle('bluetooth:listPaired', async () => {
+    if (process.platform !== 'linux') return { success: true, devices: [] };
+    const res = await execAsync('bluetoothctl paired-devices 2>/dev/null', { timeout: 8000 });
+    if (res.error) return { success: false, devices: [], error: res.stderr || res.error.message || 'Failed to list paired devices' };
+    const devices = parseBluetoothctlDeviceList(res.stdout).slice(0, 50);
+    const enriched = await enrichBluetoothDevices(devices, 25);
+    return { success: true, devices: enriched };
+});
+
+ipcMain.handle('bluetooth:scan', async () => {
+    if (process.platform !== 'linux') return { success: true, devices: [] };
+
+    // Start scan (best-effort) then list discovered devices.
+    await execAsync('bluetoothctl scan on 2>/dev/null', { timeout: 2000 });
+    await new Promise(r => setTimeout(r, 4500));
+
+    const list = await execAsync('bluetoothctl devices 2>/dev/null', { timeout: 8000 });
+    await execAsync('bluetoothctl scan off 2>/dev/null', { timeout: 2000 });
+
+    if (list.error) return { success: false, devices: [], error: list.stderr || list.error.message || 'Failed to scan devices' };
+    const devices = parseBluetoothctlDeviceList(list.stdout).slice(0, 50);
+    const enriched = await enrichBluetoothDevices(devices, 25);
+    return { success: true, devices: enriched };
+});
+
+ipcMain.handle('bluetooth:connect', async (event, mac) => {
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
+    const addr = normalizeBluetoothMac(mac);
+    if (!addr) return { success: false, error: 'Invalid MAC address' };
+
+    const res = await execAsync(`bluetoothctl connect "${shEscape(addr)}" 2>/dev/null`, { timeout: 15000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'Connect failed' };
+
+    const info = await bluetoothctlInfo(addr);
+    return { success: info.connected === true, connected: info.connected === true, error: info.error || undefined };
+});
+
+ipcMain.handle('bluetooth:disconnect', async (event, mac) => {
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
+    const addr = normalizeBluetoothMac(mac);
+    if (!addr) return { success: false, error: 'Invalid MAC address' };
+
+    const res = await execAsync(`bluetoothctl disconnect "${shEscape(addr)}" 2>/dev/null`, { timeout: 15000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'Disconnect failed' };
+
+    const info = await bluetoothctlInfo(addr);
+    return { success: info.connected === false, connected: info.connected === true, error: info.error || undefined };
 });
 
 // ============================================

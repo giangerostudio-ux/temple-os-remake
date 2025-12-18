@@ -60,6 +60,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAudioVolume: (level) => ipcRenderer.invoke('audio:setVolume', level),
 
     // ============================================
+    // BLUETOOTH (BlueZ via bluetoothctl)
+    // ============================================
+    setBluetoothEnabled: (enabled) => ipcRenderer.invoke('bluetooth:setEnabled', enabled),
+    scanBluetoothDevices: () => ipcRenderer.invoke('bluetooth:scan'),
+    getPairedBluetoothDevices: () => ipcRenderer.invoke('bluetooth:listPaired'),
+    connectBluetoothDevice: (mac) => ipcRenderer.invoke('bluetooth:connect', mac),
+    disconnectBluetoothDevice: (mac) => ipcRenderer.invoke('bluetooth:disconnect', mac),
+
+    // ============================================
     // NETWORK
     // ============================================
     getNetworkStatus: () => ipcRenderer.invoke('network:getStatus'),

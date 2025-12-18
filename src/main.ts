@@ -1700,6 +1700,28 @@ class TempleOS {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // ============================================
+  // DESKTOP ICONS HELPERS
+  // ============================================
+  public setDesktopSort(mode: 'name' | 'size' | 'default') {
+    this.showNotification('Desktop', `Sorting by ${mode} (Visual Only)`, 'info');
+    // Implement actual sorting logic here if we had file metadata for desktop icons
+    // For now, it just triggers a re-render
+    this.render();
+  }
+
+  public setDesktopIconSize(size: 'small' | 'medium' | 'large') {
+    this.desktopIconSize = size;
+    localStorage.setItem('temple_desktop_icon_size', size);
+    this.render();
+  }
+
+  public toggleDesktopAutoArrange() {
+    this.desktopAutoArrange = !this.desktopAutoArrange;
+    localStorage.setItem('temple_desktop_auto_arrange', String(this.desktopAutoArrange));
+    this.render();
+  }
+
   private renderDesktopIcons(): string {
     const icons = [
       { id: 'terminal', icon: '💻', label: 'Terminal' },
@@ -8409,11 +8431,28 @@ class TempleOS {
         if (target.closest('.window')) return;
 
         this.showContextMenu(e.clientX, e.clientY, [
+          {
+            label: 'View',
+            submenu: [
+              { label: 'Large Icons', action: () => this.setDesktopIconSize('large') },
+              { label: 'Medium Icons', action: () => this.setDesktopIconSize('medium') },
+              { label: 'Small Icons', action: () => this.setDesktopIconSize('small') },
+              { divider: true },
+              { label: `${this.desktopAutoArrange ? 'Disable' : 'Enable'} Auto Arrange`, action: () => this.toggleDesktopAutoArrange() }
+            ]
+          },
+          {
+            label: 'Sort by',
+            submenu: [
+              { label: 'Name', action: () => this.setDesktopSort('name') },
+              { label: 'Size', action: () => this.setDesktopSort('size') }
+            ]
+          },
+          { label: 'Refresh', action: () => this.render() },
+          { divider: true },
           { label: 'New Folder', action: () => this.promptNewFolder() },
           { label: 'New Text File', action: () => this.promptNewFile() },
           { label: 'Paste', action: () => this.pasteIntoCurrentFolder() },
-          { divider: true },
-          { label: 'Refresh', action: () => this.render() },
           { divider: true },
           {
             label: 'Change Wallpaper', action: () => {
@@ -8429,6 +8468,8 @@ class TempleOS {
               this.refreshSettingsWindow();
             }
           },
+          { label: 'All Settings', action: () => this.openApp('settings') },
+          { divider: true },
           { label: 'Open Terminal', action: () => this.openApp('terminal') },
         ]);
         return;
@@ -14308,7 +14349,7 @@ class TempleOS {
   // ============================================
   // CONTEXT MENU SYSTEM
   // ============================================
-  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }>): void {
+  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean; submenu?: any[] }>): void {
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.style.cssText = `
@@ -14339,6 +14380,7 @@ class TempleOS {
           color: #00ff41;
           font-size: 16px;
           font-family: 'VT323', 'Noto Color Emoji', monospace;
+          position: relative; /* For submenu positioning if needed later */
         `;
         menuItem.addEventListener('mouseenter', () => {
           menuItem.style.background = 'rgba(0, 255, 65, 0.15)';
@@ -14348,8 +14390,14 @@ class TempleOS {
         });
         menuItem.addEventListener('click', (e) => {
           e.stopPropagation();
-          this.closeContextMenu();
-          if (item.action) item.action();
+          if (item.action) {
+            this.closeContextMenu();
+            item.action();
+          } else if (item.submenu) {
+            // Basic submenu implementation: Close this, open new one at offset
+            this.closeContextMenu();
+            this.showContextMenu(e.clientX + 10, e.clientY, item.submenu);
+          }
         });
         menu.appendChild(menuItem);
       }

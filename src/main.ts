@@ -3081,7 +3081,7 @@ class TempleOS {
       const errStr = String(e);
       let errorMsg = errStr;
       if (errStr.includes('password') || errStr.includes('sudo')) {
-        errorMsg = 'Bluetooth requires administrator privileges.';
+        errorMsg = 'Bluetooth requires administrator privileges.\n\nStart the app with:\nsudo npm run dev';
       }
       this.showNotification('Bluetooth', errorMsg, 'error');
       if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
@@ -10863,7 +10863,7 @@ class TempleOS {
           <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
         `)}
 
-        ${card('Custom Themes (Tier 9.4)', `
+        ${card('Custom Themes', `
           <div style="margin-bottom: 10px;">
              ${this.customThemes.length === 0 ? '<div style="opacity: 0.6; font-size: 12px;">No custom themes found.</div>' : ''}
              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px;">

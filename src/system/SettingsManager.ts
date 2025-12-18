@@ -69,6 +69,16 @@ export class SettingsManager {
     this.host = host;
   }
 
+  private hexToRgb(hex: string): string {
+    // Remove # if present
+    hex = hex.replace(/^#/, '');
+    // Parse hex values
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
+  }
+
   public applyTheme(): void {
     const isLight = this.host.themeMode === 'light';
     const root = document.documentElement;
@@ -119,10 +129,10 @@ export class SettingsManager {
     root.style.setProperty('--main-color', mainColor);
     root.style.setProperty('--bg-color', bgColor);
     root.style.setProperty('--text-color', textColor);
-    // Also set --text-highlight which is what the CSS actually uses!
+    // Update all the color variables that the CSS actually uses
     root.style.setProperty('--text-highlight', mainColor);
-    // Set the specific color variables that the CSS uses
-    root.style.setProperty('--tos-green', this.host.themeColor === 'green' ? mainColor : colors.green);
+    root.style.setProperty('--tos-green', mainColor); // Use selected color for all green references
+    root.style.setProperty('--border-glow', `rgba(${this.hexToRgb(mainColor)}, 0.3)`); // Update border glow color
 
     // Add high contrast indicator
     if (this.host.highContrast) {

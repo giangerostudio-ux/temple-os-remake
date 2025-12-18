@@ -6962,11 +6962,9 @@ class TempleOS {
 
       // 2. Global Item Listener (Delegation for Icons, Taskbar, etc)
       app.addEventListener('contextmenu', (e) => {
-        // Block context menu during setup wizard
-        if (!this.setupComplete) {
-          e.preventDefault();
-          return;
-        }
+        // NOTE: Removed setupComplete guard - it was blocking ALL context menus
+        // The wizard overlay already prevents interaction during setup, so this guard was redundant
+        // and was causing a ~1 minute delay where users couldn't right-click or use UI
 
         console.log('⚡ CONTEXTMENU EVENT FIRED!');
         const target = e.target as HTMLElement;

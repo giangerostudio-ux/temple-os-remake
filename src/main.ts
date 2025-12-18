@@ -5878,18 +5878,9 @@ class TempleOS {
         return;
       }
 
-      // First Run Wizard Actions
-      if (target.matches('.wizard-next-btn')) {
-        this.firstRunStep++;
-        this.render();
-        return;
-      }
-      if (target.matches('.wizard-finish-btn')) {
-        this.setupComplete = true;
-        localStorage.setItem('temple_setup_complete', 'true');
-        this.render();
-        return;
-      }
+
+      // NOTE: First Run Wizard button handlers are defined earlier with debounce protection
+      // (see "FIRST RUN WIZARD EVENT LISTENERS" section around line 3740)
 
       // Click outside start menu closes it
       if (this.showStartMenu && !target.closest('.start-menu') && !target.closest('.start-btn')) {

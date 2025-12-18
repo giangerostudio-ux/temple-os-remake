@@ -897,6 +897,14 @@ class TempleOS {
     // Bootstrap async OS integration + persisted settings
     void this.bootstrap();
 
+    // BUGFIX: Render immediately to make UI responsive
+    // Don't wait for bootstrap - it can take up to 1 minute on slow systems
+    this.render();
+
+    // Also render again after a short delay to catch any timing issues
+    setTimeout(() => this.render(), 500);
+    setTimeout(() => this.render(), 2000);
+
     // Memory Optimizer: check usage every 30 seconds
     setInterval(() => {
       this.memoryOptimizer.checkAndClean(90, (title, msg) => this.showNotification(title, msg, 'warning'));

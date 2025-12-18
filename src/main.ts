@@ -7439,18 +7439,33 @@ class TempleOS {
             {
               label: 'Sort by',
               submenu: [
-                { label: 'Name', action: () => this.sortDesktopIcons('name') },
-                { label: 'Type', action: () => this.sortDesktopIcons('type') }
+                { label: 'Name', action: () => this.setDesktopSort('name') },
+                { label: 'Size', action: () => this.setDesktopSort('size') }
               ]
             },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: 'Refresh', action: () => this.render() },
             { divider: true },
-            { label: '📁 Open Files', action: () => this.openApp('files') },
-            { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
+            { label: 'New Folder', action: () => this.promptNewFolder() },
+            { label: 'New Text File', action: () => this.promptNewFile() },
+            { label: 'Paste', action: () => this.pasteIntoCurrentFolder() },
             { divider: true },
-            { label: '⚙️ Settings', action: () => this.openApp('settings') },
+            {
+              label: 'Change Wallpaper', action: () => {
+                this.openApp('settings');
+                this.activeSettingsCategory = 'Personalization';
+                this.refreshSettingsWindow();
+              }
+            },
+            {
+              label: 'Display Settings', action: () => {
+                this.openApp('settings');
+                this.activeSettingsCategory = 'System';
+                this.refreshSettingsWindow();
+              }
+            },
+            { label: 'All Settings', action: () => this.openApp('settings') },
             { divider: true },
-            { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
+            { label: 'Open Terminal', action: () => this.openApp('terminal') },
           ]);
           return;
         }

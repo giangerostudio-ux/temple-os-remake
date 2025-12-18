@@ -3005,3 +3005,81 @@ body[data-taskbar-position="top"] .taskbar-preview-popup {
     width: 100%;
   }
 }
+
+/* ============================================
+   ACCESSIBILITY OVERRIDES
+   ============================================ */
+
+/* High Contrast Mode */
+:root[data-high-contrast="true"] {
+  --bg-primary: #000000 !important;
+  --bg-secondary: #000000 !important;
+  --bg-window: #000000 !important;
+  --text-primary: #ffffff !important;
+  --tos-green: #00ff00 !important;
+  --tos-cyan: #00ffff !important;
+  --border-glow: #ffffff !important;
+  --accent-gold: #ffff00 !important;
+}
+
+:root[data-high-contrast="true"] * {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  background-image: none !important;
+}
+
+:root[data-high-contrast="true"] #app::before {
+  display: none !important;
+}
+
+:root[data-high-contrast="true"] .window {
+  border: 2px solid #ffffff !important;
+}
+
+:root[data-high-contrast="true"] .taskbar {
+  border-top: 2px solid #ffffff !important;
+  background: #000 !important;
+}
+
+/* Large Text */
+body.large-text {
+  font-size: 24px !important;
+}
+
+.large-text .window-title {
+  font-size: 24px !important;
+}
+
+.large-text .taskbar-clock {
+  font-size: 20px !important;
+}
+
+.large-text .desktop-icon .label {
+  font-size: 18px !important;
+}
+
+/* Reduce Motion */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+/* Color Blind Modes */
+:root[data-color-blind="achromatopsia"] body {
+  filter: grayscale(100%);
+}
+
+:root[data-color-blind="protanopia"] body {
+  filter: contrast(120%) sepia(20%);
+}
+
+:root[data-color-blind="deuteranopia"] body {
+  filter: contrast(120%) sepia(30%) hue-rotate(10deg);
+}
+
+:root[data-color-blind="tritanopia"] body {
+  filter: contrast(120%) hue-rotate(180deg);
+}

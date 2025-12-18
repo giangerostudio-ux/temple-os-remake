@@ -12405,14 +12405,36 @@ class TempleOS {
     if (volTray) {
       volTray.title = `Volume: ${level}%`;
     }
-
     this.queueSaveConfig();
   }
 
   private refreshSettingsWindow(): void {
     const settingsWindow = this.windows.find(w => w.id.startsWith('settings'));
     if (settingsWindow) {
+      // Update window content state
       settingsWindow.content = this.getSettingsContentV2();
+
+      // Directly update the DOM instead of full render to preserve scroll position
+      const windowEl = document.querySelector(`[data-window-id="${settingsWindow.id}"]`);
+      if (windowEl) {
+        const contentEl = windowEl.querySelector('.window-content');
+        if (contentEl) {
+          // Remember scroll position
+          const settingsContent = contentEl.querySelector('.settings-content');
+          const scrollTop = settingsContent?.scrollTop || 0;
+
+          // Update content
+          contentEl.innerHTML = settingsWindow.content;
+
+          // Restore scroll position
+          const newSettingsContent = contentEl.querySelector('.settings-content');
+          if (newSettingsContent) {
+            newSettingsContent.scrollTop = scrollTop;
+          }
+          return; // Don't do full render
+        }
+      }
+      // Fallback: if DOM element not found, do minimum render
       this.render();
     }
   }

@@ -26,13 +26,14 @@ import { NotesApp } from './apps/Notes';
 import { CalendarApp } from './apps/Calendar';
 import { HelpApp } from './apps/Help';
 import type {
-  DisplayOutput, FirewallRule, VeraCryptVolume, MonitorStats,
+  DisplayOutput, FirewallRule, VeraCryptVolume, MonitorStats, BatteryStatus,
   NetworkDeviceStatus, VpnStatus, FileEntry, SystemInfo, ProcessInfo, InstalledApp
 } from './utils/types';
 import { WorkspaceManager } from './system/WorkspaceManager';
 import { TilingManager } from './system/TilingManager';
 import { NotificationManager } from './system/NotificationManager';
 import { NetworkManager } from './system/NetworkManager';
+import { SettingsManager } from './system/SettingsManager';
 
 // ============================================
 // ELECTRON API TYPE DECLARATION
@@ -64,6 +65,7 @@ declare global {
       lock: () => Promise<void>;
       getSystemInfo: () => Promise<SystemInfo>;
       getMonitorStats?: () => Promise<{ success: boolean; stats?: MonitorStats; error?: string }>;
+      getBatteryStatus?: () => Promise<{ success: boolean; supported: boolean; status?: BatteryStatus; error?: string }>;
       listProcesses?: () => Promise<{ success: boolean; processes?: ProcessInfo[]; unsupported?: boolean; error?: string }>;
       killProcess?: (pid: number, signal?: 'TERM' | 'KILL') => Promise<{ success: boolean; error?: string }>;
       setSystemVolume: (level: number) => Promise<void>;
@@ -99,6 +101,7 @@ declare global {
       extractExif?: (imagePath: string) => Promise<{ success: boolean; metadata?: Record<string, string>; error?: string }>;
       stripExif?: (imagePath: string) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
       setTrackerBlocking?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      getTorStatus?: () => Promise<{ success: boolean; supported: boolean; running: boolean; backend?: string; version?: string | null; error?: string }>;
       // Firewall (Tier 7.2)
       getFirewallRules?: () => Promise<{ success: boolean; active?: boolean; rules?: FirewallRule[]; error?: string }>;
       addFirewallRule?: (port: number, protocol: string, action: string) => Promise<{ success: boolean; error?: string }>;
@@ -168,42 +171,6 @@ interface MouseSettings {
   raw: boolean; // disable accel
   naturalScroll: boolean;
   dpi?: number; // optional; requires ratbagd/libratbag-tools (ratbagctl)
-}
-
-interface TempleConfig {
-  wallpaperImage?: string;
-  themeMode?: 'dark' | 'light';
-  currentResolution?: string;
-  volumeLevel?: number;
-  doNotDisturb?: boolean;
-  lockTimeoutMs?: number;
-  lockPassword?: string;
-  lockPin?: string;
-  network?: {
-    vpnKillSwitchEnabled?: boolean;
-    vpnKillSwitchMode?: 'auto' | 'strict';
-    hotspotSSID?: string;
-    hotspotPassword?: string;
-    dataUsageDailyLimit?: number;
-    dataUsageTrackingEnabled?: boolean;
-  };
-  terminal?: {
-    aliases?: Record<string, string>;
-    promptTemplate?: string;
-    uiTheme?: 'green' | 'cyan' | 'amber' | 'white';
-    fontFamily?: string;
-    fontSize?: number;
-  };
-  editor?: { wordWrap?: boolean };
-  recentFiles?: string[];
-  audio?: { defaultSink?: string | null; defaultSource?: string | null };
-  mouse?: Partial<MouseSettings>;
-  pinnedStart?: string[];
-  pinnedTaskbar?: string[];
-  desktopShortcuts?: Array<{ key: string; label: string }>;
-  recentApps?: string[];
-  appUsage?: Record<string, number>;
-  fileBookmarks?: string[];
 }
 
 // ============================================
@@ -438,6 +405,9 @@ class TempleOS {
   private showNotificationPopup = false;
   private showStartMenu = false;
   private volumeLevel = 50;
+  private batterySupported = false;
+  private batteryStatus: BatteryStatus | null = null;
+  private batteryLastError: string | null = null;
 
   // Settings State
   private activeSettingsCategory = 'System';
@@ -453,17 +423,24 @@ class TempleOS {
   private fileSearchQuery = '';
   private fileSortMode: 'name' | 'size' | 'modified' = 'name';
   private fileSortDir: 'asc' | 'desc' = 'asc';
-  private fileViewMode: 'grid' | 'list' = 'grid';
+  private fileViewMode: 'grid' | 'list' | 'details' = 'grid';
   private showHiddenFiles = false;
   private fileClipboard: { mode: 'copy' | 'cut'; srcPath: string } | null = null;
   private fileBookmarks: string[] = [];
   private homePath: string | null = null;
+  // Multi-select support (Priority 1)
+  private selectedFiles: Set<string> = new Set();
+  private lastSelectedIndex = -1; // For Shift+Click range selection
+  // Desktop icon positions (Priority 1)
+  private desktopIconPositions: Record<string, { x: number; y: number }> = JSON.parse(localStorage.getItem('temple_desktop_icon_positions') || '{}');
+  private draggingIcon: { key: string; offsetX: number; offsetY: number } | null = null;
 
   // Preview / Quick Look
   private previewFile: { path: string; name: string; type: 'image' | 'text' | 'unknown'; content?: string } | null = null;
 
   // Start Menu state
   private installedApps: InstalledApp[] = [];
+  private installedAppsUnsupported = false;
   private startMenuSearchQuery = '';
   private startMenuCategory: 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' = 'All';
   private startMenuView: 'all' | 'recent' | 'frequent' = 'all';
@@ -524,6 +501,11 @@ class TempleOS {
   private torRoutingMode: 'all' | 'specific' = 'all';
   private torCircuitStatus: 'disconnected' | 'connecting' | 'connected' | 'failed' = 'disconnected';
   private torCircuitRelays: Array<{ name: string; ip: string; country: string }> = [];
+  private torDaemonSupported = false;
+  private torDaemonRunning = false;
+  private torDaemonBackend: string | null = null;
+  private torDaemonVersion: string | null = null;
+  private torDaemonLastError: string | null = null;
   private secureDelete = false;
 
   // Physical Security State (Tier 7.6)
@@ -646,6 +628,7 @@ class TempleOS {
 
   // Network Manager
   private networkManager = new NetworkManager();
+  private readonly settingsManager: SettingsManager;
 
   // Taskbar Position (Tier 14.4)
   private taskbarPosition: 'top' | 'bottom' = (localStorage.getItem('temple_taskbar_position') as 'top' | 'bottom') || 'bottom';
@@ -750,9 +733,6 @@ class TempleOS {
   private dolDocContent: string = '';
   private dolDocPath: string = '';
 
-  // Config persistence
-  private configSaveTimer: number | null = null;
-
 
   // Modal dialogs (replace browser prompt/confirm/alert)
   private modal:
@@ -774,6 +754,7 @@ class TempleOS {
 
 
   constructor() {
+    this.settingsManager = new SettingsManager(this as any);
     this.init();
   }
 
@@ -921,6 +902,9 @@ class TempleOS {
       this.withTimeout(this.refreshAudioDevices(), 3000, undefined),
       this.withTimeout(this.refreshNetworkStatus(), 3000, undefined),
       this.withTimeout(this.refreshSystemInfo(), 3000, undefined),
+      this.withTimeout(this.refreshBatteryStatus(), 3000, undefined),
+      this.withTimeout(this.refreshMonitorStatsOnly(true), 3000, undefined),
+      this.withTimeout(this.refreshTorDaemonStatus(), 3000, undefined),
       this.checkPtySupport(),
     ]);
 
@@ -932,6 +916,13 @@ class TempleOS {
     window.setInterval(() => void this.refreshNetworkStatus(), 10000);
     window.setInterval(() => void this.refreshAudioDevices(), 15000);
     window.setInterval(() => void this.refreshSystemInfo(), 30000);
+    window.setInterval(() => void this.refreshBatteryStatus(), 30000);
+    window.setInterval(() => {
+      // Avoid duplicate polling when System Monitor is open (it has its own interval).
+      if (this.windows.some(w => w.id.startsWith('system-monitor'))) return;
+      void this.refreshMonitorStatsOnly(false);
+    }, 5000);
+    window.setInterval(() => void this.refreshTorDaemonStatus(), 60000);
 
     // Welcome Notification (immediate since bootstrap is now fast)
     this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
@@ -1207,6 +1198,12 @@ class TempleOS {
       tray.innerHTML = this.getTrayHTML();
     }
 
+    // Update desktop widgets (desktop subtree is not fully re-rendered in render())
+    const widgetsRoot = document.getElementById('desktop-widgets-root');
+    if (widgetsRoot) {
+      widgetsRoot.innerHTML = this.renderDesktopWidgets();
+    }
+
     // Update Start Menu
     const startMenuContainer = document.getElementById('start-menu-container');
     if (startMenuContainer) {
@@ -1226,7 +1223,7 @@ class TempleOS {
       ${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}
       ${this.renderShutdownOverlay()}
       ${this.renderFirstRunWizard()}
-      ${this.renderDesktopWidgets()}
+      <div id="desktop-widgets-root">${this.renderDesktopWidgets()}</div>
       <div class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" id="desktop-icons">
         ${this.renderDesktopIcons()}
       </div>
@@ -2094,6 +2091,27 @@ class TempleOS {
   }
 
   private getTrayHTML(): string {
+    const battery = this.batteryStatus;
+    const batteryPresent = !!battery?.present;
+    const batteryPct = batteryPresent && typeof battery?.percent === 'number' ? battery.percent : null;
+    const batteryCharging = battery?.isCharging === true;
+
+    const batteryColor = !this.batterySupported
+      ? '#888'
+      : (batteryPct !== null
+        ? (batteryPct <= 15 ? '#ff6464' : batteryPct <= 35 ? '#ffd700' : '#00ff41')
+        : '#888');
+
+    const batteryFillPx = batteryPct !== null
+      ? Math.max(0, Math.min(14, Math.round(14 * batteryPct / 100)))
+      : 0;
+
+    const batteryTitle = !this.batterySupported
+      ? `Battery: Unsupported${this.batteryLastError ? ` (${this.batteryLastError})` : ''}`
+      : (!batteryPresent
+        ? 'Battery: Not present'
+        : `Battery: ${batteryPct !== null ? `${batteryPct}%` : '—'}${batteryCharging ? ' (charging)' : ''}`);
+
     return `
       <div class="tray-icon" id="tray-network" title="Network: ${this.networkManager.status.connected ? (this.networkManager.status.wifi?.ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}" style="position: relative; color: ${this.networkManager.status.connected ? '#00ff41' : '#888'};">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2111,6 +2129,14 @@ class TempleOS {
            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
          </svg>
          ${this.showVolumePopup ? this.renderVolumePopup() : ''}
+      </div>
+
+      <div class="tray-icon" id="tray-battery" title="${escapeHtml(batteryTitle)}" style="position: relative; color: ${batteryColor};">
+         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+           <rect x="2" y="7" width="18" height="10" rx="2" ry="2"></rect>
+           <line x1="22" y1="11" x2="22" y2="13"></line>
+         </svg>
+         ${batteryPresent && batteryFillPx > 0 ? `<div style="position: absolute; left: 4px; top: 9px; height: 6px; width: ${batteryFillPx}px; background: ${batteryColor}; border-radius: 1px;"></div>` : ''}
       </div>
 
       <div class="tray-icon" id="tray-notification" title="Notifications" style="position: relative;">
@@ -2499,12 +2525,21 @@ class TempleOS {
 
     try {
       const result = await window.electronAPI.getInstalledApps();
-      if (result.success) {
-        this.installedApps = result.apps;
+      this.installedAppsUnsupported = !!(result as any)?.unsupported;
 
+      if (result.success && Array.isArray(result.apps)) {
+        this.installedApps = result.apps;
+      } else {
+        this.installedApps = [];
+      }
+
+      if (this.installedAppsUnsupported) {
+        this.showNotification('Apps', 'App discovery is Linux-only (no .desktop apps on this platform).', 'info');
       }
     } catch (error) {
       console.error('Error loading installed apps:', error);
+      this.installedApps = [];
+      this.installedAppsUnsupported = true;
     }
   }
 
@@ -2553,10 +2588,22 @@ class TempleOS {
 
 
   private renderTorCircuitViz(): string {
+    const footer = `<div style="margin-top: 10px; font-size: 10px; opacity: 0.55;">Circuit details require Tor ControlPort.</div>`;
+
     if (this.torCircuitStatus !== 'connected') {
-      return `<div style="width: 100%; text-align: center; opacity: 0.6; padding: 20px;">
-              ${this.torCircuitStatus === 'connecting' ? 'Constructing circuit...' : 'Circuit not established'}
-          </div>`;
+      const msg = this.torCircuitStatus === 'connecting'
+        ? 'Checking Tor daemon...'
+        : this.torCircuitStatus === 'failed'
+          ? (this.torDaemonSupported ? (this.torDaemonRunning ? 'Tor is running, but circuit details are unavailable.' : 'Tor daemon is not running.') : 'Tor status unavailable on this platform.')
+          : 'Circuit not established';
+      return `<div style="width: 100%; text-align: center; opacity: 0.6; padding: 20px;">${msg}${footer}</div>`;
+    }
+
+    if (!this.torCircuitRelays.length) {
+      const msg = this.torDaemonRunning
+        ? 'Tor daemon running. Circuit relay details unavailable.'
+        : 'Circuit relay details unavailable.';
+      return `<div style="width: 100%; text-align: center; opacity: 0.6; padding: 20px;">${msg}${footer}</div>`;
     }
 
     const nodes: { type: string; label: string; ip?: string }[] = [
@@ -2590,41 +2637,67 @@ class TempleOS {
     }).join('');
   }
 
+  private async refreshTorDaemonStatus(): Promise<void> {
+    if (!window.electronAPI?.getTorStatus) {
+      this.torDaemonSupported = false;
+      this.torDaemonRunning = false;
+      this.torDaemonBackend = null;
+      this.torDaemonVersion = null;
+      this.torDaemonLastError = 'Tor status IPC not available';
+      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.getTorStatus();
+      this.torDaemonSupported = !!res.supported;
+      this.torDaemonRunning = !!res.running;
+      this.torDaemonBackend = res.backend ? String(res.backend) : null;
+      this.torDaemonVersion = res.version ? String(res.version) : null;
+      this.torDaemonLastError = res.error ? String(res.error) : null;
+    } catch (e) {
+      this.torDaemonSupported = false;
+      this.torDaemonRunning = false;
+      this.torDaemonBackend = null;
+      this.torDaemonVersion = null;
+      this.torDaemonLastError = String(e);
+    } finally {
+      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+    }
+  }
+
   private async toggleTor(enabled: boolean): Promise<void> {
     this.torEnabled = enabled;
+    this.torCircuitRelays = [];
 
     if (enabled) {
       this.torCircuitStatus = 'connecting';
       if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
 
-      this.showNotification('Tor Network', 'Establishing circuit...', 'info');
+      this.showNotification('Tor Network', 'Checking Tor daemon status...', 'info');
 
-      // Simulate connection delay
-      setTimeout(() => {
-        if (!this.torEnabled) return; // Cancelled
+      await this.refreshTorDaemonStatus();
+      if (!this.torEnabled) return; // Cancelled
 
+      if (!this.torDaemonSupported) {
+        this.torCircuitStatus = 'failed';
+        this.showNotification('Tor Network', this.torDaemonLastError || 'Tor status unavailable on this platform.', 'warning');
+      } else if (!this.torDaemonRunning) {
+        this.torCircuitStatus = 'failed';
+        this.showNotification('Tor Network', 'Tor daemon is not running. Install/start tor to enable.', 'warning');
+      } else {
         this.torCircuitStatus = 'connected';
-        // Generate fake circuit
-        this.torCircuitRelays = [
-          { name: 'Guard', ip: '192.0.2.45', country: 'France' },
-          { name: 'Middle', ip: '198.51.100.12', country: 'Germany' },
-          { name: 'Exit', ip: '203.0.113.88', country: 'Netherlands' }
-        ];
+        this.showNotification('Tor Network', 'Tor daemon is running. Circuit relay details require ControlPort.', 'divine');
+      }
 
-        this.showNotification('Tor Network', 'Circuit established. Anonymity active.', 'divine');
-        if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
-      }, 2500);
+      if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
     } else {
       this.torCircuitStatus = 'disconnected';
-      this.torCircuitRelays = [];
       this.showNotification('Tor Network', 'Tor disabled.', 'info');
       if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
     }
 
-    // Update backend if needed (mocked for now)
-    if ((window.electronAPI as any)?.secureTorToggle) {
-      // void window.electronAPI.secureTorToggle(enabled, this.torBridgeType, this.torBridges);
-    }
+    // NOTE: Traffic routing is not enforced by the UI toggle yet.
   }
 
   // VPN profile management (Tier 6.1)
@@ -2992,6 +3065,51 @@ class TempleOS {
     }
   }
 
+  private async refreshBatteryStatus(): Promise<void> {
+    if (!window.electronAPI?.getBatteryStatus) {
+      this.batterySupported = false;
+      this.batteryStatus = null;
+      this.batteryLastError = 'Battery IPC not available';
+      return;
+    }
+
+    try {
+      const res = await window.electronAPI.getBatteryStatus();
+      this.batterySupported = !!res.supported;
+      if (res.success && res.status) {
+        this.batteryStatus = res.status;
+        this.batteryLastError = null;
+      } else {
+        this.batteryStatus = res.status || null;
+        this.batteryLastError = res.error || null;
+      }
+    } catch (e) {
+      this.batterySupported = false;
+      this.batteryStatus = null;
+      this.batteryLastError = String(e);
+    } finally {
+      this.render();
+    }
+  }
+
+  private async refreshMonitorStatsOnly(force = false): Promise<void> {
+    if (!window.electronAPI?.getMonitorStats) return;
+    if (this.monitorBusy && !force) return;
+
+    this.monitorBusy = true;
+    try {
+      const statsRes = await window.electronAPI.getMonitorStats();
+      if (statsRes.success && statsRes.stats) {
+        this.monitorStats = statsRes.stats;
+        this.networkManager.updateDataUsage(this.monitorStats);
+      }
+    } catch {
+      // ignore
+    } finally {
+      this.monitorBusy = false;
+    }
+  }
+
   private async refreshDisplayOutputs(): Promise<void> {
     if (!window.electronAPI?.getDisplayOutputs) return;
     try {
@@ -3079,12 +3197,20 @@ class TempleOS {
     }
   }
 
-  private launchInstalledApp(appData: string): void {
+  private async launchInstalledApp(appData: string): Promise<void> {
     try {
       const app = JSON.parse(appData);
-      if (window.electronAPI) {
-        window.electronAPI.launchApp(app);
+      if (!window.electronAPI?.launchApp) {
+        this.showNotification('Apps', 'App launcher not available.', 'warning');
+        return;
       }
+
+      const res = await window.electronAPI.launchApp(app);
+      if (!res?.success) {
+        this.showNotification('Apps', res?.error || 'Failed to launch app', 'error');
+        return;
+      }
+
       // Track recent/frequent apps (Windows-like)
       const key = app.desktopFile ? `desktop:${app.desktopFile}` : (app.name ? `name:${app.name}` : 'unknown');
       this.recordAppLaunch(key);
@@ -3092,6 +3218,7 @@ class TempleOS {
       this.render();
     } catch (error) {
       console.error('Error launching app:', error);
+      this.showNotification('Apps', 'Failed to launch app', 'error');
     }
   }
 
@@ -3159,9 +3286,16 @@ class TempleOS {
       return;
     }
     const installed = this.findInstalledAppByKey(raw);
-    if (installed && window.electronAPI) {
-      void window.electronAPI.launchApp(installed);
-      this.recordAppLaunch(this.keyForInstalledApp(installed));
+    if (installed && window.electronAPI?.launchApp) {
+      void window.electronAPI.launchApp(installed).then(res => {
+        if (!res?.success) {
+          this.showNotification('Apps', res?.error || 'Failed to launch app', 'error');
+          return;
+        }
+        this.recordAppLaunch(this.keyForInstalledApp(installed));
+      }).catch(e => {
+        this.showNotification('Apps', String(e), 'error');
+      });
       return;
     }
     this.showNotification('Apps', 'App not found.', 'warning');
@@ -4003,6 +4137,50 @@ class TempleOS {
         return;
       }
 
+      // ============================================
+      // FILE BROWSER MULTI-SELECT (Priority 1)
+      // ============================================
+
+      // File item clicks with Ctrl/Shift support
+      const fileBrowserItem = target.closest('.file-item') as HTMLElement;
+      if (fileBrowserItem) {
+        const filePath = fileBrowserItem.getAttribute('data-file-path');
+        const isDir = fileBrowserItem.getAttribute('data-is-dir') === 'true';
+
+        if (filePath) {
+          // Multi-select with Ctrl or Shift
+          if (e.ctrlKey || e.shiftKey) {
+            e.preventDefault();
+            this.toggleFileSelection(filePath, e.ctrlKey, e.shiftKey);
+            return;
+          }
+
+          // Normal click - open file/folder (existing behavior)
+          if (isDir) {
+            this.loadFiles(filePath);
+          } else if (window.electronAPI?.openExternal) {
+            void window.electronAPI.openExternal(filePath);
+          }
+        }
+        return;
+      }
+
+      // Delete Selected button
+      const deleteSelectedBtn = target.closest('.btn-delete-selected') as HTMLElement;
+      if (deleteSelectedBtn) {
+        e.preventDefault();
+        void this.deleteSelectedFiles();
+        return;
+      }
+
+      // Clear Selection button
+      const deselectBtn = target.closest('.btn-deselect-all') as HTMLElement;
+      if (deselectBtn) {
+        e.preventDefault();
+        this.deselectAllFiles();
+        return;
+      }
+
       // Modal interactions (eat clicks before anything else)
       if (this.modal) {
         const confirmBtn = target.closest('.modal-confirm');
@@ -4675,7 +4853,7 @@ class TempleOS {
 
       // Start menu installed app click
       if (startAppItem && startAppItem.dataset.installedApp) {
-        this.launchInstalledApp(startAppItem.dataset.installedApp);
+        void this.launchInstalledApp(startAppItem.dataset.installedApp);
         return;
       }
 
@@ -4942,19 +5120,24 @@ class TempleOS {
         return;
       }
 
-      // Desktop icon clicks
+      // Desktop icon clicks and drag initiation
       const iconEl = target.closest('.desktop-icon') as HTMLElement;
       if (iconEl) {
+        // Check if we're starting a drag (will be completed in mouseup if no significant movement)
         const launchKey = iconEl.dataset.launchKey;
-        if (launchKey) {
-          this.launchByKey(launchKey);
-          return;
+        const appId = iconEl.dataset.app;
+        const iconKey = appId ? `builtin:${appId}` : launchKey || '';
+
+        if (iconKey) {
+          this.draggingIcon = {
+            key: iconKey,
+            offsetX: e.clientX,
+            offsetY: e.clientY
+          };
         }
-        if (iconEl.dataset.app) {
-          const appId = iconEl.dataset.app!;
-          this.openApp(appId);
-          return;
-        }
+
+        // Note: Actual launch will happen in mouseup if no drag occurred
+        return;
       }
 
       // Focus window (only if clicking on window but not on controls)
@@ -5231,6 +5414,32 @@ class TempleOS {
       }
     });
 
+    // ============================================
+    // INPUT / CHANGE HANDLERS (Priority 1)
+    // ============================================
+    document.addEventListener('change', (e) => {
+      const target = e.target as HTMLElement;
+
+      // File Browser: View Mode Dropdown
+      if (target.matches('.file-view-mode-select')) {
+        const select = target as HTMLSelectElement;
+        this.fileViewMode = select.value as 'grid' | 'list' | 'details';
+        this.updateFileBrowserWindow();
+        return;
+      }
+
+      // File Browser: Select All Checkbox (Details View)
+      if (target.matches('.select-all-checkbox')) {
+        const checkbox = target as HTMLInputElement;
+        if (checkbox.checked) {
+          this.selectAllFiles();
+        } else {
+          this.deselectAllFiles();
+        }
+        return;
+      }
+    });
+
     document.addEventListener('mousemove', (e) => {
       // Auto-Hide Taskbar Logic
       if (this.autoHideTaskbar) {
@@ -5350,7 +5559,7 @@ class TempleOS {
       }
     });
 
-    document.addEventListener('mouseup', () => {
+    document.addEventListener('mouseup', (e) => {
       this.resizeState = null;
 
       // Apply snap if exists
@@ -5378,6 +5587,34 @@ class TempleOS {
       this.snapState = null;
       const preview = document.getElementById('snap-preview');
       if (preview) preview.style.display = 'none';
+
+      // Desktop Icon Drag Completion (Priority 1)
+      if (this.draggingIcon) {
+        const dx = Math.abs(e.clientX - this.draggingIcon.offsetX);
+        const dy = Math.abs(e.clientY - this.draggingIcon.offsetY);
+        const DRAG_THRESHOLD = 5; // pixels
+
+        if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+          // Icon was dragged - save new position
+          this.desktopIconPositions[this.draggingIcon.key] = {
+            x: e.clientX - 40, // Center the icon
+            y: e.clientY - 40
+          };
+          localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+          this.render();
+        } else {
+          // Icon was clicked (not dragged) - launch app
+          const key = this.draggingIcon.key;
+          if (key.startsWith('builtin:')) {
+            const appId = key.replace('builtin:', '');
+            this.openApp(appId);
+          } else {
+            this.launchByKey(key);
+          }
+        }
+
+        this.draggingIcon = null;
+      }
     });
 
     // Terminal input
@@ -5675,6 +5912,37 @@ class TempleOS {
           const activeWindow = this.windows.find(w => w.active && !w.minimized);
           if (activeWindow) {
             this.minimizeWindow(activeWindow.id);
+          }
+        }
+
+        // File Browser Multi-Select Shortcuts (Priority 1)
+        const filesWindow = this.windows.find(w => w.id.startsWith('files') && w.active);
+        if (filesWindow && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          // Ctrl+A - Select All Files
+          if (e.ctrlKey && e.key.toLowerCase() === 'a' && !e.shiftKey && !e.altKey) {
+            const inFileBrowser = target.closest('.file-browser');
+            if (inFileBrowser) {
+              e.preventDefault();
+              this.selectAllFiles();
+              return;
+            }
+          }
+
+          // Ctrl+D - Deselect All Files
+          if (e.ctrlKey && e.key.toLowerCase() === 'd' && !e.shiftKey && !e.altKey) {
+            const inFileBrowser = target.closest('.file-browser');
+            if (inFileBrowser) {
+              e.preventDefault();
+              this.deselectAllFiles();
+              return;
+            }
+          }
+
+          // Delete Key - Delete Selected Files
+          if (e.key === 'Delete' && this.selectedFiles.size > 0) {
+            e.preventDefault();
+            void this.deleteSelectedFiles();
+            return;
           }
         }
 
@@ -8775,6 +9043,10 @@ class TempleOS {
       ? '<div style="padding: 20px; opacity: 0.6;">Loading...</div>'
       : (files.length === 0 && this.fileEntries.length > 0 ? '<div style="padding: 20px; opacity: 0.6;">No files match your search.</div>' : '');
 
+    // Multi-select UI support
+    const selCount = this.selectedFiles.size;
+    const hasSelection = selCount > 0;
+
     const gridHtml = `
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
         ${parentPath ? `
@@ -8786,8 +9058,10 @@ class TempleOS {
         ${files.map(file => {
       const icon = getFileIcon(file.name, file.isDirectory);
       const sizeStr = file.isDirectory ? '' : this.formatFileSize(file.size);
+      const isSelected = this.selectedFiles.has(file.path);
       return `
-            <div class="file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer;" title="${file.name}${sizeStr ? ' - ' + sizeStr : ''}">
+            <div class="file-item ${isSelected ? 'file-selected' : ''}" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; position: relative; border: 2px solid ${isSelected ? '#00ff41' : 'transparent'}; padding: 8px; border-radius: 8px; background: ${isSelected ? 'rgba(0,255,65,0.15)' : 'transparent'};" title="${file.name}${sizeStr ? ' - ' + sizeStr : ''}">
+              ${hasSelection ? `<input type="checkbox" ${isSelected ? 'checked' : ''} style="position: absolute; top: 4px; left: 4px; pointer-events: none;" />` : ''}
               <span class="icon">${icon}</span>
               <span class="label" style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
             </div>
@@ -8803,14 +9077,16 @@ class TempleOS {
 
     const listHtml = `
       <div style="display: flex; flex-direction: column; gap: 6px;">
-        <div style="display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 6px 10px; opacity: 0.7; font-size: 12px;">
+        <div style="display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 1fr 110px 170px; gap: 10px; padding: 6px 10px; opacity: 0.7; font-size: 12px;">
+          ${hasSelection ? '<span></span>' : ''}
           <span></span>
           <span class="file-col-header" data-sort-key="name" style="cursor: pointer;">Name${sortArrow('name')}</span>
           <span class="file-col-header" data-sort-key="size" style="cursor: pointer;">Size${sortArrow('size')}</span>
           <span class="file-col-header" data-sort-key="modified" style="cursor: pointer;">Modified${sortArrow('modified')}</span>
         </div>
         ${parentPath ? `
-          <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
+          <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
+            ${hasSelection ? '<span></span>' : ''}
             <span class="icon">📁</span>
             <span class="label">..</span>
             <span style="opacity: 0.6;">—</span>
@@ -8821,8 +9097,10 @@ class TempleOS {
       const icon = getFileIcon(file.name, file.isDirectory);
       const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
       const mod = file.modified ? new Date(file.modified).toLocaleString() : '—';
+      const isSelected = this.selectedFiles.has(file.path);
       return `
-            <div class="file-row file-item" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: 26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,0,0,0.15);">
+            <div class="file-row file-item ${isSelected ? 'file-selected' : ''}" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid ${isSelected ? '#00ff41' : 'rgba(0,255,65,0.2)'}; border-radius: 6px; background: ${isSelected ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.15)'};">
+              ${hasSelection ? `<input type="checkbox" ${isSelected ? 'checked' : ''} style="pointer-events: none; accent-color: #00ff41;" />` : ''}
               <span class="icon">${icon}</span>
               <span class="label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
               <span style="opacity: 0.8;">${sizeStr}</span>
@@ -8833,12 +9111,59 @@ class TempleOS {
       </div>
     `;
 
+    // Details view with full sortable columns
+    const detailsHtml = `
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 2fr 100px 150px 80px; gap: 10px; padding: 8px 10px; opacity: 0.7; font-size: 12px; border-bottom: 1px solid rgba(0,255,65,0.3);">
+          ${hasSelection ? `<input type="checkbox" ${selCount > 0 && selCount === files.length ? 'checked' : ''} class="select-all-checkbox" style="accent-color: #00ff41;" />` : ''}
+          <span></span>
+          <span class="file-col-header" data-sort-key="name" style="cursor: pointer; font-weight: bold;">Name${sortArrow('name')}</span>
+          <span class="file-col-header" data-sort-key="size" style="cursor: pointer; font-weight: bold;">Size${sortArrow('size')}</span>
+          <span class="file-col-header" data-sort-key="modified" style="cursor: pointer; font-weight: bold;">Modified${sortArrow('modified')}</span>
+          <span style="font-weight: bold;">Type</span>
+        </div>
+        ${parentPath ? `
+          <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 2fr 100px 150px 80px; gap: 10px; padding: 6px 10px; border-radius: 4px; background: rgba(0,255,65,0.05);">
+            ${hasSelection ? '<span></span>' : ''}
+            <span  class="icon">📁</span>
+            <span class="label">..</span>
+            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">Folder</span>
+          </div>
+        ` : ''}
+        ${files.map(file => {
+      const icon = getFileIcon(file.name, file.isDirectory);
+      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleDateString() : '—';
+      const type = file.isDirectory ? 'Folder' : (file.name.split('.').pop()?.toUpperCase() || 'File');
+      const isSelected = this.selectedFiles.has(file.path);
+      return `
+            <div class="file-row file-item ${isSelected ? 'file-selected' : ''}" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 2fr 100px 150px 80px; gap: 10px; padding: 6px 10px; border-radius: 4px; background: ${isSelected ? 'rgba(0,255,65,0.15)' : 'transparent'}; border: 1px solid ${isSelected ? '#00ff41' : 'transparent'};">
+              ${hasSelection ? `<input type="checkbox" ${isSelected ? 'checked' : ''} style="pointer-events: none; accent-color: #00ff41;" />` : ''}
+              <span class="icon">${icon}</span>
+              <span class="label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+              <span style="opacity: 0.8; font-size: 12px;">${sizeStr}</span>
+              <span style="opacity: 0.7; font-size: 11px;">${mod}</span>
+              <span style="opacity: 0.6; font-size: 11px;">${type}</span>
+            </div>
+          `;
+    }).join('')}
+      </div>
+    `;
+
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
-        <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
+        <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
           <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⟵</button>
           <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⌂</button>
           <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">↻</button>
+
+          ${hasSelection ? `
+            <span style="padding: 4px 10px; background: rgba(0,255,65,0.2); border-radius: 6px; font-size: 12px; font-weight: bold;">${selCount} selected</span>
+            <button class="btn-delete-selected" style="background: rgba(255,65,65,0.2); border: 1px solid rgba(255,65,65,0.5); color: #ff4141; padding: 6px 12px; cursor: pointer; border-radius: 6px; font-size: 12px;">🗑️ Delete</button>
+            <button class="btn-deselect-all" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px; font-size: 12px;">Clear</button>
+          ` : ''}
 
           <input class="file-search-input" type="text" placeholder="Search this folder" value="${this.fileSearchQuery}"
                  style="flex: 1; min-width: 180px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit; outline: none;">
@@ -8849,10 +9174,11 @@ class TempleOS {
             <option value="size" ${this.fileSortMode === 'size' ? 'selected' : ''}>Size</option>
           </select>
 
-          <button class="file-view-toggle" data-view="${this.fileViewMode === 'grid' ? 'list' : 'grid'}"
-                  style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
-            ${this.fileViewMode === 'grid' ? 'List' : 'Grid'}
-          </button>
+          <select class="file-view-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+            <option value="grid" ${this.fileViewMode === 'grid' ? 'selected' : ''}>Grid</option>
+            <option value="list" ${this.fileViewMode === 'list' ? 'selected' : ''}>List</option>
+            <option value="details" ${this.fileViewMode === 'details' ? 'selected' : ''}>Details</option>
+          </select>
 
           <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.9; user-select: none;">
             <input class="file-hidden-toggle" type="checkbox" ${this.showHiddenFiles ? 'checked' : ''} />
@@ -8872,7 +9198,7 @@ class TempleOS {
             `).join('')}
           </div>
           <div class="file-browser-content" style="flex: 1; overflow-y: auto; padding: 10px; min-width: 0;">
-            ${emptyState || (this.fileViewMode === 'grid' ? gridHtml : listHtml)}
+            ${emptyState || (this.fileViewMode === 'grid' ? gridHtml : this.fileViewMode === 'list' ? listHtml : detailsHtml)}
           </div>
         </div>
       </div>
@@ -9563,10 +9889,15 @@ class TempleOS {
         ${card('Tor Network (Onion Routing)', `
             <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
                  <div>
-                    <div style="font-weight: bold; color: ${this.torEnabled ? '#00ff41' : '#888'};">
-                      ${this.torEnabled ? (this.torCircuitStatus === 'connected' ? 'Connected (Anonymous)' : 'Connecting...') : 'Disabled'}
+                    <div style="font-weight: bold; color: ${!this.torEnabled ? '#888' : (this.torCircuitStatus === 'connected' ? '#00ff41' : this.torCircuitStatus === 'failed' ? '#ff6464' : '#ffd700')};">
+                      ${!this.torEnabled ? 'Disabled' : (this.torCircuitStatus === 'connected' ? 'Tor daemon running' : this.torCircuitStatus === 'failed' ? 'Tor unavailable' : 'Checking...')}
                     </div>
-                    <div style="font-size: 12px; opacity: 0.7;">Route traffic through encrypted onion circuit.</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Checks Tor daemon status; traffic routing is not enforced by the UI toggle yet.</div>
+                    <div style="font-size: 10px; opacity: 0.65; margin-top: 4px;">
+                      Daemon: ${this.torDaemonSupported ? (this.torDaemonRunning ? 'Running' : 'Stopped') : 'Unsupported'}
+                      ${this.torDaemonBackend ? ` (${escapeHtml(this.torDaemonBackend)})` : ''}
+                      ${this.torDaemonVersion ? ` — ${escapeHtml(this.torDaemonVersion)}` : ''}
+                    </div>
                  </div>
                  <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
                     <input type="checkbox" class="sec-toggle" data-sec-key="tor" ${this.torEnabled ? 'checked' : ''}>
@@ -9614,7 +9945,7 @@ class TempleOS {
           { name: 'Firewall', enabled: this.firewallEnabled, weight: 18 },
           { name: 'SSH Disabled', enabled: !this.sshEnabled, weight: 13 },
           { name: 'Tracker Blocking', enabled: this.trackerBlockingEnabled, weight: 12 },
-          { name: 'Tor Mode', enabled: this.torEnabled, weight: 12 },
+          { name: 'Tor Mode', enabled: this.torEnabled && this.torDaemonRunning, weight: 12 },
           { name: 'MAC Randomization', enabled: this.macRandomization, weight: 10 },
           { name: 'Secure Wipe', enabled: this.secureWipeOnShutdown, weight: 8 },
           { name: 'Lock Screen', enabled: this.lockPassword !== '', weight: 4 },
@@ -9656,7 +9987,7 @@ class TempleOS {
               ${!this.firewallEnabled ? '<div>• Enable firewall to block unauthorized access</div>' : ''}
               ${this.sshEnabled ? '<div>• Disable SSH if not needed for remote access</div>' : ''}
               ${!this.macRandomization ? '<div>• Enable MAC randomization for privacy</div>' : ''}
-              ${!this.torEnabled ? '<div>• Consider Tor for anonymous browsing</div>' : ''}
+              ${!(this.torEnabled && this.torDaemonRunning) ? '<div>• Consider Tor for anonymous browsing</div>' : ''}
               ${percentage === 100 ? '<div style="color: #00ff41;">✨ Perfect! Your security is divine.</div>' : ''}
             </div>
           `;
@@ -9832,6 +10163,108 @@ class TempleOS {
     } catch (error) {
       console.error('Error loading files:', error);
     }
+  }
+
+  // ============================================
+  // FILE BROWSER MULTI-SELECT (Priority 1)
+  // ============================================
+
+  private toggleFileSelection(path: string, ctrlKey: boolean, shiftKey: boolean): void {
+    if (shiftKey && this.lastSelectedIndex >= 0) {
+      // Range selection with Shift
+      const currentIndex = this.fileEntries.findIndex(f => f.path === path);
+      if (currentIndex >= 0) {
+        const start = Math.min(this.lastSelectedIndex, currentIndex);
+        const end = Math.max(this.lastSelectedIndex, currentIndex);
+        for (let i = start; i <= end; i++) {
+          if (this.fileEntries[i]) {
+            this.selectedFiles.add(this.fileEntries[i].path);
+          }
+        }
+      }
+    } else if (ctrlKey) {
+      // Toggle selection with Ctrl
+      if (this.selectedFiles.has(path)) {
+        this.selectedFiles.delete(path);
+      } else {
+        this.selectedFiles.add(path);
+      }
+      const currentIndex = this.fileEntries.findIndex(f => f.path === path);
+      if (currentIndex >= 0) {
+        this.lastSelectedIndex = currentIndex;
+      }
+    } else {
+      // Single selection (clear others)
+      this.selectedFiles.clear();
+      this.selectedFiles.add(path);
+      const currentIndex = this.fileEntries.findIndex(f => f.path === path);
+      if (currentIndex >= 0) {
+        this.lastSelectedIndex = currentIndex;
+      }
+    }
+    this.updateFileBrowserWindow();
+  }
+
+  private selectAllFiles(): void {
+    for (const file of this.fileEntries) {
+      if (!file.isDirectory || this.selectedFiles.size > 0) { // Include all if any selected, otherwise skip dirs
+        this.selectedFiles.add(file.path);
+      }
+    }
+    this.updateFileBrowserWindow();
+  }
+
+  private deselectAllFiles(): void {
+    this.selectedFiles.clear();
+    this.lastSelectedIndex = -1;
+    this.updateFileBrowserWindow();
+  }
+
+  private async deleteSelectedFiles(): Promise<void> {
+    if (this.selectedFiles.size === 0) return;
+
+    const count = this.selectedFiles.size;
+    const ok = await this.openConfirmModal({
+      title: 'Delete Selected Files',
+      message: `Move ${count} item${count > 1 ? 's' : ''} to Trash?`,
+      confirmText: 'Move to Trash',
+      cancelText: 'Cancel'
+    });
+
+    if (!ok) return;
+
+    const paths = Array.from(this.selectedFiles);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const path of paths) {
+      if (window.electronAPI?.trashItem) {
+        const res = await window.electronAPI.trashItem(path);
+        if (res.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } else if (window.electronAPI?.deleteItem) {
+        const res = await window.electronAPI.deleteItem(path);
+        if (res.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      }
+    }
+
+    this.selectedFiles.clear();
+    this.lastSelectedIndex = -1;
+
+    if (errorCount > 0) {
+      this.showNotification('Files', `Deleted ${successCount} items, ${errorCount} failed`, 'warning');
+    } else {
+      this.showNotification('Files', `Deleted ${successCount} item${successCount > 1 ? 's' : ''}`, 'divine');
+    }
+
+    await this.loadFiles(this.currentPath);
   }
 
   private async loadTrash(): Promise<void> {
@@ -10946,217 +11379,25 @@ class TempleOS {
   // CONFIG (persist user settings)
   // ============================================
   private async loadConfig(): Promise<void> {
-    let cfg: TempleConfig = {};
-
-    try {
-      if (window.electronAPI?.loadConfig) {
-        const res = await window.electronAPI.loadConfig();
-        if (res?.success && res.config) cfg = res.config as TempleConfig;
-      } else {
-        const raw = localStorage.getItem('templeos.config');
-        if (raw) cfg = JSON.parse(raw) as TempleConfig;
-      }
-    } catch (e) {
-      console.warn('Failed to load config:', e);
-    }
-
-    if (typeof cfg.wallpaperImage === 'string') this.wallpaperImage = cfg.wallpaperImage;
-    if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.themeMode = cfg.themeMode;
-    if (typeof cfg.volumeLevel === 'number') this.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
-    if (typeof cfg.doNotDisturb === 'boolean') this.doNotDisturb = cfg.doNotDisturb;
-    if (typeof cfg.lockPassword === 'string') this.lockPassword = cfg.lockPassword;
-    if (typeof cfg.lockPin === 'string') this.lockPin = cfg.lockPin;
-
-    if (cfg.network) {
-      if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.networkManager.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
-      if (cfg.network.vpnKillSwitchMode === 'auto' || cfg.network.vpnKillSwitchMode === 'strict') this.networkManager.vpnKillSwitchMode = cfg.network.vpnKillSwitchMode;
-      // Always reset transient state on load
-      this.networkManager.vpnKillSwitchArmed = false;
-      this.networkManager.vpnKillSwitchBlocked = false;
-      this.networkManager.vpnKillSwitchSnoozeUntil = null;
-      this.networkManager.vpnKillSwitchLastDisconnected = [];
-
-      this.networkManager.hotspotSSID = cfg.network.hotspotSSID ?? 'TempleOS_Hotspot';
-      this.networkManager.hotspotPassword = cfg.network.hotspotPassword ?? '';
-      this.networkManager.dataUsageDailyLimit = cfg.network.dataUsageDailyLimit ?? 0;
-      this.networkManager.dataUsageTrackingEnabled = cfg.network.dataUsageTrackingEnabled ?? false;
-    }
-
-    if (cfg.terminal) {
-      const t = cfg.terminal;
-      if (t.uiTheme === 'green' || t.uiTheme === 'cyan' || t.uiTheme === 'amber' || t.uiTheme === 'white') this.terminalUiTheme = t.uiTheme;
-      if (typeof t.fontFamily === 'string' && t.fontFamily.trim()) this.terminalFontFamily = t.fontFamily;
-      if (typeof t.fontSize === 'number') this.terminalFontSize = Math.max(10, Math.min(32, Math.round(t.fontSize)));
-      if (typeof t.promptTemplate === 'string' && t.promptTemplate.trim()) this.terminalPromptTemplate = t.promptTemplate;
-      if (t.aliases && typeof t.aliases === 'object') {
-        const next: Record<string, string> = {};
-        for (const [k, v] of Object.entries(t.aliases)) {
-          const key = String(k || '').trim().toLowerCase();
-          if (!key || !/^[a-z0-9_\\-]+$/.test(key)) continue;
-          if (typeof v !== 'string') continue;
-          next[key] = v;
-          if (Object.keys(next).length >= 64) break;
-        }
-        this.terminalAliases = next;
-      }
-    }
-
-    if (cfg.editor && typeof cfg.editor.wordWrap === 'boolean') {
-      this.editorWordWrap = cfg.editor.wordWrap;
-    }
-
-    if (Array.isArray(cfg.recentFiles)) {
-      this.editorRecentFiles = cfg.recentFiles
-        .filter(x => typeof x === 'string')
-        .slice(0, 20);
-    }
-
-
-    if (cfg.mouse) {
-      if (typeof cfg.mouse.speed === 'number') this.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
-      if (typeof cfg.mouse.raw === 'boolean') this.mouseSettings.raw = cfg.mouse.raw;
-      if (typeof cfg.mouse.naturalScroll === 'boolean') this.mouseSettings.naturalScroll = cfg.mouse.naturalScroll;
-      if (typeof (cfg.mouse as any).dpi === 'number') this.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round((cfg.mouse as any).dpi)));
-    }
-
-    if (Array.isArray(cfg.pinnedStart)) {
-      this.pinnedStart = cfg.pinnedStart.filter(k => typeof k === 'string').slice(0, 24);
-    }
-    if (Array.isArray(cfg.pinnedTaskbar)) {
-      this.pinnedTaskbar = cfg.pinnedTaskbar.filter(k => typeof k === 'string').slice(0, 20);
-    }
-    if (Array.isArray(cfg.desktopShortcuts)) {
-      this.desktopShortcuts = cfg.desktopShortcuts
-        .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string')
-        .slice(0, 48)
-        .map(s => ({ key: s.key, label: s.label }));
-    }
-
-    if (Array.isArray(cfg.recentApps)) this.recentApps = cfg.recentApps.slice(0, 20).filter(x => typeof x === 'string');
-    if (cfg.appUsage && typeof cfg.appUsage === 'object') this.appUsage = cfg.appUsage as Record<string, number>;
-    if (Array.isArray(cfg.fileBookmarks)) this.fileBookmarks = cfg.fileBookmarks.slice(0, 20).filter(x => typeof x === 'string');
-
-    // Start terminal in home directory (if available)
-    if (!this.terminalCwd && window.electronAPI) {
-      try {
-        this.terminalCwd = await window.electronAPI.getHome();
-      } catch {
-        this.terminalCwd = '/';
-      }
-    }
-
-    if (this.terminalBuffer.length === 0) {
-      this.terminalBuffer.push(`<div class="terminal-line system">TempleOS Terminal - Ready</div>`);
-      this.terminalBuffer.push(`<div class="terminal-line system">CWD: ${escapeHtml(this.terminalCwd || '')}</div>`);
-      this.terminalBuffer.push(`<div class="terminal-line system">Tips: cd, ls, pwd, cat, nano (non-interactive), help</div>`);
-      this.terminalBuffer.push(`<div class="terminal-line"></div>`);
-    }
-
-    // Apply audio preferences (best-effort)
-    if (cfg.audio?.defaultSink && window.electronAPI?.setDefaultSink) {
-      await window.electronAPI.setDefaultSink(cfg.audio.defaultSink);
-    }
-    if (cfg.audio?.defaultSource && window.electronAPI?.setDefaultSource) {
-      await window.electronAPI.setDefaultSource(cfg.audio.defaultSource);
-    }
-    if (window.electronAPI?.applyMouseSettings) {
-      await window.electronAPI.applyMouseSettings(this.mouseSettings);
-    }
-
-    // If user saved a resolution preference, apply it after we loaded available modes.
-    if (typeof cfg.currentResolution === 'string') {
-      this.currentResolution = cfg.currentResolution;
-      if (window.electronAPI) {
-        window.electronAPI.setResolution(cfg.currentResolution);
-      }
-    }
-
-    this.applyTheme();
-    this.applyWallpaper();
-    this.render();
+    await this.settingsManager.loadConfig();
   }
 
   private applyWallpaper(): void {
-    const desktop = document.getElementById('desktop') as HTMLElement | null;
-    if (desktop) {
-      desktop.style.backgroundImage = `url('${this.wallpaperImage}')`;
-      desktop.style.backgroundSize = '100% 100%';
-      desktop.style.backgroundPosition = 'center';
-    }
+    this.settingsManager.applyWallpaper();
   }
 
   private applyTaskbarPosition(): void {
-    document.body.setAttribute('data-taskbar-position', this.taskbarPosition);
-    this.tilingManager.setTaskbarPosition(this.taskbarPosition);
+    this.settingsManager.applyTaskbarPosition();
   }
 
   private setTaskbarPosition(position: 'top' | 'bottom'): void {
-    this.taskbarPosition = position;
-    localStorage.setItem('temple_taskbar_position', position);
-    this.applyTaskbarPosition();
-    this.render();
-    this.showNotification('Taskbar', `Taskbar moved to ${position}`, 'info');
+    this.settingsManager.setTaskbarPosition(position);
   }
 
 
 
   private queueSaveConfig(): void {
-    if (this.configSaveTimer) window.clearTimeout(this.configSaveTimer);
-    this.configSaveTimer = window.setTimeout(() => {
-      this.configSaveTimer = null;
-      void this.saveConfigNow();
-    }, 250);
-  }
-
-  private async saveConfigNow(): Promise<void> {
-    const snapshot: TempleConfig = {
-      wallpaperImage: this.wallpaperImage,
-      themeMode: this.themeMode as 'dark' | 'light',
-      currentResolution: this.currentResolution,
-      volumeLevel: this.volumeLevel,
-      doNotDisturb: this.doNotDisturb,
-      lockPassword: this.lockPassword,
-      lockPin: this.lockPin,
-
-      network: {
-        vpnKillSwitchEnabled: this.networkManager.vpnKillSwitchEnabled,
-        vpnKillSwitchMode: this.networkManager.vpnKillSwitchMode,
-        hotspotSSID: this.networkManager.hotspotSSID,
-        hotspotPassword: this.networkManager.hotspotPassword,
-        dataUsageDailyLimit: this.networkManager.dataUsageDailyLimit,
-        dataUsageTrackingEnabled: this.networkManager.dataUsageTrackingEnabled
-      },
-
-      terminal: {
-        aliases: this.terminalAliases,
-        promptTemplate: this.terminalPromptTemplate,
-        uiTheme: this.terminalUiTheme,
-        fontFamily: this.terminalFontFamily,
-        fontSize: this.terminalFontSize
-      },
-
-      editor: { wordWrap: this.editorWordWrap },
-      recentFiles: this.editorRecentFiles.slice(0, 20),
-
-      audio: { defaultSink: this.audioDevices.defaultSink, defaultSource: this.audioDevices.defaultSource },
-      mouse: { ...this.mouseSettings },
-      pinnedStart: this.pinnedStart.slice(0, 24),
-      pinnedTaskbar: this.pinnedTaskbar.slice(0, 20),
-      desktopShortcuts: this.desktopShortcuts.slice(0, 48),
-      recentApps: this.recentApps.slice(0, 20),
-      appUsage: this.appUsage,
-      fileBookmarks: this.fileBookmarks
-    };
-
-    try {
-      if (window.electronAPI?.saveConfig) {
-        await window.electronAPI.saveConfig(snapshot);
-      } else {
-        localStorage.setItem('templeos.config', JSON.stringify(snapshot));
-      }
-    } catch (e) {
-      console.warn('Failed to save config:', e);
-    }
+    this.settingsManager.queueSaveConfig();
   }
 
   // ============================================
@@ -11788,6 +12029,14 @@ class TempleOS {
 
   private lock(): void {
     if (this.isLocked) return;
+
+    // Best-effort: request a real OS session lock (Linux) via Electron main-process IPC.
+    try {
+      void window.electronAPI?.lock?.();
+    } catch {
+      // ignore
+    }
+
     this.isLocked = true;
 
     // Create secure lock screen
@@ -12406,11 +12655,41 @@ class TempleOS {
     }
   }
 
-  private updateClock() {
+  private updateClock(): void {
+    const now = new Date();
+
     const clockText = document.getElementById('clock-text');
-    if (clockText) {
-      const now = new Date();
-      clockText.textContent = now.toLocaleTimeString();
+    if (clockText) clockText.textContent = now.toLocaleTimeString();
+
+    const widgetTime = document.getElementById('desktop-widget-time');
+    if (widgetTime) widgetTime.textContent = now.toLocaleTimeString();
+
+    const widgetDate = document.getElementById('desktop-widget-date');
+    if (widgetDate) widgetDate.textContent = now.toLocaleDateString();
+
+    const cpuEl = document.getElementById('desktop-widget-cpu');
+    if (cpuEl) {
+      const cpu = this.monitorStats?.cpuPercent;
+      cpuEl.textContent = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '—';
+    }
+
+    const ramEl = document.getElementById('desktop-widget-ram');
+    if (ramEl) {
+      const mem = this.monitorStats?.memory;
+      if (mem && mem.total > 0) {
+        const pct = Math.max(0, Math.min(100, Math.round((mem.used / mem.total) * 100)));
+        ramEl.textContent = String(pct);
+      } else {
+        ramEl.textContent = '—';
+      }
+    }
+
+    const batEl = document.getElementById('desktop-widget-battery');
+    if (batEl) {
+      const pct = (this.batterySupported && this.batteryStatus?.present && typeof this.batteryStatus.percent === 'number')
+        ? Math.max(0, Math.min(100, Math.round(this.batteryStatus.percent)))
+        : null;
+      batEl.textContent = pct === null ? '—' : String(pct);
     }
   }
 
@@ -12418,34 +12697,8 @@ class TempleOS {
   // ============================================
   // TIER 9.4: THEME SYSTEM
   // ============================================
-  private applyTheme() {
-    const isLight = this.themeMode === 'light';
-    const root = document.documentElement;
-
-    const colors: Record<string, string> = {
-      green: '#00ff41',
-      amber: '#ffb000',
-      cyan: '#00ffff',
-      white: '#ffffff'
-    };
-
-    const mainColor = colors[this.themeColor] || colors.green;
-    // In TempleOS, "Light Node" is heresy, but we implement it for Tier 9.4
-    // Light mode: White BG, Black Text (or Main Color text?)
-    // Let's go with High Contrast approach: White BG, Black Text, Main Color Borders
-
-    const bgColor = isLight ? '#ffffff' : '#000000';
-    const textColor = isLight ? '#000000' : mainColor;
-
-    root.style.setProperty('--main-color', mainColor);
-    root.style.setProperty('--bg-color', bgColor);
-    root.style.setProperty('--text-color', textColor);
-
-    // We might need to handle specific component overrides via CSS based on [data-theme]
-    root.dataset.themeMode = this.themeMode;
-    root.dataset.themeColor = this.themeColor;
-
-    // Also update terminal theme if linked? For now keep them separate as per original architecture
+  private applyTheme(): void {
+    this.settingsManager.applyTheme();
   }
 
   // ============================================
@@ -12539,14 +12792,24 @@ class TempleOS {
     if (!this.desktopWidgetsEnabled) return '';
 
     const now = new Date();
-    // Simple ASCII Clock Widget
+    const cpu = this.monitorStats?.cpuPercent;
+    const cpuText = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '—';
+
+    const mem = this.monitorStats?.memory;
+    const ramText = (mem && mem.total > 0) ? String(Math.max(0, Math.min(100, Math.round((mem.used / mem.total) * 100)))) : '—';
+
+    const bat = (this.batterySupported && this.batteryStatus?.present && typeof this.batteryStatus.percent === 'number')
+      ? String(Math.max(0, Math.min(100, Math.round(this.batteryStatus.percent))))
+      : '—';
+
     return `
       <div class="desktop-widget" style="position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 0; color: rgba(0,255,65,0.4);">
-          <div style="font-size: 32px; font-weight: bold;">${now.toLocaleTimeString()}</div>
-          <div style="font-size: 16px;">${now.toLocaleDateString()}</div>
+          <div id="desktop-widget-time" style="font-size: 32px; font-weight: bold;">${now.toLocaleTimeString()}</div>
+          <div id="desktop-widget-date" style="font-size: 16px;">${now.toLocaleDateString()}</div>
           <div style="margin-top: 10px; font-size: 12px;">
-             CPU: ${Math.floor(Math.random() * 10) + 1}% <br>
-             RAM: ${Math.floor(Math.random() * 20) + 10}%
+             CPU: <span id="desktop-widget-cpu">${cpuText}</span>% <br>
+             RAM: <span id="desktop-widget-ram">${ramText}</span>% <br>
+             BAT: <span id="desktop-widget-battery">${bat}</span>%
           </div>
       </div>
       `;

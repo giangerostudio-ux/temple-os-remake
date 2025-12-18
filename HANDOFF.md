@@ -42,31 +42,6 @@
 - Proper navigation with highlighted active tab
 
 ### Update Notification System: ✅ Completed
-- Background update check runs 10 seconds after boot
-- Periodic update checks every 4 hours
-- System notification displayed when updates are available
-- "Open Updater" action button in notification
-- Users are notified without needing to open Holy Updater
-
-## Refactoring Completed
-- Created `src/system/WorkspaceManager.ts` - Handles virtual desktop logic
-- Created `src/system/TilingManager.ts` - Handles smart window tiling
-- Created `src/system/NetworkManager.ts` - Centralized network/VPN/Hotspot management
-- Enhanced `src/apps/Help.ts` - Full documentation app with 5 sections
-
-- Added new CSS styles for workspace switcher, snap preview, snap assist, and taskbar positioning
-
-## New Files Created
-- `src/system/WorkspaceManager.ts` - 290 lines
-- `src/system/TilingManager.ts` - 340 lines
-- `src/system/NetworkManager.ts` - 380 lines
-- `src/apps/Help.ts` - Enhanced from 167 to 280 lines
-
-
-### Tier 9.1 - Taskbar Hover Previews: ✅ Completed
-- Hover over taskbar window items to see preview popup
-- 300ms delay before showing (natural feel)
-- Preview positioned above/below taskbar based on taskbar position
 - Context-aware previews for different window types:
   - **Terminal**: Shows last few lines of output
   - **Editor**: Shows current file name and content preview
@@ -99,22 +74,57 @@
 
 ### Tier 9.3 - Multi-monitor Support: ✅ Completed
 - Implemented backend window movement (`setWindowBounds`) API.
-- Updated `display:getOutputs` to return accurate display bounds and IDs (Windows/Mac).
+- Updated `display:getOutputs` to return accurate display bounds/geometry across platforms (Windows/Mac via Electron `screen`, Linux via sway `rect` / xrandr geometry).
 - Settings UI: Added "Move Here" button to Display Settings to move TempleOS window to specific monitors.
 - Supports cross-platform display detection via Electron's `screen` API.
 - Fixed frontend typing so `displayOutputs` uses `DisplayOutput[]` (includes `bounds`), enabling window moves and clean builds.
 
-## Next Steps / Future Enhancements
-- **Continue Refactoring**: Extract more logic from main.ts into modules (Priority: High). Target: `src/system/SettingsManager.ts`.
-- **Integration Audit**: Review `INTEGRATION_AUDIT.md` and implement remaining non-real/missing backend wiring:
-  - `system:lock` is UI-only (no OS lock); implement Linux lock via `loginctl lock-session`/`xdg-screensaver lock`/etc.
-  - Add battery status IPC + UI (no `upower`/`acpi` integration yet).
-  - Tor circuit visualization: add real backend IPC (currently simulated).
-  - Clarify/Label simulated features (like Ubuntu backend mocks).
+## Refactoring Completed
+- Created `src/system/WorkspaceManager.ts` - Handles virtual desktop logic
+- Created `src/system/TilingManager.ts` - Handles smart window tiling
+- Created `src/system/NetworkManager.ts` - Centralized network/VPN/Hotspot management
+- Created `src/system/NotificationManager.ts` - Extracted notification logic and history
+- Created `src/system/SettingsManager.ts` - Extracted config persistence and theme application
+- Enhanced `src/apps/Help.ts` - Full documentation app with 5 sections
+- Added new CSS styles for workspace switcher, snap preview, snap assist, and taskbar positioning
 
+## New Files Created
+- `src/system/WorkspaceManager.ts` - 290 lines
+- `src/system/TilingManager.ts` - 340 lines
+- `src/system/NetworkManager.ts` - 400 lines
+- `src/system/NotificationManager.ts` - 280 lines
+- `src/system/SettingsManager.ts` - 290 lines
+- `src/apps/Help.ts` - Enhanced from 167 to 280 lines
+
+## Next Steps / Future Enhancements
+- **Continue Refactoring**: `src/system/SettingsManager.ts` extracted; next targets: `src/system/WindowManager.ts` and/or `src/system/DesktopManager.ts`.
+- **Integration Audit**: Addressed OS lock (`system:lock`), battery IPC (`system:getBattery`), Linux display bounds, Tor daemon status (`security:getTorStatus`), and non-Linux mock fallbacks. Remaining: full Tor circuit details (ControlPort) + traffic-routing enforcement if desired.
+
+## Priority 1-3 Implementation (In Progress)
+
+### Priority 1: File Browser & Desktop Polish - 🔄 In Progress
+- [ ] **Multi-select**: Implement Shift/Ctrl+Click multi-file selection in File Browser
+- [ ] **Bulk Actions**: Delete/move multiple files at once
+- [ ] **Icon Dragging**: Manual desktop icon repositioning with position saving
+- [ ] **Details View**: Finalize "Details" view toggle with sortable columns
+
+### Priority 2: Window Management Modularization - ⬜ Not Started
+- [ ] Extract ~5,000+ lines of window logic from `main.ts` into `src/system/WindowManager.ts`
+- [ ] Include: `openApp`, `closeWindow`, `focusWindow`, `renderWindows`, Tiling integration
+
+### Priority 3: Advanced UX - ⬜ Not Started
+- [ ] **Window Grouping**: Snap windows together to resize as a unit
+- [ ] **Picture-in-Picture**: Simple PiP mode for Media Player
+
+**State Added (2025-12-18)**:
+- `selectedFiles: Set<string>` - Tracks multi-selected files in File Browser
+- `lastSelectedIndex: number` - For Shift+Click range selection
+- `desktopIconPositions: Record<string, {x,y}>` - Custom icon positions on Desktop
+- `draggingIcon: {key, offsetX, offsetY}` - Desktop icon drag state
+- `fileViewMode` extended to support `'details'` view
 
 ## Known Issues
-- `src/main.ts` is still large (~12.9k lines), but modularization is progressing
+- `src/main.ts` is still large (~11.2k lines), but modularization is progressing
 - Snap preview overlay uses DOM element `#snap-preview` rather than state-based rendering
 - Workspace window filtering could be enhanced for better visual feedback
 

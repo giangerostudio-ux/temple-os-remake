@@ -31,6 +31,16 @@ export interface MonitorStats {
     network: { rxBps: number; txBps: number; rxBytes: number; txBytes: number } | null;
 }
 
+export interface BatteryStatus {
+    present: boolean;
+    percent: number | null;
+    state: string;
+    isCharging: boolean | null;
+    timeToEmptySec: number | null;
+    timeToFullSec: number | null;
+    source?: string;
+}
+
 export interface ProcessInfo {
     pid: number;
     name: string;
@@ -129,6 +139,14 @@ export interface TempleConfig {
     lockTimeoutMs?: number;
     lockPassword?: string;
     lockPin?: string;
+    network?: {
+        vpnKillSwitchEnabled?: boolean;
+        vpnKillSwitchMode?: 'auto' | 'strict';
+        hotspotSSID?: string;
+        hotspotPassword?: string;
+        dataUsageDailyLimit?: number;
+        dataUsageTrackingEnabled?: boolean;
+    };
     terminal?: {
         aliases?: Record<string, string>;
         promptTemplate?: string;

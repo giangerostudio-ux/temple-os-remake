@@ -1015,9 +1015,41 @@ ipcMain.handle('system:restart', () => {
     exec('systemctl reboot');
 });
 
-ipcMain.handle('system:lock', () => {
-    // Lock screen - this will be handled by the UI
-    mainWindow.webContents.send('lock-screen');
+ipcMain.handle('system:lock', async () => {
+    // Always trigger the UI overlay (renderer lock screen) as an immediate response.
+    try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('lock-screen');
+        }
+    } catch {
+        // ignore
+    }
+
+    // Best-effort: also lock the real OS session on Linux.
+    if (process.platform !== 'linux') {
+        return { success: true, unsupported: true };
+    }
+
+    const sessionId = process.env.XDG_SESSION_ID ? String(process.env.XDG_SESSION_ID) : '';
+    const candidates = [
+        // Systemd (most distros)
+        ...(sessionId ? [`loginctl lock-session "${shEscape(sessionId)}" 2>/dev/null`] : []),
+        'loginctl lock-sessions 2>/dev/null',
+        // X11/DE fallbacks
+        'xdg-screensaver lock 2>/dev/null',
+        'dm-tool lock 2>/dev/null',
+        'gnome-screensaver-command -l 2>/dev/null',
+        // DBus (various environments)
+        'qdbus org.freedesktop.ScreenSaver /ScreenSaver Lock 2>/dev/null',
+        'dbus-send --type=method_call --dest=org.freedesktop.ScreenSaver /ScreenSaver org.freedesktop.ScreenSaver.Lock 2>/dev/null'
+    ];
+
+    for (const cmd of candidates) {
+        const res = await execAsync(cmd, { timeout: 2500 });
+        if (!res.error) return { success: true, backend: cmd };
+    }
+
+    return { success: false, error: 'No supported screen locker found', tried: candidates };
 });
 
 ipcMain.handle('system:info', () => ({
@@ -1031,6 +1063,129 @@ ipcMain.handle('system:info', () => ({
     cpus: os.cpus().length,
     user: os.userInfo().username
 }));
+
+ipcMain.handle('system:getBattery', async () => {
+    if (process.platform !== 'linux') {
+        return { success: true, supported: false, status: { present: false } };
+    }
+
+    const parseUPowerTime = (value) => {
+        const raw = String(value || '').trim().toLowerCase();
+        const m = raw.match(/^(\d+(?:\.\d+)?)\s*(hour|hours|hr|hrs|minute|minutes|min|mins|second|seconds|sec|secs)\b/);
+        if (!m) return null;
+        const n = parseFloat(m[1]);
+        if (!Number.isFinite(n)) return null;
+        const unit = m[2];
+        if (unit.startsWith('hour') || unit.startsWith('hr')) return Math.round(n * 3600);
+        if (unit.startsWith('min')) return Math.round(n * 60);
+        if (unit.startsWith('sec')) return Math.round(n);
+        return null;
+    };
+
+    const parseHms = (value) => {
+        const raw = String(value || '').trim();
+        const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        if (!m) return null;
+        const h = parseInt(m[1], 10);
+        const min = parseInt(m[2], 10);
+        const sec = m[3] ? parseInt(m[3], 10) : 0;
+        if (!Number.isFinite(h) || !Number.isFinite(min) || !Number.isFinite(sec)) return null;
+        return h * 3600 + min * 60 + sec;
+    };
+
+    // Prefer upower (common on modern Linux desktops)
+    const upowerList = await execAsync('upower -e 2>/dev/null', { timeout: 2500 });
+    if (!upowerList.error && upowerList.stdout) {
+        const lines = upowerList.stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        const batteryDev = lines.find(l => /\/battery_/i.test(l) || /battery/i.test(l)) || null;
+        if (!batteryDev) {
+            return { success: true, supported: true, status: { present: false, source: 'upower' } };
+        }
+
+        const info = await execAsync(`upower -i "${shEscape(batteryDev)}" 2>/dev/null`, { timeout: 2500 });
+        if (!info.error && info.stdout) {
+            const text = info.stdout;
+            const grab = (re) => {
+                const m = text.match(re);
+                return m ? String(m[1]).trim() : null;
+            };
+
+            const presentRaw = grab(/^\s*present:\s*(.+)$/mi);
+            const present = (presentRaw || '').toLowerCase().includes('yes') || (presentRaw || '').toLowerCase().includes('true');
+
+            const stateRaw = grab(/^\s*state:\s*(.+)$/mi) || 'unknown';
+            const state = stateRaw.toLowerCase();
+
+            const percentRaw = grab(/^\s*percentage:\s*(\d+)%/mi);
+            const percent = percentRaw ? Math.max(0, Math.min(100, parseInt(percentRaw, 10))) : null;
+
+            const tteRaw = grab(/^\s*time to empty:\s*(.+)$/mi);
+            const ttfRaw = grab(/^\s*time to full:\s*(.+)$/mi);
+            const timeToEmptySec = tteRaw ? parseUPowerTime(tteRaw) : null;
+            const timeToFullSec = ttfRaw ? parseUPowerTime(ttfRaw) : null;
+
+            const isCharging = state.includes('charging') ? true : (state.includes('discharging') || state.includes('fully-charged') || state.includes('full')) ? false : null;
+
+            return {
+                success: true,
+                supported: true,
+                status: {
+                    present,
+                    percent,
+                    state,
+                    isCharging,
+                    timeToEmptySec,
+                    timeToFullSec,
+                    source: 'upower'
+                }
+            };
+        }
+    }
+
+    // Fallback: acpi (often installed on laptops / minimal systems)
+    const acpi = await execAsync('acpi -b 2>/dev/null', { timeout: 2500 });
+    if (!acpi.error && acpi.stdout) {
+        const lines = acpi.stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length) {
+            return { success: true, supported: true, status: { present: false, source: 'acpi' } };
+        }
+
+        const parsed = lines.map(line => {
+            // Battery 0: Discharging, 74%, 01:52:34 remaining
+            const m = line.match(/:\s*([^,]+),\s*(\d+)%\s*,?\s*(.*)$/i);
+            if (!m) return null;
+            const state = String(m[1] || '').trim().toLowerCase();
+            const percent = Math.max(0, Math.min(100, parseInt(m[2], 10)));
+            const tail = String(m[3] || '').trim();
+            const seconds = parseHms(tail);
+            return { state, percent, seconds };
+        }).filter(Boolean);
+
+        if (!parsed.length) {
+            return { success: true, supported: true, status: { present: false, source: 'acpi' } };
+        }
+
+        const avg = Math.round(parsed.reduce((sum, p) => sum + p.percent, 0) / parsed.length);
+        const primary = parsed[0];
+        const isCharging = primary.state.includes('charging') ? true : primary.state.includes('discharging') ? false : null;
+
+        return {
+            success: true,
+            supported: true,
+            status: {
+                present: true,
+                percent: avg,
+                state: primary.state,
+                isCharging,
+                timeToEmptySec: primary.state.includes('discharging') ? (primary.seconds || null) : null,
+                timeToFullSec: primary.state.includes('charging') ? (primary.seconds || null) : null,
+                source: 'acpi'
+            }
+        };
+    }
+
+    return { success: true, supported: false, status: { present: false }, error: 'Battery status not available (upower/acpi missing)' };
+});
 
 ipcMain.handle('monitor:getStats', async () => {
     try {
@@ -1203,16 +1358,16 @@ ipcMain.handle('system:setVolume', (event, level) => {
         // -q = quiet, set Master 
         command = `amixer -q set Master ${safeLevel}%`;
     } else if (process.platform === 'win32') {
-        // Windows needs nircmd or powershell script. For now, we skip.
-        console.log(`[Windows] Mock volume set to ${safeLevel}%`);
-        return;
+        return { success: false, unsupported: true, error: 'System volume control is not supported on this platform' };
     } else {
-        return;
+        return { success: false, unsupported: true, error: 'System volume control is not supported on this platform' };
     }
 
     exec(command, (error) => {
         if (error) console.error(`Failed to set volume: ${error.message}`);
     });
+
+    return { success: true };
 });
 
 // ============================================
@@ -1272,7 +1427,7 @@ ipcMain.handle('audio:setDefaultSource', async (event, sourceName) => {
 
 ipcMain.handle('audio:setVolume', async (event, level) => {
     const safeLevel = Math.max(0, Math.min(100, parseInt(level)));
-    if (process.platform !== 'linux') return { success: true };
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
 
     // Prefer pactl when available; fall back to amixer.
     const pactlResult = await execAsync(`pactl set-sink-volume @DEFAULT_SINK@ ${safeLevel}% 2>/dev/null`);
@@ -1287,7 +1442,7 @@ ipcMain.handle('audio:setVolume', async (event, level) => {
 // ============================================
 ipcMain.handle('network:getStatus', async () => {
     if (process.platform !== 'linux') {
-        return { success: true, status: { connected: false } };
+        return { success: false, unsupported: true, error: 'Not supported on this platform', status: { connected: false } };
     }
 
     const devStatus = await execAsync('nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status 2>/dev/null');
@@ -1483,7 +1638,7 @@ ipcMain.handle('network:stopHotspot', async () => {
 });
 
 ipcMain.handle('network:getWifiEnabled', async () => {
-    if (process.platform !== 'linux') return { success: true, enabled: true };
+    if (process.platform !== 'linux') return { success: false, unsupported: true, error: 'Not supported on this platform' };
     const res = await execAsync('nmcli -t -f WIFI radio 2>/dev/null');
     if (res.error) return { success: false, error: res.stderr || res.error.message };
     const raw = (res.stdout || '').trim().toLowerCase();
@@ -1780,12 +1935,7 @@ ipcMain.handle('ssh:control', async (event, action, port) => {
 // ============================================
 ipcMain.handle('security:trackerBlocking', async (event, enabled) => {
     if (process.platform !== 'linux') {
-        // Mock success on Windows to pretend it worked (for demo purposes)
-        if (process.platform === 'win32') {
-            console.log(`[Mock] Tracker blocking set to ${enabled}`);
-            return { success: true };
-        }
-        return { success: false, error: 'Not supported on this platform' };
+        return { success: false, unsupported: true, error: 'Not supported on this platform' };
     }
 
     const startMarker = '# --- TempleOS Remake Tracker Blocklist ---';
@@ -1826,6 +1976,46 @@ ipcMain.handle('security:trackerBlocking', async (event, enabled) => {
         return { success: false, error: res.stderr || res.error.message || 'Failed to apply blocklist' };
     }
     return { success: true };
+});
+
+// ============================================
+// TOR STATUS (Best-effort: service/process presence)
+// ============================================
+ipcMain.handle('security:getTorStatus', async () => {
+    if (process.platform !== 'linux') {
+        return { success: true, supported: false, running: false };
+    }
+
+    let running = false;
+    let backend = '';
+
+    // Prefer systemd service state when available
+    const services = ['tor', 'tor@default'];
+    for (const svc of services) {
+        const res = await execAsync(`systemctl is-active ${svc} 2>/dev/null`, { timeout: 2000 });
+        if (!res.error) {
+            backend = `systemctl:${svc}`;
+            running = (res.stdout || '').trim() === 'active';
+            break;
+        }
+    }
+
+    // Fallback to process check if systemctl isn't available or didn't respond
+    if (!backend) {
+        const res = await execAsync('pgrep -x tor 2>/dev/null', { timeout: 2000 });
+        backend = 'pgrep';
+        running = !res.error && !!String(res.stdout || '').trim();
+    }
+
+    // Optional: read version (best-effort)
+    let version = null;
+    const ver = await execAsync('tor --version 2>/dev/null | head -n 1', { timeout: 2000 });
+    if (!ver.error) {
+        const line = String(ver.stdout || '').trim();
+        if (line) version = line;
+    }
+
+    return { success: true, supported: true, running, backend, version };
 });
 
 // ============================================
@@ -2102,20 +2292,7 @@ ipcMain.handle('display:getOutputs', async () => {
             return { success: true, outputs };
         } catch (error) {
             console.error('Failed to get displays:', error);
-            // Fallback mock
-            return {
-                success: true,
-                outputs: [
-                    {
-                        name: 'Display',
-                        active: true,
-                        scale: 1,
-                        transform: 'normal',
-                        currentMode: '1920x1080@60',
-                        modes: [{ width: 1920, height: 1080, refreshHz: 60 }]
-                    }
-                ]
-            };
+            return { success: false, error: error.message || String(error) };
         }
     }
 
@@ -2142,6 +2319,10 @@ ipcMain.handle('display:getOutputs', async () => {
                         }
                         : null;
                     const currentMode = cm ? `${cm.width}x${cm.height}${cm.refreshHz ? `@${cm.refreshHz}` : ''}` : '';
+                    const rect = o.rect && typeof o.rect === 'object' ? o.rect : null;
+                    const bounds = rect && Number.isFinite(rect.x) && Number.isFinite(rect.y) && Number.isFinite(rect.width) && Number.isFinite(rect.height)
+                        ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+                        : undefined;
                     return {
                         name: o.name,
                         active: !!o.active,
@@ -2149,6 +2330,7 @@ ipcMain.handle('display:getOutputs', async () => {
                         model: o.model || '',
                         serial: o.serial || '',
                         scale: typeof o.scale === 'number' ? o.scale : 1,
+                        bounds,
                         transform: o.transform || 'normal',
                         currentMode,
                         modes
@@ -2170,10 +2352,23 @@ ipcMain.handle('display:getOutputs', async () => {
         let current = null;
 
         for (const line of lines) {
-            const header = line.match(/^(\S+)\s+(connected|disconnected)\b/);
+            const header = line.match(/^(\S+)\s+(connected|disconnected)\b(.*)$/);
             if (header) {
                 if (current) outputs.push(current);
-                current = { name: header[1], active: header[2] === 'connected', scale: 1, transform: 'normal', currentMode: '', modes: [] };
+                const tail = header[3] || '';
+                let bounds = undefined;
+                if (header[2] === 'connected') {
+                    const geom = tail.match(/(\d+)x(\d+)\+(-?\d+)\+(-?\d+)/);
+                    if (geom) {
+                        bounds = {
+                            x: parseInt(geom[3], 10) || 0,
+                            y: parseInt(geom[4], 10) || 0,
+                            width: parseInt(geom[1], 10) || 0,
+                            height: parseInt(geom[2], 10) || 0
+                        };
+                    }
+                }
+                current = { name: header[1], active: header[2] === 'connected', scale: 1, transform: 'normal', bounds, currentMode: '', modes: [] };
                 continue;
             }
             if (current) {
@@ -2411,14 +2606,7 @@ function parseDesktopFile(content) {
 
 ipcMain.handle('apps:getInstalled', async () => {
     if (process.platform !== 'linux') {
-        // On Windows/Mac, return mock apps
-        return {
-            success: true,
-            apps: [
-                { name: 'Firefox', icon: 'firefox', exec: 'firefox', categories: ['Network', 'WebBrowser'] },
-                { name: 'Terminal', icon: 'terminal', exec: 'gnome-terminal', categories: ['System', 'TerminalEmulator'] },
-            ]
-        };
+        return { success: true, apps: [], unsupported: true, error: 'App discovery is only supported on Linux' };
     }
 
     const appDirs = [
@@ -2482,8 +2670,7 @@ ipcMain.handle('apps:getInstalled', async () => {
 // Launch an application by its .desktop file or exec command
 ipcMain.handle('apps:launch', async (event, app) => {
     if (process.platform !== 'linux') {
-        console.log(`[Windows/Mac] Would launch: ${app.name}`);
-        return { success: true };
+        return { success: false, unsupported: true, error: 'Launching apps is only supported on Linux' };
     }
 
     try {
@@ -2516,17 +2703,7 @@ ipcMain.handle('updater:check', async () => {
 
         exec(command, (error, stdout, stderr) => {
             if (error) {
-                // If dev environment or no git, just mock success for now to avoid crashing user experience
-                if (process.env.NODE_ENV === 'development') {
-                    resolve({
-                        success: true,
-                        updatesAvailable: false,
-                        behindCount: 0,
-                        message: "Dev Mode: No updates"
-                    });
-                    return;
-                }
-                resolve({ success: false, error: error.message });
+                resolve({ success: false, unsupported: true, error: (stderr || '').trim() || error.message || 'Update check failed' });
                 return;
             }
             const behindCount = parseInt(stdout.trim()) || 0;

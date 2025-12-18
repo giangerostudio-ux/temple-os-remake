@@ -1,0 +1,290 @@
+import type { TempleConfig } from '../utils/types';
+import { escapeHtml } from '../utils/helpers';
+
+export type SettingsHost = {
+  wallpaperImage: string;
+  themeMode: 'dark' | 'light';
+  themeColor: 'green' | 'amber' | 'cyan' | 'white';
+  volumeLevel: number;
+  doNotDisturb: boolean;
+  lockPassword: string;
+  lockPin: string;
+  currentResolution: string;
+
+  taskbarPosition: 'top' | 'bottom';
+  tilingManager: { setTaskbarPosition: (position: 'top' | 'bottom') => void };
+
+  // System modules/state
+  networkManager: any;
+
+  // Terminal config state
+  terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white';
+  terminalFontFamily: string;
+  terminalFontSize: number;
+  terminalPromptTemplate: string;
+  terminalAliases: Record<string, string>;
+  terminalCwd: string;
+  terminalBuffer: string[];
+
+  // Editor config state
+  editorWordWrap: boolean;
+  editorRecentFiles: string[];
+
+  // Audio / mouse config state
+  audioDevices: { defaultSink: string | null; defaultSource: string | null };
+  mouseSettings: any;
+
+  // UI state persisted
+  pinnedStart: string[];
+  pinnedTaskbar: string[];
+  desktopShortcuts: Array<{ key: string; label: string }>;
+  recentApps: string[];
+  appUsage: Record<string, number>;
+  fileBookmarks: string[];
+
+  render: () => void;
+  showNotification: (title: string, msg: string, type: 'info' | 'warning' | 'error' | 'divine', actions?: any[]) => void;
+};
+
+export class SettingsManager {
+  private readonly host: SettingsHost;
+  private configSaveTimer: number | null = null;
+
+  constructor(host: SettingsHost) {
+    this.host = host;
+  }
+
+  public applyTheme(): void {
+    const isLight = this.host.themeMode === 'light';
+    const root = document.documentElement;
+
+    const colors: Record<string, string> = {
+      green: '#00ff41',
+      amber: '#ffb000',
+      cyan: '#00ffff',
+      white: '#ffffff',
+    };
+
+    const mainColor = colors[this.host.themeColor] || colors.green;
+    const bgColor = isLight ? '#ffffff' : '#000000';
+    const textColor = isLight ? '#000000' : mainColor;
+
+    root.style.setProperty('--main-color', mainColor);
+    root.style.setProperty('--bg-color', bgColor);
+    root.style.setProperty('--text-color', textColor);
+
+    root.dataset.themeMode = this.host.themeMode;
+    root.dataset.themeColor = this.host.themeColor;
+  }
+
+  public applyWallpaper(): void {
+    const desktop = document.getElementById('desktop') as HTMLElement | null;
+    if (!desktop) return;
+    desktop.style.backgroundImage = `url('${this.host.wallpaperImage}')`;
+    desktop.style.backgroundSize = '100% 100%';
+    desktop.style.backgroundPosition = 'center';
+  }
+
+  public applyTaskbarPosition(): void {
+    document.body.setAttribute('data-taskbar-position', this.host.taskbarPosition);
+    this.host.tilingManager.setTaskbarPosition(this.host.taskbarPosition);
+  }
+
+  public setTaskbarPosition(position: 'top' | 'bottom'): void {
+    this.host.taskbarPosition = position;
+    localStorage.setItem('temple_taskbar_position', position);
+    this.applyTaskbarPosition();
+    this.host.render();
+    this.host.showNotification('Taskbar', `Taskbar moved to ${position}`, 'info');
+  }
+
+  public async loadConfig(): Promise<void> {
+    let cfg: TempleConfig = {};
+
+    try {
+      if (window.electronAPI?.loadConfig) {
+        const res = await window.electronAPI.loadConfig();
+        if (res?.success && res.config) cfg = res.config as TempleConfig;
+      } else {
+        const raw = localStorage.getItem('templeos.config');
+        if (raw) cfg = JSON.parse(raw) as TempleConfig;
+      }
+    } catch (e) {
+      console.warn('Failed to load config:', e);
+    }
+
+    if (typeof cfg.wallpaperImage === 'string') this.host.wallpaperImage = cfg.wallpaperImage;
+    if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.host.themeMode = cfg.themeMode;
+    if (typeof cfg.volumeLevel === 'number') this.host.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
+    if (typeof cfg.doNotDisturb === 'boolean') this.host.doNotDisturb = cfg.doNotDisturb;
+    if (typeof cfg.lockPassword === 'string') this.host.lockPassword = cfg.lockPassword;
+    if (typeof cfg.lockPin === 'string') this.host.lockPin = cfg.lockPin;
+
+    if (cfg.network) {
+      if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.host.networkManager.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
+      if (cfg.network.vpnKillSwitchMode === 'auto' || cfg.network.vpnKillSwitchMode === 'strict') this.host.networkManager.vpnKillSwitchMode = cfg.network.vpnKillSwitchMode;
+      // Always reset transient state on load
+      this.host.networkManager.vpnKillSwitchArmed = false;
+      this.host.networkManager.vpnKillSwitchBlocked = false;
+      this.host.networkManager.vpnKillSwitchSnoozeUntil = null;
+      this.host.networkManager.vpnKillSwitchLastDisconnected = [];
+
+      this.host.networkManager.hotspotSSID = cfg.network.hotspotSSID ?? 'TempleOS_Hotspot';
+      this.host.networkManager.hotspotPassword = cfg.network.hotspotPassword ?? '';
+      this.host.networkManager.dataUsageDailyLimit = cfg.network.dataUsageDailyLimit ?? 0;
+      this.host.networkManager.dataUsageTrackingEnabled = cfg.network.dataUsageTrackingEnabled ?? false;
+    }
+
+    if (cfg.terminal) {
+      const t = cfg.terminal;
+      if (t.uiTheme === 'green' || t.uiTheme === 'cyan' || t.uiTheme === 'amber' || t.uiTheme === 'white') this.host.terminalUiTheme = t.uiTheme;
+      if (typeof t.fontFamily === 'string' && t.fontFamily.trim()) this.host.terminalFontFamily = t.fontFamily;
+      if (typeof t.fontSize === 'number') this.host.terminalFontSize = Math.max(10, Math.min(32, Math.round(t.fontSize)));
+      if (typeof t.promptTemplate === 'string' && t.promptTemplate.trim()) this.host.terminalPromptTemplate = t.promptTemplate;
+      if (t.aliases && typeof t.aliases === 'object') {
+        const next: Record<string, string> = {};
+        for (const [k, v] of Object.entries(t.aliases)) {
+          const key = String(k || '').trim().toLowerCase();
+          if (!key || !/^[a-z0-9_\\-]+$/.test(key)) continue;
+          if (typeof v !== 'string') continue;
+          next[key] = v;
+          if (Object.keys(next).length >= 64) break;
+        }
+        this.host.terminalAliases = next;
+      }
+    }
+
+    if (cfg.editor && typeof cfg.editor.wordWrap === 'boolean') {
+      this.host.editorWordWrap = cfg.editor.wordWrap;
+    }
+
+    if (Array.isArray(cfg.recentFiles)) {
+      this.host.editorRecentFiles = cfg.recentFiles
+        .filter(x => typeof x === 'string')
+        .slice(0, 20);
+    }
+
+    if (cfg.mouse) {
+      if (typeof cfg.mouse.speed === 'number') this.host.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
+      if (typeof cfg.mouse.raw === 'boolean') this.host.mouseSettings.raw = cfg.mouse.raw;
+      if (typeof cfg.mouse.naturalScroll === 'boolean') this.host.mouseSettings.naturalScroll = cfg.mouse.naturalScroll;
+      if (typeof (cfg.mouse as any).dpi === 'number') this.host.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round((cfg.mouse as any).dpi)));
+    }
+
+    if (Array.isArray(cfg.pinnedStart)) {
+      this.host.pinnedStart = cfg.pinnedStart.filter(k => typeof k === 'string').slice(0, 24);
+    }
+    if (Array.isArray(cfg.pinnedTaskbar)) {
+      this.host.pinnedTaskbar = cfg.pinnedTaskbar.filter(k => typeof k === 'string').slice(0, 20);
+    }
+    if (Array.isArray(cfg.desktopShortcuts)) {
+      this.host.desktopShortcuts = cfg.desktopShortcuts
+        .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string')
+        .slice(0, 48)
+        .map(s => ({ key: s.key, label: s.label }));
+    }
+
+    if (Array.isArray(cfg.recentApps)) this.host.recentApps = cfg.recentApps.slice(0, 20).filter(x => typeof x === 'string');
+    if (cfg.appUsage && typeof cfg.appUsage === 'object') this.host.appUsage = cfg.appUsage as Record<string, number>;
+    if (Array.isArray(cfg.fileBookmarks)) this.host.fileBookmarks = cfg.fileBookmarks.slice(0, 20).filter(x => typeof x === 'string');
+
+    // Start terminal in home directory (if available)
+    if (!this.host.terminalCwd && window.electronAPI) {
+      try {
+        this.host.terminalCwd = await window.electronAPI.getHome();
+      } catch {
+        this.host.terminalCwd = '/';
+      }
+    }
+
+    if (this.host.terminalBuffer.length === 0) {
+      this.host.terminalBuffer.push(`<div class="terminal-line system">TempleOS Terminal - Ready</div>`);
+      this.host.terminalBuffer.push(`<div class="terminal-line system">CWD: ${escapeHtml(this.host.terminalCwd || '')}</div>`);
+      this.host.terminalBuffer.push(`<div class="terminal-line system">Tips: cd, ls, pwd, cat, nano (non-interactive), help</div>`);
+      this.host.terminalBuffer.push(`<div class="terminal-line"></div>`);
+    }
+
+    // Apply audio preferences (best-effort)
+    if (cfg.audio?.defaultSink && window.electronAPI?.setDefaultSink) {
+      await window.electronAPI.setDefaultSink(cfg.audio.defaultSink);
+    }
+    if (cfg.audio?.defaultSource && window.electronAPI?.setDefaultSource) {
+      await window.electronAPI.setDefaultSource(cfg.audio.defaultSource);
+    }
+    if (window.electronAPI?.applyMouseSettings) {
+      await window.electronAPI.applyMouseSettings(this.host.mouseSettings);
+    }
+
+    // If user saved a resolution preference, apply it after we loaded available modes.
+    if (typeof cfg.currentResolution === 'string') {
+      this.host.currentResolution = cfg.currentResolution;
+      if (window.electronAPI) {
+        window.electronAPI.setResolution(cfg.currentResolution);
+      }
+    }
+
+    this.applyTheme();
+    this.applyWallpaper();
+    this.host.render();
+  }
+
+  public queueSaveConfig(): void {
+    if (this.configSaveTimer) window.clearTimeout(this.configSaveTimer);
+    this.configSaveTimer = window.setTimeout(() => {
+      this.configSaveTimer = null;
+      void this.saveConfigNow();
+    }, 250);
+  }
+
+  public async saveConfigNow(): Promise<void> {
+    const snapshot: TempleConfig = {
+      wallpaperImage: this.host.wallpaperImage,
+      themeMode: this.host.themeMode,
+      currentResolution: this.host.currentResolution,
+      volumeLevel: this.host.volumeLevel,
+      doNotDisturb: this.host.doNotDisturb,
+      lockPassword: this.host.lockPassword,
+      lockPin: this.host.lockPin,
+
+      network: {
+        vpnKillSwitchEnabled: this.host.networkManager.vpnKillSwitchEnabled,
+        vpnKillSwitchMode: this.host.networkManager.vpnKillSwitchMode,
+        hotspotSSID: this.host.networkManager.hotspotSSID,
+        hotspotPassword: this.host.networkManager.hotspotPassword,
+        dataUsageDailyLimit: this.host.networkManager.dataUsageDailyLimit,
+        dataUsageTrackingEnabled: this.host.networkManager.dataUsageTrackingEnabled,
+      },
+
+      terminal: {
+        aliases: this.host.terminalAliases,
+        promptTemplate: this.host.terminalPromptTemplate,
+        uiTheme: this.host.terminalUiTheme,
+        fontFamily: this.host.terminalFontFamily,
+        fontSize: this.host.terminalFontSize,
+      },
+
+      editor: { wordWrap: this.host.editorWordWrap },
+      recentFiles: this.host.editorRecentFiles.slice(0, 20),
+
+      audio: { defaultSink: this.host.audioDevices.defaultSink, defaultSource: this.host.audioDevices.defaultSource },
+      mouse: { ...this.host.mouseSettings },
+      pinnedStart: this.host.pinnedStart.slice(0, 24),
+      pinnedTaskbar: this.host.pinnedTaskbar.slice(0, 20),
+      desktopShortcuts: this.host.desktopShortcuts.slice(0, 48),
+      recentApps: this.host.recentApps.slice(0, 20),
+      appUsage: this.host.appUsage,
+      fileBookmarks: this.host.fileBookmarks,
+    };
+
+    try {
+      if (window.electronAPI?.saveConfig) {
+        await window.electronAPI.saveConfig(snapshot);
+      } else {
+        localStorage.setItem('templeos.config', JSON.stringify(snapshot));
+      }
+    } catch (e) {
+      console.warn('Failed to save config:', e);
+    }
+  }
+}
+

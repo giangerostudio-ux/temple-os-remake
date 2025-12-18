@@ -95,6 +95,8 @@ export class NetworkManager {
             const res = await window.electronAPI.getWifiEnabled();
             if (res.success) {
                 this.wifiEnabled = res.enabled ?? true;
+            } else if ((res as any)?.unsupported) {
+                this.wifiEnabled = false;
             }
         } catch {
             // ignore

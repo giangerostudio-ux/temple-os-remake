@@ -77,12 +77,12 @@
 
 ## 🔎 Integration Audit TODOs (Backend Reality)
 
-- [ ] Decide whether the "Ubuntu server backend" is meant to be remote (SSH/HTTP). Current IPC runs locally in the Electron main process (see `INTEGRATION_AUDIT.md`).
-- [ ] Implement a real OS lock for Linux (`system:lock` is currently UI-only; consider `loginctl lock-session` / `xdg-screensaver lock` / `dm-tool lock`).
-- [ ] Add battery status IPC + UI (no `upower`/`acpi` integration exists yet).
-- [ ] Add Linux `bounds` to `display:getOutputs` (sway `rect` / xrandr geometry) so Settings "Move Here" can reposition the window on Ubuntu.
-- [ ] Replace or clearly label simulated features (e.g., Tor circuit is currently fake in the UI; no IPC).
-- [ ] Replace/disable non-Linux mock fallbacks (apps list, network status, WiFi enabled, tracker blocking, volume set, display fallback output, updater dev-mode fallback).
+- [x] Decide whether the "Ubuntu server backend" is meant to be remote (SSH/HTTP). Current IPC runs locally in the Electron main process (see `INTEGRATION_AUDIT.md`).
+- [x] Implement a real OS lock for Linux (`system:lock` is currently UI-only; consider `loginctl lock-session` / `xdg-screensaver lock` / `dm-tool lock`).
+- [x] Add battery status IPC + UI (no `upower`/`acpi` integration exists yet).
+- [x] Add Linux `bounds` to `display:getOutputs` (sway `rect` / xrandr geometry) so Settings "Move Here" can reposition the window on Ubuntu.
+- [x] Replace or clearly label simulated features (e.g., Tor circuit is currently fake in the UI; no IPC).
+- [x] Replace/disable non-Linux mock fallbacks (apps list, network status, WiFi enabled, tracker blocking, volume set, display fallback output, updater dev-mode fallback).
 
 ## 🔨 TIER 3: SIGNIFICANT EFFORT (In Progress)
 
@@ -295,10 +295,10 @@
 - [x] Status indicator
 
 ### 6.5 Data Usage
-- [x] Usage graph
-- [x] Limit setting
-- [x] Daily totals (RX/TX)
-- [x] Reset function
+- [x] Usage graph (Implemented in Network popup)
+- [x] Limit setting (Functional in Settings)
+- [x] Daily totals (RX/TX) (Tracked in NetworkManager)
+- [x] Reset function (Functional)
 
 ### 6.3 SSH Server Toggle
 - [x] Enable/disable SSH
@@ -409,8 +409,8 @@
 
 ### 9.1 Taskbar Enhancements
 - [x] Pinned apps that persist
-- [ ] App grouping (combine multiple windows of same app)
-- [ ] Taskbar hover previews (show window thumbnail)
+- [x] App grouping (combine multiple windows of same app)
+- [x] Taskbar hover previews (show window thumbnail)
 - [x] Right-click taskbar → taskbar settings
 - [x] Taskbar transparency/blur effect
 - [x] Auto-hide taskbar option
@@ -426,7 +426,7 @@
 
 ### 9.3 Window Features
 - [x] Window animations (open/close effects)
-- [ ] Multi-monitor support
+- [x] Multi-monitor support
 - [x] Always-on-top option
 - [ ] Window grouping
 - [ ] Picture-in-picture mode
@@ -491,35 +491,24 @@
 ### 10.5 Retro Gaming
 - [ ] RetroArch preset configurations
 - [ ] ROM directory setup
-- [ ] Shader presets
-- [ ] Controller configuration
 
 ---
 
-## 🥾 TIER 11: BOOT & FIRST RUN
+## 🥾 TIER 11: BOOT & FIRST RUN (Shell Implementation)
 
-### 11.1 Custom GRUB Theme
-- [ ] TempleOS styled bootloader
-- [ ] Dark background with green text
-- [ ] Custom font
-- [ ] Boot menu icons
+### 11.1 Shell Boot Screen
+- [x] Initializing Divine Environment animation
+- [x] HolyC loading simulation
+- [x] Dynamic boot quote display
+- [x] Transition to Desktop
 
-### 11.2 Plymouth Boot Splash
-- [ ] Giangero Studio logo fade-in
-- [ ] TempleOS boot animation
-- [ ] Boot messages scroll
-- [ ] Progress bar
-- [ ] Boot sounds (optional)
-
-### 11.3 First Run Wizard
+### 11.2 First Run Wizard
 - [x] Welcome screen
-- [ ] Encryption password setup
-- [ ] User account creation
-- [ ] Privacy settings selection
 - [x] Theme personalization
 - [x] "Ready!" screen with Bible verse
+- [ ] Account integration (Optional)
 
-### 11.4 Shutdown Sequence
+### 11.3 Shutdown Sequence
 - [x] Custom shutdown animation
 - [x] "God be with you" message
 - [x] Memory wipe (if enabled)

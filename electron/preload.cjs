@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     lock: () => ipcRenderer.invoke('system:lock'),
     getSystemInfo: () => ipcRenderer.invoke('system:info'),
     getMonitorStats: () => ipcRenderer.invoke('monitor:getStats'),
+    getBatteryStatus: () => ipcRenderer.invoke('system:getBattery'),
     listProcesses: () => ipcRenderer.invoke('process:list'),
     killProcess: (pid, signal) => ipcRenderer.invoke('process:kill', { pid, signal }),
     setSystemVolume: (level) => ipcRenderer.invoke('system:setVolume', level),
@@ -85,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     extractExif: (imagePath) => ipcRenderer.invoke('exif:extract', imagePath),
     stripExif: (imagePath) => ipcRenderer.invoke('exif:strip', imagePath),
     setTrackerBlocking: (enabled) => ipcRenderer.invoke('security:trackerBlocking', enabled),
+    getTorStatus: () => ipcRenderer.invoke('security:getTorStatus'),
 
     // Firewall (Tier 7.2)
     getFirewallRules: () => ipcRenderer.invoke('security:getFirewallRules'),

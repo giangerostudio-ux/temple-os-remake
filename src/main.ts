@@ -1356,6 +1356,7 @@ class TempleOS {
     }
 
     // Update Wizard (Fixed: Ensure wizard refreshes when step changes and unblocks UI when done)
+    // Update Wizard (Fixed: Ensure wizard refreshes when step changes and unblocks UI when done)
     const wizardRoot = document.getElementById('first-run-wizard-root');
     if (wizardRoot) {
       if (this.setupComplete) {
@@ -1363,9 +1364,65 @@ class TempleOS {
         wizardRoot.style.pointerEvents = 'none';
         wizardRoot.innerHTML = '';
       } else {
-        wizardRoot.style.display = 'block';
-        wizardRoot.style.pointerEvents = 'auto';
-        wizardRoot.innerHTML = this.renderFirstRunWizard();
+        const content = this.renderFirstRunWizard();
+        if (content === '') {
+          // Fallback: if setup is technically incomplete but renders nothing, HIDE IT
+          wizardRoot.style.display = 'none';
+          wizardRoot.style.pointerEvents = 'none';
+          wizardRoot.innerHTML = '';
+        } else {
+          wizardRoot.style.display = 'block';
+          wizardRoot.style.pointerEvents = 'auto';
+          wizardRoot.innerHTML = content;
+        }
+      }
+    }
+
+    // FORCE CLEANUP: Ensure other overlays don't block interaction if empty
+    // File Preview
+    if (previewOverlay) {
+      if (previewOverlay.innerHTML === '' || !this.previewFile) {
+        previewOverlay.style.pointerEvents = 'none';
+      } else {
+        previewOverlay.style.pointerEvents = 'auto';
+      }
+    }
+
+    // Modal Overlay
+    if (modalOverlay) {
+      if (!this.modal) {
+        modalOverlay.style.pointerEvents = 'none';
+        modalOverlay.innerHTML = '';
+      } else {
+        modalOverlay.style.pointerEvents = 'auto';
+      }
+    }
+
+    // Alt-Tab Overlay
+    if (altTabContainer) {
+      if (!this.altTabOpen) {
+        altTabContainer.style.pointerEvents = 'none';
+      } else {
+        altTabContainer.style.pointerEvents = 'auto';
+      }
+    }
+
+    // Workspace Overlay
+    if (workspaceOverlay) {
+      if (!this.showWorkspaceOverview) {
+        workspaceOverlay.style.pointerEvents = 'none';
+      } else {
+        workspaceOverlay.style.pointerEvents = 'auto';
+      }
+    }
+
+    // Snap Assist Overlay
+    if (snapAssistOverlay) {
+      if (!this.showSnapAssist) {
+        snapAssistOverlay.style.pointerEvents = 'none';
+      } else {
+        // snap assist might still be visually hidden if no windows to snap
+        snapAssistOverlay.style.pointerEvents = this.tilingManager.hasPendingSnapAssist() ? 'auto' : 'none';
       }
     }
 

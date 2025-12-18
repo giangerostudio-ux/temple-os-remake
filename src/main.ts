@@ -809,7 +809,6 @@ class TempleOS {
     // Setup workspace manager callback
     this.workspaceManager.setOnChangeCallback(() => {
       this.render();
-      this.render();
     });
 
     // Setup Effects Manager
@@ -1311,7 +1310,7 @@ class TempleOS {
   private renderBootScreen(): string {
     return `
       <div class="boot-screen" role="status" aria-live="polite">
-        <div class="boot-logo">TEMPLE OS</div>
+        <div class="boot-logo">TEMPLEOS REMAKE</div>
         <div class="boot-text studio">Giangero Studio • Divine Intellect</div>
         <div class="boot-text">Initializing Temple Core...</div>
         <div class="boot-text">Loading 640x480 16-Color Covenant...</div>
@@ -1341,8 +1340,8 @@ class TempleOS {
     return `
       <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center;">
         <div class="preview-modal" style="
-            width: 80%; height: 80%; 
-            display: flex; flex-direction: column; 
+            width: 80%; height: 80%;
+            display: flex; flex-direction: column;
             background: #0d1117; border: 2px solid #00ff41; box-shadow: 0 0 30px rgba(0,255,65,0.15);
         ">
             <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.3); display: flex; justify-content: space-between; align-items: center; background: rgba(0,255,65,0.05);">
@@ -1483,25 +1482,25 @@ class TempleOS {
   private renderVolumePopup() {
     return `
       <div class="tray-popup volume-popup" style="
-        position: absolute; 
+        position: absolute;
         bottom: 45px; /* Moved up slightly */
-        left: -15px; 
-        width: 50px; 
-        height: 140px; 
-        background: rgba(13,17,23,0.95); 
-        border: 1px solid #00ff41; 
+        left: -15px;
+        width: 50px;
+        height: 140px;
+        background: rgba(13,17,23,0.95);
+        border: 1px solid #00ff41;
         box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-        z-index: 10000; 
-        display: flex; 
-        flex-direction: column; 
-        align-items: center; 
-        justify-content: center; 
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         border-radius: 6px;
       ">
-        <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" 
+        <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}"
                style="
-                 width: 100px; 
-                 height: 20px; 
+                 width: 100px;
+                 height: 20px;
                  cursor: pointer;
                  transform: rotate(-90deg);
                  accent-color: #00ff41;
@@ -1515,16 +1514,16 @@ class TempleOS {
     const now = new Date();
     return `
       <div class="tray-popup calendar-popup" style="
-        position: absolute; 
-        bottom: 40px; 
-        right: 0; 
-        width: 220px; 
-        height: auto; 
-        background: rgba(13,17,23,0.95); 
-        border: 2px solid #00AA00; 
-        z-index: 10000; 
-        padding: 15px; 
-        font-family: 'VT323', monospace; 
+        position: absolute;
+        bottom: 40px;
+        right: 0;
+        width: 220px;
+        height: auto;
+        background: rgba(13,17,23,0.95);
+        border: 2px solid #00AA00;
+        z-index: 10000;
+        padding: 15px;
+        font-family: 'VT323', monospace;
         color: #00ff00;
         box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       ">
@@ -1544,15 +1543,15 @@ class TempleOS {
   private renderNetworkPopup() {
     return `
       <div class="tray-popup network-popup" style="
-        position: absolute; 
-        bottom: 40px; 
-        right: 80px; 
-        width: 200px; 
-        background: rgba(13,17,23,0.95); 
-        border: 2px solid #00ff41; 
-        z-index: 10000; 
-        padding: 10px; 
-        font-family: 'VT323', monospace; 
+        position: absolute;
+        bottom: 40px;
+        right: 80px;
+        width: 200px;
+        background: rgba(13,17,23,0.95);
+        border: 2px solid #00ff41;
+        z-index: 10000;
+        padding: 10px;
+        font-family: 'VT323', monospace;
         box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       ">
         <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: #00ff41;">
@@ -1652,6 +1651,7 @@ class TempleOS {
       { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
       { id: 'help', icon: '❓', label: 'Help' },
+      { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -3518,6 +3518,19 @@ class TempleOS {
           this.applyTheme();
           this.render();
         }
+      }
+
+      // Settings: Run Setup Again Button
+      if (target.matches('.setup-again-btn')) {
+        this.setupComplete = false;
+        this.firstRunStep = 0;
+        localStorage.removeItem('temple_setup_complete');
+        // Close the settings window if open
+        const settingsWin = this.windows.find(w => w.id.startsWith('settings'));
+        if (settingsWin) {
+          this.closeWindow(settingsWin.id);
+        }
+        this.render();
       }
     });
 
@@ -10786,7 +10799,7 @@ class TempleOS {
           </div>
           <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
-            <div style="opacity: 0.7;">Platform</div><div>${info?.platform || '—'}</div>
+            <div style="opacity: 0.7;">Platform</div><div>TempleOS Remake</div>
             <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
             <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
             <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '—'}</div>
@@ -10802,6 +10815,18 @@ class TempleOS {
           "${escapeHtml(randomQuote)}"
           <div style="text-align: right; font-size: 12px; margin-top: 5px; opacity: 0.8;">— Terry A. Davis</div>
         </div>
+
+        ${card('Setup & Maintenance', `
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: bold;">Run Setup Again</div>
+                <div style="font-size: 12px; opacity: 0.7;">Re-run the initial configuration wizard</div>
+              </div>
+              <button class="setup-again-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">⚙️ Run Setup</button>
+            </div>
+          </div>
+        `)}
 
         <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
           Made with HolyC ❤️ by Giangero Studio<br>
@@ -11276,17 +11301,17 @@ class TempleOS {
     };
 
     return `
-      < div class="settings-window" style = "display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);" >
+      <div class="settings-window" style="display: flex; height: 100%; background: rgba(13, 17, 23, 0.95);">
         ${renderSidebar()}
-    <div class="settings-content" style = "flex: 1; padding: 20px; overflow-y: auto;" >
-      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-bottom: 14px;" >
-        <h2 style="margin: 0;" > ${this.activeSettingsCategory} </h2>
-          < div style = "font-size: 12px; opacity: 0.65;" > TempleOS Settings </div>
-            </div>
+        <div class="settings-content" style="flex: 1; padding: 20px; overflow-y: auto;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 10px; margin-bottom: 14px;">
+            <h2 style="margin: 0;">${this.activeSettingsCategory}</h2>
+            <div style="font-size: 12px; opacity: 0.65;">TempleOS Settings</div>
+          </div>
           ${renderPageContent()}
-    </div>
+        </div>
       </div>
-        `;
+    `;
   }
 
 
@@ -14028,16 +14053,70 @@ class TempleOS {
       `
           <div style="text-align: center;">
              <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">Choose Your Covenant</div>
+             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Select your preferred theme color</p>
              <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 30px;">
-                 <button class="theme-color-btn" data-color="green" style="width: 60px; height: 60px; background: #00ff41; border: 2px solid white; cursor: pointer;"></button>
-                 <button class="theme-color-btn" data-color="amber" style="width: 60px; height: 60px; background: #ffb000; border: 2px solid white; cursor: pointer;"></button>
-                 <button class="theme-color-btn" data-color="cyan" style="width: 60px; height: 60px; background: #00ffff; border: 2px solid white; cursor: pointer;"></button>
+                 <button class="theme-color-btn" data-color="green" style="width: 60px; height: 60px; background: #00ff41; border: 2px solid white; cursor: pointer; border-radius: 8px;"></button>
+                 <button class="theme-color-btn" data-color="amber" style="width: 60px; height: 60px; background: #ffb000; border: 2px solid white; cursor: pointer; border-radius: 8px;"></button>
+                 <button class="theme-color-btn" data-color="cyan" style="width: 60px; height: 60px; background: #00ffff; border: 2px solid white; cursor: pointer; border-radius: 8px;"></button>
              </div>
              <div style="margin-bottom: 20px;">Current: ${this.themeColor.toUpperCase()}</div>
              <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
           </div>
           `,
-      // Step 2: Finish
+      // Step 2: Privacy Settings
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">🔐 Privacy Settings</div>
+             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Configure your security preferences</p>
+             <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                   <span>🛡️ Secure Memory Wipe on Shutdown</span>
+                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                   <span>🔒 Tracker Blocking</span>
+                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                   <span>📱 MAC Randomization</span>
+                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                </div>
+             </div>
+             <p style="font-size: 12px; opacity: 0.6; margin-bottom: 20px;">You can change these in Settings → Security</p>
+             <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
+          </div>
+          `,
+      // Step 3: Features
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">⚡ Features</div>
+             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Enabled features for your Divine experience</p>
+             <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span style="font-size: 24px;">💻</span>
+                   <span>Terminal with Holy Commands</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span style="font-size: 24px;">📝</span>
+                   <span>HolyC Code Editor</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span style="font-size: 24px;">✝️</span>
+                   <span>Word of God Oracle</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span style="font-size: 24px;">🎵</span>
+                   <span>Hymn Player</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span style="font-size: 24px;">📋</span>
+                   <span>Godly Notes</span>
+                </div>
+             </div>
+             <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
+          </div>
+          `,
+      // Step 4: Finish
       `
           <div style="text-align: center;">
              <div style="font-size: 48px; color: #ffd700; margin-bottom: 20px;">It Is Finished</div>

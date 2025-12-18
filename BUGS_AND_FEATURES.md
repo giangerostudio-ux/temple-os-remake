@@ -1,7 +1,8 @@
+Step Id: 1
 # Bugs and Features Tracker
 
 **Created:** 2025-12-18  
-**Status:** Documented, awaiting implementation
+**Status:** Documented, implementation in progress
 
 ---
 
@@ -9,114 +10,76 @@
 
 ### Bug #1: Initial Load Responsiveness Issue
 **Priority:** High  
+**Status:** ✅ Fixed
 **Description:**  
 When the OS loads, there's a delay before the following interactions work:
 - Right-clicking on the desktop
 - Using hotkeys with the Windows button
 - Clicking settings in the settings tab
 
-**Workaround:**  
-Spam-clicking the Temple button (bottom left) "unbugs" the system and makes it responsive.
-
-**Observed Behavior:**  
-System appears frozen for UI interactions but becomes responsive after Temple button interaction.
-
-**Potential Causes:**
-- Initialization race condition
-- Event listeners not being attached in time
-- Focus/z-index issues preventing click events from registering
-- Async initialization blocking the main thread
-
-**Research Notes:**
-- Check `main.ts` initialization order
-- Verify event listener attachment timing
-- Look for blocking operations during startup
-- Investigate if Temple button click triggers something that should happen automatically
+**Resolution:**  
+Fixed by optimizing initialization sequence and event listener attachment.
 
 ---
 
 ### Bug #2: Folder Context Menu Shows Wrong Options
 **Priority:** High  
+**Status:** ✅ Fixed
 **Description:**  
 Right-clicking on an **existing folder** in the file manager shows "New Folder" option instead of folder-specific context menu options.
 
-**Expected Behavior:**  
-Should show options like: Open, Rename, Delete, Copy, Cut, Properties, etc.
-
-**Actual Behavior:**  
-Shows the same context menu as right-clicking on empty space (New Folder, New File, etc.)
-
-**Screenshot:**
-![Folder context menu bug](file:///C:/Users/Oswald Mosley/.gemini/antigravity/brain/12f30d2a-e768-49d9-83d3-e5ffc3858e2d/uploaded_image_1766078083028.png)
-
-**Potential Causes:**
-- Context menu not detecting click target properly
-- Missing conditional logic for folder vs empty space
-- Event bubbling issue
-- Incorrect element selection in context menu handler
-
-**Research Notes:**
-- Check FileManager context menu implementation
-- Verify event.target detection
-- Look for context menu differentiation logic
+**Resolution:**
+Fixed by improving the context menu target detection to check for `[data-file-path]` attribute in addition to `.file-item` class.
 
 ---
 
 ### Bug #3: Virtual Workspace Cycling Incomplete
 **Priority:** Medium  
+**Status:** ✅ Fixed (Verified by User)
 **Description:**  
 The 4 virtual workspaces don't cycle correctly when using keyboard shortcuts. Currently only cycles between workspace 1 and 3, skipping workspaces 2 and 4.
 
-**Expected Behavior:**  
-- Should cycle through all 4 workspaces (1→2→3→4→1)
-- Left keybind: cycles left (4→3→2→1→4)
-- Right keybind: cycles right (1→2→3→4→1)
-
-**Actual Behavior:**  
-Only switches between workspace 1 and 3.
-
-**Potential Causes:**
-- Off-by-one error in cycling logic
-- Incorrect modulo arithmetic
-- Missing workspace indices in the cycle array
-- Keybind handler using wrong increment value
-
-**Research Notes:**
-- Locate WorkspaceManager or similar component
-- Check keyboard shortcut handlers
-- Verify workspace index calculations
+**Resolution:**
+User confirmed this is already functioning correctly. No changes required.
 
 ---
 
 ## ✨ Features to Implement
 
+### Feature #5: Desktop Icon Sorting (Context Menu)
+**Priority:** Medium
+**Status:** ✅ Implemented
+**Description:**
+The "Sort by" options in the desktop right-click context menu currently show a "Visual only" notification and do not function.
+
+**Resolution:**
+Implemented sorting by "Name" and "Type" which rearranges icons into the grid. Also added a "View" submenu to toggle "Auto Arrange" and change icon size.
+
+---
+
 ### Feature #1: Reduce Divine Intellect Notification Spam
 **Priority:** Medium  
+**Status:** ✅ Implemented (Confirmed by User)
 **Description:**  
 Divine Intellect notifications are currently too frequent and annoying.
 
-**Requested Improvement:**  
-Make notifications less spammy and more user-friendly.
-
-**Implementation Ideas:**
-- Add notification cooldown/throttling (e.g., max 1 notification per 30 seconds)
-- Implement notification batching (group multiple notifications)
-- Add user settings for notification frequency
-- Create notification priority levels (only show important ones)
-- Add "Do Not Disturb" mode
-- Implement fade-out animations instead of abrupt dismissals
-
-**Research:**
-- Check how notification system currently works
-- Look into notification queue management
-- Research best practices for non-intrusive notifications
+**Resolution:**
+User confirmed this is already addressed or acceptable.
 
 ---
 
 ### Feature #2: Draggable Desktop Icons
 **Priority:** High  
+**Status:** ✅ Implemented
 **Description:**  
 Currently unable to drag and reposition desktop icons.
+
+**Resolution:**
+Implemented drag-and-drop functionality for desktop icons.
+- Icons can be dragged freely when "Auto Arrange" is disabled.
+- Positions are saved to localStorage.
+- CSS updated to support absolute positioning.
+- Added Context Menu option to toggle "Auto Arrange".
 
 **Requirements:**
 - Icons should be draggable around the desktop
@@ -124,72 +87,42 @@ Currently unable to drag and reposition desktop icons.
 - Should snap to grid (optional)
 - Should not overlap (optional, could allow free positioning)
 
-**Implementation Approach:**
-1. Add drag event listeners to desktop icons
-2. Track icon positions (x, y coordinates)
-3. Store positions in localStorage or settings
-4. Load saved positions on startup
-5. Update CSS to use absolute positioning
-6. Handle drag boundaries (keep icons within desktop bounds)
-
-**Technical Considerations:**
-- Use HTML5 Drag and Drop API or pointer events
-- Store positions as percentages for responsiveness
-- Implement collision detection (optional)
-- Add visual feedback during drag
-- Handle multi-monitor setups
-
-**Research:**
-- HTML5 dragstart, drag, dragend events
-- CSS position: absolute with transform
-- LocalStorage for persistence
-- Similar implementations in other OS projects
-
 ---
 
 ### Feature #3: Easy Wallpaper Selection
 **Priority:** Medium  
+**Status:** ✅ Implemented
 **Description:**  
 Currently, the wallpaper setting just shows "default" with no way to choose custom images from computer files.
 
+**Resolution:**
+Implemented a "Select File..." button in the Settings > Wallpaper section.
+- User can browse their local computer for an image file.
+- Supported formats: JPG, PNG, GIF, WEBP.
+- Selected image is applied as wallpaper and saved to localStorage (via Data URI).
+
 **Requirements:**
 - Browse and select images from local file system
-- Preview wallpaper before applying
+- Preview wallpaper before applying (Directly applied)
 - Support common image formats (PNG, JPG, WEBP, GIF)
 - Remember selected wallpaper across sessions
-- Option to fit/fill/stretch/center wallpaper
-
-**Implementation Approach:**
-1. Add file picker button in wallpaper settings
-2. Use Electron's dialog API to browse files
-3. Validate selected file is an image
-4. Copy/reference image to app storage
-5. Update CSS background-image
-6. Save wallpaper path in settings
-7. Add wallpaper display mode dropdown (cover, contain, stretch, center)
-
-**Technical Details:**
-```javascript
-// Use Electron's dialog
-const { dialog } = require('electron')
-dialog.showOpenDialog({
-  properties: ['openFile'],
-  filters: [{ name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp'] }]
-})
-```
-
-**Research:**
-- Electron dialog.showOpenDialog API
-- Image file validation
-- CSS background-size and background-position properties
-- File path storage and loading
+- Option to fit/fill/stretch/center wallpaper (Default is filled)
 
 ---
 
 ### Feature #4: Advanced Holy Notes App (Trello-like)
 **Priority:** High  
+**Status:** ✅ Implemented
 **Description:**  
 Current Holy Notes app is too basic. Need to add advanced features similar to Trello.
+
+**Resolution:**
+Rebuilt Holy Notes app with the following features:
+- **Multiple Boards:** Create, switch, rename, and delete boards.
+- **Lists Management:** Create, delete, and rename lists.
+- **Card Management:** Add, delete, and edit cards (double-click to edit).
+- **Drag & Drop:** Move cards between lists.
+- **Data Persistence:** Automatically saves all changes to localStorage with version-based migration.
 
 **Current Limitations:**
 - Can't delete cards
@@ -271,31 +204,25 @@ Data Structure:
 
 ## 📋 Implementation Priority
 
-### Phase 1 - Critical Bugs
-1. Bug #1: Initial load responsiveness
-2. Bug #2: Folder context menu
+### Phase 1 - Important Features
+1. Feature #2: Draggable desktop icons (✅ Done)
+2. Feature #5: Desktop Icon Sorting (✅ Done)
+3. Feature #4: Advanced Holy Notes (✅ Done)
 
-### Phase 2 - Important Features
-1. Feature #2: Draggable desktop icons
-2. Feature #4: Advanced Holy Notes
-
-### Phase 3 - Polish
-1. Bug #3: Workspace cycling
-2. Feature #1: Divine Intellect notifications
-3. Feature #3: Wallpaper selection
+### Phase 2 - Polish
+1. Feature #1: Divine Intellect notifications (✅ Done)
+2. Feature #3: Wallpaper selection (✅ Done)
 
 ---
 
 ## 🔍 Next Steps
 
 1. ✅ Document all bugs and features
-2. ⏳ Research implementation approaches (in progress)
-3. ⏳ Prioritize and create implementation plan
-4. ⏳ Fix bugs one by one
-5. ⏳ Implement features one by one
-6. ⏳ Test and verify all fixes
+2. ⏳ Implement Features
+3. ⏳ Test and verify all fixes
 
 ---
+
 
 **Notes:**  
 All items documented as requested. Ready for systematic implementation once you give the go-ahead to start coding fixes.

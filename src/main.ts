@@ -811,6 +811,7 @@ class TempleOS {
     this.applyTaskbarPosition();
     this.renderInitial();
     this.setupEventListeners();
+    this.setupGodlyNotesGlobals();
     this.keepLegacyMethodsReferenced();
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
@@ -1139,6 +1140,32 @@ class TempleOS {
        ${this.renderTaskbar()}
        <div id="lock-screen-root"></div>
      `;
+
+    // Hidden file input for wallpaper
+    const wallpaperInput = document.createElement('input');
+    wallpaperInput.type = 'file';
+    wallpaperInput.id = 'wallpaper-upload-input';
+    wallpaperInput.accept = 'image/*';
+    wallpaperInput.style.display = 'none';
+    wallpaperInput.addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const res = ev.target?.result;
+          if (typeof res === 'string') {
+            this.wallpaperImage = res;
+            this.applyWallpaper();
+            this.queueSaveConfig();
+            this.refreshSettingsWindow();
+            this.showNotification('Wallpaper', 'Custom wallpaper applied!', 'info');
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+      (e.target as HTMLInputElement).value = ''; // Reset
+    });
+    document.body.appendChild(wallpaperInput);
   }
 
 
@@ -1741,26 +1768,244 @@ class TempleOS {
       .map(s => {
         const display = this.launcherDisplayForKey(s.key);
         return {
+          id: s.key, // shortcut key is the ID
           key: s.key,
           icon: display?.icon || '📄',
-          label: s.label
+          label: s.label,
+          isShortcut: true
         };
       });
 
-    return [
-      ...icons.map(icon => `
-      <div class="desktop-icon" data-app="${escapeHtml(icon.id)}" tabindex="0" role="button" aria-label="${escapeHtml(icon.label)}">
+    const allIcons = [
+      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
+      ...shortcutIcons
+    ];
+
+    // Grid settings
+    const CELL_W = 100;
+    const CELL_H = 100;
+    const GAP = 10;
+    const PADDING = 20;
+
+    // Helper to get available grid slot if undefined
+    const usedSlots = new Set<string>();
+
+    // If auto-arrange is on, we ignore stored positions and strictly grid them
+    // If auto-arrange is off, we use stored positions, or find next empty slot
+
+    // Available width for columns
+    const desktopEl = document.getElementById('desktop');
+    const width = desktopEl ? desktopEl.clientWidth : window.innerWidth;
+    const cols = Math.max(1, Math.floor((width - PADDING * 2) / (CELL_W + GAP)));
+
+    return allIcons.map((icon, index) => {
+      let x = 0;
+      let y = 0;
+      const key = icon.key;
+
+      if (this.desktopAutoArrange) {
+        // Auto-flow: Row-major
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        x = PADDING + col * (CELL_W + GAP);
+        y = PADDING + row * (CELL_H + GAP);
+      } else {
+        // Free positioning
+        const stored = this.desktopIconPositions[key];
+        if (stored) {
+          x = stored.x;
+          y = stored.y;
+
+          // Basic bounds check (prevent off-screen)
+          if (x < 0) x = PADDING;
+          if (y < 0) y = PADDING;
+          // Note: we allow them to go off bottom/right infinite canvas essentially
+        } else {
+          // Find first empty grid slot
+          let slotI = 0;
+          while (true) {
+            const r = Math.floor(slotI / cols);
+            const c = slotI % cols;
+            // Check if this visual slot is taken by another icon's stored position?
+            // This is complex. For simplicity, just place 'new' icons at the end of the list logic
+            // or use the current index as a fallback "grid" pos.
+            const tx = PADDING + c * (CELL_W + GAP);
+            const ty = PADDING + r * (CELL_H + GAP);
+
+            // Check if any *other* icon occupies this rough area?
+            // Optimization: just use the index for default placement if unknown
+            const isTaken = false; // logic too heavy for render loop without pre-calc
+            if (!isTaken) {
+              x = tx;
+              y = ty;
+              break;
+            }
+            slotI++;
+          }
+          // Simple fallback for now: use index
+          const r = Math.floor(index / cols);
+          const c = index % cols;
+          x = PADDING + c * (CELL_W + GAP);
+          y = PADDING + r * (CELL_H + GAP);
+        }
+      }
+
+      const style = `position: absolute; left: ${x}px; top: ${y}px;`;
+      const appAttr = icon.isShortcut ? `data-launch-key="${escapeHtml(icon.key)}"` : `data-app="${escapeHtml(icon.id)}"`;
+
+      return `
+      <div class="desktop-icon" ${appAttr} tabindex="0" role="button" aria-label="${escapeHtml(icon.label)}" style="${style}">
         <span class="icon" aria-hidden="true">${icon.icon}</span>
         <span class="label">${escapeHtml(icon.label)}</span>
       </div>
-    `),
-      ...shortcutIcons.map(s => `
-      <div class="desktop-icon" data-launch-key="${escapeHtml(s.key)}" tabindex="0" role="button" aria-label="${escapeHtml(s.label)}">
-        <span class="icon" aria-hidden="true">${s.icon}</span>
-        <span class="label">${escapeHtml(s.label)}</span>
-      </div>
-    `)
-    ].join('');
+    `;
+    }).join('');
+  }
+
+  // ============================================
+  // DESKTOP ICONS DRAG & DROP
+  // ============================================
+  private handleIconDragStart(e: MouseEvent, iconEl: HTMLElement): void {
+    if (this.desktopAutoArrange) return; // Locked
+
+    // Prevent default drag ghost
+    // e.preventDefault(); // Don't do this here if we want to support other things, but for custom drag it's fine.
+
+    const rect = iconEl.getBoundingClientRect();
+    const key = iconEl.dataset.launchKey || (iconEl.dataset.app ? `builtin:${iconEl.dataset.app}` : '');
+
+    if (!key) return;
+
+    this.draggingIcon = {
+      key,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top
+    };
+
+    iconEl.classList.add('dragging');
+
+    // Bring to front
+    iconEl.style.zIndex = '100';
+  }
+
+  private handleIconDragMove(e: MouseEvent): void {
+    if (!this.draggingIcon) return;
+
+    const iconEl = document.querySelector(`.desktop-icon[data-launch-key="${this.draggingIcon.key}"]`) as HTMLElement
+      || document.querySelector(`.desktop-icon[data-app="${this.draggingIcon.key.replace('builtin:', '')}"]`) as HTMLElement;
+
+    if (!iconEl) return;
+
+    e.preventDefault();
+
+    // Calculate new position relative to desktop container
+    const desktopEl = document.getElementById('desktop');
+    if (!desktopEl) return;
+
+    const desktopRect = desktopEl.getBoundingClientRect();
+    let x = e.clientX - desktopRect.left - this.draggingIcon.offsetX;
+    let y = e.clientY - desktopRect.top - this.draggingIcon.offsetY;
+
+    // Boundaries
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    // x = Math.min(x, desktopRect.width - iconEl.offsetWidth); // Allow overflow right/bottom
+
+    iconEl.style.left = `${x}px`;
+    iconEl.style.top = `${y}px`;
+  }
+
+  private handleIconDragEnd(e: MouseEvent): void {
+    if (!this.draggingIcon) return;
+
+    const key = this.draggingIcon.key;
+    const iconEl = document.querySelector(`.desktop-icon[data-launch-key="${key}"]`) as HTMLElement
+      || document.querySelector(`.desktop-icon[data-app="${key.replace('builtin:', '')}"]`) as HTMLElement;
+
+    if (iconEl) {
+      iconEl.classList.remove('dragging');
+      iconEl.style.zIndex = '';
+
+      // Save position
+      const x = parseInt(iconEl.style.left || '0', 10);
+      const y = parseInt(iconEl.style.top || '0', 10);
+
+      this.desktopIconPositions[key] = { x, y };
+      localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+    }
+
+    this.draggingIcon = null;
+  }
+
+  private sortDesktopIcons(criteria: 'name' | 'type'): void {
+    const icons = [
+      { id: 'terminal', icon: '💻', label: 'Terminal', type: 'builtin' },
+      { id: 'word-of-god', icon: '✝️', label: 'Word of God', type: 'builtin' },
+      { id: 'files', icon: '📁', label: 'Files', type: 'builtin' },
+      { id: 'editor', icon: '📝', label: 'HolyC Editor', type: 'builtin' },
+      { id: 'hymns', icon: '🎵', label: 'Hymn Player', type: 'builtin' },
+      { id: 'updater', icon: '⬇️', label: 'Holy Updater', type: 'builtin' },
+      { id: 'help', icon: '❓', label: 'Help', type: 'builtin' },
+      { id: 'godly-notes', icon: '📋', label: 'Godly Notes', type: 'builtin' },
+    ];
+
+    const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
+    const shortcutIcons = this.desktopShortcuts
+      .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string' && !builtinKeys.has(s.key))
+      .map(s => {
+        const display = this.launcherDisplayForKey(s.key);
+        return {
+          id: s.key,
+          key: s.key,
+          icon: display?.icon || '📄',
+          label: s.label,
+          isShortcut: true,
+          type: 'shortcut'
+        };
+      });
+
+    const allIcons = [
+      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
+      ...shortcutIcons
+    ];
+
+    // Sort
+    allIcons.sort((a, b) => {
+      if (criteria === 'name') {
+        return a.label.localeCompare(b.label);
+      } else if (criteria === 'type') {
+        // Builtins first, then shortcuts
+        if (a.type !== b.type) return (a.type || '') === 'builtin' ? -1 : 1;
+        return a.label.localeCompare(b.label);
+      }
+      return 0;
+    });
+
+    // Re-calculate positions in a grid
+    const CELL_W = 100;
+    const CELL_H = 100;
+    const GAP = 10;
+    const PADDING = 20;
+    const desktopEl = document.getElementById('desktop');
+    const width = desktopEl ? desktopEl.clientWidth : window.innerWidth;
+    const cols = Math.max(1, Math.floor((width - PADDING * 2) / (CELL_W + GAP)));
+
+    const newPositions: Record<string, { x: number, y: number }> = {};
+
+    allIcons.forEach((icon, index) => {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      const x = PADDING + col * (CELL_W + GAP);
+      const y = PADDING + row * (CELL_H + GAP);
+      newPositions[icon.key] = { x, y };
+    });
+
+    this.desktopIconPositions = newPositions;
+    localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+
+    // Play sound
+    this.playNotificationSound('select');
+    this.render();
   }
 
   private renderWindow(win: WindowState): string {
@@ -3833,6 +4078,116 @@ class TempleOS {
 
 
 
+  private setupGodlyNotesGlobals() {
+    (window as any).createBoardPrompt = async () => {
+      const name = await this.openPromptModal({
+        title: 'New Board',
+        message: 'Enter board name:',
+        inputLabel: 'Name',
+        confirmText: 'Create',
+        cancelText: 'Cancel'
+      });
+      if (name) {
+        this.godlyNotes.createBoard(name);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).switchBoard = (id: string) => {
+      if (id === 'new') {
+        (window as any).createBoardPrompt();
+      } else {
+        this.godlyNotes.switchBoard(id);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).deleteBoardPrompt = (id: string) => {
+      if (confirm('Delete this board permanently?')) {
+        this.godlyNotes.deleteBoard(id);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).addNoteList = (title: string) => {
+      if (title) {
+        this.godlyNotes.addList(title);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).deleteNoteList = (id: string) => {
+      if (confirm('Delete this list?')) {
+        this.godlyNotes.deleteList(id);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).addNoteCard = (listId: string, content: string) => {
+      if (content) {
+        this.godlyNotes.addCard(listId, content);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).editNoteCardPrompt = async (listId: string, cardId: string) => {
+      const currentContent = this.godlyNotes.getCardContent(listId, cardId);
+      if (currentContent === null) return;
+
+      const newContent = await this.openPromptModal({
+        title: 'Edit Card',
+        message: 'Update card content:',
+        inputLabel: 'Content',
+        defaultValue: currentContent,
+        confirmText: 'Save',
+        cancelText: 'Cancel'
+      });
+
+      if (newContent !== null && newContent.trim()) {
+        this.godlyNotes.updateCard(listId, cardId, newContent);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).renameBoardPrompt = async (id: string, currentName: string) => {
+      const newName = await this.openPromptModal({
+        title: 'Rename Board',
+        message: 'Enter new board name:',
+        inputLabel: 'Name',
+        defaultValue: currentName,
+        confirmText: 'Rename',
+        cancelText: 'Cancel'
+      });
+      if (newName !== null && newName.trim()) {
+        this.godlyNotes.renameBoard(id, newName);
+        this.refreshGodlyNotes();
+      }
+    };
+
+    (window as any).renameListPrompt = async (id: string, currentTitle: string) => {
+      const newTitle = await this.openPromptModal({
+        title: 'Rename List',
+        message: 'Enter new list title:',
+        inputLabel: 'Title',
+        defaultValue: currentTitle,
+        confirmText: 'Rename',
+        cancelText: 'Cancel'
+      });
+      if (newTitle !== null && newTitle.trim()) {
+        this.godlyNotes.renameList(id, newTitle);
+        this.refreshGodlyNotes();
+      }
+    };
+  }
+
+  private refreshGodlyNotes() {
+    const win = this.windows.find(w => w.id.startsWith('godly-notes'));
+    if (win) {
+      win.content = this.godlyNotes.render();
+      this.render();
+    }
+  }
+
   private setupEventListeners() {
     const app = document.getElementById('app')!;
 
@@ -3842,6 +4197,22 @@ class TempleOS {
       return;
     }
     app.dataset.listenersAttached = 'true';
+
+    // ============================================
+    // DESKTOP ICONS DRAG & DROP
+    // ============================================
+    app.addEventListener('mousedown', (e) => {
+      // Only left click
+      if (e.button !== 0) return;
+
+      const desktopIcon = (e.target as HTMLElement).closest('.desktop-icon') as HTMLElement;
+      if (desktopIcon) {
+        this.handleIconDragStart(e, desktopIcon);
+      }
+    });
+
+    document.addEventListener('mousemove', (e) => this.handleIconDragMove(e));
+    document.addEventListener('mouseup', (e) => this.handleIconDragEnd(e));
 
     // ============================================
     // ACCESSIBILITY: KEYBOARD SUPPORT
@@ -5987,6 +6358,22 @@ class TempleOS {
         return;
       }
 
+      // Settings: wallpaper browse button
+      const wallpaperBrowseBtn = target.closest('.wallpaper-browse-btn') as HTMLElement;
+      if (wallpaperBrowseBtn) {
+        // Trigger hidden input
+        const input = document.getElementById('wallpaper-upload-input');
+        if (input) input.click();
+        return;
+      }
+      if (wallpaperBtn && wallpaperBtn.dataset.wallpaper) {
+        this.wallpaperImage = wallpaperBtn.dataset.wallpaper;
+        this.applyWallpaper();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
       // Settings: about refresh
       const aboutRefreshBtn = target.closest('.about-refresh-btn') as HTMLElement;
       if (aboutRefreshBtn) {
@@ -7003,7 +7390,7 @@ class TempleOS {
         const startAppItem = target.closest('.start-app-item, .launcher-app-tile') as HTMLElement;
         const taskbarItem = target.closest('.taskbar-app') as HTMLElement;
         const desktopIcon = target.closest('.desktop-icon') as HTMLElement;
-        const fileItem = target.closest('.file-item') as HTMLElement;
+        const fileItem = (target.closest('.file-item') || target.closest('[data-file-path]')) as HTMLElement;
         const fileBrowserEl = target.closest('.file-browser') as HTMLElement;
 
         // Desktop Background Check
@@ -7039,10 +7426,28 @@ class TempleOS {
           this.closeContextMenu();
 
           this.showContextMenu(e.clientX, e.clientY, [
+            {
+              label: 'View',
+              submenu: [
+                { label: this.desktopIconSize === 'large' ? '✓ Large Icons' : 'Large Icons', action: () => this.setDesktopIconSize('large') },
+                { label: this.desktopIconSize === 'medium' ? '✓ Medium Icons' : 'Medium Icons', action: () => this.setDesktopIconSize('medium') },
+                { label: this.desktopIconSize === 'small' ? '✓ Small Icons' : 'Small Icons', action: () => this.setDesktopIconSize('small') },
+                { divider: true },
+                { label: this.desktopAutoArrange ? '✓ Auto Arrange Icons' : 'Auto Arrange Icons', action: () => this.toggleDesktopAutoArrange() }
+              ]
+            },
+            {
+              label: 'Sort by',
+              submenu: [
+                { label: 'Name', action: () => this.sortDesktopIcons('name') },
+                { label: 'Type', action: () => this.sortDesktopIcons('type') }
+              ]
+            },
+            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { divider: true },
             { label: '📁 Open Files', action: () => this.openApp('files') },
             { label: '💻 Open Terminal', action: () => this.openApp('terminal') },
             { divider: true },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
             { label: '⚙️ Settings', action: () => this.openApp('settings') },
             { divider: true },
             { label: 'ℹ️ About TempleOS', action: () => this.openSettingsToAbout() },
@@ -8348,36 +8753,8 @@ class TempleOS {
     });
 
     // Godly Notes (Kanban board)
-    app.addEventListener('keydown', (e) => {
-      const target = e.target as HTMLInputElement;
-      if (target.matches('.kanban-add-input') && e.key === 'Enter') {
-        const val = target.value.trim();
-        if (val) {
-          const colId = target.dataset.colId!;
-          this.godlyNotes.addCard(colId, val);
-          target.value = '';
-          const win = this.windows.find(w => w.id.startsWith('godly-notes'));
-          if (win) {
-            win.content = this.godlyNotes.render();
-            this.render();
-          }
-        }
-      }
-    });
+    // Legacy listeners removed. Interactions now handled via window hooks.
 
-    app.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const kanbanDelete = target.closest('.kanban-delete-card');
-      if (kanbanDelete) {
-        const btn = kanbanDelete as HTMLElement;
-        this.godlyNotes.deleteCard(btn.dataset.colId!, btn.dataset.cardId!);
-        const win = this.windows.find(w => w.id.startsWith('godly-notes'));
-        if (win) {
-          win.content = this.godlyNotes.render();
-          this.render();
-        }
-      }
-    });
 
     app.addEventListener('dragstart', (e) => {
       const target = e.target as HTMLElement;
@@ -11165,7 +11542,9 @@ class TempleOS {
             ${wallpapers.map(w => `
               <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: ${this.wallpaperImage === w.path ? '2px solid #00ff41' : '1px solid rgba(0,255,65,0.3)'}; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
             `).join('')}
+             <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">📂 Select File...</button>
           </div>
+          <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">Format: JPG, PNG, GIF, WEBP</div>
         `)}
 
         ${card('Divine Settings', `

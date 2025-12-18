@@ -1023,6 +1023,10 @@ class TempleOS {
     window.setInterval(() => {
       void this.checkForUpdates(true);
     }, 4 * 60 * 60 * 1000);
+
+    // BUGFIX: Render after bootstrap completes to ensure UI is fully interactive
+    // This fixes the "spam Temple button" bug where users had to click repeatedly to make OS responsive
+    this.render();
   }
 
   private async checkPtySupport(): Promise<void> {

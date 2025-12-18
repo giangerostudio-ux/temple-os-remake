@@ -145,7 +145,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   z-index: 50;
-  animation: window-open 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  /* Animation moved to .window-opening class to prevent flicker on re-render */
 }
 
 @keyframes window-open {

@@ -7279,11 +7279,8 @@ class TempleOS {
         const settingsItem = target.closest('.settings-nav-item') as HTMLElement;
         if (settingsItem && settingsItem.dataset.settingsCat) {
           this.activeSettingsCategory = settingsItem.dataset.settingsCat;
-          const win = this.windows.find(w => w.id.startsWith('settings'));
-          if (win) {
-            win.content = this.getSettingsContentV2();
-            this.render();
-          }
+          // Use targeted refresh instead of full render to avoid flicker
+          this.refreshSettingsWindow();
         }
 
         // Workspace Switcher Click Handler

@@ -1325,7 +1325,7 @@ class TempleOS {
     return `
       <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
       <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
-      <div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: ${this.setupComplete ? 'none' : 'auto'}; z-index: 10001;">${this.renderFirstRunWizard()}</div>
+      ${this.setupComplete ? '' : `<div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: auto; z-index: 10001;">${this.renderFirstRunWizard()}</div>`}
       <div id="desktop-widgets-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 5;">${this.renderDesktopWidgets()}</div>
       <div id="desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style="display: contents;">
         ${this.renderDesktopIcons()}

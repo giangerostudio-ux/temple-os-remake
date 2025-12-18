@@ -818,7 +818,19 @@ class TempleOS {
     this.tilingManager.setTaskbarPosition(this.taskbarPosition);
 
     // Setup Notification Manager callbacks
-    this.notificationManager.setOnChangeCallback(() => this.render());
+    // NOTE: Only update toast container, NOT full render - prevents window flickering
+    this.notificationManager.setOnChangeCallback(() => {
+      const toastContainer = document.getElementById('toast-container');
+      if (toastContainer) {
+        toastContainer.innerHTML = this.renderToasts();
+      }
+      // Update notification badge in tray
+      const notifTray = document.getElementById('tray-notification');
+      if (notifTray) {
+        const unread = this.notificationManager.getUnreadCount();
+        notifTray.innerHTML = unread > 0 ? `🔔<span class="notif-badge">${unread}</span>` : '🔔';
+      }
+    });
     this.notificationManager.setOnPlaySoundCallback((type) => this.playNotificationSound(type));
     // Sync DND state
     this.notificationManager.setDoNotDisturb(this.doNotDisturb);

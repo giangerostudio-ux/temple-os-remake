@@ -8784,74 +8784,7 @@ class TempleOS {
       }
     });
 
-    // ============================================
-    // CONTEXT MENU HANDLER (Missing in original code)
-    // ============================================
-    app.addEventListener('contextmenu', (e) => {
-      e.preventDefault(); // Always prevent default browser menu
 
-      // Don't show custom menu if setup isn't done
-      if (!this.setupComplete) return;
-
-      const target = e.target as HTMLElement;
-
-      // Taskbar Context Menu
-      if (target.closest('.taskbar')) {
-        this.showTaskbarContextMenu(e);
-        return;
-      }
-
-      // Desktop Context Menu
-      // Check if clicking on desktop directly or desktop icons
-      if (target.closest('.desktop') || target.closest('#desktop')) {
-        // Exclude windows
-        if (target.closest('.window')) return;
-
-        this.showContextMenu(e.clientX, e.clientY, [
-          {
-            label: 'View',
-            submenu: [
-              { label: 'Large Icons', action: () => this.setDesktopIconSize('large') },
-              { label: 'Medium Icons', action: () => this.setDesktopIconSize('medium') },
-              { label: 'Small Icons', action: () => this.setDesktopIconSize('small') },
-              { divider: true },
-              { label: `${this.desktopAutoArrange ? 'Disable' : 'Enable'} Auto Arrange`, action: () => this.toggleDesktopAutoArrange() }
-            ]
-          },
-          {
-            label: 'Sort by',
-            submenu: [
-              { label: 'Name', action: () => this.setDesktopSort('name') },
-              { label: 'Size', action: () => this.setDesktopSort('size') }
-            ]
-          },
-          { label: 'Refresh', action: () => this.render() },
-          { divider: true },
-          { label: 'New Folder', action: () => this.promptNewFolder() },
-          { label: 'New Text File', action: () => this.promptNewFile() },
-          { label: 'Paste', action: () => this.pasteIntoCurrentFolder() },
-          { divider: true },
-          {
-            label: 'Change Wallpaper', action: () => {
-              this.openApp('settings');
-              this.activeSettingsCategory = 'Personalization';
-              this.refreshSettingsWindow();
-            }
-          },
-          {
-            label: 'Display Settings', action: () => {
-              this.openApp('settings');
-              this.activeSettingsCategory = 'System';
-              this.refreshSettingsWindow();
-            }
-          },
-          { label: 'All Settings', action: () => this.openApp('settings') },
-          { divider: true },
-          { label: 'Open Terminal', action: () => this.openApp('terminal') },
-        ]);
-        return;
-      }
-    });
 
     // Global click to close context menus if clicking outside
     document.addEventListener('mousedown', (e) => {

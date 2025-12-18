@@ -1023,10 +1023,6 @@ class TempleOS {
     window.setInterval(() => {
       void this.checkForUpdates(true);
     }, 4 * 60 * 60 * 1000);
-
-    // BUGFIX: Call render() to ensure all event listeners are attached
-    // This fixes the initial load delay where users had to click Temple button to "unbug" the system
-    this.render();
   }
 
   private async checkPtySupport(): Promise<void> {
@@ -1106,31 +1102,31 @@ class TempleOS {
     const app = document.getElementById('app')!;
     app.innerHTML = `
       ${this.renderBootScreen()}
-    <div class="desktop" id = "desktop" style = "background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;" >
-      ${this.renderDesktop()}
-    <div id="windows-container" > </div>
+      <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;">
+        ${this.renderDesktop()}
+        <div id="windows-container"></div>
       </div>
-      < div id = "snap-preview" style = "
-    position: fixed;
-    background: rgba(0, 255, 65, 0.15);
-    border: 2px dashed #00ff41;
-    border - radius: 8px;
-    z - index: 9999;
-    display: none;
-    pointer - events: none;
-    transition: all 0.1s;
-    "></div>
-      < div id = "toast-container" class="toast-container" > </div>
-        < div id = "alt-tab-overlay" class="alt-tab-overlay" > </div>
-          < div id = "launcher-overlay-root" class="launcher-overlay-root" > </div>
-            < div id = "modal-overlay" class="modal-overlay-root" > </div>
-              < div id = "file-preview-overlay" class="file-preview-root" > </div>
-                < div id = "workspace-overview-overlay" > </div>
-                  < div id = "snap-assist-overlay" > </div>
-                    < div id = "taskbar-hover-preview" > </div>
+      <div id="snap-preview" style="
+        position: fixed;
+        background: rgba(0, 255, 65, 0.15);
+        border: 2px dashed #00ff41;
+        border-radius: 8px;
+        z-index: 9999;
+        display: none;
+        pointer-events: none;
+       transition: all 0.1s;
+       "></div>
+       <div id="toast-container" class="toast-container"></div>
+       <div id="alt-tab-overlay" class="alt-tab-overlay"></div>
+       <div id="launcher-overlay-root" class="launcher-overlay-root"></div>
+       <div id="modal-overlay" class="modal-overlay-root"></div>
+       <div id="file-preview-overlay" class="file-preview-root"></div>
+       <div id="workspace-overview-overlay"></div>
+       <div id="snap-assist-overlay"></div>
+       <div id="taskbar-hover-preview"></div>
        ${this.renderTaskbar()}
-    <div id="lock-screen-root" > </div>
-      `;
+       <div id="lock-screen-root"></div>
+     `;
   }
 
 
@@ -1205,7 +1201,7 @@ class TempleOS {
     const preserved = new Map<string, HTMLElement>();
     const preserveById = (id: string | null | undefined) => {
       if (!id) return;
-      const el = document.querySelector(`[data - window - id= "${id}"]`) as HTMLElement | null;
+      const el = document.querySelector(`[data-window-id="${id}"]`) as HTMLElement | null;
       if (el) {
         preserved.set(id, el);
         el.remove();
@@ -1241,7 +1237,7 @@ class TempleOS {
 
     // Media Player (keep playing if index matches)
     this.windows.forEach(w => {
-      const el = document.querySelector(`[data - window - id= "${w.id}"] .media - player - app`) as HTMLElement | null;
+      const el = document.querySelector(`[data-window-id="${w.id}"] .media-player-app`) as HTMLElement | null;
       if (el && el.dataset.mpIndex === String(this.mediaPlayer.state.currentIndex)) {
         preserveById(w.id);
       }
@@ -1265,13 +1261,13 @@ class TempleOS {
     // Ensure correct stacking order + bounds + active state for all present windows
     const presentOrder = this.windows.filter(w => !w.minimized || preserved.has(w.id));
     for (const w of presentOrder) {
-      const el = windowsContainer.querySelector(`[data - window - id="${w.id}"]`) as HTMLElement | null;
+      const el = windowsContainer.querySelector(`[data-window-id="${w.id}"]`) as HTMLElement | null;
       if (!el) continue;
       windowsContainer.appendChild(el);
-      el.style.left = `${w.x} px`;
-      el.style.top = `${w.y} px`;
-      el.style.width = `${w.width} px`;
-      el.style.height = `${w.height} px`;
+      el.style.left = `${w.x}px`;
+      el.style.top = `${w.y}px`;
+      el.style.width = `${w.width}px`;
+      el.style.height = `${w.height}px`;
       el.classList.toggle('active', !!w.active);
       el.style.display = w.minimized ? 'none' : 'flex';
 
@@ -1339,34 +1335,34 @@ class TempleOS {
 
   private renderDesktop(): string {
     return `
-      < div id = "decoy-overlay-root" style = "position: absolute; inset: 0; pointer-events: none; z-index: 9999;" > ${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''} </div>
-        < div id = "shutdown-overlay-root" style = "position: absolute; inset: 0; pointer-events: none; z-index: 10000;" > ${this.renderShutdownOverlay()} </div>
+      <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
+      <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
       ${this.setupComplete ? '' : `<div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: auto; z-index: 10001;">${this.renderFirstRunWizard()}</div>`}
-    <div id="desktop-widgets-root" style = "position: absolute; inset: 0; pointer-events: none; z-index: 5;" > ${this.renderDesktopWidgets()} </div>
-      < div id = "desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style = "display: contents;" >
+      <div id="desktop-widgets-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 5;">${this.renderDesktopWidgets()}</div>
+      <div id="desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style="display: contents;">
         ${this.renderDesktopIcons()}
-    </div>
-      `;
+      </div>
+    `;
   }
 
   private renderBootScreen(): string {
     return `
-      < div class="boot-screen" role = "status" aria - live="polite" >
-        <div class="boot-logo" > TEMPLEOS REMAKE </div>
-          < div class="boot-text studio" > Giangero Studio • Divine Intellect </div>
-            < div class="boot-text" > Initializing Temple Core...</div>
-              < div class="boot-text" > Loading 640x480 16 - Color Covenant...</div>
-                < div class="boot-text" > Mounting Red Sea File System...</div>
-                  < div class="boot-text" > Connecting to Oracle...</div>
-                    < div class="boot-progress-container" >
-                      <div class="boot-progress-bar" > </div>
-                        </div>
-                        < div class="boot-text ready" > System Ready.</div>
-                          < div class="boot-text quote" style = "margin-top: 20px; color: #ffd700; font-style: italic; max-width: 600px; text-align: center; opacity: 0; animation: fadeIn 1s ease 3.5s forwards;" >
-                            "${escapeHtml(this.bootQuote)}"
-                            </div>
-                            </div>
-                              `;
+      <div class="boot-screen" role="status" aria-live="polite">
+        <div class="boot-logo">TEMPLEOS REMAKE</div>
+        <div class="boot-text studio">Giangero Studio • Divine Intellect</div>
+        <div class="boot-text">Initializing Temple Core...</div>
+        <div class="boot-text">Loading 640x480 16-Color Covenant...</div>
+        <div class="boot-text">Mounting Red Sea File System...</div>
+        <div class="boot-text">Connecting to Oracle...</div>
+        <div class="boot-progress-container">
+            <div class="boot-progress-bar"></div>
+        </div>
+        <div class="boot-text ready">System Ready.</div>
+        <div class="boot-text quote" style="margin-top: 20px; color: #ffd700; font-style: italic; max-width: 600px; text-align: center; opacity: 0; animation: fadeIn 1s ease 3.5s forwards;">
+          "${escapeHtml(this.bootQuote)}"
+        </div>
+      </div>
+    `;
   }
 
   // ============================================
@@ -1376,7 +1372,7 @@ class TempleOS {
     if (!this.previewFile) return '';
 
     const content = this.previewFile.type === 'image'
-      ? `< div style = "display:flex; justify-content:center; align-items:center; height:100%;" > <img src="${escapeHtml(this.previewFile.content || '')}" style = "max-width:90%; max-height:90%; object-fit: contain; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.2);" > </div>`
+      ? `<div style="display:flex; justify-content:center; align-items:center; height:100%;"><img src="${escapeHtml(this.previewFile.content || '')}" style="max-width:90%; max-height:90%; object-fit: contain; border: 2px solid #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.2);"></div>`
       : `<div style="padding: 20px; color: #00ff41; font-family: 'Terminus', monospace; white-space: pre-wrap; overflow: auto; height: 100%; background: rgba(0,0,0,0.8); border: 1px solid #00ff41;">${escapeHtml(this.previewFile.content || '')}</div>`;
 
     return `

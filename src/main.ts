@@ -1355,10 +1355,18 @@ class TempleOS {
       else startBtn.classList.remove('active');
     }
 
-    // Update Wizard (Fixed: Ensure wizard refreshes when step changes)
+    // Update Wizard (Fixed: Ensure wizard refreshes when step changes and unblocks UI when done)
     const wizardRoot = document.getElementById('first-run-wizard-root');
     if (wizardRoot) {
-      wizardRoot.innerHTML = this.renderFirstRunWizard();
+      if (this.setupComplete) {
+        wizardRoot.style.display = 'none';
+        wizardRoot.style.pointerEvents = 'none';
+        wizardRoot.innerHTML = '';
+      } else {
+        wizardRoot.style.display = 'block';
+        wizardRoot.style.pointerEvents = 'auto';
+        wizardRoot.innerHTML = this.renderFirstRunWizard();
+      }
     }
 
     // Update Shutdown Overlay
@@ -1384,7 +1392,7 @@ class TempleOS {
     return `
       <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
       <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
-      ${this.setupComplete ? '' : `<div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: auto; z-index: 10001;">${this.renderFirstRunWizard()}</div>`}
+      <div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: ${this.setupComplete ? 'none' : 'auto'}; z-index: 10001; display: ${this.setupComplete ? 'none' : 'block'};">${this.renderFirstRunWizard()}</div>
       <div id="desktop-widgets-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 5;">${this.renderDesktopWidgets()}</div>
       <div id="desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style="display: contents;">
         ${this.renderDesktopIcons()}

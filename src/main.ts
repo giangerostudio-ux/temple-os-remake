@@ -739,6 +739,7 @@ class TempleOS {
   private editorWordWrap = true;
   private editorRecentFiles: string[] = [];
   private editorAutosaveTimer: number | null = null;
+  private scaleChangeTimer: number | null = null; // Debounce timer for display scale changes
   private readonly editorWrapCompartment = new Compartment();
   private readonly editorLanguageCompartment = new Compartment();
 
@@ -876,10 +877,10 @@ class TempleOS {
 
     // Random Terry Quotes (if enabled)
     setInterval(() => {
-      if (this.quoteNotifications && Math.random() < 0.1) { // 10% chance every check
+      if (this.quoteNotifications && Math.random() < 0.03) { // 3% chance every check (reduced from 10%)
         this.showNotification('Divine Intellect', this.getRandomQuote(), 'divine');
       }
-    }, 60000 * 5); // Check every 5 minutes
+    }, 60000 * 15); // Check every 15 minutes (increased from 5 minutes)
     // Background Network & System Status
     setInterval(() => {
       void this.networkManager.refreshStatus();
@@ -4344,6 +4345,38 @@ class TempleOS {
           if (taskbar) taskbar.classList.remove('taskbar-hidden');
         }
       }
+
+      // Display Scale Slider - with debouncing to prevent accidental drags
+      if (inputTarget.matches('.display-scale-slider')) {
+        const scale = parseFloat(inputTarget.value);
+        if (!Number.isNaN(scale) && scale >= 0.75 && scale <= 2.0) {
+          // Update the visual percentage display immediately
+          const valueDisplay = document.querySelector('.display-scale-value');
+          if (valueDisplay) {
+            valueDisplay.textContent = `${Math.round(scale * 100)}%`;
+          }
+
+          // Debounce the actual scale application to prevent rapid changes
+          if (this.scaleChangeTimer) clearTimeout(this.scaleChangeTimer);
+          this.scaleChangeTimer = window.setTimeout(async () => {
+            const output = this.displayOutputs.find(o => o.name === this.activeDisplayOutput);
+            if (output && window.electronAPI?.setDisplayScale) {
+              try {
+                const res = await window.electronAPI.setDisplayScale(output.name, scale);
+                if (res.success) {
+                  output.scale = scale;
+                  this.refreshSettingsWindow();
+                  this.showNotification('Display', `Scale set to ${Math.round(scale * 100)}%`, 'info');
+                } else {
+                  this.showNotification('Display', res.error || 'Failed to set scale', 'error');
+                }
+              } catch (e) {
+                this.showNotification('Display', String(e), 'error');
+              }
+            }
+          }, 500); // Wait 500ms after user stops dragging
+        }
+      }
     });
 
     // Image Viewer Controls (Enhanced with new module)
@@ -4700,9 +4733,28 @@ class TempleOS {
         return;
       }
 
-      // Panic Lockdown Button
+      //Panic Lockdown Button
       if (target.matches('.panic-lockdown-btn')) {
         void this.triggerLockdown();
+        return;
+      }
+
+      // Display Scale Reset Button
+      if (target.matches('.display-scale-reset-btn')) {
+        const output = this.displayOutputs.find(o => o.name === this.activeDisplayOutput);
+        if (output && window.electronAPI?.setDisplayScale) {
+          void window.electronAPI.setDisplayScale(output.name, 1.0).then(res => {
+            if (res.success) {
+              output.scale = 1.0;
+              this.refreshSettingsWindow();
+              this.showNotification('Display', 'Scale reset to 100%', 'info');
+            } else {
+              this.showNotification('Display', res.error || 'Failed to reset scale', 'error');
+            }
+          }).catch(e => {
+            this.showNotification('Display', String(e), 'error');
+          });
+        }
         return;
       }
 
@@ -7074,6 +7126,7 @@ class TempleOS {
             { divider: true },
             { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
           ]);
+          return; // BUGFIX: Prevent fallthrough to fileBrowserEl handler
         }
 
         // Sidebar Context Menu (Bookmarks)
@@ -10838,7 +10891,11 @@ class TempleOS {
             </select>
 
             <div>Scale</div>
-            <input type="range" class="display-scale-slider" min="1" max="2" step="0.05" value="${selectedOutput ? selectedOutput.scale : 1}" style="width: 100%; accent-color: #00ff41;" ${selectedOutput ? '' : 'disabled'}>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="range" class="display-scale-slider" min="0.75" max="2" step="0.05" value="${selectedOutput ? selectedOutput.scale : 1}" style="flex: 1; accent-color: #00ff41;" ${selectedOutput ? '' : 'disabled'}>
+              <span class="display-scale-value" style="min-width: 50px; text-align: center; color: #00ff41; font-weight: bold;">${selectedOutput ? Math.round(selectedOutput.scale * 100) : 100}%</span>
+              <button class="display-scale-reset-btn" style="background: rgba(255,100,100,0.1); border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;" ${selectedOutput && selectedOutput.scale !== 1 ? '' : 'disabled'}>Reset</button>
+            </div>
 
             <div>Orientation</div>
             <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;" ${selectedOutput ? '' : 'disabled'}>

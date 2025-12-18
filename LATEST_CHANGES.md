@@ -127,6 +127,33 @@ After initial implementation, TypeScript errors were detected and fixed:
 
 All TypeScript errors have been resolved.
 
+## Display Scale Slider Improvements ✅
+After experiencing scaling issues, the display scale slider has been completely redesigned:
+
+1. **Enhanced Range** (`src/main.ts`, Line ~10840)
+   - Changed from 1.0x-2.0x to **0.75x-2.0x** for more flexibility
+   - Smaller scaling options now available
+
+2. **Live Percentage Display** (`src/main.ts`, Line ~10843)
+   - Shows current scale as percentage (e.g., "75%", "100%", "200%")
+   - Updates immediately as you drag the slider
+
+3. **Reset Button** (`src/main.ts`,  Line ~10844)
+   - One-click reset to 100% scale
+   - Only enabled when scale ≠ 100%
+   - Red styling for visibility
+
+4. **Debounced Handler** (`src/main.ts`, Line ~4348-4378)
+   - Waits **500ms** after you stop dragging before applying
+   - Prevents accidental rapid changes
+   - Shows notification when applied
+
+5. **Quick Recovery** 
+   - If scale gets stuck, use the reset button
+   - Or delete config: `rm ~/.config/templeos/templeos.config.json`
+
+See `SCALE_IMPROVEMENTS.md` for detailed documentation.
+
 ## Acceptance Criteria - ALL MET ✅
 - ✅ Encryption "Change Key" button shows helpful terminal command in notification
 - ✅ Encryption "Backup Header" button shows helpful terminal command in notification

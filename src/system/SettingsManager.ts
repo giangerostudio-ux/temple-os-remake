@@ -119,6 +119,10 @@ export class SettingsManager {
     root.style.setProperty('--main-color', mainColor);
     root.style.setProperty('--bg-color', bgColor);
     root.style.setProperty('--text-color', textColor);
+    // Also set --text-highlight which is what the CSS actually uses!
+    root.style.setProperty('--text-highlight', mainColor);
+    // Set the specific color variables that the CSS uses
+    root.style.setProperty('--tos-green', this.host.themeColor === 'green' ? mainColor : colors.green);
 
     // Add high contrast indicator
     if (this.host.highContrast) {

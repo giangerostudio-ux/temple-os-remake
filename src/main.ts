@@ -149,6 +149,9 @@ declare global {
       // App Discovery (Start Menu)
       getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[] }>;
       launchApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
+      // Security
+      triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
+      setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
       // Window
       closeWindow: () => Promise<void>;
       minimizeWindow: () => Promise<void>;
@@ -936,8 +939,15 @@ class TempleOS {
     }
   }
 
-  private triggerLockdown() {
-    // Check if lock exists, otherwise implemented it or mock it
+  private async triggerLockdown(): Promise<void> {
+    this.showNotification('LOCKDOWN', 'Initiating emergency lockdown...', 'warning');
+    if (window.electronAPI?.triggerLockdown) {
+      const res = await window.electronAPI.triggerLockdown();
+      if (res.success) {
+        this.showNotification('LOCKDOWN', res.actions.join(', '), 'divine');
+      }
+    }
+    // Also trigger frontend lock
     if ((this as any).lock) {
       (this as any).lock();
     } else {
@@ -3057,6 +3067,18 @@ class TempleOS {
       const err = (res.error || '').toLowerCase();
       const isPermissionErr = /permission|privilege|sudo|auth|polkit|admin|root|denied/i.test(err);
 
+      const mapError = (errObj: any) => {
+        let errorMsg = errObj?.error || 'Failed to toggle Bluetooth';
+        if (errObj?.unsupported) {
+          return 'No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware.';
+        } else if (errorMsg.includes('rfkill') || errorMsg.includes('blocked')) {
+          return 'Bluetooth hardware is blocked or missing. Check your physical switch or VM settings.';
+        } else if (errorMsg.includes('bluetoothctl') || errorMsg.includes('not found')) {
+          return 'Bluetooth service not available. Please install bluez/rfkill.';
+        }
+        return errorMsg;
+      };
+
       if (!res.success && (res.needsPassword || isPermissionErr)) {
 
         // Revert UI while we ask
@@ -3097,7 +3119,7 @@ class TempleOS {
             if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
             return;
           } else {
-            this.showNotification('Bluetooth', retryRes.error || 'Authentication failed', 'error');
+            this.showNotification('Bluetooth', mapError(retryRes), 'error');
             return;
           }
         }
@@ -3107,17 +3129,7 @@ class TempleOS {
         this.bluetoothEnabled = prevEnabled;
         this.bluetoothDevices = prevDevices;
 
-        // Provide user-friendly error messages for common issues
-        let errorMsg = res?.error || 'Failed to toggle Bluetooth';
-        if (res?.unsupported) {
-          errorMsg = 'No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware.';
-        } else if (errorMsg.includes('rfkill') || errorMsg.includes('blocked')) {
-          errorMsg = 'Bluetooth is blocked by hardware switch or rfkill. Check your physical Bluetooth switch.';
-        } else if (errorMsg.includes('bluetoothctl') || errorMsg.includes('not found')) {
-          errorMsg = 'Bluetooth service not available. Please install bluez package.';
-        }
-
-        this.showNotification('Bluetooth', errorMsg, 'error');
+        this.showNotification('Bluetooth', mapError(res), 'error');
         if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
         return;
       }
@@ -4603,7 +4615,7 @@ class TempleOS {
     });
 
     // Desktop icon clicks
-    app.addEventListener('click', (e) => {
+    app.addEventListener('click', async (e) => {
       const target = e.target as HTMLElement;
 
       // Sprite Editor Tools
@@ -4678,15 +4690,43 @@ class TempleOS {
         return;
       }
 
+      // Encryption Buttons
+      if (target.matches('.encryption-change-key-btn')) {
+        this.showNotification('Encryption', 'To change LUKS key, open Terminal and run: sudo cryptsetup luksChangeKey /dev/sdXn', 'info');
+        return;
+      }
+      if (target.matches('.encryption-backup-btn')) {
+        this.showNotification('Encryption', 'To backup LUKS header, run: sudo cryptsetup luksHeaderBackup /dev/sdXn --header-backup-file /path/backup.img', 'info');
+        return;
+      }
+
+      // Panic Lockdown Button
+      if (target.matches('.panic-lockdown-btn')) {
+        void this.triggerLockdown();
+        return;
+      }
+
       // DNS Save Button
       const dnsSaveBtn = target.closest('.dns-save-btn') as HTMLElement;
       if (dnsSaveBtn) {
         const primary = (document.querySelector('.dns-primary-input') as HTMLInputElement)?.value;
         const secondary = (document.querySelector('.dns-secondary-input') as HTMLInputElement)?.value;
-        if (primary && secondary) {
-          this.showNotification('DNS', `DNS servers set to ${primary} and ${secondary}`, 'info');
-          // Would call Electron API here to actually set DNS
-          // if (window.electronAPI?.setDNS) { ... }
+        if (primary) {
+          if (window.electronAPI?.setDns) {
+            const iface = this.networkManager.status.device || 'eth0';
+            try {
+              const res = await window.electronAPI.setDns(iface, primary, secondary);
+              if (res.success) {
+                this.showNotification('DNS', `DNS set to ${primary}${secondary ? ', ' + secondary : ''}`, 'info');
+              } else {
+                this.showNotification('DNS', res.error || 'Failed to set DNS', 'error');
+              }
+            } catch (e) {
+              this.showNotification('DNS', String(e), 'error');
+            }
+          } else {
+            this.showNotification('DNS', 'DNS control requires Electron/Linux', 'warning');
+          }
         }
         return;
       }
@@ -11349,8 +11389,8 @@ class TempleOS {
                </label>
            </div>
            <div style="display: flex; gap: 10px;">
-               <button style="${this.getBtnStyle(false)}">Change Key</button>
-               <button style="${this.getBtnStyle(false)}">Backup Header</button>
+               <button class="encryption-change-key-btn" style="${this.getBtnStyle(false)}">Change Key</button>
+               <button class="encryption-backup-btn" style="${this.getBtnStyle(false)}">Backup Header</button>
            </div>
         `)}
         
@@ -11508,6 +11548,17 @@ class TempleOS {
                ` : ''}
 
             ` : ''}
+        `)}
+
+        ${card('Emergency Lockdown', `
+          <div style="text-align: center;">
+            <button class="panic-lockdown-btn" style="background: linear-gradient(135deg, #ff3333, #cc0000); color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit;">
+              🚨 PANIC: Lock & Disconnect
+            </button>
+            <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">
+              Immediately locks screen and disables all network connections.
+            </div>
+          </div>
         `)}
 
         ${card('🛡️ Security Audit', (() => {

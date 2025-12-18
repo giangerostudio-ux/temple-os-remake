@@ -1914,7 +1914,7 @@ ipcMain.handle('bluetooth:setEnabledWithPassword', async (event, enabled, passwo
         if (errText.includes('incorrect password') || errText.includes('sorry') || errText.includes('try again')) {
             return { success: false, error: 'Incorrect password', wrongPassword: true };
         }
-        return { success: false, error: res.stderr || res.error.message || 'Failed to toggle Bluetooth' };
+        return { success: false, error: res.stderr || 'Privileged command failed' };
     }
 
     // Also try bluetoothctl to fully power on/off the adapter
@@ -3183,6 +3183,39 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const args = parts.slice(1);
         const child = spawn(bin, args, { detached: true, stdio: 'ignore' });
         child.unref();
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+// ============================================
+// SECURITY
+// ============================================
+
+ipcMain.handle('trigger-lockdown', async () => {
+    const { execSync } = require('child_process');
+    const results = [];
+    try {
+        execSync('loginctl lock-session', { timeout: 5000 });
+        results.push('Session locked');
+    } catch (e) {
+        results.push('Lock failed');
+    }
+    try {
+        execSync('nmcli networking off', { timeout: 5000 });
+        results.push('Network disabled');
+    } catch (e) {
+        results.push('Network disable failed');
+    }
+    return { success: true, actions: results };
+});
+
+ipcMain.handle('set-dns', async (event, iface, primary, secondary) => {
+    const { execSync } = require('child_process');
+    try {
+        const servers = [primary, secondary].filter(Boolean).join(' ');
+        execSync(`sudo resolvectl dns ${iface || 'eth0'} ${servers}`, { timeout: 10000 });
         return { success: true };
     } catch (e) {
         return { success: false, error: e.message };

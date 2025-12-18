@@ -114,6 +114,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createHotspot: (ssid, password) => ipcRenderer.invoke('network:createHotspot', ssid, password),
     stopHotspot: () => ipcRenderer.invoke('network:stopHotspot'),
 
+    // Security
+    triggerLockdown: () => ipcRenderer.invoke('trigger-lockdown'),
+    setDns: (iface, primary, secondary) => ipcRenderer.invoke('set-dns', iface, primary, secondary),
+
     // ============================================
     // DISPLAY (multi-monitor / scale / refresh)
     // ============================================

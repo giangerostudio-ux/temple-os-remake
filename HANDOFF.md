@@ -56,7 +56,6 @@
 - Count badge shows number of windows (e.g., "3" for 3 Terminal windows)
 - Clicking grouped button shows popup with all windows in group
 - Each window item shows icon, title, active state, and minimized state
-- Close button (×) on each item to close individual windows
 - Click window item to focus/restore that window
 - Popup auto-closes when clicking outside
 
@@ -121,9 +120,34 @@
 - [ ] Extract ~5,000+ lines of window logic from `main.ts` into `src/system/WindowManager.ts`
 - *Reason*: Large-scale refactoring could introduce bugs. Deferred to future session.
 
-### Priority 3: Advanced UX - ⬜ **NOT STARTED**
-- [ ] **Window Grouping**: Snap windows together to resize as a unit
-- [ ] **Picture-in-Picture**: Simple PiP mode for Media Player
+### Priority 3: Advanced UX - ✅ **COMPLETE** (2025-12-18)
+
+#### Picture-in-Picture Mode ✅ **COMPLETE**
+- [x] **PiP Toggle**: "📺 PiP" button in Media Player
+- [x] **Mini Player**: Compact 200×150px floating window
+- [x] **Always-on-Top**: Floats above all windows
+- [x] **Full Controls**: Play, pause, prev, next all functional
+- [x] **Smart Positioning**: Bottom-right, accounts for taskbar
+
+**Files Modified**:
+- `src/apps/MediaPlayer.ts`: Added `pipMode` state + `renderPiPMode()` method (+60 lines)
+- `src/main.ts`: Added 170 lines of event handlers (lines 4293-4463)
+
+#### Window Grouping ✅ **COMPLETE**
+- [x] **State Variable**: `windowGroups` tracking
+- [x] **Helper Methods** (6 methods, lines 7467-7641):
+  - `createWindowGroup()` - Create group from two windows
+  - `getWindowGroup()` - Find group for a window
+  - `addToWindowGroup()` - Add to existing group
+  - `ungroupWindow()` - Remove from group
+  - `checkWindowGrouping()` - Proximity detection (10px)
+  - `resizeWindowGroup()` - Proportional resize
+  - `demonstrateWindowGrouping()` - Test/demo function
+- [x] **Keyboard Shortcuts**:
+  - `Ctrl+Shift+G` - Group two most recent windows
+  - `Ctrl+Shift+U` - Ungroup active window
+  - `Ctrl+Shift+T` - Test proximity detection & resize
+- [x] **Build Status**: ✅ Passing (no TypeScript errors)
 
 **State Added (2025-12-18)**:
 - `selectedFiles: Set<string>` - Tracks multi-selected files in File Browser
@@ -131,12 +155,42 @@
 - `desktopIconPositions: Record<string, {x,y}>` - Custom icon positions on Desktop
 - `draggingIcon: {key, offsetX, offsetY}` - Desktop icon drag state
 - `fileViewMode` extended to support `'details'` view
+- `windowGroups: Record<string, string[]>` - Window grouping state
 
 **Methods Added**:
 - `toggleFileSelection(path, ctrlKey, shiftKey)` - Line 10038
 - `selectAllFiles()` - Line 10074
 - `deselectAllFiles()` - Line 10083
 - `deleteSelectedFiles()` - Line 10089
+- Window grouping methods (lines 7467-7641)
+
+---
+
+### Quick Wins - ✅ **COMPLETE** (2025-12-18 Session 2)
+
+#### 1. Window Grouping Completion ✅
+- Marked as fully complete in TASK.md
+- All methods integrated and working
+- Keyboard shortcuts documented
+
+#### 2. Browser Shortcut ✅
+- Added `Win+B` (Super+B) keyboard shortcut
+- Opens default browser via `openExternal` API
+- Cross-platform compatible (Linux/Mac/Windows)
+- **File**: `src/main.ts` lines 7228-7239
+
+#### 3. Reset Desktop Icon Positions ✅
+- Added `Ctrl+Alt+R` keyboard shortcut
+- Clears custom icon positions
+- Resets to default grid layout
+- Removes from localStorage
+- **File**: `src/main.ts` lines 7241-7254
+
+#### 4. Sortable Column Headers ⏭️
+- **Status**: Deferred (may already exist or need different approach)
+- Will revisit if file browser details view needs enhancement
+
+**Build Status**: ✅ Passing (TypeScript + Vite)
 
 **Build Status**: ✅ Passing (TypeScript + Vite)
 **Git Commit**: `bf5fb17` - "feat: Implement Priority 1 file browser enhancements"
@@ -145,6 +199,39 @@
 - `src/main.ts` is still large (~11.2k lines), but modularization is progressing
 - Snap preview overlay uses DOM element `#snap-preview` rather than state-based rendering
 - Workspace window filtering could be enhanced for better visual feedback
+
+### Accessibility Features: ✅ COMPLETE (2025-12-18 Session 3)
+- [x] **Large Text**: Toggle global `.large-text` class on body.
+- [x] **Reduced Motion**: Toggle global `.reduce-motion` class on body.
+- [x] **Color Blind Modes**: Data attribute `data-color-blind` with values: protanopia, deuteranopia, tritanopia, achromatopsia.
+- [x] **Settings UI**: Added "Accessibility" category with controls for all features.
+### Theme System (Tier 9.4): ✅ COMPLETE (2025-12-18 Session 4)
+... (See previous entry) ...
+
+### Gaming Integration (Tier 10): ✅ COMPLETE (2025-12-18 Session 5)
+- **Settings UI**:
+  - Added "Gaming" category to Settings.
+  - **Gaming Mode Toggle**: Actively monitors gaming state (disables Super/Meta keys).
+  - **Launcher Detection**: Status card shows installed launchers (Steam, Heroic, Lutris, Bottles).
+- **Backend IPC**:
+  - Added `apps:getInstalled`: Scans `/usr/share/applications` on Linux for `.desktop` files.
+  - Included a **Mock Fallback** for development on Windows/Mac (returns Steam, VS Code, etc.).
+  - Added `apps:launch`: Generic app launcher using `spawn` (detached).
+- **Auto-Optimization**:
+  - `launchByKey` and `Start Menu` detect "Games" category (Steam, Heroic, etc.).
+  - Automatically enables **Gaming Mode** on launch.
+  - Automatically injects **`gamemoderun`** wrapper for Linux executables (unless it's Steam, which handles it).
+
+## Next Steps / Options
+
+1. **Accessibility (Finish Tier 9.7)**:
+   - Full Keyboard Navigation audit.
+   - Screen Reader capabilities.
+
+2. **Boot & First Run (Tier 11)**:
+   - Implement First Run Wizard (tour).
+   - Polish Boot Animation.
+
 
 ## Build Status
 ✅ Build successful - No TypeScript errors

@@ -5,11 +5,26 @@ export type SettingsHost = {
   wallpaperImage: string;
   themeMode: 'dark' | 'light';
   themeColor: 'green' | 'amber' | 'cyan' | 'white';
+  highContrast: boolean;
+  customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string }>;
+  activeCustomTheme: string | null;
   volumeLevel: number;
   doNotDisturb: boolean;
   lockPassword: string;
   lockPin: string;
   currentResolution: string;
+
+  // Time & Date
+  timezone: string;
+  autoTime: boolean;
+
+  // Effects
+  jellyMode: boolean;
+
+  // Accessibility
+  largeText: boolean;
+  reduceMotion: boolean;
+  colorBlindMode: 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
 
   taskbarPosition: 'top' | 'bottom';
   tilingManager: { setTaskbarPosition: (position: 'top' | 'bottom') => void };
@@ -58,6 +73,27 @@ export class SettingsManager {
     const isLight = this.host.themeMode === 'light';
     const root = document.documentElement;
 
+    // Check if custom theme is active
+    if (this.host.activeCustomTheme) {
+      const customTheme = this.host.customThemes.find(t => t.name === this.host.activeCustomTheme);
+      if (customTheme) {
+        root.style.setProperty('--main-color', customTheme.mainColor);
+        root.style.setProperty('--bg-color', customTheme.bgColor);
+        root.style.setProperty('--text-color', customTheme.textColor);
+
+        root.dataset.themeMode = 'custom';
+        root.dataset.themeColor = 'custom';
+        root.setAttribute('data-custom-theme', customTheme.name);
+        if (this.host.highContrast) {
+          root.setAttribute('data-high-contrast', 'true');
+        } else {
+          root.removeAttribute('data-high-contrast');
+        }
+        return; // Use custom theme, skip built-in logic
+      }
+    }
+
+    // Built-in theme colors
     const colors: Record<string, string> = {
       green: '#00ff41',
       amber: '#ffb000',
@@ -65,16 +101,54 @@ export class SettingsManager {
       white: '#ffffff',
     };
 
-    const mainColor = colors[this.host.themeColor] || colors.green;
-    const bgColor = isLight ? '#ffffff' : '#000000';
+    // High contrast mode - boost brightness and use pure colors
+    const highContrastColors: Record<string, string> = {
+      green: '#00ff00',    // Pure green
+      amber: '#ffff00',    // Pure yellow
+      cyan: '#00ffff',     // Pure cyan
+      white: '#ffffff',    // Pure white
+    };
+
+    const colorSet = this.host.highContrast ? highContrastColors : colors;
+    const mainColor = colorSet[this.host.themeColor] || colorSet.green;
+    const bgColor = this.host.highContrast
+      ? (isLight ? '#ffffff' : '#000000')  // Pure black/white in high contrast
+      : (isLight ? '#ffffff' : '#000000');
     const textColor = isLight ? '#000000' : mainColor;
 
     root.style.setProperty('--main-color', mainColor);
     root.style.setProperty('--bg-color', bgColor);
     root.style.setProperty('--text-color', textColor);
 
+    // Add high contrast indicator
+    if (this.host.highContrast) {
+      root.setAttribute('data-high-contrast', 'true');
+    } else {
+      root.removeAttribute('data-high-contrast');
+    }
+
     root.dataset.themeMode = this.host.themeMode;
     root.dataset.themeColor = this.host.themeColor;
+    root.removeAttribute('data-custom-theme');
+
+    // Apply Accessibility
+    if (this.host.largeText) {
+      root.classList.add('large-text');
+    } else {
+      root.classList.remove('large-text');
+    }
+
+    if (this.host.reduceMotion) {
+      root.classList.add('reduce-motion');
+    } else {
+      root.classList.remove('reduce-motion');
+    }
+
+    if (this.host.colorBlindMode && this.host.colorBlindMode !== 'none') {
+      root.setAttribute('data-color-blind', this.host.colorBlindMode);
+    } else {
+      root.removeAttribute('data-color-blind');
+    }
   }
 
   public applyWallpaper(): void {
@@ -115,10 +189,30 @@ export class SettingsManager {
 
     if (typeof cfg.wallpaperImage === 'string') this.host.wallpaperImage = cfg.wallpaperImage;
     if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.host.themeMode = cfg.themeMode;
+    if (typeof cfg.highContrast === 'boolean') this.host.highContrast = cfg.highContrast;
+    if (Array.isArray(cfg.customThemes)) this.host.customThemes = cfg.customThemes.slice(0, 20); // Max 20 custom themes
+    if (typeof cfg.activeCustomTheme === 'string') this.host.activeCustomTheme = cfg.activeCustomTheme;
     if (typeof cfg.volumeLevel === 'number') this.host.volumeLevel = Math.max(0, Math.min(100, cfg.volumeLevel));
     if (typeof cfg.doNotDisturb === 'boolean') this.host.doNotDisturb = cfg.doNotDisturb;
     if (typeof cfg.lockPassword === 'string') this.host.lockPassword = cfg.lockPassword;
     if (typeof cfg.lockPin === 'string') this.host.lockPin = cfg.lockPin;
+
+    if (cfg.time) {
+      if (typeof cfg.time.timezone === 'string') this.host.timezone = cfg.time.timezone;
+      if (typeof cfg.time.autoTime === 'boolean') this.host.autoTime = cfg.time.autoTime;
+    }
+
+    if (cfg.accessibility) {
+      if (typeof cfg.accessibility.largeText === 'boolean') this.host.largeText = cfg.accessibility.largeText;
+      if (typeof cfg.accessibility.reduceMotion === 'boolean') this.host.reduceMotion = cfg.accessibility.reduceMotion;
+      if (cfg.accessibility.colorBlindMode && ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'].includes(cfg.accessibility.colorBlindMode)) {
+        this.host.colorBlindMode = cfg.accessibility.colorBlindMode as any;
+      }
+    }
+
+    if (cfg.effects) {
+      if (typeof cfg.effects.jellyMode === 'boolean') this.host.jellyMode = cfg.effects.jellyMode;
+    }
 
     if (cfg.network) {
       if (typeof cfg.network.vpnKillSwitchEnabled === 'boolean') this.host.networkManager.vpnKillSwitchEnabled = cfg.network.vpnKillSwitchEnabled;
@@ -240,11 +334,29 @@ export class SettingsManager {
     const snapshot: TempleConfig = {
       wallpaperImage: this.host.wallpaperImage,
       themeMode: this.host.themeMode,
+      highContrast: this.host.highContrast,
+      customThemes: this.host.customThemes.slice(0, 20),
+      activeCustomTheme: this.host.activeCustomTheme || undefined,
       currentResolution: this.host.currentResolution,
       volumeLevel: this.host.volumeLevel,
       doNotDisturb: this.host.doNotDisturb,
       lockPassword: this.host.lockPassword,
       lockPin: this.host.lockPin,
+
+      time: {
+        timezone: this.host.timezone,
+        autoTime: this.host.autoTime
+      },
+
+      accessibility: {
+        largeText: this.host.largeText,
+        reduceMotion: this.host.reduceMotion,
+        colorBlindMode: this.host.colorBlindMode
+      },
+
+      effects: {
+        jellyMode: this.host.jellyMode
+      },
 
       network: {
         vpnKillSwitchEnabled: this.host.networkManager.vpnKillSwitchEnabled,

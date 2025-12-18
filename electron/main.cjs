@@ -2825,6 +2825,74 @@ ipcMain.handle('terminal:isPtyAvailable', () => {
 });
 
 // ============================================
+// APP DISCOVERY (Start Menu)
+// ============================================
+
+ipcMain.handle('apps:getInstalled', async () => {
+    if (process.platform === 'linux') {
+        try {
+            const dir = '/usr/share/applications';
+            const files = await fs.promises.readdir(dir).catch(() => []);
+            const apps = [];
+            for (const f of files) {
+                if (!f.endsWith('.desktop')) continue;
+                try {
+                    const content = await fs.promises.readFile(path.join(dir, f), 'utf-8');
+                    const nameMatch = content.match(/^Name=(.*)$/m);
+                    const execMatch = content.match(/^Exec=(.*)$/m);
+                    if (nameMatch && execMatch && !content.includes('NoDisplay=true')) {
+                        const catMatch = content.match(/^Categories=(.*)$/m);
+                        let exec = execMatch[1].trim();
+                        exec = exec.replace(/%[fFuViidck]/g, '').trim();
+                        apps.push({
+                            name: nameMatch[1].trim(),
+                            exec: exec,
+                            categories: catMatch ? catMatch[1].split(';').filter(Boolean) : [],
+                            desktopFile: path.join(dir, f)
+                        });
+                    }
+                } catch { }
+            }
+            apps.sort((a, b) => a.name.localeCompare(b.name));
+            return apps;
+        } catch (e) { console.error('Failed to scan Linux apps:', e); }
+    }
+
+    return [
+        { name: 'Steam', exec: 'steam', categories: ['Game', 'Network'] },
+        { name: 'Heroic Games Launcher', exec: 'heroic', categories: ['Game'] },
+        { name: 'Lutris', exec: 'lutris', categories: ['Game', 'Utility'] },
+        { name: 'Bottles', exec: 'bottles', categories: ['Game', 'Utility'] },
+        { name: 'Firefox', exec: 'firefox', categories: ['Network', 'WebBrowser'] },
+        { name: 'Google Chrome', exec: 'google-chrome', categories: ['Network', 'WebBrowser'] },
+        { name: 'VLC Media Player', exec: 'vlc', categories: ['AudioVideo', 'Player'] },
+        { name: 'VS Code', exec: 'code', categories: ['Development', 'IDE'] },
+        { name: 'Terminal', exec: 'gnome-terminal', categories: ['System', 'TerminalEmulator'] },
+        { name: 'Discord', exec: 'discord', categories: ['Network', 'Chat'] }
+    ];
+});
+
+ipcMain.handle('apps:launch', async (event, app) => {
+    if (!app || !app.exec) return { success: false, error: 'Invalid app definition' };
+    const { spawn } = require('child_process');
+    try {
+        let cmd = app.exec;
+        if (process.platform === 'win32') {
+            if (cmd === 'calc') cmd = 'calc.exe';
+            if (cmd === 'notepad') cmd = 'notepad.exe';
+        }
+        const parts = cmd.split(' ').filter(Boolean);
+        const bin = parts[0];
+        const args = parts.slice(1);
+        const child = spawn(bin, args, { detached: true, stdio: 'ignore' });
+        child.unref();
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+// ============================================
 // APP LIFECYCLE
 // ============================================
 

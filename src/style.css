@@ -145,6 +145,19 @@ body {
   flex-direction: column;
   overflow: hidden;
   z-index: 50;
+  animation: window-open 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes window-open {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .window.active {
@@ -2899,4 +2912,96 @@ body[data-taskbar-position="top"] .taskbar-preview-popup {
 .taskbar-group-close:hover {
   background: rgba(255, 100, 100, 0.2);
   border-color: #ff6464;
+}
+
+/* ============================================
+   ACCESSIBILITY FOCUS STYLES
+   ============================================ */
+:focus-visible {
+  outline: 2px solid var(--tos-green);
+  outline-offset: 2px;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+  z-index: 9999;
+}
+
+/* Specific focus overrides for cleaner look */
+.desktop-icon:focus-visible {
+  background: rgba(0, 255, 65, 0.1);
+  border-radius: 8px;
+}
+
+.taskbar-app:focus-visible,
+.start-btn:focus-visible,
+.tray-icon:focus-visible,
+.power-btn:focus-visible {
+  outline: 2px solid var(--tos-green);
+  outline-offset: -2px;
+}
+
+.window-btn:focus-visible {
+  transform: scale(1.2);
+  outline: 2px solid #fff;
+}
+
+/* Skip content link (hidden by default) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #00ff41;
+  padding: 8px;
+  z-index: 10001;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+
+/* Boot Progress Bar */
+.boot-progress-container {
+  width: 300px;
+  height: 4px;
+  background: rgba(0, 255, 65, 0.2);
+  margin-top: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0;
+  animation: fadeIn 0.5s ease 1s forwards;
+}
+
+.boot-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--tos-green);
+  box-shadow: 0 0 10px var(--tos-green);
+  animation: bootProgress 3s ease-in-out 1s forwards;
+}
+
+@keyframes bootProgress {
+  0% {
+    width: 0%;
+  }
+
+  20% {
+    width: 10%;
+  }
+
+  40% {
+    width: 40%;
+  }
+
+  60% {
+    width: 60%;
+  }
+
+  80% {
+    width: 90%;
+  }
+
+  100% {
+    width: 100%;
+  }
 }

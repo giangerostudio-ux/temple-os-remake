@@ -133,12 +133,32 @@ export interface MouseSettings {
 export interface TempleConfig {
     wallpaperImage?: string;
     themeMode?: 'dark' | 'light';
+    highContrast?: boolean;
+    customThemes?: Array<{
+        name: string;
+        mainColor: string;
+        bgColor: string;
+        textColor: string;
+    }>;
+    activeCustomTheme?: string; // name of active custom theme, if any
     currentResolution?: string;
     volumeLevel?: number;
     doNotDisturb?: boolean;
     lockTimeoutMs?: number;
     lockPassword?: string;
     lockPin?: string;
+    time?: {
+        timezone?: string;
+        autoTime?: boolean;
+    };
+    accessibility?: {
+        largeText?: boolean;
+        reduceMotion?: boolean;
+        colorBlindMode?: 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+    };
+    effects?: {
+        jellyMode?: boolean;
+    };
     network?: {
         vpnKillSwitchEnabled?: boolean;
         vpnKillSwitchMode?: 'auto' | 'strict';

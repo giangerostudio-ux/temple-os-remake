@@ -21,6 +21,8 @@ export class MediaPlayerApp {
         isPlaying: false
     };
 
+    public pipMode = false; // Picture-in-Picture mode toggle
+
     /**
      * Add file to playlist
      */
@@ -121,6 +123,61 @@ export class MediaPlayerApp {
     }
 
     /**
+     * Render Picture-in-Picture Mode (Mini Player)
+     */
+    renderPiPMode(): string {
+        const currentFile = this.state.playlist[this.state.currentIndex];
+        const fileName = currentFile ? currentFile.split(/[/\\]/).pop() : 'No Media';
+
+        return `
+            <div class="media-player-pip" style="height: 100%; display: flex; flex-direction: column; background: #000; color: #00ff41; font-family: 'VT323', monospace; padding: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-weight: bold; font-size: 12px; color: #ffd700;">📺 PiP Mode</div>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="mp-btn-pip" data-mp-action="expand-pip" title="Expand" style="width: 20px; height: 20px; font-size: 10px;">⛶</button>
+                        <button class="mp-btn-pip" data-mp-action="close-pip" title="Close" style="width: 20px; height: 20px; font-size: 10px;">×</button>
+                    </div>
+                </div>
+                
+                <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #050505; border: 1px solid #00ff41; position: relative; overflow: hidden; min-height: 60px;">
+                    ${currentFile ? `<audio id="mp-audio-pip" src="${currentFile}" autoplay></audio>` : ''}
+                    <div style="font-size: 40px; opacity: 0.3;">🎵</div>
+                </div>
+                
+                <div style="margin-top: 8px;">
+                    <div style="font-size: 10px; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ffd700;">
+                        ${escapeHtml(fileName || 'No Media')}
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 8px;">
+                        <button class="mp-btn-pip" data-mp-action="prev" title="Previous">⏮</button>
+                        <button class="mp-btn-pip" data-mp-action="play" title="Play/Pause">▶/⏸</button>
+                        <button class="mp-btn-pip" data-mp-action="next" title="Next">⏭</button>
+                    </div>
+                </div>
+                
+                <style>
+                    .mp-btn-pip {
+                        background: #000;
+                        border: 1px solid #00ff41;
+                        color: #00ff41;
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 50%;
+                        cursor: pointer;
+                        font-size: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0;
+                    }
+                    .mp-btn-pip:hover { background: rgba(0,255,65,0.2); }
+                    .mp-btn-pip:active { transform: translateY(1px); }
+                </style>
+            </div>
+        `;
+    }
+
+    /**
      * Render the Media Player Content
      */
     render(fileToPlay: string | null = null): string {
@@ -188,6 +245,7 @@ export class MediaPlayerApp {
                     <div style="display: flex; justify-content: center; gap: 15px; font-size: 12px;">
                         <button class="mp-toggle ${this.state.shuffle ? 'active' : ''}" data-mp-action="shuffle">🔀 Shuffle</button>
                         <button class="mp-toggle ${this.state.repeat !== 'none' ? 'active' : ''}" data-mp-action="repeat">🔁 Repeat: ${this.state.repeat}</button>
+                        <button class="mp-toggle" data-mp-action="toggle-pip">📺 PiP</button>
                     </div>
                 </div>
             </div>

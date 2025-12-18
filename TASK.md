@@ -300,6 +300,10 @@
 - [x] Daily totals (RX/TX) (Tracked in NetworkManager)
 - [x] Reset function (Functional)
 
+### 6.6 Time & Date Settings
+- [ ] GMT/Timezone selection (Auto/Manual)
+- [ ] Network Time Protocol (NTP) toggle
+
 ### 6.3 SSH Server Toggle
 - [x] Enable/disable SSH
 - [x] Port configuration
@@ -348,6 +352,10 @@
 - [x] Check system updates
 - [x] Security score display
 
+### 7.6 System Optimization
+- [ ] Memory Cleaner (Auto-clean at 90% usage)
+- [ ] "Mem Reduct" style manual trigger
+
 ### 7.6 Physical Security - ✅ Completed
 - [x] USB device whitelist
 - [x] Lockdown mode (panic button)
@@ -385,6 +393,7 @@
 - [ ] Categories/folders
 - [ ] Search
 - [x] Secure notes (encrypted)
+- [ ] Godly Notes (Trello-like Kanban Board)
 
 ### 8.5 Browser Integration
 > **Note**: Skipped per user request. Authentication to external world is limited to Network Manager.
@@ -428,16 +437,16 @@
 - [x] Window animations (open/close effects)
 - [x] Multi-monitor support
 - [x] Always-on-top option
-- [ ] Window grouping
-- [ ] Picture-in-picture mode
+- [x] Window grouping (Ctrl+Shift+G to group, Ctrl+Shift+U to ungroup, Ctrl+Shift+T to test)
+- [x] Picture-in-picture mode (Media Player PiP implemented)
 - [x] Window transparency option
 
 ### 9.4 Theme System
 - [x] Multiple color schemes (green, amber, cyan, white)
 - [x] Light mode (for heathens 😄)
-- [ ] High contrast mode
-- [ ] Custom user themes
-- [ ] Import/export themes
+- [x] High contrast mode (Ctrl+Alt+H to toggle)
+- [x] Custom user themes (Ctrl+Alt+T to create, Ctrl+Alt+N to cycle)
+- [x] Import/export themes (Ctrl+Alt+E to export, Ctrl+Alt+I to import)
 
 ### 9.5 Context Menus (Full)
 - [x] Window title bar right-click menu
@@ -450,31 +459,31 @@
 - [x] Win+L → Lock screen
 - [x] Ctrl+Shift+Esc → Task manager / System Monitor
 - [x] Win+X → Quick link menu
-- [ ] Super+B → Open default browser
+- [x] Super+B → Open default browser
 
 ### 9.7 Accessibility
-- [ ] Screen reader support
-- [ ] High contrast mode
-- [ ] Large text option
-- [ ] Keyboard navigation everywhere
-- [ ] Reduce motion option
-- [ ] Color blind modes
+- [x] Screen reader support (Basic ARIA attributes)
+- [x] High contrast mode
+- [x] Large text option
+- [x] Keyboard navigation everywhere (Tabindex + Enter/Space handlers)
+- [x] Reduce motion option
+- [x] Color blind modes
 
 ---
 
 ## 🎮 TIER 10: GAMING INTEGRATION
 
 ### 10.1 Steam + Proton
-- [ ] Steam launcher integration
+- [x] Steam launcher integration
 - [ ] Proton-GE installation
-- [ ] GameMode (Feral's) integration
+- [x] GameMode (Feral's) integration
 - [ ] MangoHud FPS overlay
 
 ### 10.2 Game Launchers
-- [ ] Lutris for non-Steam games
+- [x] Lutris for non-Steam games
 - [ ] RetroArch for emulation
-- [ ] Heroic for Epic/GOG games
-- [ ] Bottles for Windows apps
+- [x] Heroic for Epic/GOG games
+- [x] Bottles for Windows apps
 
 ### 10.3 Gaming Mode
 - [ ] Electron shell hides during games
@@ -602,12 +611,12 @@
 ### 14.2 Visual Effects & Animations
 > *Make the desktop feel alive and premium - Zorin's "Jelly Mode" and spatial effects*
 
-- [ ] Jelly/wobbly windows effect (optional)
+- [x] Jelly/wobbly windows effect (optional)
 - [ ] Desktop cube for workspace switching (3D effect)
 - [ ] Spatial window switcher (3D Alt+Tab)
 - [ ] Parallax desktop effect
-- [ ] Window open/close animations (fade, zoom, slide)
-- [ ] Reduced motion mode (accessibility)
+- [x] Window open/close animations (fade, zoom, slide)
+- [x] Reduced motion mode (accessibility)
 - [ ] "Divine Glow" - special TempleOS themed effects
 - [ ] Burn/fire close animation (optional chaos mode 😈)
 

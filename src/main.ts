@@ -3055,7 +3055,7 @@ class TempleOS {
 
       // If it fails specifically due to permissions or backend explicitly requests password
       const err = (res.error || '').toLowerCase();
-      const isPermissionErr = /permission|privilege|sudo|auth|polkit/i.test(err);
+      const isPermissionErr = /permission|privilege|sudo|auth|polkit|admin|root|denied/i.test(err);
 
       if (!res.success && (res.needsPassword || isPermissionErr)) {
 

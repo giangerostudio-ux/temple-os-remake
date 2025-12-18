@@ -5,6 +5,63 @@
 
 ---
 
+## ✅ RECENTLY FIXED BUGS (December 18, 2025)
+
+### 1. Bluetooth Error Handling ✅ FIXED
+
+**Status:** ✅ FIXED  
+**Environment:** VMware without Bluetooth adapter
+
+**Fix Applied:**
+- Improved error handling in `setBluetoothEnabledFromUi()` in `main.ts`
+- Now shows user-friendly messages for common errors:
+  - Missing adapter: "No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware."
+  - Permission issues: "Bluetooth requires administrator privileges..."
+  - rfkill blocked: "Bluetooth is blocked by hardware switch..."
+  - Missing service: "Bluetooth service not available. Please install bluez package."
+
+---
+
+### 2. Color Schemes ✅ FIXED
+
+**Status:** ✅ FIXED  
+**Location:** Personalization > Color Scheme
+
+**Fix Applied:**
+- Added `themeColor` property to `TempleConfig` interface in `types.ts`
+- Added `themeColor` to config save in `SettingsManager.saveConfigNow()`
+- Added `themeColor` loading in `SettingsManager.loadConfig()`
+- Color schemes now persist across sessions
+
+---
+
+### 3. Light Theme ✅ FIXED
+
+**Status:** ✅ FIXED  
+**Location:** Personalization > Theme > Light button
+
+**Fix Applied:**
+- Fixed CSS selector mismatch in `style.css`
+- Changed `:root[data-theme='light']` to `:root[data-theme-mode='light']`
+- This matches the `dataset.themeMode` attribute set by JavaScript
+
+---
+
+### 4. Workspace Switching ✅ FIXED
+
+**Status:** ✅ FIXED  
+**Location:** Keyboard shortcuts / WorkspaceManager
+
+**Fix Applied:**
+- Added `this.render()` call after workspace switching in `main.ts`:
+  - After `Ctrl+Win+Left/Right` keyboard handler (line ~7788)
+  - After `Ctrl+Win+1-4` direct switch (line ~7799)
+  - After workspace indicator click (line ~7704)
+- UI now updates properly when switching workspaces
+
+---
+
+
 ## ✅ RESOLVED: `applyTheme()` Method EXISTS
 
 **Status:** FIXED - The method exists and works correctly.

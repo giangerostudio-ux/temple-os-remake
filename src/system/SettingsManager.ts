@@ -189,6 +189,7 @@ export class SettingsManager {
 
     if (typeof cfg.wallpaperImage === 'string') this.host.wallpaperImage = cfg.wallpaperImage;
     if (cfg.themeMode === 'dark' || cfg.themeMode === 'light') this.host.themeMode = cfg.themeMode;
+    if (cfg.themeColor === 'green' || cfg.themeColor === 'amber' || cfg.themeColor === 'cyan' || cfg.themeColor === 'white') this.host.themeColor = cfg.themeColor;
     if (typeof cfg.highContrast === 'boolean') this.host.highContrast = cfg.highContrast;
     if (Array.isArray(cfg.customThemes)) this.host.customThemes = cfg.customThemes.slice(0, 20); // Max 20 custom themes
     if (typeof cfg.activeCustomTheme === 'string') this.host.activeCustomTheme = cfg.activeCustomTheme;
@@ -334,6 +335,7 @@ export class SettingsManager {
     const snapshot: TempleConfig = {
       wallpaperImage: this.host.wallpaperImage,
       themeMode: this.host.themeMode,
+      themeColor: this.host.themeColor,
       highContrast: this.host.highContrast,
       customThemes: this.host.customThemes.slice(0, 20),
       activeCustomTheme: this.host.activeCustomTheme || undefined,

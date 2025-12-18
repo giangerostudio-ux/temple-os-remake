@@ -133,6 +133,7 @@ export interface MouseSettings {
 export interface TempleConfig {
     wallpaperImage?: string;
     themeMode?: 'dark' | 'light';
+    themeColor?: 'green' | 'amber' | 'cyan' | 'white';
     highContrast?: boolean;
     customThemes?: Array<{
         name: string;

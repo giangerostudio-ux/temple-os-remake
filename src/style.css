@@ -27,7 +27,7 @@
   --accent-gold: #ffd700;
 }
 
-:root[data-theme='light'] {
+:root[data-theme-mode='light'] {
   --bg-primary: #e9eef5;
   --bg-secondary: #f5f7fb;
   --bg-window: #ffffff;

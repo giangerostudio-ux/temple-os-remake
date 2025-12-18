@@ -3053,7 +3053,20 @@ class TempleOS {
       if (!res?.success) {
         this.bluetoothEnabled = prevEnabled;
         this.bluetoothDevices = prevDevices;
-        this.showNotification('Bluetooth', res?.error || 'Failed to toggle Bluetooth', 'error');
+
+        // Provide user-friendly error messages for common issues
+        let errorMsg = res?.error || 'Failed to toggle Bluetooth';
+        if (res?.unsupported) {
+          errorMsg = 'No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware.';
+        } else if (errorMsg.includes('password') || errorMsg.includes('sudo')) {
+          errorMsg = 'Bluetooth requires administrator privileges. Please run with elevated permissions or configure polkit.';
+        } else if (errorMsg.includes('rfkill') || errorMsg.includes('blocked')) {
+          errorMsg = 'Bluetooth is blocked by hardware switch or rfkill. Check your physical Bluetooth switch.';
+        } else if (errorMsg.includes('bluetoothctl') || errorMsg.includes('not found')) {
+          errorMsg = 'Bluetooth service not available. Please install bluez package.';
+        }
+
+        this.showNotification('Bluetooth', errorMsg, 'error');
         if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
         return;
       }
@@ -3065,7 +3078,12 @@ class TempleOS {
     } catch (e) {
       this.bluetoothEnabled = prevEnabled;
       this.bluetoothDevices = prevDevices;
-      this.showNotification('Bluetooth', String(e), 'error');
+      const errStr = String(e);
+      let errorMsg = errStr;
+      if (errStr.includes('password') || errStr.includes('sudo')) {
+        errorMsg = 'Bluetooth requires administrator privileges.';
+      }
+      this.showNotification('Bluetooth', errorMsg, 'error');
       if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
     }
   }
@@ -7701,6 +7719,7 @@ class TempleOS {
           const wsId = parseInt(workspaceIndicator.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
+            this.render();
           }
         }
 
@@ -7786,6 +7805,7 @@ class TempleOS {
           } else {
             this.workspaceManager.nextWorkspace();
           }
+          this.render();
           return;
         }
 
@@ -7795,6 +7815,7 @@ class TempleOS {
           const wsId = parseInt(e.key, 10);
           if (wsId <= this.workspaceManager.getTotalWorkspaces()) {
             this.workspaceManager.switchToWorkspace(wsId);
+            this.render();
           }
           return;
         }

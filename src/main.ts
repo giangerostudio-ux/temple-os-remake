@@ -1788,7 +1788,7 @@ class TempleOS {
     const PADDING = 20;
 
     // Helper to get available grid slot if undefined
-    const usedSlots = new Set<string>();
+
 
     // If auto-arrange is on, we ignore stored positions and strictly grid them
     // If auto-arrange is off, we use stored positions, or find next empty slot
@@ -1915,7 +1915,7 @@ class TempleOS {
     iconEl.style.top = `${y}px`;
   }
 
-  private handleIconDragEnd(e: MouseEvent): void {
+  private handleIconDragEnd(): void {
     if (!this.draggingIcon) return;
 
     const key = this.draggingIcon.key;
@@ -4212,7 +4212,7 @@ class TempleOS {
     });
 
     document.addEventListener('mousemove', (e) => this.handleIconDragMove(e));
-    document.addEventListener('mouseup', (e) => this.handleIconDragEnd(e));
+    document.addEventListener('mouseup', () => this.handleIconDragEnd());
 
     // ============================================
     // ACCESSIBILITY: KEYBOARD SUPPORT

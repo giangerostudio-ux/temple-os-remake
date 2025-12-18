@@ -38,9 +38,9 @@ export class GodlyNotes {
     private draggedFromListId: string | null = null;
 
     // UI State
-    private showBoardMenu: boolean = false;
-    private editingCardId: string | null = null;
-    private cardDetailId: string | null = null; // For showing full details modal
+    // private showBoardMenu: boolean = false;
+    // private editingCardId: string | null = null;
+    // private cardDetailId: string | null = null; // For showing full details modal
 
     constructor() {
         this.loadData();

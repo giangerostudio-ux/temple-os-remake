@@ -1103,6 +1103,12 @@ class TempleOS {
     const launcherOverlayRoot = document.getElementById('launcher-overlay-root');
     const modalOverlay = document.getElementById('modal-overlay');
 
+    // Update Desktop Style (Wallpaper, etc.)
+    const desktop = document.getElementById('desktop');
+    if (desktop) {
+      desktop.style.backgroundImage = `url('${this.wallpaperImage}')`;
+    }
+
     // Update toasts
     if (toastContainer) {
       toastContainer.innerHTML = this.renderToasts();
@@ -1263,13 +1269,37 @@ class TempleOS {
       if (this.showStartMenu) startBtn.classList.add('active');
       else startBtn.classList.remove('active');
     }
+
+    // Update Wizard (Fixed: Ensure wizard refreshes when step changes)
+    const wizardRoot = document.getElementById('first-run-wizard-root');
+    if (wizardRoot) {
+      wizardRoot.innerHTML = this.renderFirstRunWizard();
+    }
+
+    // Update Shutdown Overlay
+    const shutdownRoot = document.getElementById('shutdown-overlay-root');
+    if (shutdownRoot) {
+      shutdownRoot.innerHTML = this.renderShutdownOverlay();
+    }
+
+    // Update Decoy Session Overlay
+    const decoyRoot = document.getElementById('decoy-overlay-root');
+    if (decoyRoot) {
+      decoyRoot.innerHTML = this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : '';
+    }
+
+    // Update Desktop Icons
+    const iconsRoot = document.getElementById('desktop-icons');
+    if (iconsRoot) {
+      iconsRoot.innerHTML = this.renderDesktopIcons();
+    }
   }
 
   private renderDesktop(): string {
     return `
-      ${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}
-      ${this.renderShutdownOverlay()}
-      ${this.renderFirstRunWizard()}
+      <div id="decoy-overlay-root">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
+      <div id="shutdown-overlay-root">${this.renderShutdownOverlay()}</div>
+      <div id="first-run-wizard-root">${this.renderFirstRunWizard()}</div>
       <div id="desktop-widgets-root">${this.renderDesktopWidgets()}</div>
       <div class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" id="desktop-icons">
         ${this.renderDesktopIcons()}

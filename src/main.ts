@@ -7439,8 +7439,8 @@ class TempleOS {
             {
               label: 'Sort by',
               submenu: [
-                { label: 'Name', action: () => this.setDesktopSort('name') },
-                { label: 'Size', action: () => this.setDesktopSort('size') }
+                { label: 'Name', action: () => this.sortDesktopIcons('name') },
+                { label: 'Type', action: () => this.sortDesktopIcons('type') }
               ]
             },
             { label: 'Refresh', action: () => this.render() },
@@ -8812,10 +8812,7 @@ class TempleOS {
 
   // Open Settings directly to About tab
   // Open Settings directly to About tab
-  private openSettingsToAbout() {
-    this.activeSettingsCategory = 'About';
-    this.openApp('settings');
-  }
+
 
   private getPathSeparator(path: string): string {
     return (path.includes('\\') || path.match(/^[A-Z]:/i)) ? '\\' : '/';

@@ -3130,13 +3130,13 @@ body.large-text {
 
   0%,
   100% {
-    opacity: 0.35;
-    transform: scaleY(1.6);
+    opacity: calc(var(--pulse-intensity, 0.15) * 0.6);
+    transform: scaleY(1.4);
   }
 
   50% {
-    opacity: 0.6;
-    transform: scaleY(2.7);
+    opacity: var(--pulse-intensity, 0.15);
+    transform: scaleY(2.2);
   }
 }
 

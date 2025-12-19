@@ -161,6 +161,7 @@ export interface TempleConfig {
     effects?: {
         jellyMode?: boolean;
         heavenlyPulse?: boolean;
+        heavenlyPulseIntensity?: number;
     };
     network?: {
         vpnKillSwitchEnabled?: boolean;

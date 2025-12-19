@@ -548,7 +548,7 @@ class TempleOS {
 
 
   // Tracker Blocking State (Tier 7.4)
-  private trackerBlockingEnabled = false;
+  private trackerBlockingEnabled = localStorage.getItem('temple_tracker_blocking') !== 'false'; // Default true
 
   // VeraCrypt State (Tier 7.1)
   private veraCryptVolumes: VeraCryptVolume[] = [];
@@ -625,6 +625,7 @@ class TempleOS {
   private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
   private heavenlyPulse = true; // Default enabled
+  private heavenlyPulseIntensity = parseFloat(localStorage.getItem('temple_pulse_intensity') || '0.15'); // 0.05 to 0.5
 
   // Enhancement Modules (New Modular Architecture)
   private imageViewer = new ImageViewerEnhancer();
@@ -4390,7 +4391,7 @@ class TempleOS {
         this.render();
       }
 
-      if (target.matches('.wizard-finish-btn')) {
+      if (target.matches('.wizard-finish-btn') || target.matches('.wizard-skip-btn')) {
         this.setupComplete = true;
         localStorage.setItem('temple_setup_complete', 'true');
         this.render();
@@ -5135,6 +5136,12 @@ class TempleOS {
       if (target.matches('.setup-again-btn')) {
         this.setupComplete = false;
         this.firstRunStep = 0;
+        localStorage.removeItem('temple_setup_complete');
+        // Close the settings window if open
+        const settingsWin = this.windows.find(w => w.id.startsWith('settings'));
+        if (settingsWin) {
+          this.closeWindow(settingsWin.id);
+        }
         this.render();
         return;
       }
@@ -7006,6 +7013,57 @@ class TempleOS {
         this.queueSaveConfig();
         return;
       }
+
+      // Visual Effects: Heavenly Pulse Toggle
+      if (target.matches('.heavenly-pulse-toggle')) {
+        this.heavenlyPulse = (target as HTMLInputElement).checked;
+        this.applyTheme();
+        this.queueSaveConfig();
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      // Visual Effects: Pulse Intensity Slider
+      if (target.matches('.pulse-intensity-slider')) {
+        const value = parseInt((target as HTMLInputElement).value, 10) / 100;
+        this.heavenlyPulseIntensity = Math.max(0.05, Math.min(0.5, value));
+        document.documentElement.style.setProperty('--pulse-intensity', String(this.heavenlyPulseIntensity));
+        localStorage.setItem('temple_pulse_intensity', String(this.heavenlyPulseIntensity));
+        this.queueSaveConfig();
+        // Update the label next to the slider
+        const label = (target as HTMLElement).nextElementSibling;
+        if (label) label.textContent = `${Math.round(this.heavenlyPulseIntensity * 100)}%`;
+        return;
+      }
+
+      // Visual Effects: Auto-hide Taskbar Toggle
+      if (target.matches('.taskbar-autohide-toggle')) {
+        this.autoHideTaskbar = (target as HTMLInputElement).checked;
+        localStorage.setItem('temple_autohide_taskbar', String(this.autoHideTaskbar));
+        this.queueSaveConfig();
+        return;
+      }
+
+      // Divine Settings: Quote Notifications Toggle
+      if (target.matches('.quote-notifications-toggle')) {
+        this.quoteNotifications = (target as HTMLInputElement).checked;
+        localStorage.setItem('temple_quote_notifications', String(this.quoteNotifications));
+        this.queueSaveConfig();
+        return;
+      }
+
+      // Performance: Lite Mode Toggle
+      if (target.matches('.lite-mode-toggle')) {
+        this.liteMode = (target as HTMLInputElement).checked;
+        localStorage.setItem('temple_lite_mode', String(this.liteMode));
+        if (this.liteMode) {
+          document.body.classList.add('reduce-motion');
+        } else {
+          document.body.classList.remove('reduce-motion');
+        }
+        this.queueSaveConfig();
+        return;
+      }
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -7351,6 +7409,16 @@ class TempleOS {
         if (this.showAppLauncher && e.key === 'Escape') {
           e.preventDefault();
           this.closeAppLauncher();
+          return;
+        }
+
+        // ESCAPE KEY: Exit setup wizard if stuck
+        if (!this.setupComplete && e.key === 'Escape') {
+          e.preventDefault();
+          this.setupComplete = true;
+          localStorage.setItem('temple_setup_complete', 'true');
+          this.showNotification('Setup', 'Setup skipped. You can run it again from Settings.', 'info');
+          this.render();
           return;
         }
 
@@ -11759,6 +11827,13 @@ class TempleOS {
                       <span>Heavenly Pulse</span>
                       <input type="checkbox" class="heavenly-pulse-toggle" ${this.heavenlyPulse ? 'checked' : ''} style="cursor: pointer;">
                   </label>
+                  <label style="display: flex; align-items: center; justify-content: space-between; ${this.heavenlyPulse ? '' : 'opacity: 0.5; pointer-events: none;'}">
+                      <span>Pulse Intensity</span>
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="range" class="pulse-intensity-slider" min="5" max="50" value="${Math.round(this.heavenlyPulseIntensity * 100)}" style="width: 100px; cursor: pointer;">
+                        <span style="min-width: 35px; text-align: right;">${Math.round(this.heavenlyPulseIntensity * 100)}%</span>
+                      </div>
+                  </label>
               </div>
         `)}
 
@@ -15524,7 +15599,8 @@ class TempleOS {
 
     return `
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999990; display: flex; align-items: center; justify-content: center;">
-            <div style="width: 600px; padding: 40px; border: 4px double #00ff41; background: #001100;">
+            <div style="width: 600px; padding: 40px; border: 4px double #00ff41; background: #001100; position: relative;">
+                <button class="wizard-skip-btn" style="position: absolute; top: 10px; right: 10px; background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.5); padding: 5px 10px; cursor: pointer; font-size: 12px; border-radius: 4px;" title="Skip setup and enter the Temple">Skip ✕</button>
                 ${steps[this.firstRunStep] || steps[0]}
             </div>
         </div>

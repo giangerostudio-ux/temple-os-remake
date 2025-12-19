@@ -21,6 +21,7 @@ export type SettingsHost = {
   // Effects
   jellyMode: boolean;
   heavenlyPulse: boolean;
+  heavenlyPulseIntensity: number;
 
   // Accessibility
   largeText: boolean;
@@ -156,6 +157,7 @@ export class SettingsManager {
     // But we should toggle a class on body or #app to easily hide/show it without removing element
     if (this.host.heavenlyPulse) {
       document.body.classList.add('heavenly-pulse-enabled');
+      root.style.setProperty('--pulse-intensity', String(this.host.heavenlyPulseIntensity || 0.15));
     } else {
       document.body.classList.remove('heavenly-pulse-enabled');
     }
@@ -243,6 +245,7 @@ export class SettingsManager {
     if (cfg.effects) {
       if (typeof cfg.effects.jellyMode === 'boolean') this.host.jellyMode = cfg.effects.jellyMode;
       if (typeof (cfg.effects as any).heavenlyPulse === 'boolean') this.host.heavenlyPulse = (cfg.effects as any).heavenlyPulse;
+      if (typeof (cfg.effects as any).heavenlyPulseIntensity === 'number') this.host.heavenlyPulseIntensity = Math.max(0.05, Math.min(0.5, (cfg.effects as any).heavenlyPulseIntensity));
     }
 
     if (cfg.network) {
@@ -388,7 +391,8 @@ export class SettingsManager {
 
       effects: {
         jellyMode: this.host.jellyMode,
-        heavenlyPulse: this.host.heavenlyPulse
+        heavenlyPulse: this.host.heavenlyPulse,
+        heavenlyPulseIntensity: this.host.heavenlyPulseIntensity
       },
 
       network: {

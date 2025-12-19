@@ -1327,6 +1327,15 @@ class TempleOS {
       preserveById(editorWin?.id);
     }
 
+    // SCROLL PRESERVATION: Help App (fixes random scroll reset on 30s timer)
+    const scrollState = new Map<string, number>();
+    this.windows.forEach(w => {
+      if (w.id.startsWith('help') && !w.minimized && !preserved.has(w.id)) {
+        const el = document.querySelector(`[data-window-id="${w.id}"] .help-app > div:last-child`);
+        if (el) scrollState.set(w.id, el.scrollTop);
+      }
+    });
+
     // Update windows (only show non-minimized), EXCEPT preserved windows
     const windowsToRender = this.windows.filter(w => !w.minimized && !preserved.has(w.id));
     windowsContainer.innerHTML = windowsToRender.map(w => this.renderWindow(w)).join('');
@@ -1348,6 +1357,12 @@ class TempleOS {
       el.style.height = `${w.height}px`;
       el.classList.toggle('active', !!w.active);
       el.style.display = w.minimized ? 'none' : 'flex';
+
+      // Restore scroll state for Help App
+      if (scrollState.has(w.id)) {
+        const scrollEl = el.querySelector('.help-app > div:last-child');
+        if (scrollEl) scrollEl.scrollTop = scrollState.get(w.id)!;
+      }
 
       // Animation (first open)
       if (!w.opened && !w.minimized && !preserved.has(w.id)) {
@@ -2941,8 +2956,27 @@ class TempleOS {
     const container = document.getElementById('start-menu-container');
     if (!container || !this.showStartMenu) return;
 
-    // Replace only the start menu content, not the entire app
-    container.innerHTML = this.renderStartMenu();
+    // Optimised update: if input exists, only update results
+    const input = container.querySelector('.start-search-input') as HTMLInputElement;
+    const results = document.getElementById('start-menu-results-area');
+
+    if (input && results) {
+      if (input.value !== this.startMenuSearchQuery) {
+        input.value = this.startMenuSearchQuery;
+      }
+      results.innerHTML = this.renderStartMenuResultsHtml();
+    } else {
+      // Initial render or full refresh
+      container.innerHTML = this.renderStartMenu();
+      // Restore focus if we have a query
+      if (this.startMenuSearchQuery) {
+        const newInput = container.querySelector('.start-search-input') as HTMLInputElement;
+        if (newInput) {
+          newInput.focus();
+          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        }
+      }
+    }
   }
 
   // ============================================
@@ -8210,6 +8244,16 @@ class TempleOS {
         if (target.hasAttribute('data-editor-replace-input')) {
           this.editorReplaceQuery = target.value;
         }
+
+        // Calculator Mode Select
+        if (target.classList.contains('calc-mode-select')) {
+          this.calculator.setMode(target.value as any);
+          const win = this.windows.find(w => w.id.startsWith('calculator'));
+          if (win) {
+            win.content = this.calculator.render();
+            this.render();
+          }
+        }
       });
 
       // Start Menu App Selection (Click)
@@ -8367,6 +8411,28 @@ class TempleOS {
             }
           }
         }
+
+        // Calculator Keyboard Support
+        const calcWin = this.windows.find(w => w.active && w.id.startsWith('calculator'));
+        if (calcWin && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          const key = e.key;
+          // Only intervene if it looks like a calculator key to avoid blocking other shortcuts
+          if ('0123456789+-*/.^()='.includes(key) || key === 'Enter' || key === 'Backspace' || key === 'Delete' || key === 'Escape') {
+            if (key === 'Enter') {
+              e.preventDefault();
+              this.calculator.pressKey('=');
+            } else if (key === 'Backspace') {
+              this.calculator.backspace();
+            } else if (key === 'Delete' || key === 'Escape') {
+              this.calculator.clear();
+            } else {
+              this.calculator.pressKey(key);
+            }
+
+            calcWin.content = this.calculator.render();
+            this.render();
+          }
+        }
       });
 
       // ============================================
@@ -8508,50 +8574,47 @@ class TempleOS {
         const target = e.target as HTMLElement;
 
         // Calculator
-        if (target.matches('.calc-btn')) {
-          const key = target.dataset.key || '';
-          const display = target.closest('.window-content')?.querySelector('.calc-display');
-          if (display) {
-            let current = display.textContent || '0';
-            if (current === 'Error' || current === 'Infinity') current = '0';
+        // Calculator
+        const calcBtn = target.closest('.calc-btn') as HTMLElement;
+        if (calcBtn && calcBtn.dataset.key) {
+          const key = calcBtn.dataset.key;
+          this.calculator.pressKey(key);
 
-            if (key === 'C') {
-              display.textContent = '0';
-            } else if (key === '=') {
-              try {
-                let expr = current.replace(/\^/g, '**');
-                // Basic sanitization
-                expr = expr.replace(/[^0-9+\-*/().]/g, '');
-                // We might have stripped ** to * if we are strictly filtering.
-                // Let's allow **
-                expr = current.replace(/\^/g, '**').replace(/[^0-9+\-*/().]/g, '');
-
-                display.textContent = String(eval(expr));
-              } catch {
-                display.textContent = 'Error';
-              }
-            } else if (key === '<') {
-              display.textContent = current.length > 1 ? current.slice(0, -1) : '0';
-            } else if (['sin', 'cos', 'tan', 'sqrt', 'log'].includes(key)) {
-              try {
-                const val = parseFloat(current);
-                let res = 0;
-                if (key === 'sin') res = Math.sin(val);
-                if (key === 'cos') res = Math.cos(val);
-                if (key === 'tan') res = Math.tan(val);
-                if (key === 'sqrt') res = Math.sqrt(val);
-                if (key === 'log') res = Math.log10(val);
-                display.textContent = String(res);
-              } catch {
-                display.textContent = 'Error';
-              }
-            } else if (key === 'pi') {
-              display.textContent = String(Math.PI);
-            } else {
-              if (current === '0' && key !== '.') display.textContent = key;
-              else display.textContent = current + key;
-            }
+          const win = this.windows.find(w => w.id.startsWith('calculator'));
+          if (win) {
+            win.content = this.calculator.render();
+            this.render();
           }
+          // Prevent falling through to other handlers
+          e.stopPropagation();
+          return;
+        }
+
+        // Calculator Base Switch (Programmer Mode)
+        const calcBaseBtn = target.closest('.calc-base-btn') as HTMLElement;
+        if (calcBaseBtn && calcBaseBtn.dataset.calcBase) {
+          this.calculator.setBase(calcBaseBtn.dataset.calcBase as any);
+          const win = this.windows.find(w => w.id.startsWith('calculator'));
+          if (win) {
+            win.content = this.calculator.render();
+            this.render();
+          }
+          return;
+        }
+
+        // Calculator Actions (History, etc)
+        const calcActionBtn = target.closest('[data-calc-action]') as HTMLElement;
+        if (calcActionBtn) {
+          const action = calcActionBtn.dataset.calcAction;
+          if (action === 'toggle-history') this.calculator.toggleHistory();
+          if (action === 'clear-history') this.calculator.clearHistory();
+
+          const win = this.windows.find(w => w.id.startsWith('calculator'));
+          if (win) {
+            win.content = this.calculator.render();
+            this.render();
+          }
+          return;
         }
 
         // Notes

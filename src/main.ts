@@ -2868,6 +2868,8 @@ class TempleOS {
   }
 
   private renderStartMenu(): string {
+    if (!this.showStartMenu) return '';
+
     return `
       <div class="start-menu">
         <div class="start-menu-left">
@@ -8150,6 +8152,20 @@ class TempleOS {
         // Editor replace input
         if (target.hasAttribute('data-editor-replace-input')) {
           this.editorReplaceQuery = target.value;
+        }
+      });
+
+      // Start Menu App Selection (Click)
+      app.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const startItem = target.closest('.start-app-item') as HTMLElement;
+        if (startItem) {
+          const key = startItem.dataset.launchKey ||
+            (startItem.dataset.app ? `builtin:${startItem.dataset.app}` : '');
+
+          if (key) {
+            this.launchByKeyClosingShellUi(key);
+          }
         }
       });
 

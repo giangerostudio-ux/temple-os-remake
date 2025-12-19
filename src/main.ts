@@ -2694,9 +2694,7 @@ class TempleOS {
   // ============================================
   // START MENU
   // ============================================
-  private renderStartMenu(): string {
-    if (!this.showStartMenu) return '';
-
+  private renderStartMenuResultsHtml(): string {
     // Built-in pinned apps
     const legacyPinnedApps = [
       { id: 'terminal', icon: '💻', name: 'Terminal' },
@@ -2737,23 +2735,23 @@ class TempleOS {
 
     // Built-in apps list for search (matches apps in openApp() switch statement)
     const builtinApps = [
-      { key: 'builtin:terminal', name: 'Terminal', icon: '💻', category: 'System' },
-      { key: 'builtin:word-of-god', name: 'Word of God', icon: '✝️', category: 'Utilities' },
-      { key: 'builtin:files', name: 'Files', icon: '📁', category: 'System' },
-      { key: 'builtin:editor', name: 'HolyC Editor', icon: '📝', category: 'Development' },
-      { key: 'builtin:hymns', name: 'Hymn Player', icon: '🎵', category: 'Multimedia' },
-      { key: 'builtin:updater', name: 'Holy Updater', icon: '⬇️', category: 'System' },
-      { key: 'builtin:help', name: 'Help & Docs', icon: '❓', category: 'System' },
-      { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '📋', category: 'Office' },
-      { key: 'builtin:calculator', name: 'Calculator', icon: '🧮', category: 'Utilities' },
-      { key: 'builtin:calendar', name: 'Divine Calendar', icon: '📅', category: 'Office' },
-      { key: 'builtin:image-viewer', name: 'Image Viewer', icon: '🖼️', category: 'Multimedia' },
-      { key: 'builtin:media-player', name: 'Media Player', icon: '💿', category: 'Multimedia' },
-      { key: 'builtin:auto-harp', name: "God's AutoHarp", icon: '🎹', category: 'Multimedia' },
-      { key: 'builtin:notes', name: 'Notes', icon: '📝', category: 'Office' },
-      { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '🎨', category: 'Development' },
-      { key: 'builtin:system-monitor', name: 'Task Manager', icon: '📊', category: 'System' },
-      { key: 'builtin:settings', name: 'Settings', icon: '⚙️', category: 'System' },
+      { key: 'builtin:terminal', name: 'Terminal', icon: '💻', category: 'System', builtinId: 'terminal' },
+      { key: 'builtin:word-of-god', name: 'Word of God', icon: '✝️', category: 'Utilities', builtinId: 'word-of-god' },
+      { key: 'builtin:files', name: 'Files', icon: '📁', category: 'System', builtinId: 'files' },
+      { key: 'builtin:editor', name: 'HolyC Editor', icon: '📝', category: 'Development', builtinId: 'editor' },
+      { key: 'builtin:hymns', name: 'Hymn Player', icon: '🎵', category: 'Multimedia', builtinId: 'hymns' },
+      { key: 'builtin:updater', name: 'Holy Updater', icon: '⬇️', category: 'System', builtinId: 'updater' },
+      { key: 'builtin:help', name: 'Help & Docs', icon: '❓', category: 'System', builtinId: 'help' },
+      { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '📋', category: 'Office', builtinId: 'godly-notes' },
+      { key: 'builtin:calculator', name: 'Calculator', icon: '🧮', category: 'Utilities', builtinId: 'calculator' },
+      { key: 'builtin:calendar', name: 'Divine Calendar', icon: '📅', category: 'Office', builtinId: 'calendar' },
+      { key: 'builtin:image-viewer', name: 'Image Viewer', icon: '🖼️', category: 'Multimedia', builtinId: 'image-viewer' },
+      { key: 'builtin:media-player', name: 'Media Player', icon: '💿', category: 'Multimedia', builtinId: 'media-player' },
+      { key: 'builtin:auto-harp', name: "God's AutoHarp", icon: '🎹', category: 'Multimedia', builtinId: 'auto-harp' },
+      { key: 'builtin:notes', name: 'Notes', icon: '📝', category: 'Office', builtinId: 'notes' },
+      { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '🎨', category: 'Development', builtinId: 'sprite-editor' },
+      { key: 'builtin:system-monitor', name: 'Task Manager', icon: '📊', category: 'System', builtinId: 'system-monitor' },
+      { key: 'builtin:settings', name: 'Settings', icon: '⚙️', category: 'System', builtinId: 'settings' },
     ];
 
     const searchFilteredBuiltin = () =>
@@ -2804,6 +2802,73 @@ class TempleOS {
     }
 
     return `
+      <div style="display: flex; gap: 10px; padding: 0 20px 10px 20px;">
+        <select class="start-view-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;">
+          <option value="all" ${this.startMenuView === 'all' ? 'selected' : ''}>All apps</option>
+          <option value="recent" ${this.startMenuView === 'recent' ? 'selected' : ''}>Recent</option>
+          <option value="frequent" ${this.startMenuView === 'frequent' ? 'selected' : ''}>Frequently used</option>
+        </select>
+        <select class="start-category-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;" ${this.startMenuView === 'all' ? '' : 'disabled'}>
+          ${(['All', 'Games', 'Internet', 'Office', 'Multimedia', 'Development', 'System', 'Utilities'] as const).map(c => `<option value="${c}" ${this.startMenuCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+
+      ${!query ? `
+      <div class="start-section">
+        <h3>Pinned</h3>
+        <div class="start-pinned-grid">
+          ${pinnedAppsView.map(app => `
+            <div class="start-app-item pinned" data-launch-key="${escapeHtml(app.key)}" tabindex="0" role="button" aria-label="${escapeHtml(app.name)}">
+              <span class="app-icon" aria-hidden="true">${app.icon}</span>
+              <span class="app-name">${escapeHtml(app.name)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+      
+      <div class="start-section">
+        <h3>${query ? `Results for "${query}"` : 'All Apps'}</h3>
+        <div class="start-apps-list">
+          ${query ? (
+        searchResults.length === 0 ? `
+            <div class="start-no-results">No apps found</div>
+            ` : searchResults.map(result => result.isBuiltin ? `
+            <div class="start-app-item builtin" data-launch-key="${escapeHtml(result.builtin.key)}" tabindex="0" role="button" aria-label="${escapeHtml(result.builtin.name)}">
+              <span class="app-icon" aria-hidden="true">${result.builtin.icon}</span>
+              <div class="app-info">
+                <span class="app-name">${escapeHtml(result.builtin.name)}</span>
+              </div>
+            </div>
+            ` : `
+            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
+              <span class="app-icon" aria-hidden="true">📦</span>
+              <div class="app-info">
+                <span class="app-name">${result.installed.name}</span>
+                ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
+              </div>
+            </div>
+            `).join('')
+      ) : (
+        filteredApps.length === 0 ? `
+            <div class="start-no-results">No apps found</div>
+            ` : filteredApps.map(app => `
+            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
+              <span class="app-icon" aria-hidden="true">📦</span>
+              <div class="app-info">
+                <span class="app-name">${app.name}</span>
+                ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
+              </div>
+            </div>
+            `).join('')
+      )}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderStartMenu(): string {
+    return `
       <div class="start-menu">
         <div class="start-menu-left">
           <div class="start-search-container">
@@ -2813,67 +2878,8 @@ class TempleOS {
             </div>
           </div>
 
-          <div style="display: flex; gap: 10px; padding: 0 20px 10px 20px;">
-            <select class="start-view-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;">
-              <option value="all" ${this.startMenuView === 'all' ? 'selected' : ''}>All apps</option>
-              <option value="recent" ${this.startMenuView === 'recent' ? 'selected' : ''}>Recent</option>
-              <option value="frequent" ${this.startMenuView === 'frequent' ? 'selected' : ''}>Frequently used</option>
-            </select>
-            <select class="start-category-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit;" ${this.startMenuView === 'all' ? '' : 'disabled'}>
-              ${(['All', 'Games', 'Internet', 'Office', 'Multimedia', 'Development', 'System', 'Utilities'] as const).map(c => `<option value="${c}" ${this.startMenuCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
-            </select>
-          </div>
-
-          ${!query ? `
-          <div class="start-section">
-            <h3>Pinned</h3>
-            <div class="start-pinned-grid">
-              ${pinnedAppsView.map(app => `
-                <div class="start-app-item pinned" data-launch-key="${escapeHtml(app.key)}" tabindex="0" role="button" aria-label="${escapeHtml(app.name)}">
-                  <span class="app-icon" aria-hidden="true">${app.icon}</span>
-                  <span class="app-name">${escapeHtml(app.name)}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          ` : ''}
-          
-          <div class="start-section">
-            <h3>${query ? `Results for "${query}"` : 'All Apps'}</h3>
-            <div class="start-apps-list">
-              ${query ? (
-        searchResults.length === 0 ? `
-                <div class="start-no-results">No apps found</div>
-                ` : searchResults.map(result => result.isBuiltin ? `
-                <div class="start-app-item builtin" data-launch-key="${escapeHtml(result.builtin.key)}" tabindex="0" role="button" aria-label="${escapeHtml(result.builtin.name)}">
-                  <span class="app-icon" aria-hidden="true">${result.builtin.icon}</span>
-                  <div class="app-info">
-                    <span class="app-name">${escapeHtml(result.builtin.name)}</span>
-                  </div>
-                </div>
-                ` : `
-                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
-                  <span class="app-icon" aria-hidden="true">📦</span>
-                  <div class="app-info">
-                    <span class="app-name">${result.installed.name}</span>
-                    ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
-                  </div>
-                </div>
-                `).join('')
-      ) : (
-        filteredApps.length === 0 ? `
-                <div class="start-no-results">No apps found</div>
-                ` : filteredApps.map(app => `
-                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
-                  <span class="app-icon" aria-hidden="true">📦</span>
-                  <div class="app-info">
-                    <span class="app-name">${app.name}</span>
-                    ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
-                  </div>
-                </div>
-                `).join('')
-      )}
-            </div>
+          <div id="start-menu-results-area">
+            ${this.renderStartMenuResultsHtml()}
           </div>
         </div>
         
@@ -8086,26 +8092,22 @@ class TempleOS {
 
           this.startMenuSearchTimer = window.setTimeout(() => {
             this.startMenuSearchTimer = null;
-            // Re-render Start Menu with filtered results
-            const startMenuEl = document.querySelector('.start-menu');
-            if (startMenuEl) {
-              const newHTML = this.renderStartMenu();
-              startMenuEl.outerHTML = newHTML;
+            // Update only the results area
+            const resultsArea = document.getElementById('start-menu-results-area');
+            if (resultsArea) {
+              resultsArea.innerHTML = this.renderStartMenuResultsHtml();
+            } else {
+              // Fallback to full render if partial not found
+              this.updateStartMenuDom();
 
-              // Restore focus and cursor
-              const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
-              if (newInput) {
-                newInput.focus();
-                // We use the current cursor position from the *active* input if possible, 
-                // but since it's debounced, the 'target' from the event closure is actually 
-                // the element that triggered the last input event.
-                // However, the user might have typed MORE. 
-                // Actually, the 'target' in this closure is the element that triggered THIS specific timeout.
-                // But wait, if I debounce, only the LAST event's timeout runs.
-                // So 'target' will be the element as it was for the last keystroke.
-                // That's correct.
-                newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
-              }
+              // Restore focus and cursor (only needed if full render happened)
+              requestAnimationFrame(() => {
+                const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
+                if (newInput && document.activeElement !== newInput) {
+                  newInput.focus();
+                  newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
+                }
+              });
             }
           }, 300);
         }

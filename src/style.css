@@ -3151,8 +3151,8 @@ body.large-text {
   height: 50vh;
   background: radial-gradient(ellipse at top, var(--temple-glow-color) 0%, transparent 70%);
   pointer-events: none;
-  z-index: 0;
-  /* Behind everything */
+  z-index: 20;
+  /* Behind windows (50) but above desktop/wallpaper */
   transform-origin: top center;
   animation: heavenlyPulse 8s ease-in-out infinite;
   will-change: transform, opacity;

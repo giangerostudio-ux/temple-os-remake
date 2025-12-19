@@ -3786,10 +3786,8 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
                 return { success: false, error: 'Cannot uninstall: Protected system Snap package' };
             }
 
-            if (!baseline) {
-                return { success: false, error: 'Cannot uninstall: Snap baseline not configured (missing snap-baseline.json)' };
-            }
-            if (baseline.has(snapName)) {
+            // If a baseline is configured, enforce it. If not, allow uninstalling non-protected snaps.
+            if (baseline && baseline.has(snapName)) {
                 return { success: false, error: 'Cannot uninstall: This Snap app is part of the system baseline' };
             }
 

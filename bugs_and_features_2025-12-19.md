@@ -80,6 +80,8 @@ The "Disable Auto-Hide" / "Enable Auto-Hide" button in the taskbar right-click c
 ### 10. Desktop Icons Overlap When Taskbar Moved to Top
 When you move the taskbar to the top, the desktop icons don't get pushed down and they overlap with the taskbar.
 
-### 11. Cannot Delete Cards in Godly Notes App
+### 11. ✅ FIXED - Cannot Delete Cards in Godly Notes App
 There is no feature to delete a card we create in the Godly Notes (Kanban board) app. Users can create cards but cannot remove them once created.
+
+**SOLUTION:** Added `onclick="window.deleteNoteCard('${listId}', '${card.id}')"` handler to the delete button. The delete button was already rendered but lacked the click handler.
 

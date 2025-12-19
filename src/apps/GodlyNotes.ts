@@ -361,6 +361,7 @@ export class GodlyNotes {
                 </div>
 
                 <button class="kanban-delete-card" data-card-id="${card.id}" data-col-id="${listId}"
+                        onclick="window.deleteNoteCard('${listId}', '${card.id}')"
                         style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: #8b949e; cursor: pointer; opacity: 0; transition: opacity 0.2s;"
                         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'">🗑️</button>
             </div>

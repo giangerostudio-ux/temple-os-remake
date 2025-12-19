@@ -114,6 +114,7 @@ declare global {
       getTorStatus?: () => Promise<{ success: boolean; supported: boolean; running: boolean; backend?: string; version?: string | null; error?: string }>;
       setTorEnabled?: (enabled: boolean) => Promise<{ success: boolean; running?: boolean; backend?: string; unsupported?: boolean; error?: string }>;
       installTor?: () => Promise<{ success: boolean; alreadyInstalled?: boolean; error?: string }>;
+      setMacRandomization?: (enabled: boolean) => Promise<{ success: boolean; modifiedCount?: number; error?: string }>;
       // Firewall (Tier 7.2)
       getFirewallRules?: () => Promise<{ success: boolean; active?: boolean; rules?: FirewallRule[]; error?: string }>;
       addFirewallRule?: (port: number, protocol: string, action: string) => Promise<{ success: boolean; error?: string }>;
@@ -984,6 +985,26 @@ class TempleOS {
     this.showNotification('Security', 'Duress password updated.', 'info');
   }
 
+  private async applyMacRandomization(): Promise<void> {
+    if (!window.electronAPI?.setMacRandomization) return;
+
+    console.log(`[TempleOS] Applying MAC Randomization: ${this.macRandomization ? 'Enabled' : 'Disabled'}`);
+
+    // Don't await this during event handlers to keep UI responsive, but do await in bootstrap
+    const result = await window.electronAPI.setMacRandomization(this.macRandomization);
+
+    if (!result.success) {
+      console.error('[TempleOS] Failed to apply MAC Randomization:', result.error);
+      if (this.setupComplete) { // Only show toaster if setup is done to avoid cluttering wizard
+        this.showNotification('Security Error', `Failed to apply MAC Randomization: ${result.error}`, 'error');
+      }
+    } else {
+      if (result.modifiedCount && result.modifiedCount > 0 && this.setupComplete) {
+        this.showNotification('Security', `MAC Randomization ${this.macRandomization ? 'Enabled' : 'Disabled'}`, 'info');
+      }
+    }
+  }
+
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
@@ -998,6 +1019,10 @@ class TempleOS {
     }
 
     this.notificationManager.setDoNotDisturb(this.doNotDisturb);
+
+    // Apply MAC Randomization (Security)
+    // We do this early in Phase 2 so it applies as connections might be coming up
+    this.applyMacRandomization().catch(e => console.error(e));
 
     // Phase 2: Run independent operations in parallel with timeouts (3s max per call)
     // This prevents VMs without WiFi/audio hardware from blocking startup
@@ -4667,6 +4692,7 @@ class TempleOS {
         } else if (setting === 'mac-randomization') {
           this.macRandomization = !this.macRandomization;
           localStorage.setItem('temple_mac_randomization', String(this.macRandomization));
+          this.applyMacRandomization();
         }
         this.render();
       }
@@ -4805,6 +4831,7 @@ class TempleOS {
         if (key === 'mac') {
           this.macRandomization = checked;
           localStorage.setItem('temple_mac_randomization', String(this.macRandomization));
+          this.applyMacRandomization();
         } else if (key === 'tracker-blocking') {
           this.trackerBlockingEnabled = checked;
           localStorage.setItem('temple_tracker_blocking', String(this.trackerBlockingEnabled));
@@ -15923,7 +15950,7 @@ class TempleOS {
                 </div>
                 <div class="wizard-toggle-btn" data-setting="mac-randomization" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
                    <span>📱 MAC Randomization</span>
-                   <span style="color: ${this.macRandomizationEnabled ? '#00ff41' : '#666'}; font-weight: bold;">${this.macRandomizationEnabled ? 'ON' : 'OFF'}</span>
+                   <span style="color: ${this.macRandomization ? '#00ff41' : '#666'}; font-weight: bold;">${this.macRandomization ? 'ON' : 'OFF'}</span>
                 </div>
              </div>
              <p style="font-size: 12px; opacity: 0.6; margin-bottom: 20px;">You can change these in Settings → Security</p>

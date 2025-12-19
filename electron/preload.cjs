@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     extractExif: (imagePath) => ipcRenderer.invoke('exif:extract', imagePath),
     stripExif: (imagePath) => ipcRenderer.invoke('exif:strip', imagePath),
     setTrackerBlocking: (enabled) => ipcRenderer.invoke('security:trackerBlocking', enabled),
+    setMacRandomization: (enabled) => ipcRenderer.invoke('security:setMacRandomization', enabled),
     getTorStatus: () => ipcRenderer.invoke('security:getTorStatus'),
     setTorEnabled: (enabled) => ipcRenderer.invoke('security:setTorEnabled', enabled),
     installTor: () => ipcRenderer.invoke('security:installTor'),

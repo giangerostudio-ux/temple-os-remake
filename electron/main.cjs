@@ -3267,6 +3267,54 @@ ipcMain.handle('set-dns', async (event, iface, primary, secondary) => {
 // TOR INTEGRATION
 // ============================================
 
+ipcMain.handle('security:setMacRandomization', async (event, enabled) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Only supported on Linux' };
+    }
+
+    try {
+        // Get List of all 802-11-wireless connections
+        const res = await execAsync('nmcli -t -f UUID,TYPE connection show');
+        if (res.error) throw new Error(res.stderr || 'Failed to list connections');
+
+        const uuids = [];
+        const lines = res.stdout.split('\n');
+        for (const line of lines) {
+            const parts = line.split(':');
+            if (parts.length >= 2 && parts[1].trim() === '802-11-wireless') {
+                uuids.push(parts[0].trim());
+            }
+        }
+
+        const mode = enabled ? 'random' : 'permanent';
+        // 'permanent' uses the hardware MAC address
+
+        const errors = [];
+        let modifiedCount = 0;
+
+        for (const uuid of uuids) {
+            const cmd = `nmcli connection modify ${shEscape(uuid)} 802-11-wireless.cloned-mac-address ${mode}`;
+            const modifyRes = await execAsync(cmd);
+            if (modifyRes.error) {
+                errors.push(`Failed for ${uuid}: ${modifyRes.stderr}`);
+            } else {
+                modifiedCount++;
+            }
+        }
+
+        console.log(`[Security] MAC Randomization set to ${mode} for ${modifiedCount} connections.`);
+
+        if (errors.length > 0 && modifiedCount === 0) {
+            return { success: false, error: errors.join('; ') };
+        }
+
+        return { success: true, modifiedCount, errors: errors.length > 0 ? errors : undefined };
+    } catch (e) {
+        console.error('[Security] Failed to set MAC randomization:', e);
+        return { success: false, error: e.message };
+    }
+});
+
 ipcMain.handle('security:getTorStatus', async () => {
     if (process.platform !== 'linux') {
         return { success: false, unsupported: true, running: false, mode: 'off' };

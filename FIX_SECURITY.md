@@ -28,7 +28,7 @@ Multiple security settings have UI but are either visual-only (toggle state but 
 ### Other Security Toggles (VISUAL ONLY - no backend)
 ```
 .sec-toggle[data-sec-key="encryption"]      → Local state only
-.sec-toggle[data-sec-key="mac"]             → Local state only
+.sec-toggle[data-sec-key="mac"]             → IMPLEMENTED (nmcli)
 .sec-toggle[data-sec-key="shred"]           → Local state only
 .sec-toggle[data-sec-key="tracker-blocking"] → Local state only
 ```
@@ -261,7 +261,7 @@ These settings toggle state but have **no actual Linux implementation**:
 | Setting | What it should do | Linux Implementation Needed |
 |---------|------------------|----------------------------|
 | LUKS Encryption Toggle | Encrypt/decrypt disk | **DANGEROUS** - requires `cryptsetup`, cannot hot-swap |
-| MAC Randomization | Randomize MAC on reconnect | `macchanger` before network connect |
+| MAC Randomization | Randomize MAC on reconnect | IMPLEMENTED using nmcli |
 | Secure Delete | Shred files on delete | Use `shred` instead of `rm` |
 | Tracker Blocking | Block ads/trackers | Modify `/etc/hosts` or use `pihole` |
 

@@ -7331,6 +7331,13 @@ class TempleOS {
           return;
         }
 
+        // Ctrl+Alt+Delete - Task Manager (Windows-style)
+        if (e.ctrlKey && e.altKey && e.key === 'Delete') {
+          e.preventDefault();
+          this.openApp('system-monitor');
+          return;
+        }
+
         // Win+X - Quick Link Menu
         if (e.metaKey && e.key.toLowerCase() === 'x') {
           e.preventDefault();
@@ -15435,6 +15442,7 @@ class TempleOS {
         }
       },
       { divider: true },
+      { label: 'Task Manager', action: () => this.openApp('system-monitor') },
       { label: 'Taskbar Settings', action: () => this.openApp('settings') }
     ]);
   }

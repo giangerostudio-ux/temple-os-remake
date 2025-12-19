@@ -47,6 +47,7 @@ export class HelpApp {
                 { key: 'Win + E', desc: 'Open File Browser' },
                 { key: 'Win + L', desc: 'Lock screen' },
                 { key: 'Ctrl + Shift + Esc', desc: 'Task Manager' },
+                { key: 'Ctrl + Alt + Delete', desc: 'Task Manager' },
                 { key: 'Win + X', desc: 'Quick link menu' },
             ]
         },

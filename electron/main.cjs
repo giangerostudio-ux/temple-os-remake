@@ -3382,11 +3382,15 @@ function broadcastAppsChanged(payload) {
 // ============================================
 const aptBaselinePath = path.join(__dirname, 'apt-baseline.json');
 const aptProtectedPath = path.join(__dirname, 'apt-protected.json');
+const snapBaselinePath = path.join(__dirname, 'snap-baseline.json');
+const snapProtectedPath = path.join(__dirname, 'snap-protected.json');
 
 let cachedAptBaselineSet = undefined; // Set<string> | null
 let cachedAptProtectedSet = undefined; // Set<string>
 let cachedAptManualSet = null; // Set<string> | null
 let cachedAptManualAt = 0;
+let cachedSnapBaselineSet = undefined; // Set<string> | null
+let cachedSnapProtectedSet = undefined; // Set<string>
 
 const defaultProtectedAptPackages = new Set([
     // Desktop/session + critical runtime
@@ -3429,8 +3433,23 @@ const defaultProtectedAptPackages = new Set([
     'openssh-server',
 ]);
 
+const defaultProtectedSnapPackages = new Set([
+    'snapd',
+    'core',
+    'core18',
+    'core20',
+    'core22',
+    'core24',
+    'bare',
+    'gtk-common-themes',
+]);
+
 function normalizeAptPackageName(pkg) {
     return String(pkg || '').trim().toLowerCase().split(':')[0];
+}
+
+function normalizeSnapName(name) {
+    return String(name || '').trim().toLowerCase();
 }
 
 function getAptBaselineSet() {
@@ -3453,6 +3472,28 @@ function getAptProtectedSet() {
     }
     cachedAptProtectedSet = merged;
     return cachedAptProtectedSet;
+}
+
+function getSnapBaselineSet() {
+    if (cachedSnapBaselineSet !== undefined) return cachedSnapBaselineSet;
+    const baseline = readJsonArrayFile(snapBaselinePath);
+    if (!baseline || baseline.length === 0) {
+        cachedSnapBaselineSet = null;
+        return cachedSnapBaselineSet;
+    }
+    cachedSnapBaselineSet = new Set(baseline.map(normalizeSnapName));
+    return cachedSnapBaselineSet;
+}
+
+function getSnapProtectedSet() {
+    if (cachedSnapProtectedSet !== undefined) return cachedSnapProtectedSet;
+    const fromFile = readJsonArrayFile(snapProtectedPath);
+    const merged = new Set(defaultProtectedSnapPackages);
+    if (Array.isArray(fromFile)) {
+        for (const p of fromFile) merged.add(normalizeSnapName(p));
+    }
+    cachedSnapProtectedSet = merged;
+    return cachedSnapProtectedSet;
 }
 
 async function getAptManualSet() {
@@ -3488,6 +3529,30 @@ function parseDpkgQuerySearchOutput(stdout) {
         if (base) pkgs.push(base);
     }
     return pkgs;
+}
+
+function parseSnapNameFromDesktopEntry(parsed, desktopFilePath) {
+    const direct = normalizeSnapName(parsed && (parsed['X-SnapInstanceName'] || parsed['X-SnapInstance'] || parsed['X-Snap']));
+    if (direct) return direct;
+
+    const execLine = String(parsed && parsed.Exec ? parsed.Exec : '').trim();
+    if (execLine) {
+        const tokens = splitCommandLine(execLine);
+        for (let i = 0; i < tokens.length; i++) {
+            const t = String(tokens[i] || '');
+            const base = path.basename(t);
+            const isSnapBin = t === 'snap' || base === 'snap' || t === '/usr/bin/snap' || base === 'snap';
+            if (!isSnapBin) continue;
+            const maybeRun = String(tokens[i + 1] || '');
+            if (maybeRun === 'run') {
+                const name = normalizeSnapName(tokens[i + 2]);
+                if (name) return name;
+            }
+        }
+    }
+
+    const fallback = normalizeSnapName(path.basename(String(desktopFilePath || ''), '.desktop').split('_')[0]);
+    return fallback || '';
 }
 
 async function getAptPackageOwningFile(filePath) {
@@ -3653,14 +3718,16 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
         const flatpakUserExportsDir = path.join(userHome, '.local/share/flatpak/exports/share/applications');
         const source = String(app.source || '').toLowerCase();
         const systemLauncherDirs = ['/usr/share/applications', '/usr/local/share/applications'];
+        const snapLauncherDir = '/var/lib/snapd/desktop/applications';
 
         const inDir = (dir) => filePath === dir || filePath.startsWith(dir + path.sep);
         const inUserLaunchers = inDir(userLaunchersDir);
         const inFlatpakUserExports = inDir(flatpakUserExportsDir);
         const inSystemLaunchers = systemLauncherDirs.some(d => inDir(d));
+        const inSnapLaunchers = inDir(snapLauncherDir);
 
         // Safety check: only allow actions on known launcher roots.
-        if (!inUserLaunchers && !inFlatpakUserExports && !inSystemLaunchers) {
+        if (!inUserLaunchers && !inFlatpakUserExports && !inSystemLaunchers && !inSnapLaunchers) {
             return { success: false, error: 'Cannot uninstall: Unsupported launcher location' };
         }
 
@@ -3700,6 +3767,43 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
 
             // Flatpak should remove the exported desktop file, but clean up if it's still there.
             if (inFlatpakUserExports) {
+                try { await fs.promises.unlink(filePath); } catch { }
+            }
+        } else if (inSnapLaunchers || source === 'snap') {
+            if (!(await hasCommand('snap'))) {
+                return { success: false, error: 'Snap not found. Cannot uninstall Snap apps on this system.' };
+            }
+
+            const snapName = parseSnapNameFromDesktopEntry(parsed, filePath);
+            if (!/^[a-z0-9][a-z0-9-]*$/.test(snapName)) {
+                return { success: false, error: 'Cannot uninstall: Invalid Snap package name' };
+            }
+
+            const baseline = getSnapBaselineSet();
+            const protectedSnaps = getSnapProtectedSet();
+
+            if (protectedSnaps.has(snapName)) {
+                return { success: false, error: 'Cannot uninstall: Protected system Snap package' };
+            }
+
+            if (!baseline) {
+                return { success: false, error: 'Cannot uninstall: Snap baseline not configured (missing snap-baseline.json)' };
+            }
+            if (baseline.has(snapName)) {
+                return { success: false, error: 'Cannot uninstall: This Snap app is part of the system baseline' };
+            }
+
+            const res = await runPrivilegedSh(`snap remove --purge ${snapName}`, { timeout: 10 * 60 * 1000 });
+            if (res.error) {
+                const msg = String((res.stderr || '').trim() || (res.stdout || '').trim() || res.error.message || 'Snap uninstall failed');
+                if (/not authorized|authentication|permission|sudo|pkexec/i.test(msg)) {
+                    return { success: false, error: 'Administrator authentication failed or was cancelled.' };
+                }
+                return { success: false, error: msg.substring(0, 300) };
+            }
+
+            // Snap should remove the desktop file, but clean up if it's still there.
+            if (inSnapLaunchers) {
                 try { await fs.promises.unlink(filePath); } catch { }
             }
         } else if (inSystemLaunchers) {

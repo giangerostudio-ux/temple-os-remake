@@ -3441,6 +3441,13 @@ class TempleOS {
     );
   }
 
+  private canAttemptSnapUninstall(app: InstalledApp): boolean {
+    // Snap apps are discovered from /var/lib/snapd/desktop/applications
+    const source = String(app.source || '').toLowerCase();
+    const desktopFile = String(app.desktopFile || '');
+    return source === 'snap' && desktopFile.startsWith('/var/lib/snapd/desktop/applications/');
+  }
+
   private async uninstallApp(app: InstalledApp): Promise<void> {
     if (!window.electronAPI?.uninstallApp) {
       this.showNotification('Apps', 'Uninstall feature not available', 'warning');
@@ -3449,7 +3456,8 @@ class TempleOS {
 
     const canUninstall = this.canUninstallApp(app);
     const canAttemptApt = this.canAttemptAptUninstall(app);
-    if (!canUninstall && !canAttemptApt) {
+    const canAttemptSnap = this.canAttemptSnapUninstall(app);
+    if (!canUninstall && !canAttemptApt && !canAttemptSnap) {
       this.showNotification('Apps', 'Cannot uninstall system apps', 'warning');
       return;
     }
@@ -3458,6 +3466,8 @@ class TempleOS {
     const hint =
       src === 'flatpak-user'
         ? 'This will uninstall the Flatpak app from your user account.'
+        : canAttemptSnap
+          ? 'This will uninstall the app via Snap (admin password may be required).'
         : canAttemptApt
           ? 'This will uninstall the app from the system via APT (admin password may be required).'
           : 'This will remove the launcher entry from your user profile.';
@@ -8245,7 +8255,11 @@ class TempleOS {
 
             // Check if this is an installed app that can be uninstalled
             const installedApp = this.findInstalledAppByKey(key);
-            const canUninstall = installedApp && (this.canUninstallApp(installedApp) || this.canAttemptAptUninstall(installedApp));
+            const canUninstall = installedApp && (
+              this.canUninstallApp(installedApp) ||
+              this.canAttemptAptUninstall(installedApp) ||
+              this.canAttemptSnapUninstall(installedApp)
+            );
 
             const menuItems = [
               { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },

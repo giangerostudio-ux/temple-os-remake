@@ -68,6 +68,14 @@ This makes “Uninstall (APT)” safe-by-default by preventing removal of packag
 node scripts/generate-apt-baseline.cjs
 ```
 
+### 6. Generate Snap Baseline (If your ISO includes Snap apps)
+
+This makes “Uninstall (Snap)” safe-by-default by preventing removal of snaps that shipped with the ISO baseline.
+
+```bash
+node scripts/generate-snap-baseline.cjs
+```
+
 ## Files to Include in ISO
 
 When packaging for ISO, include these folders:

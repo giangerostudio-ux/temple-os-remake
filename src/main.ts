@@ -992,7 +992,11 @@ class TempleOS {
 
     // Enforce lock screen on boot if password or PIN is configured
     if (this.setupComplete && (this.lockPassword || this.lockPin)) {
+      document.getElementById('initial-loader')?.remove();
       this.lock();
+    } else {
+      document.getElementById('initial-loader')?.remove();
+      this.playBootSequence();
     }
 
     this.notificationManager.setDoNotDisturb(this.doNotDisturb);
@@ -1122,10 +1126,25 @@ class TempleOS {
 
 
 
+  private playBootSequence() {
+    this.bootSequenceActive = true;
+    this.bootStartTime = performance.now();
+    const app = document.getElementById('app');
+    if (app) {
+      const bootHtml = this.renderBootScreen();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = bootHtml;
+      const bootEl = tempDiv.firstElementChild;
+      if (bootEl) {
+        app.appendChild(bootEl);
+      }
+    }
+  }
+
   private renderInitial() {
     const app = document.getElementById('app')!;
     app.innerHTML = `
-      ${this.renderBootScreen()}
+      <div id="initial-loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:20000;"></div>
       <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;">
         ${this.renderDesktop()}
         <div id="windows-container"></div>
@@ -1184,11 +1203,12 @@ class TempleOS {
   private render() {
     // FORCE CLEANUP: Ensure boot screen is removed if it lingers past 5s
     // This fixes the "unresponsive for 1 minute" bug caused by the overlay blocking clicks
-    if (performance.now() > 5000) {
+    if (this.bootSequenceActive && performance.now() > this.bootStartTime + 5000) {
       const bootScreen = document.querySelector('.boot-screen');
       if (bootScreen) {
         bootScreen.remove();
       }
+      this.bootSequenceActive = false;
     }
 
 
@@ -1467,6 +1487,9 @@ class TempleOS {
       </div>
     `;
   }
+
+  private bootSequenceActive = false;
+  private bootStartTime = 0;
 
   private renderBootScreen(): string {
     return `
@@ -15222,6 +15245,9 @@ class TempleOS {
     this.isLocked = false;
 
     this.playNotificationSound('divine');
+
+    // Play boot sequence after unlock
+    this.playBootSequence();
   }
 
   // ============================================

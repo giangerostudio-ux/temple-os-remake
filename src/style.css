@@ -108,11 +108,13 @@ body {
   padding: 10px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.1s; /* Removed 'all' to prevent drag lag */
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.1s;
+  /* Removed 'all' to prevent drag lag */
   text-align: center;
   position: relative;
   z-index: 1;
-  width: 100px; /* Enforce size */
+  width: 100px;
+  /* Enforce size */
   height: 100px;
 }
 
@@ -121,7 +123,8 @@ body {
   opacity: 0.8;
   transform: scale(1.05);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-  pointer-events: none; /* Let events pass through to document for smoother move */
+  pointer-events: none;
+  /* Let events pass through to document for smoother move */
 }
 
 .desktop-icon:hover {
@@ -445,6 +448,22 @@ body {
   padding: 0 15px;
   gap: 10px;
 }
+
+.taskbar-transparent {
+  background: rgba(13, 17, 23, 0.7) !important;
+  backdrop-filter: blur(10px);
+  border-top-color: rgba(0, 255, 65, 0.1);
+}
+
+.taskbar-autohide {
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.taskbar-autohide:hover {
+  transform: translateY(0);
+}
+
 
 .start-btn {
   padding: 8px 20px;

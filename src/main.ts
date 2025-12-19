@@ -1797,10 +1797,11 @@ class TempleOS {
   // DESKTOP ICONS HELPERS
   // ============================================
   public setDesktopSort(mode: 'name' | 'size' | 'default') {
-    this.showNotification('Desktop', `Sorting by ${mode} (Visual Only)`, 'info');
-    // Implement actual sorting logic here if we had file metadata for desktop icons
-    // For now, it just triggers a re-render
-    this.render();
+    if (mode === 'name') {
+      this.sortDesktopIcons('name');
+    } else if (mode === 'size' || mode === 'default') {
+      this.sortDesktopIcons('type'); // Sort by type as a reasonable default
+    }
   }
 
   public setDesktopIconSize(size: 'small' | 'medium' | 'large') {

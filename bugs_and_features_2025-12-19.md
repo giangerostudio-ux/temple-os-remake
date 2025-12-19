@@ -55,8 +55,10 @@ Fix when clicking on time it keeps hiding the seconds for a second then goes bac
 - ✅ When clicking clock, `render()` regenerated HTML with `formatTime()` (no seconds), then `updateClock()` added them back
 - ✅ Now both methods use consistent time format with seconds, eliminating the flicker
 
-### 5. Desktop Right-Click Options Not Working
+### 5. ✅ FIXED - Desktop Right-Click Options Not Working
 Fix all options when right clicking in the desktop they are not working for example big icons small icons etc sort by options don't do anything.
+
+**SOLUTION:** Fixed `setDesktopSort()` method to actually call `sortDesktop Icons('name')` or `sortDesktopIcons('type')` instead of just showing "Visual Only" notification.
 
 ### 6. Context Menu Not Closing After Action
 When clicking options with right click context menu like for example settings or open terminal it should close the context menu cause it's blocking ur view with the new window that opened.
@@ -65,11 +67,15 @@ When clicking options with right click context menu like for example settings or
 - When u are in lockscreen the restart and shutdown buttons go off below the screen on the pin tab.
 - When you launch ur computer it skips the password or pin even though we have a password enabled it skips through the lockscreen - that should not be happening.
 
-### 8. Taskbar "Enable Transparency" Button Not Working
+### 8. ✅ FIXED - Taskbar "Enable Transparency" Button Not Working
 The "Enable Transparency" button in the taskbar right-click context menu doesn't work.
 
-### 9. Taskbar "Auto-Hide" Toggle Not Working  
+**SOLUTION:** Added missing `.taskbar-transparent` CSS class with semi-transparent background and backdrop blur effect.
+
+### 9. ✅ FIXED - Taskbar "Auto-Hide" Toggle Not Working  
 The "Disable Auto-Hide" / "Enable Auto-Hide" button in the taskbar right-click context menu doesn't work.
+
+**SOLUTION:** Added missing `.taskbar-autohide` CSS class that slides taskbar down when not hovered, with smooth transitions.
 
 ### 10. Desktop Icons Overlap When Taskbar Moved to Top
 When you move the taskbar to the top, the desktop icons don't get pushed down and they overlap with the taskbar.

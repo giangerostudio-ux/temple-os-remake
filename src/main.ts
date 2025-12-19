@@ -622,6 +622,8 @@ class TempleOS {
   private liteMode = localStorage.getItem('temple_lite_mode') === 'true';
   private quoteNotifications = localStorage.getItem('temple_quote_notifications') !== 'false'; // Default true
   private secureWipeOnShutdown = localStorage.getItem('temple_secure_wipe') !== 'false'; // Default true
+  private trackerBlockingEnabled = localStorage.getItem('temple_tracker_blocking') !== 'false'; // Default true
+  private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
 
   // Enhancement Modules (New Modular Architecture)
@@ -4401,6 +4403,22 @@ class TempleOS {
           this.applyTheme();
           this.render();
         }
+      }
+
+      const wizardToggle = target.closest('.wizard-toggle-btn') as HTMLElement;
+      if (wizardToggle) {
+        const setting = wizardToggle.dataset.setting;
+        if (setting === 'secure-wipe') {
+          this.secureWipeOnShutdown = !this.secureWipeOnShutdown;
+          localStorage.setItem('temple_secure_wipe', String(this.secureWipeOnShutdown));
+        } else if (setting === 'tracker-blocking') {
+          this.trackerBlockingEnabled = !this.trackerBlockingEnabled;
+          localStorage.setItem('temple_tracker_blocking', String(this.trackerBlockingEnabled));
+        } else if (setting === 'mac-randomization') {
+          this.macRandomizationEnabled = !this.macRandomizationEnabled;
+          localStorage.setItem('temple_mac_randomization', String(this.macRandomizationEnabled));
+        }
+        this.render();
       }
 
       // Settings: Run Setup Again Button
@@ -15405,17 +15423,17 @@ class TempleOS {
              <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">🔐 Privacy Settings</div>
              <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Configure your security preferences</p>
              <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                <div class="wizard-toggle-btn" data-setting="secure-wipe" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
                    <span>🛡️ Secure Memory Wipe on Shutdown</span>
-                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                   <span style="color: ${this.secureWipeOnShutdown ? '#00ff41' : '#666'}; font-weight: bold;">${this.secureWipeOnShutdown ? 'ON' : 'OFF'}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                <div class="wizard-toggle-btn" data-setting="tracker-blocking" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
                    <span>🔒 Tracker Blocking</span>
-                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                   <span style="color: ${this.trackerBlockingEnabled ? '#00ff41' : '#666'}; font-weight: bold;">${this.trackerBlockingEnabled ? 'ON' : 'OFF'}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px;">
+                <div class="wizard-toggle-btn" data-setting="mac-randomization" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
                    <span>📱 MAC Randomization</span>
-                   <span style="color: #00ff41; font-weight: bold;">ON</span>
+                   <span style="color: ${this.macRandomizationEnabled ? '#00ff41' : '#666'}; font-weight: bold;">${this.macRandomizationEnabled ? 'ON' : 'OFF'}</span>
                 </div>
              </div>
              <p style="font-size: 12px; opacity: 0.6; margin-bottom: 20px;">You can change these in Settings → Security</p>

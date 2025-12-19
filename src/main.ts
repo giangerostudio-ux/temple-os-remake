@@ -1835,6 +1835,7 @@ class TempleOS {
       { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
       { id: 'help', icon: '❓', label: 'Help' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
+      { id: 'trash', icon: '🗑️', label: 'Trash' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -2035,6 +2036,27 @@ class TempleOS {
 
         this.desktopIconPositions[key] = { x, y };
         localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+      } else {
+        // Icon was clicked, not dragged - open the app
+        if (key.startsWith('builtin:')) {
+          const appId = key.replace('builtin:', '');
+          // Special handling for trash icon - open files app to trash
+          if (appId === 'trash') {
+            this.openApp('files');
+            // Navigate to trash after window opens
+            setTimeout(() => {
+              void this.loadFiles('trash:');
+            }, 150);
+          } else {
+            this.openApp(appId);
+          }
+        } else {
+          // Desktop shortcut to installed app
+          const launchKey = iconEl.dataset.launchKey;
+          if (launchKey) {
+            this.launchInstalledApp(launchKey);
+          }
+        }
       }
     }
 
@@ -2051,9 +2073,10 @@ class TempleOS {
       { id: 'updater', icon: '⬇️', label: 'Holy Updater', type: 'builtin' },
       { id: 'help', icon: '❓', label: 'Help', type: 'builtin' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes', type: 'builtin' },
+      { id: 'trash', icon: '🗑️', label: 'Trash', type: 'builtin' },
     ];
 
-    const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
+    const builtinKeys = new Set(icons.map(i => `builtin:${i.id} `));
     const shortcutIcons = this.desktopShortcuts
       .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string' && !builtinKeys.has(s.key))
       .map(s => {
@@ -2069,7 +2092,7 @@ class TempleOS {
       });
 
     const allIcons = [
-      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
+      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id} `, isShortcut: false })),
       ...shortcutIcons
     ];
 
@@ -2114,44 +2137,44 @@ class TempleOS {
 
   private renderWindow(win: WindowState): string {
     const style = [
-      `left: ${win.x}px`,
-      `top: ${win.y}px`,
-      `width: ${win.width}px`,
-      `height: ${win.height}px`,
+      `left: ${win.x} px`,
+      `top: ${win.y} px`,
+      `width: ${win.width} px`,
+      `height: ${win.height} px`,
       win.alwaysOnTop ? 'z-index: 10000 !important' : '',
       win.transparent ? 'opacity: 0.85' : ''
     ].filter(Boolean).join('; ');
 
     return `
-      <div class="window ${win.active ? 'active' : ''} ${win.transparent ? 'transparent-window' : ''}"
-           data-window-id="${win.id}"
-           style="${style}">
-        <!-- Resize Handles -->
-        <div class="resize-handle n" data-resize-dir="n" data-window="${win.id}"></div>
-        <div class="resize-handle e" data-resize-dir="e" data-window="${win.id}"></div>
-        <div class="resize-handle s" data-resize-dir="s" data-window="${win.id}"></div>
-        <div class="resize-handle w" data-resize-dir="w" data-window="${win.id}"></div>
-        <div class="resize-handle nw" data-resize-dir="nw" data-window="${win.id}"></div>
-        <div class="resize-handle ne" data-resize-dir="ne" data-window="${win.id}"></div>
-        <div class="resize-handle sw" data-resize-dir="sw" data-window="${win.id}"></div>
-        <div class="resize-handle se" data-resize-dir="se" data-window="${win.id}"></div>
+      < div class="window ${win.active ? 'active' : ''} ${win.transparent ? 'transparent-window' : ''}"
+    data - window - id="${win.id}"
+    style = "${style}" >
+      <!--Resize Handles-- >
+        <div class="resize-handle n" data - resize - dir="n" data - window="${win.id}" > </div>
+          < div class="resize-handle e" data - resize - dir="e" data - window="${win.id}" > </div>
+            < div class="resize-handle s" data - resize - dir="s" data - window="${win.id}" > </div>
+              < div class="resize-handle w" data - resize - dir="w" data - window="${win.id}" > </div>
+                < div class="resize-handle nw" data - resize - dir="nw" data - window="${win.id}" > </div>
+                  < div class="resize-handle ne" data - resize - dir="ne" data - window="${win.id}" > </div>
+                    < div class="resize-handle sw" data - resize - dir="sw" data - window="${win.id}" > </div>
+                      < div class="resize-handle se" data - resize - dir="se" data - window="${win.id}" > </div>
 
-        <div class="window-header" data-draggable="${win.id}">
-          <div class="window-title">
-            <span>${win.icon}</span>
-            <span>${win.title}</span>
-          </div>
-          <div class="window-controls">
-            <button class="window-btn minimize" data-action="minimize" data-window="${win.id}" aria-label="Minimize"></button>
-            <button class="window-btn maximize" data-action="maximize" data-window="${win.id}" aria-label="Maximize"></button>
-            <button class="window-btn close" data-action="close" data-window="${win.id}" aria-label="Close"></button>
-          </div>
-        </div>
-        <div class="window-content">
-          ${win.content}
-        </div>
+                        < div class="window-header" data - draggable="${win.id}" >
+                          <div class="window-title" >
+                            <span>${win.icon} </span>
+                              < span > ${win.title} </span>
+                                </div>
+                                < div class="window-controls" >
+                                  <button class="window-btn minimize" data - action="minimize" data - window="${win.id}" aria - label="Minimize" > </button>
+                                    < button class="window-btn maximize" data - action="maximize" data - window="${win.id}" aria - label="Maximize" > </button>
+                                      < button class="window-btn close" data - action="close" data - window="${win.id}" aria - label="Close" > </button>
+                                        </div>
+                                        </div>
+                                        < div class="window-content" >
+                                          ${win.content}
+    </div>
       </div>
-    `;
+        `;
   }
 
   private renderTaskbar(): string {
@@ -2161,16 +2184,16 @@ class TempleOS {
     ].filter(Boolean).join(' ');
 
     return `
-      <div id="start-menu-container">${this.renderStartMenu()}</div>
-      <div class="taskbar ${extraClasses}" oncontextmenu="window.appInstance.showTaskbarContextMenu(event); return false;">
-        <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
+      < div id = "start-menu-container" > ${this.renderStartMenu()} </div>
+        < div class="taskbar ${extraClasses}" oncontextmenu = "window.appInstance.showTaskbarContextMenu(event); return false;" >
+          <button class="start-btn ${this.showStartMenu ? 'active' : ''}" > TEMPLE </button>
         ${this.renderWorkspaceSwitcher()}
-        <div class="taskbar-apps">
-          ${this.renderTaskbarAppsHtml()}
-        </div>
-        <div class="taskbar-tray">
-          ${this.getTrayHTML()}
-        </div>
+    <div class="taskbar-apps" >
+      ${this.renderTaskbarAppsHtml()}
+    </div>
+      < div class="taskbar-tray" >
+        ${this.getTrayHTML()}
+    </div>
       </div>`;
   }
 
@@ -2711,6 +2734,32 @@ class TempleOS {
 
     const keyForInstalled = (app: InstalledApp): string => this.keyForInstalledApp(app);
 
+    // Built-in apps list for search (matches apps in openApp() switch statement)
+    const builtinApps = [
+      { key: 'builtin:terminal', name: 'Terminal', icon: '💻', category: 'System' },
+      { key: 'builtin:word-of-god', name: 'Word of God', icon: '✝️', category: 'Utilities' },
+      { key: 'builtin:files', name: 'Files', icon: '📁', category: 'System' },
+      { key: 'builtin:editor', name: 'HolyC Editor', icon: '📝', category: 'Development' },
+      { key: 'builtin:hymns', name: 'Hymn Player', icon: '🎵', category: 'Multimedia' },
+      { key: 'builtin:updater', name: 'Holy Updater', icon: '⬇️', category: 'System' },
+      { key: 'builtin:help', name: 'Help & Docs', icon: '❓', category: 'System' },
+      { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '📋', category: 'Office' },
+      { key: 'builtin:calculator', name: 'Calculator', icon: '🧮', category: 'Utilities' },
+      { key: 'builtin:calendar', name: 'Divine Calendar', icon: '📅', category: 'Office' },
+      { key: 'builtin:image-viewer', name: 'Image Viewer', icon: '🖼️', category: 'Multimedia' },
+      { key: 'builtin:media-player', name: 'Media Player', icon: '💿', category: 'Multimedia' },
+      { key: 'builtin:auto-harp', name: "God's AutoHarp", icon: '🎹', category: 'Multimedia' },
+      { key: 'builtin:notes', name: 'Notes', icon: '📝', category: 'Office' },
+      { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '🎨', category: 'Development' },
+      { key: 'builtin:system-monitor', name: 'Task Manager', icon: '📊', category: 'System' },
+      { key: 'builtin:settings', name: 'Settings', icon: '⚙️', category: 'System' },
+    ];
+
+    const searchFilteredBuiltin = () =>
+      builtinApps.filter(app =>
+        app.name.toLowerCase().includes(query)
+      );
+
     const searchFiltered = (apps: InstalledApp[]) =>
       apps.filter(app =>
         app.name.toLowerCase().includes(query) ||
@@ -2718,25 +2767,40 @@ class TempleOS {
         app.categories.some(c => c.toLowerCase().includes(query))
       );
 
-    let filteredApps: InstalledApp[] = [];
+    type SearchResult = { isBuiltin: true; builtin: typeof builtinApps[0] } | { isBuiltin: false; installed: InstalledApp };
+    let searchResults: SearchResult[] = [];
+
     if (query) {
-      filteredApps = searchFiltered(this.installedApps);
-    } else if (this.startMenuView === 'recent') {
-      const map = new Map(this.installedApps.map(a => [keyForInstalled(a), a] as const));
-      filteredApps = this.recentApps.map(k => map.get(k)).filter(Boolean) as InstalledApp[];
-    } else if (this.startMenuView === 'frequent') {
-      filteredApps = this.installedApps
-        .map(a => ({ a, score: this.appUsage[keyForInstalled(a)] || 0 }))
-        .filter(x => x.score > 0)
-        .sort((x, y) => y.score - x.score)
-        .map(x => x.a);
-    } else {
-      filteredApps = this.startMenuCategory === 'All'
-        ? this.installedApps.slice()
-        : this.installedApps.filter(a => getCategory(a) === this.startMenuCategory);
+      // When searching, include both built-in and installed apps
+      const builtinResults = searchFilteredBuiltin();
+      const installedResults = searchFiltered(this.installedApps);
+
+      // Built-in apps first, then installed apps
+      searchResults = [
+        ...builtinResults.map(b => ({ isBuiltin: true as const, builtin: b })),
+        ...installedResults.map(i => ({ isBuiltin: false as const, installed: i }))
+      ];
     }
 
-    if (!query) filteredApps = filteredApps.slice(0, 30);
+    // For non-search views, only show installed apps (backwards compatibility)
+    let filteredApps: InstalledApp[] = [];
+    if (!query) {
+      if (this.startMenuView === 'recent') {
+        const map = new Map(this.installedApps.map(a => [keyForInstalled(a), a] as const));
+        filteredApps = this.recentApps.map(k => map.get(k)).filter(Boolean) as InstalledApp[];
+      } else if (this.startMenuView === 'frequent') {
+        filteredApps = this.installedApps
+          .map(a => ({ a, score: this.appUsage[keyForInstalled(a)] || 0 }))
+          .filter(x => x.score > 0)
+          .sort((x, y) => y.score - x.score)
+          .map(x => x.a);
+      } else {
+        filteredApps = this.startMenuCategory === 'All'
+          ? this.installedApps.slice()
+          : this.installedApps.filter(a => getCategory(a) === this.startMenuCategory);
+      }
+      filteredApps = filteredApps.slice(0, 30);
+    }
 
     return `
       <div class="start-menu">
@@ -2776,17 +2840,38 @@ class TempleOS {
           <div class="start-section">
             <h3>${query ? `Results for "${query}"` : 'All Apps'}</h3>
             <div class="start-apps-list">
-              ${filteredApps.length === 0 ? `
-                <div class="start-no-results">No apps found</div>
-              ` : filteredApps.map(app => `
-                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
-                  <span class="app-icon" aria-hidden="true">📦</span>
-                  <div class="app-info">
-                    <span class="app-name">${app.name}</span>
-                    ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
+              ${query ? (
+        searchResults.length === 0 ? `
+                  <div class="start-no-results">No apps found</div>
+                ` : searchResults.map(result => result.isBuiltin ? `
+                  <div class="start-app-item builtin" data-launch-key="${escapeHtml(result.builtin.key)}" tabindex="0" role="button" aria-label="${escapeHtml(result.builtin.name)}">
+                    <span class="app-icon" aria-hidden="true">${result.builtin.icon}</span>
+                    <div class="app-info">
+                      <span class="app-name">${escapeHtml(result.builtin.name)}</span>
+                    </div>
                   </div>
-                </div>
-              `).join('')}
+                ` : `
+                  <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
+                    <span class="app-icon" aria-hidden="true">📦</span>
+                    <div class="app-info">
+                      <span class="app-name">${result.installed.name}</span>
+                      ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
+                    </div>
+                  </div>
+                `).join('')
+      ) : (
+        filteredApps.length === 0 ? `
+                  <div class="start-no-results">No apps found</div>
+                ` : filteredApps.map(app => `
+                  <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
+                    <span class="app-icon" aria-hidden="true">📦</span>
+                    <div class="app-info">
+                      <span class="app-name">${app.name}</span>
+                      ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
+                    </div>
+                  </div>
+                `).join('')
+      )}
             </div>
           </div>
         </div>
@@ -2817,6 +2902,14 @@ class TempleOS {
         </div>
       </div>
     `;
+  }
+
+  private updateStartMenuDom(): void {
+    const container = document.getElementById('start-menu-container');
+    if (!container || !this.showStartMenu) return;
+
+    // Replace only the start menu content, not the entire app
+    container.innerHTML = this.renderStartMenu();
   }
 
   // ============================================
@@ -4520,6 +4613,13 @@ class TempleOS {
       if (target.matches('.launcher-search-input')) {
         this.launcherSearchQuery = target.value;
         this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
+        return;
+      }
+
+      // Start Menu search (update menu without full render)
+      if (target.matches('.start-search-input')) {
+        this.startMenuSearchQuery = target.value;
+        this.updateStartMenuDom();
         return;
       }
 

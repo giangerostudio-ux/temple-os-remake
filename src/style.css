@@ -3130,12 +3130,12 @@ body.large-text {
 
   0%,
   100% {
-    opacity: calc(var(--pulse-intensity, 0.15) * 0.6);
+    opacity: calc(var(--pulse-intensity, 0.20) * 0.6);
     transform: scaleY(1.4);
   }
 
   50% {
-    opacity: var(--pulse-intensity, 0.15);
+    opacity: var(--pulse-intensity, 0.20);
     transform: scaleY(2.2);
   }
 }

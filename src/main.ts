@@ -625,7 +625,7 @@ class TempleOS {
   private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
   private heavenlyPulse = true; // Default enabled
-  private heavenlyPulseIntensity = parseFloat(localStorage.getItem('temple_pulse_intensity') || '0.15'); // 0.05 to 0.5
+  private heavenlyPulseIntensity = parseFloat(localStorage.getItem('temple_pulse_intensity') || '0.20'); // 0.03 to 0.70
 
   // Enhancement Modules (New Modular Architecture)
   private imageViewer = new ImageViewerEnhancer();
@@ -7026,7 +7026,7 @@ class TempleOS {
       // Visual Effects: Pulse Intensity Slider
       if (target.matches('.pulse-intensity-slider')) {
         const value = parseInt((target as HTMLInputElement).value, 10) / 100;
-        this.heavenlyPulseIntensity = Math.max(0.05, Math.min(0.5, value));
+        this.heavenlyPulseIntensity = Math.max(0.03, Math.min(0.70, value));
         document.documentElement.style.setProperty('--pulse-intensity', String(this.heavenlyPulseIntensity));
         localStorage.setItem('temple_pulse_intensity', String(this.heavenlyPulseIntensity));
         this.queueSaveConfig();
@@ -11830,7 +11830,7 @@ class TempleOS {
                   <label style="display: flex; align-items: center; justify-content: space-between; ${this.heavenlyPulse ? '' : 'opacity: 0.5; pointer-events: none;'}">
                       <span>Pulse Intensity</span>
                       <div style="display: flex; align-items: center; gap: 10px;">
-                        <input type="range" class="pulse-intensity-slider" min="5" max="50" value="${Math.round(this.heavenlyPulseIntensity * 100)}" style="width: 100px; cursor: pointer;">
+                        <input type="range" class="pulse-intensity-slider" min="3" max="70" value="${Math.round(this.heavenlyPulseIntensity * 100)}" style="width: 100px; cursor: pointer;">
                         <span style="min-width: 35px; text-align: right;">${Math.round(this.heavenlyPulseIntensity * 100)}%</span>
                       </div>
                   </label>

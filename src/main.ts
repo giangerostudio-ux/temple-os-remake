@@ -408,6 +408,7 @@ interface WindowState {
 
 class TempleOS {
   private windows: WindowState[] = [];
+  private startMenuSearchTimer: number | null = null;
   private _wizardCoolingDown = false;
   private windowIdCounter = 0;
   private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
@@ -2137,44 +2138,44 @@ class TempleOS {
 
   private renderWindow(win: WindowState): string {
     const style = [
-      `left: ${win.x} px`,
-      `top: ${win.y} px`,
-      `width: ${win.width} px`,
-      `height: ${win.height} px`,
+      `left: ${win.x}px`,
+      `top: ${win.y}px`,
+      `width: ${win.width}px`,
+      `height: ${win.height}px`,
       win.alwaysOnTop ? 'z-index: 10000 !important' : '',
       win.transparent ? 'opacity: 0.85' : ''
     ].filter(Boolean).join('; ');
 
     return `
-      < div class="window ${win.active ? 'active' : ''} ${win.transparent ? 'transparent-window' : ''}"
-    data - window - id="${win.id}"
-    style = "${style}" >
-      <!--Resize Handles-- >
-        <div class="resize-handle n" data - resize - dir="n" data - window="${win.id}" > </div>
-          < div class="resize-handle e" data - resize - dir="e" data - window="${win.id}" > </div>
-            < div class="resize-handle s" data - resize - dir="s" data - window="${win.id}" > </div>
-              < div class="resize-handle w" data - resize - dir="w" data - window="${win.id}" > </div>
-                < div class="resize-handle nw" data - resize - dir="nw" data - window="${win.id}" > </div>
-                  < div class="resize-handle ne" data - resize - dir="ne" data - window="${win.id}" > </div>
-                    < div class="resize-handle sw" data - resize - dir="sw" data - window="${win.id}" > </div>
-                      < div class="resize-handle se" data - resize - dir="se" data - window="${win.id}" > </div>
+    <div class="window ${win.active ? 'active' : ''} ${win.transparent ? 'transparent-window' : ''}"
+         data-window-id="${win.id}"
+         style="${style}">
+      <!--Resize Handles-->
+      <div class="resize-handle n" data-resize-dir="n" data-window="${win.id}"></div>
+      <div class="resize-handle e" data-resize-dir="e" data-window="${win.id}"></div>
+      <div class="resize-handle s" data-resize-dir="s" data-window="${win.id}"></div>
+      <div class="resize-handle w" data-resize-dir="w" data-window="${win.id}"></div>
+      <div class="resize-handle nw" data-resize-dir="nw" data-window="${win.id}"></div>
+      <div class="resize-handle ne" data-resize-dir="ne" data-window="${win.id}"></div>
+      <div class="resize-handle sw" data-resize-dir="sw" data-window="${win.id}"></div>
+      <div class="resize-handle se" data-resize-dir="se" data-window="${win.id}"></div>
 
-                        < div class="window-header" data - draggable="${win.id}" >
-                          <div class="window-title" >
-                            <span>${win.icon} </span>
-                              < span > ${win.title} </span>
-                                </div>
-                                < div class="window-controls" >
-                                  <button class="window-btn minimize" data - action="minimize" data - window="${win.id}" aria - label="Minimize" > </button>
-                                    < button class="window-btn maximize" data - action="maximize" data - window="${win.id}" aria - label="Maximize" > </button>
-                                      < button class="window-btn close" data - action="close" data - window="${win.id}" aria - label="Close" > </button>
-                                        </div>
-                                        </div>
-                                        < div class="window-content" >
-                                          ${win.content}
-    </div>
+      <div class="window-header" data-draggable="${win.id}">
+        <div class="window-title">
+          <span>${win.icon}</span>
+          <span>${win.title}</span>
+        </div>
+        <div class="window-controls">
+          <button class="window-btn minimize" data-action="minimize" data-window="${win.id}" aria-label="Minimize"></button>
+          <button class="window-btn maximize" data-action="maximize" data-window="${win.id}" aria-label="Maximize"></button>
+          <button class="window-btn close" data-action="close" data-window="${win.id}" aria-label="Close"></button>
+        </div>
       </div>
-        `;
+      <div class="window-content">
+        ${win.content}
+      </div>
+    </div>
+    `;
   }
 
   private renderTaskbar(): string {
@@ -8077,19 +8078,36 @@ class TempleOS {
 
         if (target.classList.contains('start-search-input')) {
           this.startMenuSearchQuery = target.value;
-          // Re-render Start Menu with filtered results
-          const startMenuEl = document.querySelector('.start-menu');
-          if (startMenuEl) {
-            // Get new HTML and replace
-            const newHTML = this.renderStartMenu();
-            startMenuEl.outerHTML = newHTML;
-            // Re-focus input and restore cursor position
-            const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
-            if (newInput) {
-              newInput.focus();
-              newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
-            }
+
+          // Debounce Update
+          if (this.startMenuSearchTimer) {
+            window.clearTimeout(this.startMenuSearchTimer);
           }
+
+          this.startMenuSearchTimer = window.setTimeout(() => {
+            this.startMenuSearchTimer = null;
+            // Re-render Start Menu with filtered results
+            const startMenuEl = document.querySelector('.start-menu');
+            if (startMenuEl) {
+              const newHTML = this.renderStartMenu();
+              startMenuEl.outerHTML = newHTML;
+
+              // Restore focus and cursor
+              const newInput = document.querySelector('.start-search-input') as HTMLInputElement;
+              if (newInput) {
+                newInput.focus();
+                // We use the current cursor position from the *active* input if possible, 
+                // but since it's debounced, the 'target' from the event closure is actually 
+                // the element that triggered the last input event.
+                // However, the user might have typed MORE. 
+                // Actually, the 'target' in this closure is the element that triggered THIS specific timeout.
+                // But wait, if I debounce, only the LAST event's timeout runs.
+                // So 'target' will be the element as it was for the last keystroke.
+                // That's correct.
+                newInput.setSelectionRange(target.selectionStart, target.selectionEnd);
+              }
+            }
+          }, 300);
         }
 
         if (target.classList.contains('monitor-search-input')) {

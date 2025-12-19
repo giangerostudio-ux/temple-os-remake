@@ -2842,34 +2842,34 @@ class TempleOS {
             <div class="start-apps-list">
               ${query ? (
         searchResults.length === 0 ? `
-                  <div class="start-no-results">No apps found</div>
+                <div class="start-no-results">No apps found</div>
                 ` : searchResults.map(result => result.isBuiltin ? `
-                  <div class="start-app-item builtin" data-launch-key="${escapeHtml(result.builtin.key)}" tabindex="0" role="button" aria-label="${escapeHtml(result.builtin.name)}">
-                    <span class="app-icon" aria-hidden="true">${result.builtin.icon}</span>
-                    <div class="app-info">
-                      <span class="app-name">${escapeHtml(result.builtin.name)}</span>
-                    </div>
+                <div class="start-app-item builtin" data-launch-key="${escapeHtml(result.builtin.key)}" tabindex="0" role="button" aria-label="${escapeHtml(result.builtin.name)}">
+                  <span class="app-icon" aria-hidden="true">${result.builtin.icon}</span>
+                  <div class="app-info">
+                    <span class="app-name">${escapeHtml(result.builtin.name)}</span>
                   </div>
+                </div>
                 ` : `
-                  <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
-                    <span class="app-icon" aria-hidden="true">📦</span>
-                    <div class="app-info">
-                      <span class="app-name">${result.installed.name}</span>
-                      ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
-                    </div>
+                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
+                  <span class="app-icon" aria-hidden="true">📦</span>
+                  <div class="app-info">
+                    <span class="app-name">${result.installed.name}</span>
+                    ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
                   </div>
+                </div>
                 `).join('')
       ) : (
         filteredApps.length === 0 ? `
-                  <div class="start-no-results">No apps found</div>
+                <div class="start-no-results">No apps found</div>
                 ` : filteredApps.map(app => `
-                  <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
-                    <span class="app-icon" aria-hidden="true">📦</span>
-                    <div class="app-info">
-                      <span class="app-name">${app.name}</span>
-                      ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
-                    </div>
+                <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
+                  <span class="app-icon" aria-hidden="true">📦</span>
+                  <div class="app-info">
+                    <span class="app-name">${app.name}</span>
+                    ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
                   </div>
+                </div>
                 `).join('')
       )}
             </div>

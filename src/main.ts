@@ -15974,6 +15974,56 @@ class TempleOS {
   // ============================================
   public showTaskbarContextMenu(e: MouseEvent) {
     e.preventDefault();
+
+    // Check if we clicked on an app item
+    const target = e.target as HTMLElement;
+    const appEl = target.closest('.taskbar-app') as HTMLElement;
+
+    if (appEl) {
+      const menuItems: Array<{ label?: string; action?: () => void; divider?: boolean }> = [];
+
+      // Case 1: Specific Window (Unpinned single window)
+      if (appEl.dataset.taskbarWindow) {
+        const winId = appEl.dataset.taskbarWindow;
+        menuItems.push({
+          label: 'Close Window',
+          action: () => this.closeWindow(winId)
+        });
+      }
+      // Case 2: Group of Windows (Unpinned group)
+      else if (appEl.dataset.appGroup) {
+        const group = appEl.dataset.appGroup;
+        menuItems.push({
+          label: 'Close All Windows',
+          action: () => {
+            const wins = this.windows.filter(w => w.id.split('-')[0] === group);
+            wins.forEach(w => this.closeWindow(w.id));
+          }
+        });
+      }
+      // Case 3: Pinned App (Might have 0, 1, or more windows)
+      else if (appEl.dataset.launchKey) {
+        // Pinned apps store their internal ID type in data-app-type
+        const appType = appEl.dataset.appType;
+        if (appType) {
+          const wins = this.windows.filter(w => w.id.startsWith(appType));
+          if (wins.length > 0) {
+            menuItems.push({
+              label: wins.length === 1 ? 'Close Window' : 'Close All Windows',
+              action: () => {
+                wins.forEach(w => this.closeWindow(w.id));
+              }
+            });
+          }
+        }
+      }
+
+      if (menuItems.length > 0) {
+        this.showContextMenu(e.clientX, e.clientY, menuItems);
+        return;
+      }
+    }
+
     this.showContextMenu(e.clientX, e.clientY, [
       {
         label: `${this.taskbarTransparent ? 'Disable' : 'Enable'} Transparency`,

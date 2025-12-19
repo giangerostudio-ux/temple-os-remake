@@ -52,12 +52,18 @@ export interface ProcessInfo {
 }
 
 export interface InstalledApp {
+    id?: string;
     name: string;
+    genericName?: string;
     icon: string;
+    iconPath?: string | null;
+    iconUrl?: string | null;
     exec: string;
     categories: string[];
+    keywords?: string[];
     comment?: string;
     desktopFile?: string;
+    source?: 'user' | 'system' | 'snap' | 'flatpak-user' | 'flatpak-system' | string;
 }
 
 export interface Notification {

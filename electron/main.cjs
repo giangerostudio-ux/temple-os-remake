@@ -1,7 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
+const { pathToFileURL } = require('url');
 const os = require('os');
 
 // PTY support (for real terminal)
@@ -648,7 +649,13 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+    if (process.platform === 'linux') {
+        startDesktopEntryWatcher();
+        void refreshInstalledAppsCache('startup').catch(() => { });
+    }
+});
 
 // ============================================
 // WINDOW CONTROL IPC
@@ -2875,30 +2882,483 @@ const projectRoot = path.resolve(__dirname, '..');
 // APP DISCOVERY IPC (for Start Menu)
 // ============================================
 
-// Simple INI-style parser for .desktop files
+// Minimal (but robust-enough) .desktop parser + scanner for freedesktop.org Desktop Entry spec.
+// We intentionally scan .desktop files directly instead of relying on GNOME/KDE menu caches.
 function parseDesktopFile(content) {
     const result = {};
     let currentSection = null;
 
-    for (const line of content.split('\n')) {
-        const trimmed = line.trim();
+    for (const rawLine of String(content || '').split(/\r?\n/)) {
+        const trimmed = rawLine.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
 
-        // Section header [Desktop Entry]
         const sectionMatch = trimmed.match(/^\[(.+)\]$/);
         if (sectionMatch) {
             currentSection = sectionMatch[1];
             continue;
         }
 
-        // Key=Value
         const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
-        if (kvMatch && currentSection === 'Desktop Entry') {
-            result[kvMatch[1].trim()] = kvMatch[2].trim();
-        }
+        if (!kvMatch || currentSection !== 'Desktop Entry') continue;
+
+        const key = kvMatch[1].trim();
+        const value = kvMatch[2].trim();
+        if (!key) continue;
+        result[key] = value;
     }
 
     return result;
+}
+
+function parseBool(value) {
+    const v = String(value || '').trim().toLowerCase();
+    return v === 'true' || v === '1' || v === 'yes';
+}
+
+function splitSemicolonList(value) {
+    return String(value || '')
+        .split(';')
+        .map(s => s.trim())
+        .filter(Boolean);
+}
+
+function preferredLocales() {
+    // LANG often looks like: en_US.UTF-8 or en_US.UTF-8@modifier
+    const raw = (process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || '').trim();
+    const base = raw.split('.')[0].replace(/@.*$/, '').replace(/-/g, '_');
+    const out = [];
+    const push = (s) => { if (s && !out.includes(s)) out.push(s); };
+    push(base);
+    if (base.includes('_')) push(base.split('_')[0]);
+    push('C');
+    return out;
+}
+
+function localizedValue(parsed, key, locales) {
+    for (const loc of locales) {
+        const exact = parsed[`${key}[${loc}]`];
+        if (typeof exact === 'string' && exact.trim()) return exact.trim();
+    }
+    const fallback = parsed[key];
+    return typeof fallback === 'string' ? fallback.trim() : '';
+}
+
+function currentDesktops() {
+    const raw = String(process.env.XDG_CURRENT_DESKTOP || '').trim();
+    if (!raw) return [];
+    return raw.split(':').map(s => s.trim()).filter(Boolean);
+}
+
+function passesShowInFilters(parsed, desktops) {
+    if (!desktops || desktops.length === 0) return true; // custom shell might not set XDG_CURRENT_DESKTOP
+    const only = splitSemicolonList(parsed.OnlyShowIn);
+    if (only.length && !only.some(x => desktops.includes(x))) return false;
+    const not = splitSemicolonList(parsed.NotShowIn);
+    if (not.length && not.some(x => desktops.includes(x))) return false;
+    return true;
+}
+
+function commandExistsSync(cmd, env = process.env) {
+    const c = String(cmd || '').trim();
+    if (!c) return false;
+
+    // Absolute/relative path
+    if (c.includes('/') || c.includes('\\')) {
+        try {
+            fs.accessSync(c, fs.constants.X_OK);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    const pathEnv = String(env.PATH || '').split(':').filter(Boolean);
+    for (const dir of pathEnv) {
+        const full = path.join(dir, c);
+        try {
+            fs.accessSync(full, fs.constants.X_OK);
+            return true;
+        } catch {
+            // continue
+        }
+    }
+    return false;
+}
+
+async function listDesktopFiles(rootDir) {
+    const out = [];
+    const stack = [rootDir];
+    while (stack.length) {
+        const dir = stack.pop();
+        let ents = [];
+        try {
+            ents = await fs.promises.readdir(dir, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+        for (const ent of ents) {
+            const full = path.join(dir, ent.name);
+            if (ent.isDirectory()) {
+                stack.push(full);
+                continue;
+            }
+            if (ent.isFile() && ent.name.endsWith('.desktop')) out.push(full);
+        }
+    }
+    return out;
+}
+
+function desktopFileId(rootDir, filePath) {
+    // Spec: ID is the desktop file's relative path with '/' replaced by '-'.
+    const rel = path.relative(rootDir, filePath).replace(/\\/g, '/');
+    return rel.split('/').filter(Boolean).join('-');
+}
+
+const iconResolveCache = new Map();
+function resolveIconPath(icon, desktopFilePath) {
+    const raw = String(icon || '').trim();
+    if (!raw) return null;
+    if (iconResolveCache.has(raw)) return iconResolveCache.get(raw);
+
+    const remember = (value) => {
+        iconResolveCache.set(raw, value);
+        return value;
+    };
+
+    const fileExists = (p) => {
+        try { return fs.statSync(p).isFile(); } catch { return false; }
+    };
+
+    // Absolute (or explicit relative) path
+    if (raw.includes('/') || raw.includes('\\')) {
+        const direct = path.isAbsolute(raw) ? raw : path.resolve(path.dirname(desktopFilePath || '.'), raw);
+        if (fileExists(direct)) return remember(direct);
+        return remember(null);
+    }
+
+    const base = raw.replace(/\.(png|svg|xpm)$/i, '');
+    const candidates = [base, `${base}-symbolic`];
+    const exts = ['png', 'svg', 'xpm'];
+
+    // Fast path: /usr/share/pixmaps
+    for (const name of candidates) {
+        for (const ext of exts) {
+            const p = path.join('/usr/share/pixmaps', `${name}.${ext}`);
+            if (fileExists(p)) return remember(p);
+        }
+    }
+
+    // Icon themes (Ubuntu commonly uses Yaru; fall back to hicolor/Adwaita)
+    const home = os.homedir();
+    const roots = [
+        path.join(home, '.local/share/icons'),
+        path.join(home, '.icons'), // legacy
+        '/usr/local/share/icons',
+        '/usr/share/icons'
+    ];
+    const themeHints = [
+        String(process.env.XDG_ICON_THEME || '').trim(),
+        String(process.env.GTK_THEME || '').trim().split(':')[0],
+        'Yaru',
+        'Adwaita',
+        'hicolor'
+    ].filter(Boolean);
+    const themes = Array.from(new Set(themeHints));
+    const sizeDirs = [
+        'scalable',
+        '512x512', '256x256', '192x192', '128x128', '96x96', '72x72', '64x64', '48x48', '32x32', '24x24', '22x22', '16x16'
+    ];
+    const contexts = ['apps', 'applications', 'mimetypes', 'places', 'categories', 'actions', 'status', 'devices'];
+
+    for (const root of roots) {
+        for (const theme of themes) {
+            for (const size of sizeDirs) {
+                for (const ctx of contexts) {
+                    for (const name of candidates) {
+                        for (const ext of exts) {
+                            const p = path.join(root, theme, size, ctx, `${name}.${ext}`);
+                            if (fileExists(p)) return remember(p);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return remember(null);
+}
+
+function splitCommandLine(input) {
+    const argv = [];
+    let cur = '';
+    let mode = 'normal'; // normal | single | double
+
+    const pushCur = () => {
+        if (cur.length) argv.push(cur);
+        cur = '';
+    };
+
+    const s = String(input || '');
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (mode === 'normal') {
+            if (/\s/.test(ch)) {
+                pushCur();
+                continue;
+            }
+            if (ch === "'") { mode = 'single'; continue; }
+            if (ch === '"') { mode = 'double'; continue; }
+            if (ch === '\\') {
+                i++;
+                if (i < s.length) cur += s[i];
+                continue;
+            }
+            cur += ch;
+            continue;
+        }
+
+        if (mode === 'single') {
+            if (ch === "'") { mode = 'normal'; continue; }
+            cur += ch;
+            continue;
+        }
+
+        // mode === 'double'
+        if (ch === '"') { mode = 'normal'; continue; }
+        if (ch === '\\') {
+            i++;
+            if (i < s.length) cur += s[i];
+            continue;
+        }
+        cur += ch;
+    }
+    pushCur();
+    return argv;
+}
+
+function expandExecTokens(tokens, ctx) {
+    const out = [];
+    for (const token of tokens) {
+        if (token === '%i') {
+            if (ctx.icon) out.push('--icon', ctx.icon);
+            continue;
+        }
+
+        // Keep as a single argv element even if replacements introduce spaces.
+        let t = String(token);
+        t = t.replace(/%%/g, '%');
+        if (ctx.name) t = t.replace(/%c/g, ctx.name);
+        if (ctx.desktopFile) t = t.replace(/%k/g, ctx.desktopFile);
+        // Strip any remaining field codes (%f, %F, %u, %U, etc.)
+        t = t.replace(/%[a-zA-Z]/g, '').trim();
+        if (!t) continue;
+        out.push(t);
+    }
+    return out;
+}
+
+function argvToExecString(argv) {
+    // Used only for display / downstream string manipulation (e.g. gamemoderun prefix).
+    // Keep it minimal: quote args with whitespace.
+    return argv.map(a => (/\s/.test(a) ? `"${String(a).replace(/\"/g, '\\"')}"` : a)).join(' ');
+}
+
+function parseEnvAssignments(argv) {
+    const env = {};
+    let i = 0;
+    for (; i < argv.length; i++) {
+        const t = argv[i];
+        const m = String(t).match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+        if (!m) break;
+        env[m[1]] = m[2];
+    }
+    return { env, argv: argv.slice(i) };
+}
+
+function desktopEntryDirs() {
+    const home = os.homedir();
+    const xdgDataHome = process.env.XDG_DATA_HOME || path.join(home, '.local/share');
+    const xdgDataDirs = String(process.env.XDG_DATA_DIRS || '/usr/local/share:/usr/share')
+        .split(':')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    // Precedence: user entries first so they override system entries with the same ID.
+    const ordered = [
+        { dir: path.join(xdgDataHome, 'applications'), source: 'user' },
+        { dir: path.join(home, '.local/share/flatpak/exports/share/applications'), source: 'flatpak-user' },
+        { dir: '/var/lib/snapd/desktop/applications', source: 'snap' },
+        { dir: '/var/lib/flatpak/exports/share/applications', source: 'flatpak-system' }
+    ];
+
+    for (const d of xdgDataDirs) {
+        ordered.push({ dir: path.join(d, 'applications'), source: 'system' });
+    }
+
+    // Dedupe by path while keeping first occurrence (highest precedence).
+    const seen = new Set();
+    return ordered.filter(x => {
+        if (seen.has(x.dir)) return false;
+        seen.add(x.dir);
+        return true;
+    });
+}
+
+async function scanDesktopEntries(options = {}) {
+    const locales = preferredLocales();
+    const desktops = currentDesktops();
+    const includeTerminal = !!options.includeTerminal;
+
+    const out = [];
+    const seenById = new Set();
+
+    for (const { dir, source } of desktopEntryDirs()) {
+        const files = await listDesktopFiles(dir);
+        for (const filePath of files) {
+            let content = '';
+            try {
+                content = await fs.promises.readFile(filePath, 'utf-8');
+            } catch {
+                continue;
+            }
+
+            const parsed = parseDesktopFile(content);
+
+            // Only real launchable apps
+            const type = String(parsed.Type || '').trim();
+            if (type && type !== 'Application') continue;
+            if (parseBool(parsed.Hidden) || parseBool(parsed.NoDisplay)) continue;
+            if (!passesShowInFilters(parsed, desktops)) continue;
+
+            const terminal = parseBool(parsed.Terminal);
+            if (terminal && !includeTerminal) continue;
+
+            const name = localizedValue(parsed, 'Name', locales);
+            if (!name) continue;
+            const genericName = localizedValue(parsed, 'GenericName', locales) || '';
+
+            // Prefer TryExec if provided (explicit "is this runnable?").
+            if (parsed.TryExec && !commandExistsSync(parsed.TryExec)) continue;
+
+            const execTokensRaw = splitCommandLine(parsed.Exec || '');
+            if (!execTokensRaw.length) continue;
+
+            const iconName = localizedValue(parsed, 'Icon', locales) || parsed.Icon || 'application-x-executable';
+            const execTokens = expandExecTokens(execTokensRaw, { name, icon: iconName, desktopFile: filePath });
+            if (!execTokens.length) continue;
+
+            // Validate the command exists when possible (avoids showing service stubs / broken entries).
+            const { argv: argvSansEnv } = parseEnvAssignments(execTokens);
+            const command = argvSansEnv[0];
+            if (!command) continue;
+            if (!commandExistsSync(command)) continue;
+
+            const id = desktopFileId(dir, filePath);
+            if (seenById.has(id)) continue;
+            seenById.add(id);
+
+            const iconPath = resolveIconPath(iconName, filePath);
+            const iconUrl = iconPath ? pathToFileURL(iconPath).href : null;
+
+            out.push({
+                id,
+                name,
+                genericName: genericName || undefined,
+                icon: iconName,
+                iconPath,
+                iconUrl,
+                exec: argvToExecString(execTokens),
+                categories: splitSemicolonList(parsed.Categories),
+                keywords: splitSemicolonList(parsed.Keywords),
+                comment: localizedValue(parsed, 'Comment', locales) || '',
+                desktopFile: filePath,
+                source
+            });
+        }
+    }
+
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+}
+
+let installedAppsCache = [];
+let installedAppsCacheReady = false;
+let installedAppsFingerprint = '';
+let installedAppsScanPromise = null;
+let stopDesktopEntryWatch = null;
+let desktopEntryRescanTimer = null;
+
+function fingerprintApps(apps) {
+    return (Array.isArray(apps) ? apps : [])
+        .map(a => `${a.id}\t${a.desktopFile}\t${a.exec}\t${a.icon}\t${a.name}`)
+        .sort()
+        .join('\n');
+}
+
+function broadcastAppsChanged(payload) {
+    try {
+        for (const win of BrowserWindow.getAllWindows()) {
+            if (!win || win.isDestroyed()) continue;
+            win.webContents.send('apps:changed', payload || { reason: 'unknown' });
+        }
+    } catch {
+        // ignore
+    }
+}
+
+async function refreshInstalledAppsCache(reason) {
+    if (installedAppsScanPromise) return installedAppsScanPromise;
+    installedAppsScanPromise = (async () => {
+        const apps = await scanDesktopEntries({ includeTerminal: false });
+        const fp = fingerprintApps(apps);
+        const changed = fp !== installedAppsFingerprint;
+        installedAppsCache = apps;
+        installedAppsCacheReady = true;
+        installedAppsFingerprint = fp;
+        if (changed) broadcastAppsChanged({ reason: reason || 'rescan' });
+        return apps;
+    })().finally(() => {
+        installedAppsScanPromise = null;
+    });
+    return installedAppsScanPromise;
+}
+
+function scheduleInstalledAppsRefresh(reason) {
+    if (desktopEntryRescanTimer) clearTimeout(desktopEntryRescanTimer);
+    desktopEntryRescanTimer = setTimeout(() => {
+        void refreshInstalledAppsCache(reason || 'change').catch(() => { });
+    }, 400);
+}
+
+function watchDesktopEntryDirs(onChange) {
+    const watchers = [];
+    for (const { dir } of desktopEntryDirs()) {
+        try {
+            const w = fs.watch(dir, { persistent: false }, (eventType, filename) => {
+                const name = filename ? filename.toString() : '';
+                if (name && !name.endsWith('.desktop')) return;
+                onChange({ dir, eventType, filename: name });
+            });
+            watchers.push(w);
+        } catch {
+            // dir may not exist (snap/flatpak not installed)
+        }
+    }
+    return () => {
+        for (const w of watchers) {
+            try { w.close(); } catch { }
+        }
+    };
+}
+
+function startDesktopEntryWatcher() {
+    if (process.platform !== 'linux') return;
+    if (stopDesktopEntryWatch) return;
+
+    stopDesktopEntryWatch = watchDesktopEntryDirs(() => scheduleInstalledAppsRefresh('fswatch'));
+
+    // Fallback: fs.watch is not recursive on Linux; catch nested dir changes by periodic rescan.
+    setInterval(() => scheduleInstalledAppsRefresh('poll'), 60 * 1000);
 }
 
 ipcMain.handle('apps:getInstalled', async () => {
@@ -2906,62 +3366,12 @@ ipcMain.handle('apps:getInstalled', async () => {
         return { success: true, apps: [], unsupported: true, error: 'App discovery is only supported on Linux' };
     }
 
-    const appDirs = [
-        '/usr/share/applications',
-        path.join(os.homedir(), '.local/share/applications')
-    ];
-
-    const apps = [];
-    const seenNames = new Set();
-
-    for (const dir of appDirs) {
-        try {
-            const files = await fs.promises.readdir(dir);
-
-            for (const file of files) {
-                if (!file.endsWith('.desktop')) continue;
-
-                try {
-                    const content = await fs.promises.readFile(path.join(dir, file), 'utf-8');
-                    const parsed = parseDesktopFile(content);
-
-                    // Skip hidden apps and those without names
-                    if (!parsed.Name || parsed.NoDisplay === 'true' || parsed.Hidden === 'true') continue;
-
-                    // Blacklist confusing system apps/terminals
-                    const blacklist = new Set([
-                        'Foot', 'Foot Client', 'Foot Server', 'Zutty',
-                        'XTerm', 'UXTerm', 'Debian Info', 'Debian HTML',
-                        'Avahi SSH Server Browser', 'Avahi VNC Server Browser',
-                        'Bvs' // various x11 utils
-                    ]);
-                    if (blacklist.has(parsed.Name)) continue;
-
-                    // Skip duplicate names
-                    if (seenNames.has(parsed.Name)) continue;
-                    seenNames.add(parsed.Name);
-
-                    apps.push({
-                        name: parsed.Name,
-                        icon: parsed.Icon || 'application-x-executable',
-                        exec: parsed.Exec ? parsed.Exec.replace(/%[a-zA-Z]/g, '').trim() : '',
-                        categories: parsed.Categories ? parsed.Categories.split(';').filter(c => c) : [],
-                        comment: parsed.Comment || '',
-                        desktopFile: path.join(dir, file)
-                    });
-                } catch (e) {
-                    // Skip files we can't read
-                }
-            }
-        } catch (e) {
-            // Directory doesn't exist or can't be read
-        }
+    try {
+        const apps = installedAppsCacheReady ? installedAppsCache : await refreshInstalledAppsCache('invoke');
+        return { success: true, apps };
+    } catch (e) {
+        return { success: false, apps: [], error: e && e.message ? e.message : String(e) };
     }
-
-    // Sort alphabetically
-    apps.sort((a, b) => a.name.localeCompare(b.name));
-
-    return { success: true, apps };
 });
 
 // Launch an application by its .desktop file or exec command
@@ -2971,18 +3381,47 @@ ipcMain.handle('apps:launch', async (event, app) => {
     }
 
     try {
-        // Use gtk-launch if we have the desktop file, otherwise exec directly
-        let command;
-        if (app.desktopFile) {
-            const baseName = path.basename(app.desktopFile);
-            command = `gtk-launch ${baseName}`;
-        } else if (app.exec) {
-            command = app.exec;
-        } else {
-            return { success: false, error: 'No executable found' };
+        // Prefer the provided exec (it may be modified e.g. "gamemoderun ...").
+        // Fallback: read Exec from the .desktop file.
+        let execLine = app && typeof app.exec === 'string' ? app.exec.trim() : '';
+        let cwd = null;
+
+        if ((!execLine || !execLine.length) && app && typeof app.desktopFile === 'string') {
+            const filePath = app.desktopFile;
+            try {
+                const content = await fs.promises.readFile(filePath, 'utf-8');
+                const parsed = parseDesktopFile(content);
+                const name = parsed.Name || path.basename(filePath);
+                const iconName = parsed.Icon || '';
+                cwd = parsed.Path || null;
+                const tokens = expandExecTokens(splitCommandLine(parsed.Exec || ''), { name, icon: iconName, desktopFile: filePath });
+                execLine = argvToExecString(tokens);
+            } catch {
+                // ignore
+            }
         }
 
-        exec(command, { detached: true, stdio: 'ignore' });
+        if (!execLine) return { success: false, error: 'No executable found' };
+
+        // Parse to argv for safe spawn (no shell).
+        const rawTokens = splitCommandLine(execLine);
+        const tokens = expandExecTokens(rawTokens, { name: app?.name, icon: app?.icon, desktopFile: app?.desktopFile });
+        const { env: envVars, argv } = parseEnvAssignments(tokens);
+        if (!argv.length) return { success: false, error: 'Invalid Exec' };
+
+        const bin = argv[0];
+        const args = argv.slice(1);
+        const child = spawn(bin, args, {
+            detached: true,
+            stdio: 'ignore',
+            cwd: cwd || undefined,
+            env: { ...process.env, ...envVars }
+        });
+        await new Promise((resolve, reject) => {
+            child.once('error', reject);
+            child.once('spawn', resolve);
+        });
+        child.unref();
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };
@@ -3160,74 +3599,6 @@ ipcMain.handle('terminal:destroyPty', (event, { id }) => {
 
 ipcMain.handle('terminal:isPtyAvailable', () => {
     return { success: true, available: pty !== null };
-});
-
-// ============================================
-// APP DISCOVERY (Start Menu)
-// ============================================
-
-ipcMain.handle('apps:getInstalled', async () => {
-    if (process.platform === 'linux') {
-        try {
-            const dir = '/usr/share/applications';
-            const files = await fs.promises.readdir(dir).catch(() => []);
-            const apps = [];
-            for (const f of files) {
-                if (!f.endsWith('.desktop')) continue;
-                try {
-                    const content = await fs.promises.readFile(path.join(dir, f), 'utf-8');
-                    const nameMatch = content.match(/^Name=(.*)$/m);
-                    const execMatch = content.match(/^Exec=(.*)$/m);
-                    if (nameMatch && execMatch && !content.includes('NoDisplay=true')) {
-                        const catMatch = content.match(/^Categories=(.*)$/m);
-                        let exec = execMatch[1].trim();
-                        exec = exec.replace(/%[fFuViidck]/g, '').trim();
-                        apps.push({
-                            name: nameMatch[1].trim(),
-                            exec: exec,
-                            categories: catMatch ? catMatch[1].split(';').filter(Boolean) : [],
-                            desktopFile: path.join(dir, f)
-                        });
-                    }
-                } catch { }
-            }
-            apps.sort((a, b) => a.name.localeCompare(b.name));
-            return apps;
-        } catch (e) { console.error('Failed to scan Linux apps:', e); }
-    }
-
-    return [
-        { name: 'Steam', exec: 'steam', categories: ['Game', 'Network'] },
-        { name: 'Heroic Games Launcher', exec: 'heroic', categories: ['Game'] },
-        { name: 'Lutris', exec: 'lutris', categories: ['Game', 'Utility'] },
-        { name: 'Bottles', exec: 'bottles', categories: ['Game', 'Utility'] },
-        { name: 'Firefox', exec: 'firefox', categories: ['Network', 'WebBrowser'] },
-        { name: 'Google Chrome', exec: 'google-chrome', categories: ['Network', 'WebBrowser'] },
-        { name: 'VLC Media Player', exec: 'vlc', categories: ['AudioVideo', 'Player'] },
-        { name: 'VS Code', exec: 'code', categories: ['Development', 'IDE'] },
-        { name: 'Terminal', exec: 'gnome-terminal', categories: ['System', 'TerminalEmulator'] },
-        { name: 'Discord', exec: 'discord', categories: ['Network', 'Chat'] }
-    ];
-});
-
-ipcMain.handle('apps:launch', async (event, app) => {
-    if (!app || !app.exec) return { success: false, error: 'Invalid app definition' };
-    const { spawn } = require('child_process');
-    try {
-        let cmd = app.exec;
-        if (process.platform === 'win32') {
-            if (cmd === 'calc') cmd = 'calc.exe';
-            if (cmd === 'notepad') cmd = 'notepad.exe';
-        }
-        const parts = cmd.split(' ').filter(Boolean);
-        const bin = parts[0];
-        const args = parts.slice(1);
-        const child = spawn(bin, args, { detached: true, stdio: 'ignore' });
-        child.unref();
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
 });
 
 // ============================================

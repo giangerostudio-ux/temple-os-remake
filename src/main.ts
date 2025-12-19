@@ -29,6 +29,7 @@ import type {
   DisplayOutput, FirewallRule, VeraCryptVolume, MonitorStats, BatteryStatus,
   NetworkDeviceStatus, VpnStatus, FileEntry, SystemInfo, ProcessInfo, InstalledApp
 } from './utils/types';
+import { buildSearchIndex, searchIndex } from './utils/appSearch';
 import { WorkspaceManager } from './system/WorkspaceManager';
 import { TilingManager } from './system/TilingManager';
 import { NotificationManager } from './system/NotificationManager';
@@ -149,9 +150,10 @@ declare global {
       checkForUpdates: () => Promise<{ success: boolean; updatesAvailable?: boolean; behindCount?: number; error?: string }>;
       runUpdate: () => Promise<{ success: boolean; output?: string; message?: string; error?: string }>;
       // App Discovery (Start Menu)
-      getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[] }>;
+      getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[]; unsupported?: boolean; error?: string }>;
       launchApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
       uninstallApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
+      onAppsChanged?: (callback: (payload: { reason?: string }) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -465,6 +467,7 @@ class TempleOS {
 
   // Start Menu state
   private installedApps: InstalledApp[] = [];
+  private installedAppsIndex = buildSearchIndex([]);
   private installedAppsUnsupported = false;
   private startMenuSearchQuery = '';
   private startMenuCategory: 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' = 'All';
@@ -1042,6 +1045,18 @@ class TempleOS {
     // Setup PTY listeners after PTY support check completes
 
     this.setupPtyListeners();
+
+    // Live app discovery updates (new/removed .desktop files)
+    if (window.electronAPI?.onAppsChanged) {
+      let t: number | null = null;
+      window.electronAPI.onAppsChanged(() => {
+        if (t) window.clearTimeout(t);
+        t = window.setTimeout(() => {
+          void this.loadInstalledApps().then(() => this.render());
+          t = null;
+        }, 300);
+      });
+    }
 
     // Periodic refresh (Windows-like status panels)
     window.setInterval(() => void this.refreshNetworkStatus(), 10000);
@@ -2877,20 +2892,13 @@ class TempleOS {
         app.name.toLowerCase().includes(query)
       );
 
-    const searchFiltered = (apps: InstalledApp[]) =>
-      apps.filter(app =>
-        app.name.toLowerCase().includes(query) ||
-        app.comment?.toLowerCase().includes(query) ||
-        app.categories.some(c => c.toLowerCase().includes(query))
-      );
-
     type SearchResult = { isBuiltin: true; builtin: typeof builtinApps[0] } | { isBuiltin: false; installed: InstalledApp };
     let searchResults: SearchResult[] = [];
 
     if (query) {
       // When searching, include both built-in and installed apps
       const builtinResults = searchFilteredBuiltin();
-      const installedResults = searchFiltered(this.installedApps);
+      const installedResults = searchIndex(this.installedAppsIndex, query, 30);
 
       // Built-in apps first, then installed apps
       searchResults = [
@@ -3288,8 +3296,10 @@ class TempleOS {
 
       if (result.success && Array.isArray(result.apps)) {
         this.installedApps = result.apps;
+        this.installedAppsIndex = buildSearchIndex(this.installedApps);
       } else {
         this.installedApps = [];
+        this.installedAppsIndex = buildSearchIndex([]);
       }
 
       if (this.installedAppsUnsupported) {

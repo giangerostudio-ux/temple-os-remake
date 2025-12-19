@@ -175,4 +175,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getInstalledApps: () => ipcRenderer.invoke('apps:getInstalled'),
     launchApp: (app) => ipcRenderer.invoke('apps:launch', app),
     uninstallApp: (app) => ipcRenderer.invoke('apps:uninstall', app),
+    onAppsChanged: (callback) => {
+        const handler = (event, payload) => callback(payload);
+        ipcRenderer.on('apps:changed', handler);
+        return () => ipcRenderer.removeListener('apps:changed', handler);
+    },
 });

@@ -287,9 +287,9 @@ textarea,
 
 .resize-handle.e {
   top: 0;
-  right: -8px;
+  right: -4px;
   bottom: 0;
-  width: 16px;
+  width: 8px;
   cursor: ew-resize;
 }
 
@@ -2108,9 +2108,18 @@ input[type=range]::-webkit-slider-thumb {
   background: #0d1117;
   padding: 8px;
   overflow: hidden;
-  display: none;
+  display: none !important;
   border: 1px solid rgba(0, 255, 65, 0.12);
   border-radius: 10px;
+}
+
+/* Only show the primary and secondary pane containers */
+.xterm-layout.single .xterm-container.pane-primary,
+.xterm-layout.split-v .xterm-container.pane-primary,
+.xterm-layout.split-v .xterm-container.pane-secondary,
+.xterm-layout.split-h .xterm-container.pane-primary,
+.xterm-layout.split-h .xterm-container.pane-secondary {
+  display: block !important;
 }
 
 .xterm-layout {
@@ -2123,7 +2132,6 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .xterm-layout.single .xterm-container.pane-primary {
-  display: block;
   height: 100%;
 }
 
@@ -2135,7 +2143,6 @@ input[type=range]::-webkit-slider-thumb {
 
 .xterm-layout.split-v .xterm-container.pane-primary,
 .xterm-layout.split-v .xterm-container.pane-secondary {
-  display: block;
   min-height: 0;
 }
 
@@ -2155,7 +2162,6 @@ input[type=range]::-webkit-slider-thumb {
 
 .xterm-layout.split-h .xterm-container.pane-primary,
 .xterm-layout.split-h .xterm-container.pane-secondary {
-  display: block;
   min-height: 0;
 }
 

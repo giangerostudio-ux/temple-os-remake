@@ -4378,6 +4378,13 @@ class TempleOS {
       }
     };
 
+    (window as any).deleteNoteCard = (listId: string, cardId: string) => {
+      if (confirm('Delete this card?')) {
+        this.godlyNotes.deleteCard(listId, cardId);
+        this.refreshGodlyNotes();
+      }
+    };
+
     (window as any).editNoteCardPrompt = async (listId: string, cardId: string) => {
       const currentContent = this.godlyNotes.getCardContent(listId, cardId);
       if (currentContent === null) return;

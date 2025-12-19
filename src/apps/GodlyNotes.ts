@@ -351,6 +351,8 @@ export class GodlyNotes {
         return `
             <div class="kanban-card" draggable="true" data-card-id="${card.id}" data-col-id="${listId}"
                  ondblclick="window.editNoteCardPrompt('${listId}', '${card.id}')"
+                 onmouseenter="const btn = this.querySelector('.kanban-delete-card'); if(btn) btn.style.opacity='1'"
+                 onmouseleave="const btn = this.querySelector('.kanban-delete-card'); if(btn) btn.style.opacity='0'"
                  style="background: #21262d; padding: 10px; border: 1px solid #30363d; border-radius: 6px; cursor: grab; position: relative; box-shadow: 0 1px 0 rgba(27,31,35,0.04); user-select: none;"
                  title="Double-click to edit">
                 
@@ -361,9 +363,8 @@ export class GodlyNotes {
                 </div>
 
                 <button class="kanban-delete-card" data-card-id="${card.id}" data-col-id="${listId}"
-                        onclick="window.deleteNoteCard('${listId}', '${card.id}')"
-                        style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: #8b949e; cursor: pointer; opacity: 0; transition: opacity 0.2s;"
-                        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'">🗑️</button>
+                        onclick="event.stopPropagation(); window.deleteNoteCard('${listId}', '${card.id}')"
+                        style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: #8b949e; cursor: pointer; opacity: 0; transition: opacity 0.2s;">🗑️</button>
             </div>
         `;
     }

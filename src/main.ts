@@ -2970,11 +2970,11 @@ class TempleOS {
               </div>
             </div>
             ` : `
-            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' tabindex="0" role="button" aria-label="${result.installed.name}">
+            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' data-icon-url="${escapeHtml(String(result.installed.iconUrl || ''))}" tabindex="0" role="button" aria-label="${escapeHtml(result.installed.name)}">
               <span class="app-icon" aria-hidden="true">📦</span>
               <div class="app-info">
-                <span class="app-name">${result.installed.name}</span>
-                ${result.installed.comment ? `<span class="app-comment">${result.installed.comment}</span>` : ''}
+                <span class="app-name">${escapeHtml(result.installed.name)}</span>
+                ${result.installed.comment ? `<span class="app-comment">${escapeHtml(result.installed.comment)}</span>` : ''}
               </div>
             </div>
             `).join('')
@@ -2982,11 +2982,11 @@ class TempleOS {
         filteredApps.length === 0 ? `
             <div class="start-no-results">No apps found</div>
             ` : filteredApps.map(app => `
-            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' tabindex="0" role="button" aria-label="${app.name}">
+            <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' data-icon-url="${escapeHtml(String(app.iconUrl || ''))}" tabindex="0" role="button" aria-label="${escapeHtml(app.name)}">
               <span class="app-icon" aria-hidden="true">📦</span>
               <div class="app-info">
-                <span class="app-name">${app.name}</span>
-                ${app.comment ? `<span class="app-comment">${app.comment}</span>` : ''}
+                <span class="app-name">${escapeHtml(app.name)}</span>
+                ${app.comment ? `<span class="app-comment">${escapeHtml(app.comment)}</span>` : ''}
               </div>
             </div>
             `).join('')
@@ -3055,9 +3055,12 @@ class TempleOS {
         input.value = this.startMenuSearchQuery;
       }
       results.innerHTML = this.renderStartMenuResultsHtml();
+      this.hydrateStartMenuInstalledIcons(results);
     } else {
       // Initial render or full refresh
       container.innerHTML = this.renderStartMenu();
+      const resultsEl = container.querySelector('#start-menu-results-area') as HTMLElement | null;
+      if (resultsEl) this.hydrateStartMenuInstalledIcons(resultsEl);
       // Restore focus if we have a query
       if (this.startMenuSearchQuery) {
         const newInput = container.querySelector('.start-search-input') as HTMLInputElement;
@@ -3065,6 +3068,31 @@ class TempleOS {
           newInput.focus();
           newInput.setSelectionRange(newInput.value.length, newInput.value.length);
         }
+      }
+    }
+  }
+
+  private hydrateStartMenuInstalledIcons(root: HTMLElement): void {
+    const items = Array.from(root.querySelectorAll('.start-app-item.installed')) as HTMLElement[];
+    for (const item of items) {
+      const iconWrap = item.querySelector('.app-icon') as HTMLElement | null;
+      if (!iconWrap) continue;
+
+      const url = String(item.dataset.iconUrl || '').trim();
+      const label = String(item.getAttribute('aria-label') || '').trim() || 'App';
+      const first = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || label.slice(0, 1).toUpperCase() || '?';
+
+      iconWrap.textContent = '';
+      if (url) {
+        const img = document.createElement('img');
+        img.className = 'start-installed-app-icon-img';
+        img.alt = '';
+        img.loading = 'lazy';
+        img.draggable = false;
+        img.src = url;
+        iconWrap.appendChild(img);
+      } else {
+        iconWrap.textContent = first;
       }
     }
   }
@@ -3115,15 +3143,35 @@ class TempleOS {
   }
 
   private canonicalCategoryForInstalledApp(app: InstalledApp): 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' {
-    const cats = (app.categories || []).map(c => String(c || '').toLowerCase());
+    const cats = (app.categories || []).map(c => String(c || '').toLowerCase()).filter(Boolean);
     const name = String(app.name || '').toLowerCase();
     const exec = String(app.exec || '').toLowerCase();
-    if (cats.some(c => c.includes('game')) || name.includes('steam') || name.includes('heroic') || name.includes('lutris') || name.includes('bottle') || exec.includes('steam')) return 'Games';
-    if (cats.some(c => c.includes('network') || c.includes('internet') || c.includes('webbrowser')) || name.includes('browser')) return 'Internet';
-    if (cats.some(c => c.includes('office')) || name.includes('libreoffice')) return 'Office';
-    if (cats.some(c => c.includes('audio') || c.includes('video') || c.includes('graphics') || c.includes('multimedia'))) return 'Multimedia';
-    if (cats.some(c => c.includes('development') || c.includes('ide') || c.includes('programming'))) return 'Development';
-    if (cats.some(c => c.includes('system') || c.includes('settings'))) return 'System';
+
+    const has = (...needles: string[]) => cats.some(c => needles.some(n => c === n || c.includes(n)));
+
+    // Games
+    if (has('game', 'games') || name.includes('steam') || name.includes('heroic') || name.includes('lutris') || name.includes('bottle') || exec.includes('steam')) return 'Games';
+
+    // Internet / communication
+    if (has('network', 'internet', 'webbrowser', 'browser', 'email', 'chat', 'instantmessaging', 'ircclient', 'p2p') || name.includes('browser')) return 'Internet';
+
+    // Office / productivity
+    if (has('office', 'wordprocessor', 'spreadsheet', 'presentation', 'finance', 'calendar', 'contactmanagement') || name.includes('libreoffice')) return 'Office';
+
+    // Multimedia / graphics
+    if (has('audiovideo', 'audio', 'video', 'player', 'recorder', 'graphics', 'photography', 'imageprocessing', 'multimedia')) return 'Multimedia';
+
+    // Development
+    if (has('development', 'ide', 'programming', 'texteditor', 'debugger') || exec.includes('code')) return 'Development';
+
+    // System
+    if (has('system', 'settings', 'terminalemulator', 'filemanager', 'filesystem', 'packagemanager', 'monitor', 'security', 'utility', 'administration')
+      || exec.includes('gnome-control-center')
+      || exec.includes('systemsettings')
+      || exec.includes('nautilus')
+      || exec.includes('thunar')
+      || exec.includes('dolphin')) return 'System';
+
     return 'Utilities';
   }
 
@@ -3185,8 +3233,10 @@ class TempleOS {
       kind: 'builtin' | 'installed';
       category: 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities';
       comment?: string;
-      iconText: string;
-      iconKind: 'emoji' | 'monogram';
+      searchText?: string;
+      iconText?: string;
+      iconUrl?: string;
+      iconKind: 'emoji' | 'monogram' | 'img';
     };
 
     const builtin: Entry[] = [
@@ -3209,6 +3259,14 @@ class TempleOS {
 
     const installed: Entry[] = this.installedApps.map(app => {
       const label = String(app.name || '').trim() || 'App';
+      const iconUrl = typeof app.iconUrl === 'string' && app.iconUrl.trim() ? app.iconUrl.trim() : undefined;
+      const searchText = [
+        app.name,
+        app.genericName,
+        app.comment,
+        ...(app.categories || []),
+        ...((app.keywords as string[] | undefined) || []),
+      ].filter(Boolean).join(' ').toLowerCase();
       const first = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || label.slice(0, 1).toUpperCase() || '•';
       return {
         key: this.keyForInstalledApp(app),
@@ -3216,8 +3274,10 @@ class TempleOS {
         kind: 'installed',
         category: this.canonicalCategoryForInstalledApp(app),
         comment: app.comment || '',
-        iconText: first,
-        iconKind: 'monogram',
+        searchText,
+        iconText: iconUrl ? undefined : first,
+        iconUrl,
+        iconKind: iconUrl ? 'img' : 'monogram',
       };
     });
 
@@ -3230,6 +3290,7 @@ class TempleOS {
       return (
         e.label.toLowerCase().includes(query) ||
         (e.comment || '').toLowerCase().includes(query) ||
+        (e.searchText || '').includes(query) ||
         e.category.toLowerCase().includes(query)
       );
     };
@@ -3258,7 +3319,7 @@ class TempleOS {
 
     return filtered.map(e => `
       <div class="launcher-app-tile" role="listitem" data-launch-key="${escapeHtml(e.key)}" title="${escapeHtml(e.label)}">
-        <div class="launcher-app-icon ${e.iconKind === 'monogram' ? 'mono' : 'emoji'}" data-cat="${e.category}">${escapeHtml(e.iconText)}</div>
+        <div class="launcher-app-icon ${e.iconKind === 'img' ? 'img' : (e.iconKind === 'monogram' ? 'mono' : 'emoji')}" data-cat="${e.category}">${e.iconKind === 'img' && e.iconUrl ? `<img src="${escapeHtml(e.iconUrl)}" alt="" loading="lazy" draggable="false">` : escapeHtml(e.iconText || '')}</div>
         <div class="launcher-app-name">${escapeHtml(e.label)}</div>
         ${e.comment ? `<div class="launcher-app-comment">${escapeHtml(e.comment)}</div>` : ''}
       </div>

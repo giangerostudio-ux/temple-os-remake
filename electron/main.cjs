@@ -1,8 +1,18 @@
-const { app, BrowserWindow, ipcMain, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
-const { pathToFileURL } = require('url');
+
+
+// Allow loading local icons even when the renderer is on http:// (dev server).
+// Must be declared before app ready.
+try {
+    protocol.registerSchemesAsPrivileged([
+        { scheme: 'temple-icon', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+    ]);
+} catch {
+    // ignore (older/newer Electron may throw if called too late or already registered)
+}
 const os = require('os');
 
 // PTY support (for real terminal)
@@ -650,6 +660,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    registerTempleIconProtocol();
     createWindow();
     if (process.platform === 'linux') {
         startDesktopEntryWatcher();
@@ -3015,6 +3026,47 @@ function desktopFileId(rootDir, filePath) {
 }
 
 const iconResolveCache = new Map();
+let templeIconProtocolRegistered = false;
+
+function toTempleIconUrl(iconPath) {
+    return `temple-icon://icon/${encodeURIComponent(String(iconPath || ''))}`;
+}
+
+function registerTempleIconProtocol() {
+    if (templeIconProtocolRegistered) return;
+    templeIconProtocolRegistered = true;
+    if (process.platform !== 'linux') return;
+
+    try {
+        protocol.registerFileProtocol('temple-icon', (request, callback) => {
+            try {
+                const u = new URL(request.url);
+                const encoded = String(u.pathname || '').replace(/^\/+/, '');
+                const p = decodeURIComponent(encoded);
+                const home = os.homedir();
+                const allowedRoots = [
+                    '/usr/share',
+                    '/usr/local/share',
+                    '/var/lib/snapd',
+                    path.join(home, '.local/share'),
+                    path.join(home, '.icons')
+                ];
+
+                if (!path.isAbsolute(p) || !allowedRoots.some(r => p === r || p.startsWith(r + path.sep))) {
+                    callback({ error: -10 }); // ACCESS_DENIED
+                    return;
+                }
+
+                callback({ path: p });
+            } catch {
+                callback({ error: -2 }); // FAILED
+            }
+        });
+    } catch {
+        // ignore
+    }
+}
+
 function resolveIconPath(icon, desktopFilePath) {
     const raw = String(icon || '').trim();
     if (!raw) return null;
@@ -3258,7 +3310,7 @@ async function scanDesktopEntries(options = {}) {
             seenById.add(id);
 
             const iconPath = resolveIconPath(iconName, filePath);
-            const iconUrl = iconPath ? pathToFileURL(iconPath).href : null;
+            const iconUrl = iconPath ? toTempleIconUrl(iconPath) : null;
 
             out.push({
                 id,

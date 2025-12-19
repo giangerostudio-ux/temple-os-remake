@@ -77,8 +77,30 @@ export class NetworkManager {
         await this.refreshWifiNetworks();
         await this.refreshWifiEnabled();
         await this.refreshSavedNetworks();
+        await this.refreshTorStatus();
 
         this.onUpdate();
+    }
+
+    public async refreshTorStatus(): Promise<void> {
+        if (!window.electronAPI?.getTorStatus) {
+            this.torStatus = { running: false, installed: false };
+            return;
+        }
+
+        try {
+            const res = await window.electronAPI.getTorStatus();
+            if (res.success) {
+                this.torStatus = {
+                    running: !!res.running,
+                    installed: !!(res as any).installed
+                };
+            } else if ((res as any).unsupported) {
+                this.torStatus = { running: false, installed: false };
+            }
+        } catch {
+            // ignore
+        }
     }
 
     private async refreshWifiNetworks(): Promise<void> {

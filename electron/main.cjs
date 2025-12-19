@@ -3307,19 +3307,63 @@ ipcMain.handle('security:setTorEnabled', async (event, enabled) => {
 
 ipcMain.handle('security:installTor', async () => {
     if (process.platform !== 'linux') {
-        return { success: false, error: 'Not supported on this platform' };
+        return { success: false, error: 'Tor installation only supported on Linux' };
     }
 
     // Check if already installed
-    const check = await execAsync('which tor 2>/dev/null');
-    if (!check.error && check.stdout.trim().length > 0) {
-        return { success: true, alreadyInstalled: true };
+    try {
+        const check = await execAsync('which tor 2>/dev/null');
+        if (!check.error && check.stdout.trim().length > 0) {
+            return { success: true, alreadyInstalled: true };
+        }
+    } catch (e) {
+        // Not installed, continue
     }
 
-    // Install using pkexec for graphical sudo prompt
-    const install = await execAsync('pkexec apt install -y tor 2>&1', { timeout: 120000 });
-    if (install.error) {
-        return { success: false, error: install.stderr || install.error?.message || 'Installation failed' };
+    // Check if pkexec is available
+    const pkexecCheck = await execAsync('which pkexec 2>/dev/null');
+    const hasPkexec = !pkexecCheck.error && pkexecCheck.stdout.trim().length > 0;
+
+    // Check if apt is available
+    const aptCheck = await execAsync('which apt 2>/dev/null');
+    if (aptCheck.error || aptCheck.stdout.trim().length === 0) {
+        return { success: false, error: 'apt package manager not found. Are you on Debian/Ubuntu?' };
+    }
+
+    let installResult;
+
+    if (hasPkexec) {
+        // Try pkexec first (graphical sudo prompt)
+        console.log('[Tor Install] Trying pkexec...');
+        installResult = await execAsync('pkexec apt install -y tor 2>&1', { timeout: 120000 });
+    } else {
+        // Fallback: try sudo (will fail without password, but at least shows what's needed)
+        console.log('[Tor Install] pkexec not found, trying sudo...');
+        installResult = await execAsync('sudo apt install -y tor 2>&1', { timeout: 120000 });
+    }
+
+    if (installResult.error) {
+        const errMsg = installResult.stderr || installResult.stdout || installResult.error?.message || 'Unknown error';
+        console.error('[Tor Install] Failed:', errMsg);
+
+        // Check for common issues
+        if (errMsg.includes('Request dismissed') || errMsg.includes('Not authorized')) {
+            return { success: false, error: 'Authentication cancelled or not authorized' };
+        }
+        if (errMsg.includes('Unable to locate package')) {
+            return { success: false, error: 'Tor package not found. Try: sudo apt update first' };
+        }
+        if (errMsg.includes('Could not get lock')) {
+            return { success: false, error: 'Another package manager is running. Close it and try again.' };
+        }
+
+        return { success: false, error: errMsg.substring(0, 200) };
+    }
+
+    // Verify installation succeeded
+    const verifyCheck = await execAsync('which tor 2>/dev/null');
+    if (verifyCheck.error || verifyCheck.stdout.trim().length === 0) {
+        return { success: false, error: 'Installation completed but tor binary not found' };
     }
 
     return { success: true };

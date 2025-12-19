@@ -9289,8 +9289,17 @@ class TempleOS {
           height: 450,
           content: this.getFileBrowserContentV2()
         };
-        // Load real files after window opens
-        setTimeout(() => this.loadFiles(), 100);
+        // Fetch home path first, then load files
+        setTimeout(async () => {
+          if (!this.homePath && window.electronAPI) {
+            try {
+              this.homePath = await window.electronAPI.getHome();
+            } catch (e) {
+              console.error('Failed to get home path:', e);
+            }
+          }
+          await this.loadFiles();
+        }, 100);
         break;
       case 'editor':
         windowConfig = {
@@ -11330,11 +11339,15 @@ class TempleOS {
     })();
 
     const sidebarItems = (() => {
-      const home = this.homePath || this.currentPath || (isWindows ? 'C:\\' : '/');
-      const docs = this.joinPath(home, 'Documents');
-      const downloads = this.joinPath(home, 'Downloads');
-      const pictures = this.joinPath(home, 'Pictures');
-      const music = this.joinPath(home, 'Music');
+      // Ensure we use a valid home path - don't fallback to root '/' for Linux
+      // This prevents accessing /Documents instead of /home/user/Documents
+
+      // Only construct standard folder paths if we have a valid user home
+      const hasValidHome = this.homePath && this.homePath !== '/' && !this.homePath.match(/^\/home\/?$/);
+      const docs = hasValidHome ? this.joinPath(this.homePath!, 'Documents') : null;
+      const downloads = hasValidHome ? this.joinPath(this.homePath!, 'Downloads') : null;
+      const pictures = hasValidHome ? this.joinPath(this.homePath!, 'Pictures') : null;
+      const music = hasValidHome ? this.joinPath(this.homePath!, 'Music') : null;
 
       const bookmarks = this.fileBookmarks.map(path => ({
         label: path.split(/[/\\\\]/).pop() || path,
@@ -11342,16 +11355,25 @@ class TempleOS {
         isBookmark: true
       }));
 
-      return [
+      const items: { label: string; path: string; isBookmark?: boolean }[] = [
         { label: 'This PC', path: isWindows ? 'C:\\' : '/' },
-        { label: 'Home', path: home },
-        { label: 'Documents', path: docs },
-        { label: 'Downloads', path: downloads },
-        { label: 'Pictures', path: pictures },
-        { label: 'Music', path: music },
-        ...bookmarks,
-        { label: 'Trash', path: 'trash:' },
       ];
+
+      // Only add Home if we have a valid home path
+      if (this.homePath) {
+        items.push({ label: 'Home', path: this.homePath });
+      }
+
+      // Only add standard folders if we have valid paths
+      if (docs) items.push({ label: 'Documents', path: docs });
+      if (downloads) items.push({ label: 'Downloads', path: downloads });
+      if (pictures) items.push({ label: 'Pictures', path: pictures });
+      if (music) items.push({ label: 'Music', path: music });
+
+      items.push(...bookmarks);
+      items.push({ label: 'Trash', path: 'trash:' });
+
+      return items;
     })();
 
     const emptyState = this.fileEntries.length === 0 && this.currentPath
@@ -15223,7 +15245,13 @@ class TempleOS {
       return;
     }
 
-    const dest = this.joinPath(this.currentPath || '/', trimmed);
+    // Don't allow folder creation if no valid current path (prevents creating at root)
+    if (!this.currentPath || this.currentPath === '/') {
+      await this.openAlertModal({ title: 'Files', message: 'Cannot create folder at root directory. Navigate to a writable location first.' });
+      return;
+    }
+
+    const dest = this.joinPath(this.currentPath, trimmed);
     const result = await window.electronAPI.mkdir(dest);
     if (result.success) {
       this.showNotification('Files', `Created folder ${trimmed}`, 'divine');
@@ -15250,7 +15278,13 @@ class TempleOS {
       return;
     }
 
-    const dest = this.joinPath(this.currentPath || '/', trimmed);
+    // Don't allow file creation if no valid current path (prevents creating at root)
+    if (!this.currentPath || this.currentPath === '/') {
+      await this.openAlertModal({ title: 'Files', message: 'Cannot create file at root directory. Navigate to a writable location first.' });
+      return;
+    }
+
+    const dest = this.joinPath(this.currentPath, trimmed);
     const result = await window.electronAPI.writeFile(dest, '');
     if (result.success) {
       this.showNotification('Files', `Created file ${trimmed}`, 'divine');

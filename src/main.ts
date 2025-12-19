@@ -517,16 +517,7 @@ class TempleOS {
   private firewallRulesLoading = false;
   private macRandomization = false;
   private torEnabled = false;
-  private torBridges = '';
-  private torBridgeType: 'none' | 'obfs4' | 'meek-azure' = 'none';
-  private torRoutingMode: 'all' | 'specific' = 'all';
-  private torCircuitStatus: 'disconnected' | 'connecting' | 'connected' | 'failed' = 'disconnected';
-  private torCircuitRelays: Array<{ name: string; ip: string; country: string }> = [];
-  private torDaemonSupported = false;
   private torDaemonRunning = false;
-  private torDaemonBackend: string | null = null;
-  private torDaemonVersion: string | null = null;
-  private torDaemonLastError: string | null = null;
   private secureDelete = false;
 
   // Physical Security State (Tier 7.6)
@@ -1020,7 +1011,6 @@ class TempleOS {
       this.withTimeout(this.refreshSystemInfo(), 3000, undefined),
       this.withTimeout(this.refreshBatteryStatus(), 3000, undefined),
       this.withTimeout(this.refreshMonitorStatsOnly(true), 3000, undefined),
-      this.withTimeout(this.refreshTorDaemonStatus(), 3000, undefined),
       this.checkPtySupport(),
     ]);
 
@@ -1038,7 +1028,6 @@ class TempleOS {
       if (this.windows.some(w => w.id.startsWith('system-monitor'))) return;
       void this.refreshMonitorStatsOnly(false);
     }, 5000);
-    window.setInterval(() => void this.refreshTorDaemonStatus(), 60000);
 
     // Welcome Notification (immediate since bootstrap is now fast)
     this.showNotification('System Ready', 'TempleOS has started successfully.', 'divine', [
@@ -3371,6 +3360,7 @@ class TempleOS {
 
 
 
+  /* UNUSED OLD TOR CODE - TO BE REMOVED
   private renderTorCircuitViz(): string {
     const footer = `<div style="margin-top: 10px; font-size: 10px; opacity: 0.55;">Circuit details require Tor ControlPort.</div>`;
 
@@ -3546,6 +3536,7 @@ class TempleOS {
 
     // NOTE: Traffic routing is not enforced by this toggle yet.
   }
+  */
 
   // VPN profile management (Tier 6.1)
   private async connectWifiFromUi(ssid: string, security: string): Promise<void> {
@@ -5118,7 +5109,7 @@ class TempleOS {
           localStorage.setItem('temple_secure_wipe', String(checked));
         }
         else if (key === 'tor') {
-          void this.toggleTor(checked);
+          // Old Tor toggle removed - new implementation in Security section
         }
         else if (key === 'tracker-blocking') {
           this.trackerBlockingEnabled = checked;
@@ -5137,17 +5128,6 @@ class TempleOS {
         if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
       }
 
-      // Tor Controls
-      if (target.matches('.tor-bridge-select')) {
-        this.torBridgeType = (target as unknown as HTMLSelectElement).value as any;
-        this.refreshSettingsWindow();
-      }
-      if (target.matches('.tor-routing-select')) {
-        this.torRoutingMode = (target as unknown as HTMLSelectElement).value as any;
-      }
-      if (target.matches('.tor-bridge-input')) {
-        this.torBridges = (target as unknown as HTMLTextAreaElement).value;
-      }
 
 
       // SSH Server Toggle
@@ -12459,38 +12439,6 @@ class TempleOS {
             </div>
           `}
         `)}
-        ${card('Tor Integration', `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div>
-              <div style="font-weight: bold; color: ${this.networkManager.torStatus.running ? '#00ff41' : '#888'};">
-                🧅 ${this.networkManager.torStatus.running ? 'Tor Running' : 'Tor Off'}
-              </div>
-              <div style="font-size: 12px; opacity: 0.7;">Route traffic through Tor network for anonymity</div>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
-            <div style="opacity: 0.7;">Mode</div>
-            <select class="tor-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
-              <option value="off" ${this.networkManager.torMode === 'off' ? 'selected' : ''}>Off - Normal Internet</option>
-              <option value="browser-only" ${this.networkManager.torMode === 'browser-only' ? 'selected' : ''}>Browser Only</option>
-              <option value="system-wide" ${this.networkManager.torMode === 'system-wide' ? 'selected' : ''}>System-wide (slow)</option>
-            </select>
-            <div style="opacity: 0.7;">Installed</div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="color: ${this.networkManager.torStatus.installed ? '#00ff41' : '#ff6464'};">${this.networkManager.torStatus.installed ? '✓ Yes' : '✗ No'}</span>
-              ${!this.networkManager.torStatus.installed ? `<button class="tor-install-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Install Tor</button>` : ''}
-            </div>
-          </div>
-          ${this.networkManager.torMode !== 'off' && !this.networkManager.torStatus.running ? `
-            <button class="tor-start-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Start Tor</button>
-          ` : ''}
-          ${this.networkManager.torStatus.running ? `
-            <button class="tor-stop-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Stop Tor</button>
-          ` : ''}
-          <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
-            ⚠️ System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps. Use "Browser Only" for Tor Browser usage.
-          </div>
-        `)}
         ${card('Mobile Hotspot', `
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                   <div>
@@ -12782,56 +12730,37 @@ class TempleOS {
             </div>
         `)}
 
-        ${card('Tor Network (Onion Routing)', `
-            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                 <div>
-                    <div style="font-weight: bold; color: ${!this.torEnabled ? '#888' : (this.torCircuitStatus === 'connected' ? '#00ff41' : this.torCircuitStatus === 'failed' ? '#ff6464' : '#ffd700')};">
-                      ${!this.torEnabled ? 'Disabled' : (this.torCircuitStatus === 'connected' ? 'Tor daemon running' : this.torCircuitStatus === 'failed' ? 'Tor unavailable' : 'Checking...')}
-                    </div>
-                    <div style="font-size: 12px; opacity: 0.7;">Checks Tor daemon status; traffic routing is not enforced by the UI toggle yet.</div>
-                    <div style="font-size: 10px; opacity: 0.65; margin-top: 4px;">
-                      Daemon: ${this.torDaemonSupported ? (this.torDaemonRunning ? 'Running' : 'Stopped') : 'Unsupported'}
-                      ${this.torDaemonBackend ? ` (${escapeHtml(this.torDaemonBackend)})` : ''}
-                      ${this.torDaemonVersion ? ` — ${escapeHtml(this.torDaemonVersion)}` : ''}
-                    </div>
-                 </div>
-                 <label class="toggle-switch" style="display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" class="sec-toggle" data-sec-key="tor" ${this.torEnabled ? 'checked' : ''}>
-                    <span>${this.torEnabled ? 'On' : 'Off'}</span>
-                 </label>
-            </div>
-
-            ${this.torEnabled ? `
-              <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; margin-bottom: 15px;">
-                 <div style="font-size: 13px; font-weight: bold; margin-bottom: 10px; color: #ffd700;">Circuit Visualization</div>
-                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; position: relative;">
-                    ${this.renderTorCircuitViz()}
-                 </div>
+        ${card('Tor Integration', `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: bold; color: ${this.networkManager.torStatus.running ? '#00ff41' : '#888'};">
+                🧅 ${this.networkManager.torStatus.running ? 'Tor Running' : 'Tor Off'}
               </div>
-
-               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                  <div>
-                      <div style="font-size: 12px; margin-bottom: 5px; opacity: 0.8;">Bridge Configuration</div>
-                      <select class="tor-bridge-select" style="width: 100%; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px; border-radius: 4px; font-family: inherit;">
-                          <option value="none" ${this.torBridgeType === 'none' ? 'selected' : ''}>None (Direct)</option>
-                          <option value="obfs4" ${this.torBridgeType === 'obfs4' ? 'selected' : ''}>obfs4 (Recommended)</option>
-                          <option value="meek-azure" ${this.torBridgeType === 'meek-azure' ? 'selected' : ''}>meek-azure</option>
-                      </select>
-                  </div>
-                   <div>
-                      <div style="font-size: 12px; margin-bottom: 5px; opacity: 0.8;">Routing Mode</div>
-                      <select class="tor-routing-select" style="width: 100%; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px; border-radius: 4px; font-family: inherit;">
-                          <option value="all" ${this.torRoutingMode === 'all' ? 'selected' : ''}>Route All Traffic</option>
-                          <option value="specific" ${this.torRoutingMode === 'specific' ? 'selected' : ''}>Browser Only</option>
-                      </select>
-                  </div>
-               </div>
-                
-               ${this.torBridgeType !== 'none' ? `
-                 <textarea class="tor-bridge-input" placeholder="Paste custom bridge lines here (optional)..." style="width: 100%; height: 60px; background: rgba(0,0,0,0.2); border: 1px solid rgba(0,255,65,0.2); color: #00ff41; font-family: monospace; font-size: 11px; padding: 5px; border-radius: 4px; resize: none;">${escapeHtml(this.torBridges)}</textarea>
-               ` : ''}
-
-            ` : ''}
+              <div style="font-size: 12px; opacity: 0.7;">Route traffic through Tor network for anonymity</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+            <div style="opacity: 0.7;">Mode</div>
+            <select class="tor-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+              <option value="off" ${this.networkManager.torMode === 'off' ? 'selected' : ''}>Off - Normal Internet</option>
+              <option value="browser-only" ${this.networkManager.torMode === 'browser-only' ? 'selected' : ''}>Browser Only</option>
+              <option value="system-wide" ${this.networkManager.torMode === 'system-wide' ? 'selected' : ''}>System-wide (slow)</option>
+            </select>
+            <div style="opacity: 0.7;">Installed</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="color: ${this.networkManager.torStatus.installed ? '#00ff41' : '#ff6464'};">${this.networkManager.torStatus.installed ? '✓ Yes' : '✗ No'}</span>
+              ${!this.networkManager.torStatus.installed ? `<button class="tor-install-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Install Tor</button>` : ''}
+            </div>
+          </div>
+          ${this.networkManager.torMode !== 'off' && !this.networkManager.torStatus.running ? `
+            <button class="tor-start-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Start Tor</button>
+          ` : ''}
+          ${this.networkManager.torStatus.running ? `
+            <button class="tor-stop-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Stop Tor</button>
+          ` : ''}
+          <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+            ⚠️ System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps. Use "Browser Only" for Tor Browser usage.
+          </div>
         `)}
 
         ${card('Emergency Lockdown', `

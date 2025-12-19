@@ -1327,12 +1327,26 @@ class TempleOS {
       preserveById(editorWin?.id);
     }
 
-    // SCROLL PRESERVATION: Help App (fixes random scroll reset on 30s timer)
-    const scrollState = new Map<string, number>();
+    // GENERIC SCROLL PRESERVATION: Matches DOM structure by index
+    // This handles any app (Help, Settings, Files, etc.) including sidebars
+    const windowScrollStates = new Map<string, Map<number, number>>();
+
     this.windows.forEach(w => {
-      if (w.id.startsWith('help') && !w.minimized && !preserved.has(w.id)) {
-        const el = document.querySelector(`[data-window-id="${w.id}"] .help-app > div:last-child`);
-        if (el) scrollState.set(w.id, el.scrollTop);
+      if (!w.minimized && !preserved.has(w.id)) {
+        const winEl = document.querySelector(`[data-window-id="${w.id}"]`);
+        if (winEl) {
+          const scrolls = new Map<number, number>();
+          // Checking all descendants
+          const elements = winEl.querySelectorAll('*');
+          elements.forEach((el, index) => {
+            if (el.scrollTop > 0) {
+              scrolls.set(index, el.scrollTop);
+            }
+          });
+          if (scrolls.size > 0) {
+            windowScrollStates.set(w.id, scrolls);
+          }
+        }
       }
     });
 
@@ -1358,10 +1372,15 @@ class TempleOS {
       el.classList.toggle('active', !!w.active);
       el.style.display = w.minimized ? 'none' : 'flex';
 
-      // Restore scroll state for Help App
-      if (scrollState.has(w.id)) {
-        const scrollEl = el.querySelector('.help-app > div:last-child');
-        if (scrollEl) scrollEl.scrollTop = scrollState.get(w.id)!;
+      // Restore generic scroll state
+      if (windowScrollStates.has(w.id)) {
+        const savedScrolls = windowScrollStates.get(w.id)!;
+        const elements = el.querySelectorAll('*');
+        savedScrolls.forEach((scrollTop, index) => {
+          if (elements[index]) {
+            elements[index].scrollTop = scrollTop;
+          }
+        });
       }
 
       // Animation (first open)

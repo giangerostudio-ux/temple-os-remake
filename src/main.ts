@@ -15440,10 +15440,6 @@ class TempleOS {
              <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">🔐 Privacy Settings</div>
              <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Configure your security preferences</p>
              <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
-                <div class="wizard-toggle-btn" data-setting="secure-wipe" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
-                   <span>🛡️ Secure Memory Wipe on Shutdown</span>
-                   <span style="color: ${this.secureWipeOnShutdown ? '#00ff41' : '#666'}; font-weight: bold;">${this.secureWipeOnShutdown ? 'ON' : 'OFF'}</span>
-                </div>
                 <div class="wizard-toggle-btn" data-setting="tracker-blocking" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
                    <span>🔒 Tracker Blocking</span>
                    <span style="color: ${this.trackerBlockingEnabled ? '#00ff41' : '#666'}; font-weight: bold;">${this.trackerBlockingEnabled ? 'ON' : 'OFF'}</span>
@@ -15457,7 +15453,36 @@ class TempleOS {
              <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
           </div>
           `,
-      // Step 3: Features
+      // Step 3: Time & Reality
+      `
+          <div style="text-align: center;">
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">⏳ Time & Reality</div>
+             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Align your temporal existence</p>
+             <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
+                <div style="margin-bottom: 15px;">
+                   <label style="display: block; margin-bottom: 8px;">Timezone</label>
+                   <select class="timezone-select" style="width: 100%; padding: 8px; background: #001100; color: #00ff41; border: 1px solid #00ff41;">
+                      <option value="UTC" ${this.timezone === 'UTC' ? 'selected' : ''}>UTC (Coordinated Universal Time)</option>
+                      <option value="EST" ${this.timezone === 'EST' ? 'selected' : ''}>EST (Eastern Standard Time)</option>
+                      <option value="CST" ${this.timezone === 'CST' ? 'selected' : ''}>CST (Central Standard Time)</option>
+                      <option value="PST" ${this.timezone === 'PST' ? 'selected' : ''}>PST (Pacific Standard Time)</option>
+                      <option value="GMT" ${this.timezone === 'GMT' ? 'selected' : ''}>GMT (Greenwich Mean Time)</option>
+                      <option value="CET" ${this.timezone === 'CET' ? 'selected' : ''}>CET (Central European Time)</option>
+                      <option value="JST" ${this.timezone === 'JST' ? 'selected' : ''}>JST (Japan Standard Time)</option>
+                   </select>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
+                   <span>Auto-Sync Time</span>
+                   <label class="switch">
+                      <input type="checkbox" class="auto-time-toggle" ${this.autoTime ? 'checked' : ''}>
+                      <span class="slider round"></span>
+                   </label>
+                </div>
+             </div>
+             <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
+          </div>
+          `,
+      // Step 4: Features
       `
           <div style="text-align: center;">
              <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">⚡ Features</div>
@@ -15487,7 +15512,7 @@ class TempleOS {
              <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
           </div>
           `,
-      // Step 4: Finish
+      // Step 5: Finish
       `
           <div style="text-align: center;">
              <div style="font-size: 48px; color: #ffd700; margin-bottom: 20px;">It Is Finished</div>

@@ -433,7 +433,7 @@ class TempleOS {
   private activeSettingsCategory = 'System';
   private settingsSubView: 'main' | 'theme-editor' = 'main';
   private wallpaperImage = './images/wallpaper.png'; // Default
-  private themeEditorState: { name: string; mainColor: string; bgColor: string; textColor: string } = { name: 'New Theme', mainColor: '#00ff41', bgColor: '#000000', textColor: '#00ff41' };
+  private themeEditorState: { name: string; mainColor: string; bgColor: string; textColor: string; glowColor?: string } = { name: 'New Theme', mainColor: '#00ff41', bgColor: '#000000', textColor: '#00ff41', glowColor: '#ffd700' };
 
   private availableResolutions: string[] = ['1920x1080', '1280x720', '1024x768', '800x600'];
   private currentResolution = '1024x768';
@@ -594,7 +594,7 @@ class TempleOS {
   private themeColor: 'green' | 'amber' | 'cyan' | 'white' = (localStorage.getItem('temple_theme_color') as any) || 'green';
   private themeMode: 'dark' | 'light' = (localStorage.getItem('temple_theme_mode') as any) || 'dark';
   private highContrast = localStorage.getItem('temple_high_contrast') === 'true';
-  private customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string }> = [];
+  private customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string; glowColor?: string }> = [];
   private activeCustomTheme: string | null = null;
 
   // Accessibility (Tier 9.7)
@@ -624,6 +624,7 @@ class TempleOS {
   private secureWipeOnShutdown = localStorage.getItem('temple_secure_wipe') !== 'false'; // Default true
   private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
+  private heavenlyPulse = true; // Default enabled
 
   // Enhancement Modules (New Modular Architecture)
   private imageViewer = new ImageViewerEnhancer();
@@ -4750,8 +4751,8 @@ class TempleOS {
       // THEME EDITOR INPUT HANDLERS (Tier 9.4)
       // ============================================
       if (inputTarget.matches('.theme-editor-color')) {
-        const key = inputTarget.dataset.key as 'mainColor' | 'bgColor' | 'textColor';
-        if (key && (key === 'mainColor' || key === 'bgColor' || key === 'textColor')) {
+        const key = inputTarget.dataset.key as 'mainColor' | 'bgColor' | 'textColor' | 'glowColor';
+        if (key && (key === 'mainColor' || key === 'bgColor' || key === 'textColor' || key === 'glowColor')) {
           this.themeEditorState[key] = inputTarget.value;
           this.refreshSettingsWindow();
         }
@@ -4917,6 +4918,12 @@ class TempleOS {
           const taskbar = document.querySelector('.taskbar') as HTMLElement;
           if (taskbar) taskbar.classList.remove('taskbar-hidden');
         }
+      }
+
+      if (inputTarget.matches('.heavenly-pulse-toggle')) {
+        this.heavenlyPulse = inputTarget.checked;
+        this.settingsManager.applyTheme();
+        this.queueSaveConfig();
       }
 
       // Display Scale Slider - with debouncing to prevent accidental drags
@@ -11660,6 +11667,13 @@ class TempleOS {
                                 <input type="text" value="${this.themeEditorState.textColor}" readonly style="flex:1; padding: 6px; background: rgba(0,0,0,0.2); border: 1px solid rgba(0,255,65,0.2); color: #00ff41; border-radius: 4px; font-family: monospace;">
                             </div>
                         </div>
+                         <div>
+                            <div style="margin-bottom: 4px; font-size: 12px; opacity: 0.8;">Glow Color</div>
+                             <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="color" class="theme-editor-color" data-key="glowColor" value="${this.themeEditorState.glowColor || '#ffd700'}" style="width: 40px; height: 32px; padding: 0; border: none; background: none; cursor: pointer;">
+                                <input type="text" value="${this.themeEditorState.glowColor || '#ffd700'}" readonly style="flex:1; padding: 6px; background: rgba(0,0,0,0.2); border: 1px solid rgba(0,255,65,0.2); color: #00ff41; border-radius: 4px; font-family: monospace;">
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
@@ -11740,6 +11754,10 @@ class TempleOS {
                   <label style="display: flex; align-items: center; justify-content: space-between;">
                       <span>Auto-hide Taskbar</span>
                       <input type="checkbox" class="taskbar-autohide-toggle" ${this.autoHideTaskbar ? 'checked' : ''} style="cursor: pointer;">
+                  </label>
+                  <label style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Heavenly Pulse</span>
+                      <input type="checkbox" class="heavenly-pulse-toggle" ${this.heavenlyPulse ? 'checked' : ''} style="cursor: pointer;">
                   </label>
               </div>
         `)}
@@ -13748,7 +13766,7 @@ class TempleOS {
         this.themeEditorState = { ...theme };
       }
     } else {
-      this.themeEditorState = { name: `Theme ${this.customThemes.length + 1}`, mainColor: '#00ff41', bgColor: '#101010', textColor: '#00ff41' };
+      this.themeEditorState = { name: `Theme ${this.customThemes.length + 1}`, mainColor: '#00ff41', bgColor: '#101010', textColor: '#00ff41', glowColor: '#ffd700' };
     }
     this.settingsSubView = 'theme-editor';
     this.refreshSettingsWindow();

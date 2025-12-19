@@ -25,6 +25,7 @@
   --text-primary: #c9d1d9;
   --text-highlight: #00ff41;
   --accent-gold: #ffd700;
+  --temple-glow-color: var(--accent-gold);
 }
 
 :root[data-theme-mode='light'] {
@@ -3120,4 +3121,44 @@ body.large-text {
 
 :root[data-color-blind="tritanopia"] body {
   filter: contrast(120%) hue-rotate(180deg);
+}
+
+/* =========================================
+   HEAVENLY PULSE: Gold Beam Animation
+   ========================================= */
+@keyframes heavenlyPulse {
+
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scaleY(1.6);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scaleY(2.7);
+  }
+}
+
+/* GOLD BEAM: Real DOM element positioned behind header */
+.temple-gold-beam {
+  display: none;
+  /* Hidden by default */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50vh;
+  background: radial-gradient(ellipse at top, var(--temple-glow-color) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  /* Behind everything */
+  transform-origin: top center;
+  animation: heavenlyPulse 8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Show when enabled on body */
+body.heavenly-pulse-enabled .temple-gold-beam {
+  display: block;
 }

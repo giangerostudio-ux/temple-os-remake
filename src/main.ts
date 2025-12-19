@@ -3435,7 +3435,10 @@ class TempleOS {
     // "Attempt" because the backend will do the real safety checks (baseline/protected/essential).
     const source = String(app.source || '').toLowerCase();
     const desktopFile = String(app.desktopFile || '');
-    return source === 'system' && desktopFile.startsWith('/usr/share/applications/');
+    return source === 'system' && (
+      desktopFile.startsWith('/usr/share/applications/') ||
+      desktopFile.startsWith('/usr/local/share/applications/')
+    );
   }
 
   private async uninstallApp(app: InstalledApp): Promise<void> {

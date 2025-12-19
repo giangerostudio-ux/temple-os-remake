@@ -60,6 +60,14 @@ npm run electron:build
 
 This creates the distributable in `dist/`.
 
+### 5. Generate APT Baseline (Recommended)
+
+This makes “Uninstall (APT)” safe-by-default by preventing removal of packages that shipped with the ISO baseline.
+
+```bash
+node scripts/generate-apt-baseline.cjs
+```
+
 ## Files to Include in ISO
 
 When packaging for ISO, include these folders:

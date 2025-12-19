@@ -3652,15 +3652,16 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
         const userLaunchersDir = path.join(userHome, '.local/share/applications');
         const flatpakUserExportsDir = path.join(userHome, '.local/share/flatpak/exports/share/applications');
         const source = String(app.source || '').toLowerCase();
+        const systemLauncherDirs = ['/usr/share/applications', '/usr/local/share/applications'];
 
         const inDir = (dir) => filePath === dir || filePath.startsWith(dir + path.sep);
         const inUserLaunchers = inDir(userLaunchersDir);
         const inFlatpakUserExports = inDir(flatpakUserExportsDir);
+        const inSystemLaunchers = systemLauncherDirs.some(d => inDir(d));
 
-        // Safety check: Only allow uninstalling user-owned launchers.
-        // System apps in /usr/share/applications should NOT be removed.
-        if (!inUserLaunchers && !inFlatpakUserExports) {
-            return { success: false, error: 'Cannot uninstall system apps. Only user-installed apps can be removed.' };
+        // Safety check: only allow actions on known launcher roots.
+        if (!inUserLaunchers && !inFlatpakUserExports && !inSystemLaunchers) {
+            return { success: false, error: 'Cannot uninstall: Unsupported launcher location' };
         }
 
         // Check if file exists before attempting to delete
@@ -3700,6 +3701,70 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
             // Flatpak should remove the exported desktop file, but clean up if it's still there.
             if (inFlatpakUserExports) {
                 try { await fs.promises.unlink(filePath); } catch { }
+            }
+        } else if (inSystemLaunchers) {
+            // System launcher: attempt safe APT uninstall (only for non-baseline, non-protected packages).
+            if (!(await hasCommand('apt-get')) && !(await hasCommand('apt'))) {
+                return { success: false, error: 'APT not found. Cannot uninstall system packages on this distro.' };
+            }
+
+            const pkg = await getAptPackageOwningFile(filePath);
+            if (!pkg) {
+                return { success: false, error: 'Cannot uninstall: This system app is not APT-managed (maybe Snap/Flatpak/system component).' };
+            }
+
+            const meta = await getDpkgPackageMeta(pkg);
+            if (!meta || !meta.name) {
+                return { success: false, error: 'Cannot uninstall: Failed to inspect package metadata' };
+            }
+            if (!/install ok installed/i.test(meta.status || '')) {
+                return { success: false, error: 'Cannot uninstall: Package is not installed' };
+            }
+
+            const baseline = getAptBaselineSet();
+            const protectedPkgs = getAptProtectedSet();
+
+            if (protectedPkgs.has(meta.name)) {
+                return { success: false, error: 'Cannot uninstall: Protected system package' };
+            }
+
+            if (baseline && baseline.has(meta.name)) {
+                return { success: false, error: 'Cannot uninstall: This app is part of the system baseline' };
+            }
+
+            // If no baseline file is provided, require the package to be "manual" (user-selected) to avoid bricking.
+            const manualSet = await getAptManualSet();
+            if (!baseline) {
+                if (!manualSet) {
+                    return { success: false, error: 'Cannot uninstall: APT baseline not configured (missing apt-baseline.json) and apt-mark unavailable' };
+                }
+                if (!manualSet.has(meta.name)) {
+                    return { success: false, error: 'Cannot uninstall: This package does not appear to be user-installed' };
+                }
+            } else if (manualSet && !manualSet.has(meta.name)) {
+                // With a baseline present, we can still allow removal, but keep this as an extra safety gate.
+                return { success: false, error: 'Cannot uninstall: This package does not appear to be user-installed' };
+            }
+
+            const essential = String(meta.essential || '').toLowerCase() === 'yes';
+            const priority = String(meta.priority || '').toLowerCase();
+            if (essential || priority === 'required' || priority === 'important') {
+                return { success: false, error: 'Cannot uninstall: Critical system package' };
+            }
+
+            const aptBin = (await hasCommand('apt-get')) ? 'apt-get' : 'apt';
+            const removeCmd = `DEBIAN_FRONTEND=noninteractive ${aptBin} remove -y ${meta.name}`;
+            const autoremoveCmd = `DEBIAN_FRONTEND=noninteractive ${aptBin} autoremove -y`;
+            const res = await runPrivilegedSh(`${removeCmd} && ${autoremoveCmd}`, { timeout: 10 * 60 * 1000 });
+            if (res.error) {
+                const msg = String((res.stderr || '').trim() || (res.stdout || '').trim() || res.error.message || 'APT uninstall failed');
+                if (/could not get lock|unable to acquire the dpkg frontend lock|is another process using it/i.test(msg)) {
+                    return { success: false, error: 'Another package manager is running. Close it and try again.' };
+                }
+                if (/not authorized|authentication|permission|sudo|pkexec/i.test(msg)) {
+                    return { success: false, error: 'Administrator authentication failed or was cancelled.' };
+                }
+                return { success: false, error: msg.substring(0, 300) };
             }
         } else {
             // Remove just the user-owned launcher entry (for AppImages/manual installs/etc.)

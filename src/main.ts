@@ -481,6 +481,9 @@ class TempleOS {
   private launcherCategory: 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities' = 'All';
   private launcherView: 'all' | 'recent' | 'frequent' = 'all';
 
+  // Prevent runaway launches if UI dispatches duplicate clicks/events.
+  private lastLaunchByKeyAt: Record<string, number> = {};
+
   // Notifications State
   private notificationManager = new NotificationManager();
   // removed legacy internal state: notifications, activeToasts, etc.
@@ -4377,6 +4380,12 @@ class TempleOS {
 
   private launchByKey(key: string, toggle = false): void {
     const raw = String(key || '');
+
+    const now = Date.now();
+    const last = this.lastLaunchByKeyAt[raw] || 0;
+    if (now - last < 1000) return;
+    this.lastLaunchByKeyAt[raw] = now;
+
     if (raw.startsWith('builtin:')) {
       this.openApp(raw.slice('builtin:'.length), toggle);
       return;
@@ -6556,16 +6565,12 @@ class TempleOS {
       // Start menu item click (pinned apps)
       const startAppItem = target.closest('.start-app-item') as HTMLElement;
       if (startAppItem && startAppItem.dataset.launchKey) {
-        this.launchByKey(startAppItem.dataset.launchKey);
-        this.showStartMenu = false;
-        this.render();
+        this.launchByKeyClosingShellUi(startAppItem.dataset.launchKey);
         return;
       }
 
       if (startAppItem && startAppItem.dataset.app) {
-        this.openApp(startAppItem.dataset.app);
-        this.showStartMenu = false;
-        this.render();
+        this.launchByKeyClosingShellUi(`builtin:${startAppItem.dataset.app}`);
         return;
       }
 
@@ -8415,22 +8420,6 @@ class TempleOS {
           }
         }
       });
-
-      // Start Menu App Selection (Click)
-      app.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        const startItem = target.closest('.start-app-item') as HTMLElement;
-        if (startItem) {
-          const key = startItem.dataset.launchKey ||
-            (startItem.dataset.app ? `builtin:${startItem.dataset.app}` : '');
-
-          if (key) {
-            this.launchByKeyClosingShellUi(key);
-          }
-        }
-      });
-
-
 
       // ============================================
       // DRAG AND DROP (File Browser)

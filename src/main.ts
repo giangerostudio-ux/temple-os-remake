@@ -985,6 +985,12 @@ class TempleOS {
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
+
+    // Enforce lock screen on boot if password or PIN is configured
+    if (this.setupComplete && (this.lockPassword || this.lockPin)) {
+      this.lock();
+    }
+
     this.notificationManager.setDoNotDisturb(this.doNotDisturb);
 
     // Phase 2: Run independent operations in parallel with timeouts (3s max per call)
@@ -14922,7 +14928,12 @@ class TempleOS {
   // ============================================
   // CONTEXT MENU SYSTEM
   // ============================================
+  // ============================================
+  // CONTEXT MENU SYSTEM
+  // ============================================
   private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean; submenu?: any[] }>): void {
+    this.closeContextMenu();
+
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.style.cssText = `
@@ -14988,8 +14999,7 @@ class TempleOS {
   }
 
   private closeContextMenu(): void {
-    const menu = document.querySelector('.context-menu');
-    if (menu) menu.remove();
+    document.querySelectorAll('.context-menu').forEach(m => m.remove());
   }
 
   private async promptRename(filePath: string): Promise<void> {

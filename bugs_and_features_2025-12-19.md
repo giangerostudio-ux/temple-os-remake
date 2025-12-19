@@ -60,12 +60,18 @@ Fix all options when right clicking in the desktop they are not working for exam
 
 **SOLUTION:** Fixed `setDesktopSort()` method to actually call `sortDesktop Icons('name')` or `sortDesktopIcons('type')` instead of just showing "Visual Only" notification.
 
-### 6. Context Menu Not Closing After Action
+### 6. ✅ FIXED - Context Menu Not Closing After Action
 When clicking options with right click context menu like for example settings or open terminal it should close the context menu cause it's blocking ur view with the new window that opened.
 
-### 7. Lock Screen Issues
+**SOLUTION:** Updated `showContextMenu` to close any existing menus before opening a new one, preventing stacking. Updated `closeContextMenu` to remove ALL context menu instances, ensuring clean closure.
+
+### 7. ✅ FIXED - Lock Screen Issues
 - When u are in lockscreen the restart and shutdown buttons go off below the screen on the pin tab.
 - When you launch ur computer it skips the password or pin even though we have a password enabled it skips through the lockscreen - that should not be happening.
+
+**SOLUTION:**
+- **Layout:** Added `max-height: 90vh` and `overflow-y: auto` to `.lock-panel` in CSS. This ensures content remains accessible even when the tall PIN pad is visible.
+- **Boot Skip:** Added a check in `bootstrap()` to enforce `this.lock()` immediately after configuration load if a password/PIN is set and setup is complete.
 
 ### 8. ✅ FIXED - Taskbar "Enable Transparency" Button Not Working
 The "Enable Transparency" button in the taskbar right-click context menu doesn't work.

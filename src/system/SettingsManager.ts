@@ -91,7 +91,7 @@ export class SettingsManager {
         root.style.setProperty('--main-color', customTheme.mainColor);
         root.style.setProperty('--bg-color', customTheme.bgColor);
         root.style.setProperty('--text-color', customTheme.textColor);
-        root.style.setProperty('--temple-glow-color', customTheme.glowColor || 'var(--accent-gold)');
+        root.style.setProperty('--temple-glow-color', customTheme.glowColor || customTheme.mainColor);
 
         root.dataset.themeMode = 'custom';
         root.dataset.themeColor = 'custom';
@@ -135,7 +135,7 @@ export class SettingsManager {
     // User asked for customizability, but for built-ins let's stick to gold as the "Heavenly" default
     // or maybe match the theme color for consistency?
     // Let's stick to Gold logic from the snippet unless High Contrast.
-    root.style.setProperty('--temple-glow-color', this.host.highContrast ? mainColor : 'var(--accent-gold)');
+    root.style.setProperty('--temple-glow-color', mainColor);
     // Update all the color variables that the CSS actually uses
     root.style.setProperty('--text-highlight', mainColor);
     root.style.setProperty('--tos-green', mainColor); // Use selected color for all green references

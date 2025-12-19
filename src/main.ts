@@ -13308,8 +13308,14 @@ class TempleOS {
 
     const prevScroll = (winEl.querySelector('.system-monitor-processes') as HTMLElement | null)?.scrollTop ?? 0;
     winEl.innerHTML = content;
-    const nextScrollEl = winEl.querySelector('.system-monitor-processes') as HTMLElement | null;
-    if (nextScrollEl) nextScrollEl.scrollTop = prevScroll;
+
+    // Use requestAnimationFrame to ensure DOM is updated before restoring scroll
+    requestAnimationFrame(() => {
+      const nextScrollEl = winEl.querySelector('.system-monitor-processes') as HTMLElement | null;
+      if (nextScrollEl && prevScroll > 0) {
+        nextScrollEl.scrollTop = prevScroll;
+      }
+    });
   }
 
   private async refreshSystemMonitorData(force = false): Promise<void> {
@@ -15155,15 +15161,15 @@ class TempleOS {
         break;
       case 'about':
         response = `
-<div class="terminal-line gold">â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—</div>
+<div class="terminal-line gold">â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—</div>
 <div class="terminal-line gold">â•‘          T E M P L E   O S             â•‘</div>
-<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
+<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
 <div class="terminal-line">â•‘  God's Operating System                â•‘</div>
 <div class="terminal-line">â•‘  Written in HolyC - God's Language     â•‘</div>
 <div class="terminal-line">â•‘  In memory of Terry A. Davis           â•‘</div>
-<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
+<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
 <div class="terminal-line system">â•‘  Remake by Giangero Studio             â•‘</div>
-<div class="terminal-line gold">â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•</div>`;
+<div class="terminal-line gold">â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•</div>`;
         break;
       default:
         if (cmd) {
@@ -15442,8 +15448,7 @@ class TempleOS {
         }
       },
       { divider: true },
-      { label: 'Task Manager', action: () => this.openApp('system-monitor') },
-      { label: 'Taskbar Settings', action: () => this.openApp('settings') }
+      { label: 'Task Manager', action: () => this.openApp('system-monitor') }
     ]);
   }
 }

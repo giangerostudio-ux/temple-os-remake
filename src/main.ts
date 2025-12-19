@@ -152,7 +152,8 @@ declare global {
       // App Discovery (Start Menu)
       getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[]; unsupported?: boolean; error?: string }>;
       launchApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
-      uninstallApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
+      uninstallApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string; needsPassword?: boolean }>;
+      uninstallAppWithPassword?: (app: InstalledApp, password: string) => Promise<{ success: boolean; error?: string; wrongPassword?: boolean }>;
       onAppsChanged?: (callback: (payload: { reason?: string }) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
@@ -3482,7 +3483,41 @@ class TempleOS {
     if (!confirmed) return;
 
     try {
-      const result = await window.electronAPI.uninstallApp(app);
+      let result = await window.electronAPI.uninstallApp(app);
+
+      if (!result?.success && (result as any)?.needsPassword) {
+        if (!window.electronAPI?.uninstallAppWithPassword) {
+          this.showNotification('Apps', 'Uninstall requires administrator privileges, but password prompt is not available.', 'warning');
+          return;
+        }
+
+        const password = await this.openPromptModal({
+          title: 'Administrator Password',
+          message: 'Uninstall requires administrator privileges. Enter your system password:',
+          inputLabel: 'Password',
+          placeholder: 'sudo password',
+          password: true,
+          confirmText: 'Uninstall',
+          cancelText: 'Cancel'
+        });
+
+        if (!password) {
+          this.showNotification('Apps', 'Uninstall cancelled.', 'info');
+          return;
+        }
+
+        const retry = await window.electronAPI.uninstallAppWithPassword(app, password);
+        if (!retry?.success) {
+          if ((retry as any)?.wrongPassword) {
+            this.showNotification('Apps', 'Wrong password.', 'error');
+            return;
+          }
+          this.showNotification('Apps', (retry as any)?.error || 'Failed to uninstall app', 'error');
+          return;
+        }
+
+        result = { success: true };
+      }
 
       if (result?.success) {
         this.showNotification('Apps', `${app.name} uninstalled successfully`, 'info');

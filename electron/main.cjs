@@ -2041,6 +2041,63 @@ async function runPrivilegedSh(command, options = {}) {
     return await execAsync(`${prefix} sh -lc ${shQuote(command)}`, { timeout });
 }
 
+function isPrivilegeErrorMessage(msg) {
+    const m = String(msg || '');
+    return /request dismissed|not authorized|authentication|permission denied|privilege|sudo: a password is required|no tty present|polkit|pkexec/i.test(m);
+}
+
+async function runSudoShWithPassword(command, password, options = {}) {
+    const timeout = typeof options.timeout === 'number' ? options.timeout : 120000;
+    if (!(await hasCommand('sudo'))) return { error: new Error('sudo not available'), stdout: '', stderr: '' };
+
+    return await new Promise((resolve) => {
+        let settled = false;
+        let stdout = '';
+        let stderr = '';
+
+        const child = spawn('sudo', ['-S', '-p', '', 'sh', '-lc', String(command || '')], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: { ...process.env, SUDO_PROMPT: '' }
+        });
+
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            try { child.kill('SIGTERM'); } catch { }
+            resolve({ error: new Error('Command timed out'), stdout, stderr });
+        }, timeout);
+
+        child.stdout.on('data', (d) => { stdout += d.toString(); });
+        child.stderr.on('data', (d) => { stderr += d.toString(); });
+
+        child.on('error', (e) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve({ error: e, stdout, stderr });
+        });
+
+        child.on('close', (code) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (code === 0) {
+                resolve({ error: null, stdout, stderr });
+                return;
+            }
+            const wrongPassword = /sorry, try again|incorrect password/i.test(stderr);
+            resolve({ error: new Error(`sudo exited ${code}`), stdout, stderr, wrongPassword });
+        });
+
+        try {
+            child.stdin.write(String(password || '') + '\n');
+            child.stdin.end();
+        } catch {
+            // ignore
+        }
+    });
+}
+
 async function getSshServiceName() {
     if (!(await hasCommand('systemctl'))) return null;
     const candidates = ['ssh', 'sshd', 'ssh.service', 'sshd.service'];
@@ -3700,14 +3757,10 @@ ipcMain.handle('apps:launch', async (event, app) => {
 });
 
 // Uninstall an application
-ipcMain.handle('apps:uninstall', async (event, app) => {
-    if (process.platform !== 'linux') {
-        return { success: false, error: 'Uninstalling apps is only supported on Linux' };
-    }
-
+async function uninstallAppInternal(app, sudoPassword) {
     try {
         // Safety check: Ensure we have a desktopFile path
-        if (!app.desktopFile || typeof app.desktopFile !== 'string') {
+        if (!app || !app.desktopFile || typeof app.desktopFile !== 'string') {
             return { success: false, error: 'Cannot uninstall: No desktop file specified' };
         }
 
@@ -3731,14 +3784,14 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
             return { success: false, error: 'Cannot uninstall: Unsupported launcher location' };
         }
 
-        // Check if file exists before attempting to delete
+        // Check if file exists before attempting to uninstall
         try {
             await fs.promises.access(filePath, fs.constants.F_OK);
         } catch {
             return { success: false, error: 'Desktop file not found' };
         }
 
-        // Read desktop file to detect Flatpak apps (so we can actually uninstall, not just hide).
+        // Read desktop file (used for Flatpak/Snap detection + IDs)
         let content = '';
         try {
             content = await fs.promises.readFile(filePath, 'utf-8');
@@ -3779,30 +3832,30 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
                 return { success: false, error: 'Cannot uninstall: Invalid Snap package name' };
             }
 
-            const baseline = getSnapBaselineSet();
             const protectedSnaps = getSnapProtectedSet();
-
             if (protectedSnaps.has(snapName)) {
                 return { success: false, error: 'Cannot uninstall: Protected system Snap package' };
             }
 
-            // If a baseline is configured, enforce it. If not, allow uninstalling non-protected snaps.
+            const baseline = getSnapBaselineSet();
             if (baseline && baseline.has(snapName)) {
                 return { success: false, error: 'Cannot uninstall: This Snap app is part of the system baseline' };
             }
 
-            const res = await runPrivilegedSh(`snap remove --purge ${snapName}`, { timeout: 10 * 60 * 1000 });
-            if (res.error) {
-                const msg = String((res.stderr || '').trim() || (res.stdout || '').trim() || res.error.message || 'Snap uninstall failed');
-                if (/not authorized|authentication|permission|sudo|pkexec/i.test(msg)) {
-                    return { success: false, error: 'Administrator authentication failed or was cancelled.' };
-                }
-                return { success: false, error: msg.substring(0, 300) };
-            }
+            const cmd = `snap remove --purge ${snapName}`;
+            const res = sudoPassword
+                ? await runSudoShWithPassword(cmd, sudoPassword, { timeout: 10 * 60 * 1000 })
+                : await runPrivilegedSh(cmd, { timeout: 10 * 60 * 1000 });
 
-            // Snap should remove the desktop file, but clean up if it's still there.
-            if (inSnapLaunchers) {
-                try { await fs.promises.unlink(filePath); } catch { }
+            const msg = String((res && (res.stderr || res.stdout)) || (res && res.error && res.error.message) || '').trim();
+            if (res && res.error) {
+                if (!sudoPassword && isPrivilegeErrorMessage(msg)) {
+                    return { success: false, needsPassword: true, error: 'Administrator password required' };
+                }
+                if (sudoPassword && res.wrongPassword) {
+                    return { success: false, wrongPassword: true, error: 'Wrong password' };
+                }
+                return { success: false, error: msg || 'Snap uninstall failed' };
             }
         } else if (inSystemLaunchers) {
             // System launcher: attempt safe APT uninstall (only for non-baseline, non-protected packages).
@@ -3844,7 +3897,6 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
                     return { success: false, error: 'Cannot uninstall: This package does not appear to be user-installed' };
                 }
             } else if (manualSet && !manualSet.has(meta.name)) {
-                // With a baseline present, we can still allow removal, but keep this as an extra safety gate.
                 return { success: false, error: 'Cannot uninstall: This package does not appear to be user-installed' };
             }
 
@@ -3857,16 +3909,24 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
             const aptBin = (await hasCommand('apt-get')) ? 'apt-get' : 'apt';
             const removeCmd = `DEBIAN_FRONTEND=noninteractive ${aptBin} remove -y ${meta.name}`;
             const autoremoveCmd = `DEBIAN_FRONTEND=noninteractive ${aptBin} autoremove -y`;
-            const res = await runPrivilegedSh(`${removeCmd} && ${autoremoveCmd}`, { timeout: 10 * 60 * 1000 });
-            if (res.error) {
-                const msg = String((res.stderr || '').trim() || (res.stdout || '').trim() || res.error.message || 'APT uninstall failed');
+            const fullCmd = `${removeCmd} && ${autoremoveCmd}`;
+
+            const res = sudoPassword
+                ? await runSudoShWithPassword(fullCmd, sudoPassword, { timeout: 10 * 60 * 1000 })
+                : await runPrivilegedSh(fullCmd, { timeout: 10 * 60 * 1000 });
+
+            const msg = String((res && (res.stderr || res.stdout)) || (res && res.error && res.error.message) || '').trim();
+            if (res && res.error) {
+                if (!sudoPassword && isPrivilegeErrorMessage(msg)) {
+                    return { success: false, needsPassword: true, error: 'Administrator password required' };
+                }
+                if (sudoPassword && res.wrongPassword) {
+                    return { success: false, wrongPassword: true, error: 'Wrong password' };
+                }
                 if (/could not get lock|unable to acquire the dpkg frontend lock|is another process using it/i.test(msg)) {
                     return { success: false, error: 'Another package manager is running. Close it and try again.' };
                 }
-                if (/not authorized|authentication|permission|sudo|pkexec/i.test(msg)) {
-                    return { success: false, error: 'Administrator authentication failed or was cancelled.' };
-                }
-                return { success: false, error: msg.substring(0, 300) };
+                return { success: false, error: msg.substring(0, 300) || 'APT uninstall failed' };
             }
         } else {
             // Remove just the user-owned launcher entry (for AppImages/manual installs/etc.)
@@ -3878,8 +3938,28 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
 
         return { success: true };
     } catch (error) {
-        return { success: false, error: error.message || 'Failed to uninstall app' };
+        return { success: false, error: (error && error.message) ? error.message : String(error) };
     }
+}
+
+ipcMain.handle('apps:uninstall', async (event, app) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Uninstalling apps is only supported on Linux' };
+    }
+
+    return await uninstallAppInternal(app, null);
+});
+
+ipcMain.handle('apps:uninstallWithPassword', async (event, payload) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Uninstalling apps is only supported on Linux' };
+    }
+    const appObj = payload && payload.app ? payload.app : null;
+    const password = payload && typeof payload.password === 'string' ? payload.password : '';
+    if (!password || password.length > 512) {
+        return { success: false, wrongPassword: true, error: 'Invalid password' };
+    }
+    return await uninstallAppInternal(appObj, password);
 });
 
 // ============================================

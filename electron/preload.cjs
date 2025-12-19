@@ -175,6 +175,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getInstalledApps: () => ipcRenderer.invoke('apps:getInstalled'),
     launchApp: (app) => ipcRenderer.invoke('apps:launch', app),
     uninstallApp: (app) => ipcRenderer.invoke('apps:uninstall', app),
+    uninstallAppWithPassword: (app, password) => ipcRenderer.invoke('apps:uninstallWithPassword', { app, password }),
     onAppsChanged: (callback) => {
         const handler = (event, payload) => callback(payload);
         ipcRenderer.on('apps:changed', handler);

@@ -4454,6 +4454,31 @@ class TempleOS {
     app.dataset.listenersAttached = 'true';
 
     // ============================================
+    // MODAL INPUT LISTENER
+    // ============================================
+    // Fix for prompting where re-renders wipe input (e.g. Godly Notes rename)
+    app.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target && target.matches('.modal-input') && this.modal) {
+        this.modal.inputValue = target.value;
+      }
+    });
+
+    // Handle Enter key in modal input
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && this.modal) {
+        const input = document.querySelector('.modal-input') as HTMLInputElement | null;
+        if (input && document.activeElement === input) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (this.modal.type === 'prompt') this.closeModal(this.modal.inputValue ?? '');
+          else if (this.modal.type === 'confirm') this.closeModal(true);
+          else this.closeModal(undefined);
+        }
+      }
+    });
+
+    // ============================================
     // DESKTOP ICONS DRAG & DROP
     // ============================================
     app.addEventListener('mousedown', (e) => {

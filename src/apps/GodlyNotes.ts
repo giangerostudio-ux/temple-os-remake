@@ -290,7 +290,7 @@ export class GodlyNotes {
                         </select>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                         <button onclick="window.deleteBoardPrompt('${board.id}')" title="Delete Board" style="background: transparent; border: 1px solid #ff6464; color: #ff6464; border-radius: 4px; padding: 4px 8px; cursor: pointer;">🗑️</button>
+                         <button onclick="window.deleteBoardPrompt('${board.id}')" title="Delete Board" style="background: transparent; border: 1px solid #ff6464; color: #ff6464; border-radius: 4px; padding: 0 8px; cursor: pointer; font-size: 18px; line-height: 1.2; height: 28px;">×</button>
                     </div>
                 </div>
 
@@ -364,7 +364,7 @@ export class GodlyNotes {
 
                 <button class="kanban-delete-card" data-card-id="${card.id}" data-col-id="${listId}"
                         onclick="event.stopPropagation(); window.deleteNoteCard('${listId}', '${card.id}')"
-                        style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: #8b949e; cursor: pointer; opacity: 0; transition: opacity 0.2s;">🗑️</button>
+                        style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: #8b949e; cursor: pointer; opacity: 0; transition: opacity 0.2s; font-size: 18px; line-height: 1;">×</button>
             </div>
         `;
     }

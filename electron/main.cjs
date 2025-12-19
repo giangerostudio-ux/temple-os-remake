@@ -3276,9 +3276,27 @@ ipcMain.handle('security:getTorStatus', async () => {
     const status = await execAsync('systemctl is-active tor 2>/dev/null');
     const running = status.stdout.trim() === 'active';
 
-    // Check if Tor is installed
-    const installed = await execAsync('which tor 2>/dev/null');
-    const isInstalled = !installed.error && installed.stdout.trim().length > 0;
+    // Check if Tor is installed - check common paths directly
+    let isInstalled = false;
+    const commonPaths = ['/usr/bin/tor', '/usr/sbin/tor', '/bin/tor', '/sbin/tor'];
+
+    // First try 'which' (or 'command -v' which is more standard)
+    const whichCheck = await execAsync('command -v tor 2>/dev/null');
+    if (!whichCheck.error && whichCheck.stdout.trim().length > 0) {
+        isInstalled = true;
+    } else {
+        // Fallback: check file existence manually
+        for (const p of commonPaths) {
+            try {
+                await fs.promises.access(p, fs.constants.X_OK);
+                isInstalled = true;
+                break;
+            } catch { }
+        }
+    }
+
+    // Debug logging
+    console.log(`[Security] Tor check: running=${running}, installed=${isInstalled}`);
 
     return { success: true, running, installed: isInstalled };
 });

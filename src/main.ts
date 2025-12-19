@@ -515,7 +515,7 @@ class TempleOS {
   // Firewall Rules (Tier 7.2)
   private firewallRules: FirewallRule[] = [];
   private firewallRulesLoading = false;
-  private macRandomization = false;
+  private macRandomization = localStorage.getItem('temple_mac_randomization') !== 'false';
   private torEnabled = false;
   private torDaemonRunning = false;
   private secureDelete = false;
@@ -615,7 +615,7 @@ class TempleOS {
   private liteMode = localStorage.getItem('temple_lite_mode') === 'true';
   private quoteNotifications = localStorage.getItem('temple_quote_notifications') !== 'false'; // Default true
   private secureWipeOnShutdown = localStorage.getItem('temple_secure_wipe') !== 'false'; // Default true
-  private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
+  // Duplicate usage removed
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
   private heavenlyPulse = true; // Default enabled
   private heavenlyPulseIntensity = parseFloat(localStorage.getItem('temple_pulse_intensity') || '0.20'); // 0.03 to 0.70
@@ -4665,8 +4665,8 @@ class TempleOS {
           this.trackerBlockingEnabled = !this.trackerBlockingEnabled;
           localStorage.setItem('temple_tracker_blocking', String(this.trackerBlockingEnabled));
         } else if (setting === 'mac-randomization') {
-          this.macRandomizationEnabled = !this.macRandomizationEnabled;
-          localStorage.setItem('temple_mac_randomization', String(this.macRandomizationEnabled));
+          this.macRandomization = !this.macRandomization;
+          localStorage.setItem('temple_mac_randomization', String(this.macRandomization));
         }
         this.render();
       }
@@ -4797,6 +4797,25 @@ class TempleOS {
     // Resolution Dropdown Change
     app.addEventListener('change', (e) => {
       const accTarget = e.target as HTMLInputElement;
+
+      // Security Settings Toggles
+      if (accTarget.matches('.sec-toggle')) {
+        const key = accTarget.dataset.secKey;
+        const checked = accTarget.checked;
+        if (key === 'mac') {
+          this.macRandomization = checked;
+          localStorage.setItem('temple_mac_randomization', String(this.macRandomization));
+        } else if (key === 'tracker-blocking') {
+          this.trackerBlockingEnabled = checked;
+          localStorage.setItem('temple_tracker_blocking', String(this.trackerBlockingEnabled));
+        } else if (key === 'encryption') {
+          this.encryptionEnabled = checked;
+          // Encryption usually requires more logic (like running a command), but for the UI toggle:
+          // Note: Encryption might need backend calls, but updating state here is a start.
+        }
+        this.refreshSettingsWindow();
+      }
+
       if (accTarget.matches('.high-contrast-toggle')) {
         this.highContrast = accTarget.checked;
         this.applyTheme();

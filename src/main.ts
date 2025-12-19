@@ -1917,7 +1917,11 @@ class TempleOS {
         }
       }
 
-      const style = `position: absolute; left: ${x}px; top: ${y}px;`;
+      // Adjust y position when taskbar is at top to prevent overlap
+      const taskbarOffset = this.taskbarPosition === 'top' ? 60 : 0; // 50px taskbar + 10px padding
+      const finalY = y + taskbarOffset;
+
+      const style = `position: absolute; left: ${x}px; top: ${finalY}px;`;
       const appAttr = icon.isShortcut ? `data-launch-key="${escapeHtml(icon.key)}"` : `data-app="${escapeHtml(icon.id)}"`;
 
       return `
@@ -2014,7 +2018,11 @@ class TempleOS {
       // Only save position if icon was actually dragged
       if (hasMoved) {
         const x = parseInt(iconEl.style.left || '0', 10);
-        const y = parseInt(iconEl.style.top || '0', 10);
+        let y = parseInt(iconEl.style.top || '0', 10);
+
+        // Remove taskbar offset before saving (positions are stored relative to desktop, not viewport)
+        const taskbarOffset = this.taskbarPosition === 'top' ? 60 : 0;
+        y -= taskbarOffset;
 
         this.desktopIconPositions[key] = { x, y };
         localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));

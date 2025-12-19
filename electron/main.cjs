@@ -3377,6 +3377,141 @@ function broadcastAppsChanged(payload) {
     }
 }
 
+// ============================================
+// APT UNINSTALL SUPPORT (safe-by-default)
+// ============================================
+const aptBaselinePath = path.join(__dirname, 'apt-baseline.json');
+const aptProtectedPath = path.join(__dirname, 'apt-protected.json');
+
+let cachedAptBaselineSet = undefined; // Set<string> | null
+let cachedAptProtectedSet = undefined; // Set<string>
+let cachedAptManualSet = null; // Set<string> | null
+let cachedAptManualAt = 0;
+
+const defaultProtectedAptPackages = new Set([
+    // Desktop/session + critical runtime
+    'templeos',
+    'electron',
+    'nodejs',
+    'npm',
+    'systemd',
+    'dbus',
+    'policykit-1',
+    'polkitd',
+    'pkexec',
+    'sudo',
+    'bash',
+    'dash',
+    'coreutils',
+    'util-linux',
+    'mount',
+    'login',
+
+    // Display stack / desktop meta packages (very easy to brick by removing)
+    'xorg',
+    'xserver-xorg',
+    'xserver-xorg-core',
+    'x11-common',
+    'gdm3',
+    'lightdm',
+    'sddm',
+    'ubuntu-desktop',
+    'kubuntu-desktop',
+    'xubuntu-desktop',
+    'lubuntu-desktop',
+    'gnome-shell',
+    'gnome-session',
+    'plasma-desktop',
+
+    // Networking basics
+    'network-manager',
+    'netplan.io',
+    'openssh-server',
+]);
+
+function normalizeAptPackageName(pkg) {
+    return String(pkg || '').trim().toLowerCase().split(':')[0];
+}
+
+function getAptBaselineSet() {
+    if (cachedAptBaselineSet !== undefined) return cachedAptBaselineSet;
+    const baseline = readJsonArrayFile(aptBaselinePath);
+    if (!baseline) {
+        cachedAptBaselineSet = null;
+        return cachedAptBaselineSet;
+    }
+    cachedAptBaselineSet = new Set(baseline.map(normalizeAptPackageName));
+    return cachedAptBaselineSet;
+}
+
+function getAptProtectedSet() {
+    if (cachedAptProtectedSet !== undefined) return cachedAptProtectedSet;
+    const fromFile = readJsonArrayFile(aptProtectedPath);
+    const merged = new Set(defaultProtectedAptPackages);
+    if (Array.isArray(fromFile)) {
+        for (const p of fromFile) merged.add(normalizeAptPackageName(p));
+    }
+    cachedAptProtectedSet = merged;
+    return cachedAptProtectedSet;
+}
+
+async function getAptManualSet() {
+    const now = Date.now();
+    if (cachedAptManualSet && (now - cachedAptManualAt) < 60_000) return cachedAptManualSet;
+    if (!(await hasCommand('apt-mark'))) {
+        cachedAptManualSet = null;
+        cachedAptManualAt = now;
+        return cachedAptManualSet;
+    }
+    const res = await execAsync('apt-mark showmanual 2>/dev/null', { timeout: 8000 });
+    if (res.error) {
+        cachedAptManualSet = null;
+        cachedAptManualAt = now;
+        return cachedAptManualSet;
+    }
+    const set = new Set(String(res.stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(normalizeAptPackageName));
+    cachedAptManualSet = set;
+    cachedAptManualAt = now;
+    return cachedAptManualSet;
+}
+
+function parseDpkgQuerySearchOutput(stdout) {
+    const pkgs = [];
+    for (const line of String(stdout || '').split(/\r?\n/)) {
+        const t = line.trim();
+        if (!t) continue;
+        const idx = t.indexOf(':');
+        if (idx <= 0) continue;
+        const pkgField = t.slice(0, idx).trim();
+        // dpkg-query -S may output multiarch as "pkg:amd64: /path"
+        const base = normalizeAptPackageName(pkgField);
+        if (base) pkgs.push(base);
+    }
+    return pkgs;
+}
+
+async function getAptPackageOwningFile(filePath) {
+    if (!(await hasCommand('dpkg-query'))) return null;
+    const p = String(filePath || '');
+    if (!p || !path.isAbsolute(p)) return null;
+    const res = await execAsync(`dpkg-query -S ${shQuote(p)} 2>/dev/null`, { timeout: 4000 });
+    if (res.error) return null;
+    const pkgs = parseDpkgQuerySearchOutput(res.stdout);
+    return pkgs.length ? pkgs[0] : null;
+}
+
+async function getDpkgPackageMeta(pkg) {
+    const safe = normalizeAptPackageName(pkg);
+    if (!safe || !/^[a-z0-9][a-z0-9+.-]*$/.test(safe)) return null;
+    if (!(await hasCommand('dpkg-query'))) return null;
+    const cmd = "dpkg-query -W -f='${Package}\\t${Essential}\\t${Priority}\\t${Status}\\n' " + safe + " 2>/dev/null";
+    const res = await execAsync(cmd, { timeout: 4000 });
+    if (res.error) return null;
+    const line = String(res.stdout || '').trim();
+    const [name, essential, priority, status] = line.split('\t');
+    return { name: normalizeAptPackageName(name), essential: String(essential || '').trim(), priority: String(priority || '').trim(), status: String(status || '').trim() };
+}
+
 async function refreshInstalledAppsCache(reason) {
     if (installedAppsScanPromise) return installedAppsScanPromise;
     installedAppsScanPromise = (async () => {

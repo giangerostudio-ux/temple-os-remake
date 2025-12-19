@@ -182,6 +182,7 @@ export class SystemMonitorEnhancer {
     }
 
     const cpuUsage = stats.cpuPercent !== null ? stats.cpuPercent.toFixed(1) : 'N/A';
+    const cpuPercent = stats.cpuPercent !== null ? stats.cpuPercent : 0;
     const memUsedGB = stats.memory.used / (1024 ** 3);
     const memTotalGB = stats.memory.total / (1024 ** 3);
     const memPercent = (stats.memory.used / stats.memory.total) * 100;
@@ -204,17 +205,17 @@ export class SystemMonitorEnhancer {
           </div>
         </div>
 
-        <!-- CPU Graph -->
+        <!-- CPU Usage (no graph, just bar like Memory/Disk) -->
         <div style="padding: 10px; background: rgba(0,255,65,0.05); border: 1px solid rgba(0,255,65,0.2); border-radius: 4px;">
-          <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px;">
-            💻 CPU Usage: ${cpuUsage}%
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px;">
+            <span style="font-weight: bold;">💻 CPU</span>
+            <span>${cpuUsage}%</span>
           </div>
-          <canvas 
-            id="cpu-graph-canvas" 
-            width="600" 
-            height="120" 
-            style="width: 100%; height: 120px; background: #000; border: 1px solid rgba(0,255,65,0.3); border-radius: 2px;">
-          </canvas>
+          <div style="height: 20px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); border-radius: 2px; overflow: hidden;">
+            <div style="height: 100%; width: ${cpuPercent}%; background: #00ff41; transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #000;">
+              ${cpuUsage}%
+            </div>
+          </div>
         </div>
 
         <!-- Memory -->

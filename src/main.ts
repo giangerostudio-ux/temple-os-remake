@@ -13306,14 +13306,18 @@ class TempleOS {
       return;
     }
 
-    const prevScroll = (winEl.querySelector('.system-monitor-processes') as HTMLElement | null)?.scrollTop ?? 0;
+    // The scrollable container is the FIRST div inside system-monitor with overflow:auto
+    // Not the .system-monitor-processes div itself
+    const scrollContainer = winEl.querySelector('.system-monitor > div[style*="overflow"]') as HTMLElement | null;
+    const prevScroll = scrollContainer?.scrollTop ?? 0;
+
     winEl.innerHTML = content;
 
     // Use requestAnimationFrame to ensure DOM is updated before restoring scroll
     requestAnimationFrame(() => {
-      const nextScrollEl = winEl.querySelector('.system-monitor-processes') as HTMLElement | null;
-      if (nextScrollEl && prevScroll > 0) {
-        nextScrollEl.scrollTop = prevScroll;
+      const newScrollContainer = winEl.querySelector('.system-monitor > div[style*="overflow"]') as HTMLElement | null;
+      if (newScrollContainer && prevScroll > 0) {
+        newScrollContainer.scrollTop = prevScroll;
       }
     });
   }

@@ -13320,7 +13320,12 @@ class TempleOS {
       // Replace placeholders with the preserved hosts where possible
       for (const [id, host] of hostMap) {
         const placeholder = contentEl.querySelector(`#${CSS.escape(id)}`) as HTMLElement | null;
-        if (placeholder) placeholder.replaceWith(host);
+        if (placeholder) {
+          // Copy classes from placeholder (which has the correct pane-primary/pane-secondary)
+          // to the preserved host before replacing
+          host.className = placeholder.className;
+          placeholder.replaceWith(host);
+        }
       }
 
       // Init any newly created panes and refit visible terminals

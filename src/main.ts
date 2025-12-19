@@ -2184,17 +2184,17 @@ class TempleOS {
     ].filter(Boolean).join(' ');
 
     return `
-      < div id = "start-menu-container" > ${this.renderStartMenu()} </div>
-        < div class="taskbar ${extraClasses}" oncontextmenu = "window.appInstance.showTaskbarContextMenu(event); return false;" >
-          <button class="start-btn ${this.showStartMenu ? 'active' : ''}" > TEMPLE </button>
-        ${this.renderWorkspaceSwitcher()}
-    <div class="taskbar-apps" >
-      ${this.renderTaskbarAppsHtml()}
-    </div>
-      < div class="taskbar-tray" >
+    <div id="start-menu-container">${this.renderStartMenu()}</div>
+    <div class="taskbar ${extraClasses}" oncontextmenu="window.appInstance.showTaskbarContextMenu(event); return false;">
+      <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
+      ${this.renderWorkspaceSwitcher()}
+      <div class="taskbar-apps">
+        ${this.renderTaskbarAppsHtml()}
+      </div>
+      <div class="taskbar-tray">
         ${this.getTrayHTML()}
-    </div>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   private renderWorkspaceSwitcher(): string {

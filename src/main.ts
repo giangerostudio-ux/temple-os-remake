@@ -588,7 +588,7 @@ class TempleOS {
   // Desktop Settings (Tier 9.2)
   private desktopWidgetsEnabled = localStorage.getItem('temple_desktop_widgets') === 'true';
   private desktopIconSize: 'small' | 'medium' | 'large' = (localStorage.getItem('temple_desktop_icon_size') as any) || 'medium';
-  private desktopAutoArrange = localStorage.getItem('temple_desktop_auto_arrange') !== 'false'; // Default true
+  private desktopAutoArrange = localStorage.getItem('temple_desktop_auto_arrange') === 'true'; // Default false - icons can be dragged
 
   // Theme System (Tier 9.4)
   private themeColor: 'green' | 'amber' | 'cyan' | 'white' = (localStorage.getItem('temple_theme_color') as any) || 'green';

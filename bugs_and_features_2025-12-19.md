@@ -22,11 +22,26 @@ When right clicking on the task bar below right now and you click task manager s
 - Search/filter processes
 - Sort by name/PID/CPU/Memory
 
-### 2. No Easy Way to Uninstall Apps
+### 2. ✅ FIXED - No Easy Way to Uninstall Apps
 An easy way to uninstall apps you downloaded like in windows. Also they should not be able to uninstall the system apps we give them - please make sure they can't uninstall those accidentally through this new interface.
 
-### 3. Cannot Move Desktop Icons
+**SOLUTION IMPLEMENTED:**
+- ✅ Added right-click context menu option "Uninstall" for user-installed apps in Start Menu and App Launcher
+- ✅ Backend API implemented to safely delete .desktop files from user directories
+- ✅ Safety checks prevent uninstalling system apps (only allows uninstalling from ~/. local/share/applications/)
+- ✅ App list automatically refreshes after successful uninstallation
+- ✅ Error handling and user notifications for uninstall operations
+
+### 3. ✅ FIXED - Cannot Move Desktop Icons
 You cannot move desktop icons in the desktop around. How to implement that?
+
+**SOLUTION IMPLEMENTED:**
+- ✅ Changed default state of `desktopAutoArrange` from `true` to `false`
+- ✅ Desktop icons can now be freely dragged and repositioned with the mouse
+- ✅ Drag & drop event handlers already implemented - just needed to disable auto-arrange by default
+- ✅ Icon positions are saved to localStorage for persistence across sessions
+- ✅ Users can still enable auto-arrange via desktop right-click context menu if desired
+- ✅ Smooth drag animation with visual feedback (opacity, scale, shadow)
 
 ### 4. Time Display Seconds Flickering
 Fix when clicking on time it keeps hiding the seconds for a second then goes back showing the seconds.
@@ -40,3 +55,12 @@ When clicking options with right click context menu like for example settings or
 ### 7. Lock Screen Issues
 - When u are in lockscreen the restart and shutdown buttons go off below the screen on the pin tab.
 - When you launch ur computer it skips the password or pin even though we have a password enabled it skips through the lockscreen - that should not be happening.
+
+### 8. Taskbar "Enable Transparency" Button Not Working
+The "Enable Transparency" button in the taskbar right-click context menu doesn't work.
+
+### 9. Taskbar "Auto-Hide" Toggle Not Working  
+The "Disable Auto-Hide" / "Enable Auto-Hide" button in the taskbar right-click context menu doesn't work.
+
+### 10. Desktop Icons Overlap When Taskbar Moved to Top
+When you move the taskbar to the top, the desktop icons don't get pushed down and they overlap with the taskbar.

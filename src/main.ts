@@ -149,6 +149,7 @@ declare global {
       // App Discovery (Start Menu)
       getInstalledApps: () => Promise<{ success: boolean; apps: InstalledApp[] }>;
       launchApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
+      uninstallApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string }>;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -3021,6 +3022,48 @@ class TempleOS {
       console.error('Error loading installed apps:', error);
       this.installedApps = [];
       this.installedAppsUnsupported = true;
+    }
+  }
+
+  private canUninstallApp(app: InstalledApp): boolean {
+    // Only user-installed apps (in .local directory) can be uninstalled
+    // System apps in /usr/share/applications should NOT be removed
+    return !!app.desktopFile && app.desktopFile.includes('.local/share/applications');
+  }
+
+  private async uninstallApp(app: InstalledApp): Promise<void> {
+    if (!window.electronAPI?.uninstallApp) {
+      this.showNotification('Apps', 'Uninstall feature not available', 'warning');
+      return;
+    }
+
+    if (!this.canUninstallApp(app)) {
+      this.showNotification('Apps', 'Cannot uninstall system apps', 'warning');
+      return;
+    }
+
+    const confirmed = await this.openConfirmModal({
+      title: 'Uninstall App',
+      message: `Are you sure you want to uninstall "${app.name}"? This will remove the application from your system.`,
+      confirmText: 'Uninstall',
+      cancelText: 'Cancel'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const result = await window.electronAPI.uninstallApp(app);
+
+      if (result?.success) {
+        this.showNotification('Apps', `${app.name} uninstalled successfully`, 'info');
+        // Refresh app list
+        await this.loadInstalledApps();
+        this.render();
+      } else {
+        this.showNotification('Apps', result?.error || 'Failed to uninstall app', 'error');
+      }
+    } catch (error) {
+      this.showNotification('Apps', String(error), 'error');
     }
   }
 
@@ -7556,13 +7599,28 @@ class TempleOS {
             const pinnedStart = this.pinnedStart.includes(key);
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
-            this.showContextMenu(e.clientX, e.clientY, [
+
+            // Check if this is an installed app that can be uninstalled
+            const installedApp = this.findInstalledAppByKey(key);
+            const canUninstall = installedApp && this.canUninstallApp(installedApp);
+
+            const menuItems = [
               { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
               { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
               { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
               { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
-            ]);
+            ];
+
+            // Add uninstall option for user-installed apps
+            if (canUninstall) {
+              menuItems.push(
+                { divider: true },
+                { label: '❌ Uninstall', action: () => this.uninstallApp(installedApp) }
+              );
+            }
+
+            this.showContextMenu(e.clientX, e.clientY, menuItems);
             return;
           }
         }

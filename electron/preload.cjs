@@ -172,4 +172,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ============================================
     getInstalledApps: () => ipcRenderer.invoke('apps:getInstalled'),
     launchApp: (app) => ipcRenderer.invoke('apps:launch', app),
+    uninstallApp: (app) => ipcRenderer.invoke('apps:uninstall', app),
 });

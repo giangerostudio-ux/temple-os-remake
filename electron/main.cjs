@@ -2989,6 +2989,48 @@ ipcMain.handle('apps:launch', async (event, app) => {
     }
 });
 
+// Uninstall an application
+ipcMain.handle('apps:uninstall', async (event, app) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Uninstalling apps is only supported on Linux' };
+    }
+
+    try {
+        // Safety check: Ensure we have a desktopFile path
+        if (!app.desktopFile || typeof app.desktopFile !== 'string') {
+            return { success: false, error: 'Cannot uninstall: No desktop file specified' };
+        }
+
+        const filePath = app.desktopFile;
+
+        // Safety check: Only allow uninstalling user-installed apps (in .local directory)
+        // System apps in /usr/share/applications should NOT be removed
+        if (!filePath.includes('.local/share/applications')) {
+            return { success: false, error: 'Cannot uninstall system apps. Only user-installed apps can be removed.' };
+        }
+
+        // Additional safety: Verify the file path is actually in the user's home directory
+        const userHome = os.homedir();
+        if (!filePath.startsWith(userHome)) {
+            return { success: false, error: 'Cannot uninstall: File is not in user directory' };
+        }
+
+        // Check if file exists before attempting to delete
+        try {
+            await fs.promises.access(filePath, fs.constants.F_OK);
+        } catch {
+            return { success: false, error: 'Desktop file not found' };
+        }
+
+        // Delete the .desktop file
+        await fs.promises.unlink(filePath);
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message || 'Failed to uninstall app' };
+    }
+});
+
 // ============================================
 // HOLY UPDATER IPC
 // ============================================

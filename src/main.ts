@@ -1979,6 +1979,7 @@ class TempleOS {
     if (!key) return;
 
     // Set up potential drag, but don't start dragging yet (wait for mouse move threshold)
+    iconEl.focus();
     this.draggingIcon = {
       key,
       offsetX: e.clientX - rect.left,
@@ -4510,6 +4511,7 @@ class TempleOS {
 
       const desktopIcon = (e.target as HTMLElement).closest('.desktop-icon') as HTMLElement;
       if (desktopIcon) {
+        e.preventDefault(); // Prevent native browser selection ("Blue Bug")
         this.handleIconDragStart(e, desktopIcon);
       }
     });

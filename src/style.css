@@ -50,6 +50,19 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable],
+.selectable,
+.terminal-output,
+.editor-content {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 /* Emoji font support */
@@ -97,6 +110,8 @@ body {
   /* grid-auto-rows: 100px; */
   /* gap: 10px; */
   /* align-content: start; */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Desktop Icons */

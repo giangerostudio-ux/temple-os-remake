@@ -3038,9 +3038,9 @@ ipcMain.handle('updater:check', async () => {
     return new Promise((resolve) => {
         // Check for updates by doing git fetch and comparing
         // On Windows, use 'git fetch' then check rev-list
-        const command = `cd "${projectRoot}" && git fetch origin main && git rev-list HEAD...origin/main --count`;
+        const command = `git fetch origin main && git rev-list HEAD...origin/main --count`;
 
-        exec(command, (error, stdout, stderr) => {
+        exec(command, { cwd: projectRoot }, (error, stdout, stderr) => {
             if (error) {
                 resolve({ success: false, unsupported: true, error: (stderr || '').trim() || error.message || 'Update check failed' });
                 return;
@@ -3060,11 +3060,10 @@ ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
         // Pull updates, install deps, rebuild, and prepare for reboot
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        // Reset local changes (e.g. package-lock.json) before pulling to avoid conflicts
-        const updateScript = `cd "${projectRoot}" && git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
+        // Use current directory (projectRoot) implicitly by setting cwd option
+        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
 
-
-        exec(updateScript, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {
                 resolve({
                     success: false,

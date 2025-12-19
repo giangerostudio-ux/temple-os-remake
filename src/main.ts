@@ -834,16 +834,18 @@ class TempleOS {
 
     // Setup Notification Manager callbacks
     // NOTE: Only update toast container, NOT full render - prevents window flickering
+    // Setup Notification Manager callbacks
+    // OPTIMIZATION: Don't full render on every toast. Only update toast container and tray.
     this.notificationManager.setOnChangeCallback(() => {
       const toastContainer = document.getElementById('toast-container');
       if (toastContainer) {
         toastContainer.innerHTML = this.renderToasts();
       }
-      // Update notification badge in tray
-      const notifTray = document.getElementById('tray-notification');
-      if (notifTray) {
-        const unread = this.notificationManager.getUnreadCount();
-        notifTray.innerHTML = unread > 0 ? `🔔<span class="notif-badge">${unread}</span>` : '🔔';
+
+      // Update tray icon/popup to show unread status
+      const tray = document.querySelector('.taskbar-tray');
+      if (tray) {
+        tray.innerHTML = this.getTrayHTML();
       }
     });
     this.notificationManager.setOnPlaySoundCallback((type) => this.playNotificationSound(type));
@@ -912,9 +914,13 @@ class TempleOS {
     setTimeout(() => this.render(), 2000);
 
     // Memory Optimizer: check usage every 30 seconds
+    // DISABLED: Users reported random refreshes disrupting workflow. 
+    // This mock feature is too aggressive for regular usage.
+    /*
     setInterval(() => {
       this.memoryOptimizer.checkAndClean(90, (title, msg) => this.showNotification(title, msg, 'warning'));
     }, 30000);
+    */
   }
 
   private keepLegacyMethodsReferenced(): void {
@@ -1410,7 +1416,43 @@ class TempleOS {
     // Update Start Menu
     const startMenuContainer = document.getElementById('start-menu-container');
     if (startMenuContainer) {
+      // PRESERVE START MENU STATE (fixes 30s refresh focus loss)
+      let smSearchFocused = false;
+      let smSelectionStart = 0;
+      let smSelectionEnd = 0;
+      let smScrollTop = 0;
+
+      if (this.showStartMenu) {
+        const smInput = startMenuContainer.querySelector('.start-search-input') as HTMLInputElement;
+        if (smInput && document.activeElement === smInput) {
+          smSearchFocused = true;
+          smSelectionStart = smInput.selectionStart || 0;
+          smSelectionEnd = smInput.selectionEnd || 0;
+        }
+        // Result area might be the direct #start-menu-results-area or a child list
+        // We'll check the container itself primarily
+        const smResults = startMenuContainer.querySelector('#start-menu-results-area');
+        if (smResults) {
+          smScrollTop = smResults.scrollTop;
+        }
+      }
+
       startMenuContainer.innerHTML = this.renderStartMenu();
+
+      // RESTORE START MENU STATE
+      if (this.showStartMenu) {
+        const smInput = startMenuContainer.querySelector('.start-search-input') as HTMLInputElement;
+        if (smInput && smSearchFocused) {
+          smInput.focus();
+          try {
+            smInput.setSelectionRange(smSelectionStart, smSelectionEnd);
+          } catch { /* ignore */ }
+        }
+        const smResults = startMenuContainer.querySelector('#start-menu-results-area');
+        if (smResults && smScrollTop > 0) {
+          smResults.scrollTop = smScrollTop;
+        }
+      }
     }
 
     // Update Start Button State

@@ -140,6 +140,7 @@ export interface TempleConfig {
         mainColor: string;
         bgColor: string;
         textColor: string;
+        glowColor?: string;
     }>;
     activeCustomTheme?: string; // name of active custom theme, if any
     currentResolution?: string;
@@ -159,6 +160,7 @@ export interface TempleConfig {
     };
     effects?: {
         jellyMode?: boolean;
+        heavenlyPulse?: boolean;
     };
     network?: {
         vpnKillSwitchEnabled?: boolean;

@@ -622,7 +622,6 @@ class TempleOS {
   private liteMode = localStorage.getItem('temple_lite_mode') === 'true';
   private quoteNotifications = localStorage.getItem('temple_quote_notifications') !== 'false'; // Default true
   private secureWipeOnShutdown = localStorage.getItem('temple_secure_wipe') !== 'false'; // Default true
-  private trackerBlockingEnabled = localStorage.getItem('temple_tracker_blocking') !== 'false'; // Default true
   private macRandomizationEnabled = localStorage.getItem('temple_mac_randomization') !== 'false'; // Default true
   private autoHideTaskbar = localStorage.getItem('temple_autohide_taskbar') === 'true'; // Default false
 

@@ -5225,7 +5225,8 @@ class TempleOS {
     app.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
 
-      // Calculator Logic
+      // Calculator Logic - MOVED to main setupEventListeners block (fix duplicate inputs)
+      /*
       if (target.matches('.calc-btn')) {
         const key = target.dataset.key;
         if (key) {
@@ -5248,6 +5249,7 @@ class TempleOS {
         this.calculator.clearHistory();
         this.render();
       }
+      */
 
       // Notes App Logic
       if (target.matches('[data-note-action]')) {

@@ -1055,6 +1055,9 @@ class TempleOS {
       this.ptySupported = result.success && result.available;
       if (this.ptySupported) {
         console.log('PTY terminal support enabled');
+      } else {
+        console.warn('PTY terminal NOT available - using limited fallback mode');
+        console.warn('To enable full terminal with sudo support, run: ./scripts/setup-terminal.sh');
       }
     }
   }
@@ -10008,9 +10011,9 @@ class TempleOS {
       : (this.terminalBuffer.length > 0
         ? this.terminalBuffer.join('')
         : `
-            <div class="terminal-line system">TempleOS Terminal - Command Line</div>
-            <div class="terminal-line system">Type 'help' for built-ins, or run Linux commands.</div>
-            <div class="terminal-line"></div>
+            <div class="terminal-line gold">TempleOS Terminal - Ready</div>
+            <div class="terminal-line system">CWD: ${escapeHtml(currentTab?.cwd || this.terminalCwd || this.homePath || '/')}</div>
+            <div class="terminal-line system">Tips: cd, ls, pwd, cat, nano (non-interactive), help</div>
           `);
 
     return `

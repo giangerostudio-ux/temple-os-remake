@@ -116,6 +116,8 @@ body {
   width: 100px;
   /* Enforce size */
   height: 100px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .desktop-icon.dragging {

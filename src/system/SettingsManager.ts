@@ -6,7 +6,7 @@ export type SettingsHost = {
   themeMode: 'dark' | 'light';
   themeColor: 'green' | 'amber' | 'cyan' | 'white';
   highContrast: boolean;
-  customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string }>;
+  customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string; glowColor?: string }>;
   activeCustomTheme: string | null;
   volumeLevel: number;
   doNotDisturb: boolean;
@@ -20,6 +20,7 @@ export type SettingsHost = {
 
   // Effects
   jellyMode: boolean;
+  heavenlyPulse: boolean;
 
   // Accessibility
   largeText: boolean;
@@ -90,6 +91,7 @@ export class SettingsManager {
         root.style.setProperty('--main-color', customTheme.mainColor);
         root.style.setProperty('--bg-color', customTheme.bgColor);
         root.style.setProperty('--text-color', customTheme.textColor);
+        root.style.setProperty('--temple-glow-color', customTheme.glowColor || 'var(--accent-gold)');
 
         root.dataset.themeMode = 'custom';
         root.dataset.themeColor = 'custom';
@@ -129,6 +131,11 @@ export class SettingsManager {
     root.style.setProperty('--main-color', mainColor);
     root.style.setProperty('--bg-color', bgColor);
     root.style.setProperty('--text-color', textColor);
+    // Default glow color matches the accent gold, or could match main color if desired.
+    // User asked for customizability, but for built-ins let's stick to gold as the "Heavenly" default
+    // or maybe match the theme color for consistency?
+    // Let's stick to Gold logic from the snippet unless High Contrast.
+    root.style.setProperty('--temple-glow-color', this.host.highContrast ? mainColor : 'var(--accent-gold)');
     // Update all the color variables that the CSS actually uses
     root.style.setProperty('--text-highlight', mainColor);
     root.style.setProperty('--tos-green', mainColor); // Use selected color for all green references
@@ -144,6 +151,14 @@ export class SettingsManager {
     root.dataset.themeMode = this.host.themeMode;
     root.dataset.themeColor = this.host.themeColor;
     root.removeAttribute('data-custom-theme');
+
+    // Handle Heavenly Pulse visibility logic in CSS (via class or just existence)
+    // But we should toggle a class on body or #app to easily hide/show it without removing element
+    if (this.host.heavenlyPulse) {
+      document.body.classList.add('heavenly-pulse-enabled');
+    } else {
+      document.body.classList.remove('heavenly-pulse-enabled');
+    }
 
     // Apply Accessibility
     if (this.host.largeText) {
@@ -227,6 +242,7 @@ export class SettingsManager {
 
     if (cfg.effects) {
       if (typeof cfg.effects.jellyMode === 'boolean') this.host.jellyMode = cfg.effects.jellyMode;
+      if (typeof (cfg.effects as any).heavenlyPulse === 'boolean') this.host.heavenlyPulse = (cfg.effects as any).heavenlyPulse;
     }
 
     if (cfg.network) {
@@ -371,7 +387,8 @@ export class SettingsManager {
       },
 
       effects: {
-        jellyMode: this.host.jellyMode
+        jellyMode: this.host.jellyMode,
+        heavenlyPulse: this.host.heavenlyPulse
       },
 
       network: {

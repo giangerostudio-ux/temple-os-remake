@@ -43,8 +43,15 @@ You cannot move desktop icons in the desktop around. How to implement that?
 - ✅ Users can still enable auto-arrange via desktop right-click context menu if desired
 - ✅ Smooth drag animation with visual feedback (opacity, scale, shadow)
 
-### 4. Time Display Seconds Flickering
+### 4. ✅ FIXED - Time Display Seconds Flickering
 Fix when clicking on time it keeps hiding the seconds for a second then goes back showing the seconds.
+
+**SOLUTION IMPLEMENTED:**
+- ✅ Added `second: '2-digit'` to `formatTime()` method to match `updateClock()` 
+- ✅ Previously `formatTime()` only showed hours:minutes, causing flickering when calendar popup was toggled
+- ✅ `updateClock()` runs every second and updates the DOM with hours:minutes:seconds
+- ✅ When clicking clock, `render()` regenerated HTML with `formatTime()` (no seconds), then `updateClock()` added them back
+- ✅ Now both methods use consistent time format with seconds, eliminating the flicker
 
 ### 5. Desktop Right-Click Options Not Working
 Fix all options when right clicking in the desktop they are not working for example big icons small icons etc sort by options don't do anything.

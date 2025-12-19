@@ -14680,7 +14680,6 @@ class TempleOS {
         <img src="${templeLogo}" class="lock-avatar" draggable="false" alt="TempleOS">
         <div class="lock-brand">
           <div class="lock-brand-title">TEMPLE OS</div>
-          <div class="lock-brand-sub">God's Own Login</div>
         </div>
 
         <div class="lock-clock" id="lock-clock"></div>

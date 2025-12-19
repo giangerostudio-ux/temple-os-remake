@@ -42,6 +42,8 @@ You cannot move desktop icons in the desktop around. How to implement that?
 - ✅ Icon positions are saved to localStorage for persistence across sessions
 - ✅ Users can still enable auto-arrange via desktop right-click context menu if desired
 - ✅ Smooth drag animation with visual feedback (opacity, scale, shadow)
+- ✅ **Update:** Added 5px drag threshold to distinguish clicks from drags - mouse must move >5px before drag starts
+- ✅ This allows icons to be clicked/opened normally while still being draggable
 
 ### 4. ✅ FIXED - Time Display Seconds Flickering
 Fix when clicking on time it keeps hiding the seconds for a second then goes back showing the seconds.

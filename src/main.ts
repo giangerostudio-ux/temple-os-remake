@@ -455,7 +455,7 @@ class TempleOS {
   private lastSelectedIndex = -1; // For Shift+Click range selection
   // Desktop icon positions (Priority 1)
   private desktopIconPositions: Record<string, { x: number; y: number }> = JSON.parse(localStorage.getItem('temple_desktop_icon_positions') || '{}');
-  private draggingIcon: { key: string; offsetX: number; offsetY: number } | null = null;
+  private draggingIcon: { key: string; offsetX: number; offsetY: number; startX: number; startY: number; hasMoved: boolean } | null = null;
 
   // Preview / Quick Look
   private previewFile: { path: string; name: string; type: 'image' | 'text' | 'unknown'; content?: string } | null = null;
@@ -1934,28 +1934,45 @@ class TempleOS {
   private handleIconDragStart(e: MouseEvent, iconEl: HTMLElement): void {
     if (this.desktopAutoArrange) return; // Locked
 
-    // Prevent default drag ghost
-    // e.preventDefault(); // Don't do this here if we want to support other things, but for custom drag it's fine.
-
     const rect = iconEl.getBoundingClientRect();
     const key = iconEl.dataset.launchKey || (iconEl.dataset.app ? `builtin:${iconEl.dataset.app}` : '');
 
     if (!key) return;
 
+    // Set up potential drag, but don't start dragging yet (wait for mouse move threshold)
     this.draggingIcon = {
       key,
       offsetX: e.clientX - rect.left,
-      offsetY: e.clientY - rect.top
+      offsetY: e.clientY - rect.top,
+      startX: e.clientX,
+      startY: e.clientY,
+      hasMoved: false
     };
-
-    iconEl.classList.add('dragging');
-
-    // Bring to front
-    iconEl.style.zIndex = '100';
   }
 
   private handleIconDragMove(e: MouseEvent): void {
     if (!this.draggingIcon) return;
+
+    // Check if mouse has moved beyond threshold (5px) to distinguish drag from click
+    const threshold = 5;
+    const deltaX = Math.abs(e.clientX - this.draggingIcon.startX);
+    const deltaY = Math.abs(e.clientY - this.draggingIcon.startY);
+
+    if (!this.draggingIcon.hasMoved && (deltaX < threshold && deltaY < threshold)) {
+      // Haven't moved enough yet, don't start dragging
+      return;
+    }
+
+    // Mark as moved and start visual drag
+    if (!this.draggingIcon.hasMoved) {
+      this.draggingIcon.hasMoved = true;
+      const iconEl = document.querySelector(`.desktop-icon[data-launch-key="${this.draggingIcon.key}"]`) as HTMLElement
+        || document.querySelector(`.desktop-icon[data-app="${this.draggingIcon.key.replace('builtin:', '')}"]`) as HTMLElement;
+      if (iconEl) {
+        iconEl.classList.add('dragging');
+        iconEl.style.zIndex = '100';
+      }
+    }
 
     const iconEl = document.querySelector(`.desktop-icon[data-launch-key="${this.draggingIcon.key}"]`) as HTMLElement
       || document.querySelector(`.desktop-icon[data-app="${this.draggingIcon.key.replace('builtin:', '')}"]`) as HTMLElement;
@@ -1985,6 +2002,7 @@ class TempleOS {
     if (!this.draggingIcon) return;
 
     const key = this.draggingIcon.key;
+    const hasMoved = this.draggingIcon.hasMoved;
     const iconEl = document.querySelector(`.desktop-icon[data-launch-key="${key}"]`) as HTMLElement
       || document.querySelector(`.desktop-icon[data-app="${key.replace('builtin:', '')}"]`) as HTMLElement;
 
@@ -1992,12 +2010,14 @@ class TempleOS {
       iconEl.classList.remove('dragging');
       iconEl.style.zIndex = '';
 
-      // Save position
-      const x = parseInt(iconEl.style.left || '0', 10);
-      const y = parseInt(iconEl.style.top || '0', 10);
+      // Only save position if icon was actually dragged
+      if (hasMoved) {
+        const x = parseInt(iconEl.style.left || '0', 10);
+        const y = parseInt(iconEl.style.top || '0', 10);
 
-      this.desktopIconPositions[key] = { x, y };
-      localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+        this.desktopIconPositions[key] = { x, y };
+        localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+      }
     }
 
     this.draggingIcon = null;
@@ -6606,7 +6626,10 @@ class TempleOS {
           this.draggingIcon = {
             key: iconKey,
             offsetX: e.clientX,
-            offsetY: e.clientY
+            offsetY: e.clientY,
+            startX: e.clientX,
+            startY: e.clientY,
+            hasMoved: false
           };
         }
 

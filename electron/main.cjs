@@ -33,11 +33,18 @@ let lastNetAt = 0;
 function execAsync(command, options = {}) {
     const timeoutMs = options.timeout || 3000; // Default 3s timeout to prevent hangs in VMs
     return new Promise((resolve) => {
+        let settled = false;
+        let timer = null;
         const child = exec(command, { maxBuffer: 1024 * 1024 * 10, ...options }, (error, stdout, stderr) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
             resolve({ error, stdout: stdout || '', stderr: stderr || '' });
         });
         // Kill process if it takes too long (common with nmcli in VMs without WiFi)
-        setTimeout(() => {
+        timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
             try { child.kill('SIGTERM'); } catch { }
             resolve({ error: new Error('Command timed out'), stdout: '', stderr: '' });
         }, timeoutMs);
@@ -48,6 +55,18 @@ function shEscape(value) {
     // Safe-ish for wrapping in double quotes in sh.
     // (Not a full shell-escape; good enough for SSIDs/passwords/ids passed to nmcli/pactl/etc.)
     return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function readJsonArrayFile(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) return null;
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(raw);
+        if (!Array.isArray(data)) return null;
+        return data.map(x => String(x || '').trim()).filter(Boolean);
+    } catch {
+        return null;
+    }
 }
 
 function isJpegBuffer(buf) {
@@ -3494,16 +3513,19 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
 
         const filePath = app.desktopFile;
 
-        // Safety check: Only allow uninstalling user-installed apps (in .local directory)
-        // System apps in /usr/share/applications should NOT be removed
-        if (!filePath.includes('.local/share/applications')) {
-            return { success: false, error: 'Cannot uninstall system apps. Only user-installed apps can be removed.' };
-        }
-
-        // Additional safety: Verify the file path is actually in the user's home directory
         const userHome = os.homedir();
-        if (!filePath.startsWith(userHome)) {
-            return { success: false, error: 'Cannot uninstall: File is not in user directory' };
+        const userLaunchersDir = path.join(userHome, '.local/share/applications');
+        const flatpakUserExportsDir = path.join(userHome, '.local/share/flatpak/exports/share/applications');
+        const source = String(app.source || '').toLowerCase();
+
+        const inDir = (dir) => filePath === dir || filePath.startsWith(dir + path.sep);
+        const inUserLaunchers = inDir(userLaunchersDir);
+        const inFlatpakUserExports = inDir(flatpakUserExportsDir);
+
+        // Safety check: Only allow uninstalling user-owned launchers.
+        // System apps in /usr/share/applications should NOT be removed.
+        if (!inUserLaunchers && !inFlatpakUserExports) {
+            return { success: false, error: 'Cannot uninstall system apps. Only user-installed apps can be removed.' };
         }
 
         // Check if file exists before attempting to delete
@@ -3513,8 +3535,44 @@ ipcMain.handle('apps:uninstall', async (event, app) => {
             return { success: false, error: 'Desktop file not found' };
         }
 
-        // Delete the .desktop file
-        await fs.promises.unlink(filePath);
+        // Read desktop file to detect Flatpak apps (so we can actually uninstall, not just hide).
+        let content = '';
+        try {
+            content = await fs.promises.readFile(filePath, 'utf-8');
+        } catch {
+            content = '';
+        }
+
+        const parsed = content ? parseDesktopFile(content) : {};
+        const desktopFlatpakId = String(parsed['X-Flatpak'] || parsed['X-Flatpak-Application'] || '').trim();
+        const isFlatpak = source === 'flatpak-user' || inFlatpakUserExports || !!desktopFlatpakId;
+
+        if (isFlatpak) {
+            const fallbackId = path.basename(filePath, '.desktop');
+            const flatpakId = desktopFlatpakId || fallbackId;
+
+            if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(flatpakId) || !flatpakId.includes('.')) {
+                return { success: false, error: 'Cannot uninstall: Invalid Flatpak application ID' };
+            }
+
+            const cmd = `flatpak uninstall --user --noninteractive -y \"${shEscape(flatpakId)}\"`;
+            const res = await execAsync(cmd, { timeout: 5 * 60 * 1000 });
+            if (res.error) {
+                const msg = String((res.stderr || '').trim() || (res.stdout || '').trim() || res.error.message || 'Flatpak uninstall failed');
+                return { success: false, error: msg };
+            }
+
+            // Flatpak should remove the exported desktop file, but clean up if it's still there.
+            if (inFlatpakUserExports) {
+                try { await fs.promises.unlink(filePath); } catch { }
+            }
+        } else {
+            // Remove just the user-owned launcher entry (for AppImages/manual installs/etc.)
+            await fs.promises.unlink(filePath);
+        }
+
+        // Refresh cache immediately so the renderer's next getInstalledApps() reflects the change.
+        await refreshInstalledAppsCache('uninstall');
 
         return { success: true };
     } catch (error) {

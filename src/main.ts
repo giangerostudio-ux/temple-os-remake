@@ -2762,26 +2762,7 @@ class TempleOS {
   }
 
   private getTrayHTML(): string {
-    const battery = this.batteryStatus;
-    const batteryPresent = !!battery?.present;
-    const batteryPct = batteryPresent && typeof battery?.percent === 'number' ? battery.percent : null;
-    const batteryCharging = battery?.isCharging === true;
-
-    const batteryColor = !this.batterySupported
-      ? '#888'
-      : (batteryPct !== null
-        ? (batteryPct <= 15 ? '#ff6464' : batteryPct <= 35 ? '#ffd700' : '#00ff41')
-        : '#888');
-
-    const batteryFillPx = batteryPct !== null
-      ? Math.max(0, Math.min(14, Math.round(14 * batteryPct / 100)))
-      : 0;
-
-    const batteryTitle = !this.batterySupported
-      ? `Battery: Unsupported${this.batteryLastError ? ` (${this.batteryLastError})` : ''}`
-      : (!batteryPresent
-        ? 'Battery: Not present'
-        : `Battery: ${batteryPct !== null ? `${batteryPct}%` : '—'}${batteryCharging ? ' (charging)' : ''}`);
+    const battery = this.getBatteryTrayModel();
 
     return `
       <div class="tray-icon" id="tray-network" title="Network: ${this.networkManager.status.connected ? (this.networkManager.status.wifi?.ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}" style="position: relative; color: ${this.networkManager.status.connected ? '#00ff41' : '#888'};">
@@ -2802,12 +2783,12 @@ class TempleOS {
          ${this.showVolumePopup ? this.renderVolumePopup() : ''}
       </div>
 
-      <div class="tray-icon" id="tray-battery" title="${escapeHtml(batteryTitle)}" style="position: relative; color: ${batteryColor};">
+      <div class="tray-icon" id="tray-battery" title="${escapeHtml(battery.title)}" style="position: relative; color: ${battery.color};">
          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
            <rect x="2" y="7" width="18" height="10" rx="2" ry="2"></rect>
            <line x1="22" y1="11" x2="22" y2="13"></line>
          </svg>
-         ${batteryPresent && batteryFillPx > 0 ? `<div style="position: absolute; left: 4px; top: 9px; height: 6px; width: ${batteryFillPx}px; background: ${batteryColor}; border-radius: 1px;"></div>` : ''}
+         ${battery.present && battery.fillPx > 0 ? `<div data-battery-fill="1" style="position: absolute; left: 4px; top: 9px; height: 6px; width: ${battery.fillPx}px; background: ${battery.color}; border-radius: 1px;"></div>` : ''}
       </div>
 
       <div class="tray-icon" id="tray-notification" title="Notifications" style="position: relative;">
@@ -2825,6 +2806,66 @@ class TempleOS {
         ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
       </div>
     `;
+  }
+
+  private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
+    const battery = this.batteryStatus;
+    const present = !!battery?.present;
+    const pct = present && typeof battery?.percent === 'number' ? battery.percent : null;
+    const charging = battery?.isCharging === true;
+
+    const color = !this.batterySupported
+      ? '#888'
+      : (pct !== null
+        ? (pct <= 15 ? '#ff6464' : pct <= 35 ? '#ffd700' : '#00ff41')
+        : '#888');
+
+    const fillPx = pct !== null
+      ? Math.max(0, Math.min(14, Math.round(14 * pct / 100)))
+      : 0;
+
+    const title = !this.batterySupported
+      ? `Battery: Unsupported${this.batteryLastError ? ` (${this.batteryLastError})` : ''}`
+      : (!present
+        ? 'Battery: Not present'
+        : `Battery: ${pct !== null ? `${pct}%` : '-'}${charging ? ' (charging)' : ''}`);
+
+    return { present, fillPx, color, title };
+  }
+
+  private refreshBatteryIndicators(): void {
+    const trayBattery = document.getElementById('tray-battery') as HTMLElement | null;
+    if (trayBattery) {
+      const battery = this.getBatteryTrayModel();
+      trayBattery.title = battery.title;
+      trayBattery.style.color = battery.color;
+
+      const existingFill = trayBattery.querySelector('[data-battery-fill="1"]') as HTMLElement | null;
+      if (battery.present && battery.fillPx > 0) {
+        const fillEl = existingFill || document.createElement('div');
+        if (!existingFill) {
+          fillEl.setAttribute('data-battery-fill', '1');
+          fillEl.style.position = 'absolute';
+          fillEl.style.left = '4px';
+          fillEl.style.top = '9px';
+          fillEl.style.height = '6px';
+          fillEl.style.borderRadius = '1px';
+          trayBattery.appendChild(fillEl);
+        }
+        fillEl.style.width = `${battery.fillPx}px`;
+        fillEl.style.background = battery.color;
+      } else if (existingFill) {
+        existingFill.remove();
+      }
+    }
+
+    const widgetBattery = document.getElementById('desktop-widget-battery');
+    if (widgetBattery) {
+      const pct = (this.batterySupported && this.batteryStatus?.present && typeof this.batteryStatus.percent === 'number')
+        ? Math.max(0, Math.min(100, Math.round(this.batteryStatus.percent)))
+        : null;
+      widgetBattery.textContent = pct === null ? '-' : String(pct);
+    }
   }
 
   // ============================================
@@ -3377,9 +3418,24 @@ class TempleOS {
   }
 
   private canUninstallApp(app: InstalledApp): boolean {
-    // Only user-installed apps (in .local directory) can be uninstalled
-    // System apps in /usr/share/applications should NOT be removed
-    return !!app.desktopFile && app.desktopFile.includes('.local/share/applications');
+    // Only user-owned launchers can be removed from the UI.
+    // We intentionally do NOT allow uninstalling system apps in /usr/share/applications.
+    const source = String(app.source || '').toLowerCase();
+    if (source === 'user' || source === 'flatpak-user') return !!app.desktopFile;
+
+    const desktopFile = String(app.desktopFile || '');
+    if (!desktopFile) return false;
+    return (
+      desktopFile.includes('.local/share/applications') ||
+      desktopFile.includes('.local/share/flatpak/exports/share/applications')
+    );
+  }
+
+  private canAttemptAptUninstall(app: InstalledApp): boolean {
+    // "Attempt" because the backend will do the real safety checks (baseline/protected/essential).
+    const source = String(app.source || '').toLowerCase();
+    const desktopFile = String(app.desktopFile || '');
+    return source === 'system' && desktopFile.startsWith('/usr/share/applications/');
   }
 
   private async uninstallApp(app: InstalledApp): Promise<void> {
@@ -3388,14 +3444,24 @@ class TempleOS {
       return;
     }
 
-    if (!this.canUninstallApp(app)) {
+    const canUninstall = this.canUninstallApp(app);
+    const canAttemptApt = this.canAttemptAptUninstall(app);
+    if (!canUninstall && !canAttemptApt) {
       this.showNotification('Apps', 'Cannot uninstall system apps', 'warning');
       return;
     }
 
+    const src = String(app.source || '').toLowerCase();
+    const hint =
+      src === 'flatpak-user'
+        ? 'This will uninstall the Flatpak app from your user account.'
+        : canAttemptApt
+          ? 'This will uninstall the app from the system via APT (admin password may be required).'
+          : 'This will remove the launcher entry from your user profile.';
+
     const confirmed = await this.openConfirmModal({
       title: 'Uninstall App',
-      message: `Are you sure you want to uninstall "${app.name}"? This will remove the application from your system.`,
+      message: `Are you sure you want to uninstall "${app.name}"?\n\n${hint}`,
       confirmText: 'Uninstall',
       cancelText: 'Cancel'
     });
@@ -3407,6 +3473,7 @@ class TempleOS {
 
       if (result?.success) {
         this.showNotification('Apps', `${app.name} uninstalled successfully`, 'info');
+        this.purgeLaunchKeyEverywhere(this.keyForInstalledApp(app));
         // Refresh app list
         await this.loadInstalledApps();
         this.render();
@@ -3416,6 +3483,21 @@ class TempleOS {
     } catch (error) {
       this.showNotification('Apps', String(error), 'error');
     }
+  }
+
+  private purgeLaunchKeyEverywhere(key: string): void {
+    const k = String(key || '');
+    if (!k) return;
+
+    this.pinnedStart = this.pinnedStart.filter(x => x !== k);
+    this.pinnedTaskbar = this.pinnedTaskbar.filter(x => x !== k);
+    this.desktopShortcuts = this.desktopShortcuts.filter(s => s.key !== k);
+    this.recentApps = this.recentApps.filter(x => x !== k);
+    delete this.appUsage[k];
+
+    localStorage.setItem('temple_pinned_start', JSON.stringify(this.pinnedStart));
+    localStorage.setItem('temple_pinned_taskbar', JSON.stringify(this.pinnedTaskbar));
+    this.queueSaveConfig();
   }
 
   private async refreshNetworkStatus(): Promise<void> {
@@ -4224,6 +4306,7 @@ class TempleOS {
       this.batterySupported = false;
       this.batteryStatus = null;
       this.batteryLastError = 'Battery IPC not available';
+      this.refreshBatteryIndicators();
       return;
     }
 
@@ -4242,7 +4325,8 @@ class TempleOS {
       this.batteryStatus = null;
       this.batteryLastError = String(e);
     } finally {
-      this.render();
+      // Avoid full OS re-render: it steals focus from terminal/editor windows during background polling.
+      this.refreshBatteryIndicators();
     }
   }
 
@@ -8158,7 +8242,7 @@ class TempleOS {
 
             // Check if this is an installed app that can be uninstalled
             const installedApp = this.findInstalledAppByKey(key);
-            const canUninstall = installedApp && this.canUninstallApp(installedApp);
+            const canUninstall = installedApp && (this.canUninstallApp(installedApp) || this.canAttemptAptUninstall(installedApp));
 
             const menuItems = [
               { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
@@ -8168,7 +8252,7 @@ class TempleOS {
               { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ];
 
-            // Add uninstall option for user-installed apps
+            // Add uninstall option for user-installed apps (and APT apps eligible for an uninstall attempt)
             if (canUninstall) {
               menuItems.push(
                 { divider: true },

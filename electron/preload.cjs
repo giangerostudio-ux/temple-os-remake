@@ -98,6 +98,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setTrackerBlocking: (enabled) => ipcRenderer.invoke('security:trackerBlocking', enabled),
     getTorStatus: () => ipcRenderer.invoke('security:getTorStatus'),
     setTorEnabled: (enabled) => ipcRenderer.invoke('security:setTorEnabled', enabled),
+    installTor: () => ipcRenderer.invoke('security:installTor'),
 
     // Firewall (Tier 7.2)
     getFirewallRules: () => ipcRenderer.invoke('security:getFirewallRules'),

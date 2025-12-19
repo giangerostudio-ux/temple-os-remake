@@ -113,6 +113,7 @@ declare global {
       setTrackerBlocking?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       getTorStatus?: () => Promise<{ success: boolean; supported: boolean; running: boolean; backend?: string; version?: string | null; error?: string }>;
       setTorEnabled?: (enabled: boolean) => Promise<{ success: boolean; running?: boolean; backend?: string; unsupported?: boolean; error?: string }>;
+      installTor?: () => Promise<{ success: boolean; alreadyInstalled?: boolean; error?: string }>;
       // Firewall (Tier 7.2)
       getFirewallRules?: () => Promise<{ success: boolean; active?: boolean; rules?: FirewallRule[]; error?: string }>;
       addFirewallRule?: (port: number, protocol: string, action: string) => Promise<{ success: boolean; error?: string }>;
@@ -6735,6 +6736,63 @@ class TempleOS {
         return;
       }
 
+      // Settings: Tor start/stop buttons
+      const torStartBtn = target.closest('.tor-start-btn') as HTMLElement;
+      if (torStartBtn) {
+        this.showNotification('Tor', 'Starting Tor service...', 'info');
+        if (window.electronAPI?.setTorEnabled) {
+          void window.electronAPI.setTorEnabled(true).then(res => {
+            if (res.success) {
+              this.networkManager.torStatus.running = true;
+              this.showNotification('Tor', 'Tor service started', 'divine');
+            } else {
+              this.showNotification('Tor', res.error || 'Failed to start Tor', 'error');
+            }
+            this.refreshSettingsWindow();
+          });
+        }
+        return;
+      }
+
+      const torStopBtn = target.closest('.tor-stop-btn') as HTMLElement;
+      if (torStopBtn) {
+        this.showNotification('Tor', 'Stopping Tor service...', 'info');
+        if (window.electronAPI?.setTorEnabled) {
+          void window.electronAPI.setTorEnabled(false).then(res => {
+            if (res.success) {
+              this.networkManager.torStatus.running = false;
+              this.showNotification('Tor', 'Tor service stopped', 'info');
+            } else {
+              this.showNotification('Tor', res.error || 'Failed to stop Tor', 'error');
+            }
+            this.refreshSettingsWindow();
+          });
+        }
+        return;
+      }
+
+      // Settings: Tor install button
+      const torInstallBtn = target.closest('.tor-install-btn') as HTMLElement;
+      if (torInstallBtn) {
+        this.showNotification('Tor', 'Installing Tor... This may take a minute and require authentication.', 'info');
+        if (window.electronAPI?.installTor) {
+          void window.electronAPI.installTor().then(res => {
+            if (res.success) {
+              if (res.alreadyInstalled) {
+                this.showNotification('Tor', 'Tor is already installed', 'info');
+              } else {
+                this.showNotification('Tor', 'Tor installed successfully!', 'divine');
+              }
+              this.networkManager.torStatus.installed = true;
+            } else {
+              this.showNotification('Tor', res.error || 'Failed to install Tor', 'error');
+            }
+            this.refreshSettingsWindow();
+          });
+        }
+        return;
+      }
+
       // Settings: saved networks actions
       const savedNetBtn = target.closest('.saved-net-btn') as HTMLElement;
       if (savedNetBtn && savedNetBtn.dataset.action && savedNetBtn.dataset.key) {
@@ -12400,6 +12458,38 @@ class TempleOS {
               Enable to prevent traffic leaks if your VPN disconnects.
             </div>
           `}
+        `)}
+        ${card('Tor Integration', `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: bold; color: ${this.networkManager.torStatus.running ? '#00ff41' : '#888'};">
+                🧅 ${this.networkManager.torStatus.running ? 'Tor Running' : 'Tor Off'}
+              </div>
+              <div style="font-size: 12px; opacity: 0.7;">Route traffic through Tor network for anonymity</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+            <div style="opacity: 0.7;">Mode</div>
+            <select class="tor-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+              <option value="off" ${this.networkManager.torMode === 'off' ? 'selected' : ''}>Off - Normal Internet</option>
+              <option value="browser-only" ${this.networkManager.torMode === 'browser-only' ? 'selected' : ''}>Browser Only</option>
+              <option value="system-wide" ${this.networkManager.torMode === 'system-wide' ? 'selected' : ''}>System-wide (slow)</option>
+            </select>
+            <div style="opacity: 0.7;">Installed</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="color: ${this.networkManager.torStatus.installed ? '#00ff41' : '#ff6464'};">${this.networkManager.torStatus.installed ? '✓ Yes' : '✗ No'}</span>
+              ${!this.networkManager.torStatus.installed ? `<button class="tor-install-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Install Tor</button>` : ''}
+            </div>
+          </div>
+          ${this.networkManager.torMode !== 'off' && !this.networkManager.torStatus.running ? `
+            <button class="tor-start-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Start Tor</button>
+          ` : ''}
+          ${this.networkManager.torStatus.running ? `
+            <button class="tor-stop-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Stop Tor</button>
+          ` : ''}
+          <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+            ⚠️ System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps. Use "Browser Only" for Tor Browser usage.
+          </div>
         `)}
         ${card('Mobile Hotspot', `
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">

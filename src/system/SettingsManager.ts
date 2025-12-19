@@ -261,6 +261,9 @@ export class SettingsManager {
       this.host.networkManager.hotspotPassword = cfg.network.hotspotPassword ?? '';
       this.host.networkManager.dataUsageDailyLimit = cfg.network.dataUsageDailyLimit ?? 0;
       this.host.networkManager.dataUsageTrackingEnabled = cfg.network.dataUsageTrackingEnabled ?? false;
+      if (cfg.network.torMode === 'off' || cfg.network.torMode === 'browser-only' || cfg.network.torMode === 'system-wide') {
+        this.host.networkManager.torMode = cfg.network.torMode;
+      }
     }
 
     if (cfg.terminal) {
@@ -402,6 +405,7 @@ export class SettingsManager {
         hotspotPassword: this.host.networkManager.hotspotPassword,
         dataUsageDailyLimit: this.host.networkManager.dataUsageDailyLimit,
         dataUsageTrackingEnabled: this.host.networkManager.dataUsageTrackingEnabled,
+        torMode: this.host.networkManager.torMode,
       },
 
       terminal: {

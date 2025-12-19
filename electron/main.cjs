@@ -3264,6 +3264,68 @@ ipcMain.handle('set-dns', async (event, iface, primary, secondary) => {
 });
 
 // ============================================
+// TOR INTEGRATION
+// ============================================
+
+ipcMain.handle('security:getTorStatus', async () => {
+    if (process.platform !== 'linux') {
+        return { success: false, unsupported: true, running: false, mode: 'off' };
+    }
+
+    // Check if Tor service is running
+    const status = await execAsync('systemctl is-active tor 2>/dev/null');
+    const running = status.stdout.trim() === 'active';
+
+    // Check if Tor is installed
+    const installed = await execAsync('which tor 2>/dev/null');
+    const isInstalled = !installed.error && installed.stdout.trim().length > 0;
+
+    return { success: true, running, installed: isInstalled };
+});
+
+ipcMain.handle('security:setTorEnabled', async (event, enabled) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Not supported on this platform' };
+    }
+
+    const action = enabled ? 'start' : 'stop';
+
+    // Try without sudo first (in case user has permission)
+    const res = await execAsync(`systemctl ${action} tor 2>&1`);
+    if (!res.error) {
+        return { success: true };
+    }
+
+    // Try with pkexec for graphical sudo prompt
+    const pkexecRes = await execAsync(`pkexec systemctl ${action} tor 2>&1`, { timeout: 30000 });
+    if (!pkexecRes.error) {
+        return { success: true };
+    }
+
+    return { success: false, error: pkexecRes.stderr || pkexecRes.error?.message || 'Failed to control Tor service' };
+});
+
+ipcMain.handle('security:installTor', async () => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Not supported on this platform' };
+    }
+
+    // Check if already installed
+    const check = await execAsync('which tor 2>/dev/null');
+    if (!check.error && check.stdout.trim().length > 0) {
+        return { success: true, alreadyInstalled: true };
+    }
+
+    // Install using pkexec for graphical sudo prompt
+    const install = await execAsync('pkexec apt install -y tor 2>&1', { timeout: 120000 });
+    if (install.error) {
+        return { success: false, error: install.stderr || install.error?.message || 'Installation failed' };
+    }
+
+    return { success: true };
+});
+
+// ============================================
 // APP LIFECYCLE
 // ============================================
 

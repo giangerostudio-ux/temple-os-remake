@@ -170,6 +170,7 @@ export interface TempleConfig {
         hotspotPassword?: string;
         dataUsageDailyLimit?: number;
         dataUsageTrackingEnabled?: boolean;
+        torMode?: 'off' | 'browser-only' | 'system-wide';
     };
     terminal?: {
         aliases?: Record<string, string>;

@@ -340,10 +340,10 @@
 - [x] Metadata removal tool (EXIF stripper) - functional (JPEG/PNG)
 
 ### 7.4 Tor Integration
-- [x] Tor mode toggle (off/browser-only/system-wide)
-- [x] Tor circuit visualization
-- [x] Bridge configuration
-- [x] Traffic routing options
+- [ ] Tor mode toggle (off/browser-only/system-wide)
+- [ ] Tor circuit visualization
+- [ ] Bridge configuration
+- [ ] Traffic routing options
 
 ### 7.5 Security Audit Tool
 - [x] Built-in security scanner

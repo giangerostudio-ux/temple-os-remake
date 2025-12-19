@@ -30,6 +30,10 @@ export class NetworkManager {
     public hotspotPassword = '';
     public hotspotLoading = false;
 
+    // Tor Integration
+    public torMode: 'off' | 'browser-only' | 'system-wide' = 'off';
+    public torStatus: { running: boolean; installed: boolean } = { running: false, installed: false };
+
     // Callbacks
     private onUpdate: () => void = () => { };
     private onNotify: (title: string, msg: string, type: 'info' | 'warning' | 'error' | 'divine', actions?: any[]) => void = () => { };

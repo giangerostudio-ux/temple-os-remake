@@ -187,4 +187,5 @@ async function createEwmhBridge(options = {}) {
 module.exports = {
   createEwmhBridge,
   parseHexWindowId,
+  getActiveWindowXidHex,
 };

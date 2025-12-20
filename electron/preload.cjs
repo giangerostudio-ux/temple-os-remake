@@ -186,6 +186,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // X11 WINDOW BRIDGE (External app taskbar)
     // ============================================
     x11Supported: () => ipcRenderer.invoke('x11:supported'),
+    getActiveX11Window: () => ipcRenderer.invoke('x11:getActiveWindow'),
     getX11Windows: () => ipcRenderer.invoke('x11:getWindows'),
     activateX11Window: (xidHex) => ipcRenderer.invoke('x11:activateWindow', xidHex),
     closeX11Window: (xidHex) => ipcRenderer.invoke('x11:closeWindow', xidHex),

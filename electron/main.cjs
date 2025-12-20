@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, screen, protocol } = require('electr
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
-const { createEwmhBridge } = require('./x11/ewmh.cjs');
+const { createEwmhBridge, getActiveWindowXidHex } = require('./x11/ewmh.cjs');
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
@@ -1060,6 +1060,16 @@ function isValidXidHex(x) {
 
 ipcMain.handle('x11:supported', async () => {
     return { success: true, supported: !!ewmhBridge?.supported };
+});
+
+ipcMain.handle('x11:getActiveWindow', async () => {
+    if (!ewmhBridge?.supported) return { success: true, supported: false, xidHex: null };
+    try {
+        const xidHex = await getActiveWindowXidHex().catch(() => null);
+        return { success: true, supported: true, xidHex };
+    } catch (e) {
+        return { success: false, supported: true, error: e && e.message ? e.message : String(e) };
+    }
 });
 
 ipcMain.handle('x11:getWindows', async () => {

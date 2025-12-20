@@ -157,6 +157,7 @@ declare global {
       onAppsChanged?: (callback: (payload: { reason?: string }) => void) => () => void;
       // X11 external window taskbar (Linux X11 only)
       x11Supported?: () => Promise<{ success: boolean; supported: boolean }>;
+      getActiveX11Window?: () => Promise<{ success: boolean; supported: boolean; xidHex: string | null; error?: string }>;
       getX11Windows?: () => Promise<{ success: boolean; supported: boolean; snapshot?: any; error?: string }>;
       activateX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       closeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
@@ -15377,12 +15378,30 @@ class TempleOS {
       return;
     }
 
-    if (win?.active) {
-      void api.minimizeX11Window?.(xid);
-      return;
-    }
+    void (async () => {
+      let isActiveNow = !!win?.active;
 
-    void api.activateX11Window?.(xid);
+      // Snapshot polling can lag; ask X11 directly so fast clicks still minimize.
+      if (api.getActiveX11Window) {
+        try {
+          const res = await api.getActiveX11Window();
+          const activeXid = String(res?.xidHex || '').toLowerCase();
+          if (activeXid && activeXid === xid.toLowerCase()) {
+            isActiveNow = true;
+          } else if (activeXid) {
+            isActiveNow = false;
+          }
+        } catch {
+          // fall back to snapshot-derived win.active
+        }
+      }
+
+      if (isActiveNow) {
+        void api.minimizeX11Window?.(xid);
+      } else {
+        void api.activateX11Window?.(xid);
+      }
+    })();
   }
 
   /**

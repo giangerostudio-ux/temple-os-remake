@@ -181,4 +181,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('apps:changed', handler);
         return () => ipcRenderer.removeListener('apps:changed', handler);
     },
+
+    // ============================================
+    // X11 WINDOW BRIDGE (External app taskbar)
+    // ============================================
+    x11Supported: () => ipcRenderer.invoke('x11:supported'),
+    getX11Windows: () => ipcRenderer.invoke('x11:getWindows'),
+    activateX11Window: (xidHex) => ipcRenderer.invoke('x11:activateWindow', xidHex),
+    closeX11Window: (xidHex) => ipcRenderer.invoke('x11:closeWindow', xidHex),
+    minimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:minimizeWindow', xidHex),
+    unminimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:unminimizeWindow', xidHex),
+    onX11WindowsChanged: (callback) => {
+        const handler = (event, payload) => callback(payload);
+        ipcRenderer.on('x11:windowsChanged', handler);
+        return () => ipcRenderer.removeListener('x11:windowsChanged', handler);
+    },
+
+    getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
+    setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),
+    setGamingMode: (enabled) => ipcRenderer.invoke('shell:setGamingMode', enabled),
 });

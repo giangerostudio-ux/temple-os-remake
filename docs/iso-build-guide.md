@@ -4,12 +4,12 @@
 
 This guide assumes you're building the ISO **on a Linux machine** (same architecture as target).
 
-## Current Status ✅
+## Current Status (OK)
 
 The terminal is now working with:
-- ✅ node-pty compiled for Electron 33.4.11
-- ✅ xterm.js terminal emulator
-- ✅ Full sudo/interactive command support
+- [OK] node-pty compiled for Electron 33.4.11
+- [OK] xterm.js terminal emulator
+- [OK] Full sudo/interactive command support
 
 ## Pre-Build Checklist
 
@@ -62,7 +62,7 @@ This creates the distributable in `dist/`.
 
 ### 5. Generate APT Baseline (Recommended)
 
-This makes “Uninstall (APT)” safe-by-default by preventing removal of packages that shipped with the ISO baseline.
+This makes "Uninstall (APT)" safe-by-default by preventing removal of packages that shipped with the ISO baseline.
 
 ```bash
 node scripts/generate-apt-baseline.cjs
@@ -70,7 +70,7 @@ node scripts/generate-apt-baseline.cjs
 
 ### 6. Generate Snap Baseline (If your ISO includes Snap apps)
 
-This makes “Uninstall (Snap)” safe-by-default by preventing removal of snaps that shipped with the ISO baseline.
+This makes "Uninstall (Snap)" safe-by-default by preventing removal of snaps that shipped with the ISO baseline.
 
 ```bash
 node scripts/generate-snap-baseline.cjs
@@ -82,12 +82,44 @@ When packaging for ISO, include these folders:
 
 ```
 /opt/templeos/
-├── dist/              # Built frontend files
-├── electron/          # Electron main process
-├── node_modules/      # ALL dependencies (including node-pty)
-├── package.json
-├── package-lock.json
-└── scripts/           # Optional: setup scripts
+- dist/              # Built frontend files (includes index.html + panel.html)
+- electron/          # Electron main process
+- node_modules/      # ALL dependencies (including node-pty)
+- package.json
+- package-lock.json
+- scripts/           # Optional: setup scripts
+
+## X11 + Openbox (External Apps + Always-Visible Panel)
+
+TempleOS now supports an **X11 panel window** (DOCK + STRUT) so external apps (Firefox, etc.) cannot cover the bar, and so the OS can enumerate/control external windows for a taskbar experience.
+
+Key requirement:
+- You must run an **X11 session** (`XDG_SESSION_TYPE=x11`) with an **EWMH-compliant WM** (recommended: Openbox).
+
+Runtime packages to include on the ISO (recommended):
+
+```bash
+sudo apt update
+sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils
+```
+
+Notes:
+- Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.
+- The panel auto-hides in fullscreen when "Hide Bar On Fullscreen" is enabled (Settings -> Gaming).
+
+### Optional: Gaming stack (Steam/Proton + launchers)
+
+This is not required for the desktop shell to run, but is commonly expected on a "gaming OS":
+- Steam (Proton is managed inside Steam)
+- GameMode (gamemoderun)
+- Optional launchers: Heroic, Lutris, Bottles
+
+Package names vary by repo configuration (multiverse), but typical Ubuntu setup starts with:
+
+```bash
+sudo apt update
+sudo apt install -y gamemode
+```
 ```
 
 **CRITICAL**: The `node_modules/node-pty/build/Release/pty.node` file MUST be included!
@@ -156,7 +188,7 @@ Boot the ISO and:
 
 1. Open Terminal app
 2. Run: `sudo apt update`
-3. You should see a password prompt ✅
+3. You should see a password prompt (OK)
 
 If you get "sudo: a terminal is required", the terminal is broken.
 

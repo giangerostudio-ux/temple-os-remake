@@ -155,6 +155,18 @@ declare global {
       uninstallApp: (app: InstalledApp) => Promise<{ success: boolean; error?: string; needsPassword?: boolean }>;
       uninstallAppWithPassword?: (app: InstalledApp, password: string) => Promise<{ success: boolean; error?: string; wrongPassword?: boolean }>;
       onAppsChanged?: (callback: (payload: { reason?: string }) => void) => () => void;
+      // X11 external window taskbar (Linux X11 only)
+      x11Supported?: () => Promise<{ success: boolean; supported: boolean }>;
+      getX11Windows?: () => Promise<{ success: boolean; supported: boolean; snapshot?: any; error?: string }>;
+      activateX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
+      closeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
+      minimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
+      unminimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
+      onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
+      // Panel/gaming policy (Linux X11 only)
+      getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
+      setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      setGamingMode?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -614,6 +626,7 @@ class TempleOS {
 
   // Tier 10 & 11 State
   private gamingModeActive = false;
+  private hideBarOnFullscreen = localStorage.getItem('temple_hide_bar_on_fullscreen') !== 'false'; // Default true
   private setupComplete = localStorage.getItem('temple_setup_complete') === 'true';
   private isShuttingDown = false;
   private firstRunStep = 0; // 0: Welcome, 1: Theme, 2: Privacy, 3: Done
@@ -816,6 +829,15 @@ class TempleOS {
     this.applyTaskbarPosition();
     this.renderInitial();
     this.setupEventListeners();
+
+    // Sync panel policies (Linux X11 only; no-ops elsewhere)
+    if (window.electronAPI?.setHideBarOnFullscreen) {
+      void window.electronAPI.setHideBarOnFullscreen(this.hideBarOnFullscreen);
+    }
+    if (window.electronAPI?.setGamingMode) {
+      void window.electronAPI.setGamingMode(this.gamingModeActive);
+    }
+
     this.setupGodlyNotesGlobals();
     this.keepLegacyMethodsReferenced();
     this.updateClock();
@@ -4593,6 +4615,9 @@ class TempleOS {
         if (!this.gamingModeActive) {
           this.gamingModeActive = true;
           this.showNotification('Gaming Mode', 'Performance initialized. Super keys disabled.', 'divine');
+          if (window.electronAPI?.setGamingMode) {
+            void window.electronAPI.setGamingMode(true);
+          }
           setTimeout(() => this.refreshSettingsWindow(), 100);
         }
 
@@ -5091,6 +5116,16 @@ class TempleOS {
       // Gaming Mode Toggle
       if (target.matches('.gaming-mode-toggle')) {
         this.toggleGamingMode();
+        this.refreshSettingsWindow();
+        return;
+      }
+
+      if (target.matches('.hide-bar-fullscreen-toggle')) {
+        this.hideBarOnFullscreen = target.checked;
+        localStorage.setItem('temple_hide_bar_on_fullscreen', String(this.hideBarOnFullscreen));
+        if (window.electronAPI?.setHideBarOnFullscreen) {
+          void window.electronAPI.setHideBarOnFullscreen(this.hideBarOnFullscreen);
+        }
         this.refreshSettingsWindow();
         return;
       }
@@ -9470,6 +9505,14 @@ class TempleOS {
           return;
         }
 
+        // Toggle Gaming Mode: Ctrl+Alt+G
+        if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey && e.key.toLowerCase() === 'g') {
+          e.preventDefault();
+          this.toggleGamingMode();
+          if (this.activeSettingsCategory === 'Gaming') this.refreshSettingsWindow();
+          return;
+        }
+
         // Toggle High Contrast: Ctrl+Alt+H
         if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey && e.key.toLowerCase() === 'h') {
           e.preventDefault();
@@ -13268,11 +13311,19 @@ class TempleOS {
                </div>
                <input type="checkbox" class="gaming-mode-toggle" ${this.gamingModeActive ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
             </label>
-             <div style="font-size: 12px; opacity: 0.6; margin-top: -10px;">
-               Automatically enabled when launching games. Blocks Super/Meta keys.
-               <br>Use <strong>Ctrl+Alt+G</strong> to toggle manually.
-             </div>
-          </div>
+              <div style="font-size: 12px; opacity: 0.6; margin-top: -10px;">
+                Automatically enabled when launching games. Blocks Super/Meta keys.
+                <br>Use <strong>Ctrl+Alt+G</strong> to toggle manually.
+              </div>
+
+              <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-top: 8px;">
+                <div style="display: flex; flex-direction: column;">
+                  <span style="font-weight: bold;">Hide Bar On Fullscreen</span>
+                  <span style="font-size: 12px; opacity: 0.7;">Allows true fullscreen by hiding the panel and removing reserved space</span>
+                </div>
+                <input type="checkbox" class="hide-bar-fullscreen-toggle" ${this.hideBarOnFullscreen ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
+              </label>
+           </div>
         `)}
 
         ${card('Game Launchers (Tier 10)', `
@@ -16095,6 +16146,9 @@ class TempleOS {
   private toggleGamingMode(): void {
     this.gamingModeActive = !this.gamingModeActive;
     this.showNotification('Gaming Mode', this.gamingModeActive ? 'Enabled: Hotkeys Disabled' : 'Disabled', 'divine');
+    if (window.electronAPI?.setGamingMode) {
+      void window.electronAPI.setGamingMode(this.gamingModeActive);
+    }
     this.render();
   }
 

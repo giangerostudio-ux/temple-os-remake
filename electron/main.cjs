@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, screen, protocol } = require('electr
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
+const { createEwmhBridge } = require('./x11/ewmh.cjs');
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
@@ -25,6 +26,14 @@ try {
 const ptyProcesses = new Map(); // id -> { pty, cwd }
 
 let mainWindow;
+let panelWindow;
+let ewmhBridge = null;
+let x11IgnoreXids = new Set();
+let panelPolicy = {
+    hideOnFullscreen: true,
+    forceHidden: false,
+    hidden: false,
+};
 let lastCpuTotals = null; // { idle: number, total: number }
 let lastNetTotals = null; // { rx: number, tx: number }
 let lastNetAt = 0;
@@ -678,12 +687,259 @@ function createWindow() {
     });
 }
 
+function isX11Session() {
+    if (process.platform !== 'linux') return false;
+    if (!process.env.DISPLAY) return false;
+    if (process.env.WAYLAND_DISPLAY) return false;
+    if (process.env.XDG_SESSION_TYPE === 'wayland') return false;
+    // If XDG_SESSION_TYPE is missing (common with startx), treat DISPLAY + no WAYLAND_DISPLAY as X11.
+    return true;
+}
+
+async function xpropSet(winIdHex, propName, format, value) {
+    if (!winIdHex) return { success: false, error: 'Missing window id' };
+    if (!(await hasCommand('xprop'))) return { success: false, error: 'xprop not installed' };
+    // No user-controlled inputs are passed here; values are computed constants.
+    const cmd = `xprop -id ${winIdHex} -f ${propName} ${format} -set ${propName} ${value}`;
+    const res = await execAsync(cmd, { timeout: 2000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'xprop failed' };
+    return { success: true };
+}
+
+async function applyDockStrutToPanelWindow() {
+    if (!isX11Session()) return;
+    if (!panelWindow || panelWindow.isDestroyed()) return;
+
+    const xid = xidHexFromBrowserWindow(panelWindow);
+    if (!xid) return;
+
+    const primary = screen.getPrimaryDisplay();
+    const width = primary?.bounds?.width || 1920;
+    const height = panelWindow.getBounds().height || 60;
+
+    // Dock + always-on-top behavior + skip taskbar/pager.
+    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch(() => { });
+    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_ABOVE,_NET_WM_STATE_STICKY,_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
+
+    // Reserve the bottom strip of the screen.
+    // _NET_WM_STRUT_PARTIAL = left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x
+    const strut = `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`;
+    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch(() => { });
+}
+
+async function setPanelStrutEnabled(enabled) {
+    if (!isX11Session()) return;
+    if (!panelWindow || panelWindow.isDestroyed()) return;
+    const xid = xidHexFromBrowserWindow(panelWindow);
+    if (!xid) return;
+
+    const primary = screen.getPrimaryDisplay();
+    const width = primary?.bounds?.width || 1920;
+    const height = panelWindow.getBounds().height || 60;
+
+    const value = enabled
+        ? `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`
+        : `"0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"`;
+    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', value).catch(() => { });
+}
+
+async function setPanelHidden(hidden) {
+    if (!panelWindow || panelWindow.isDestroyed()) return;
+    if (hidden) {
+        try { panelWindow.hide(); } catch { }
+    } else {
+        try {
+            // Show without stealing focus from the active fullscreen/game window.
+            if (typeof panelWindow.showInactive === 'function') panelWindow.showInactive();
+            else panelWindow.show();
+        } catch { }
+    }
+}
+
+async function applyPanelPolicyFromSnapshot(snapshot) {
+    if (!panelWindow || panelWindow.isDestroyed()) return;
+    const fullscreen = !!snapshot?.activeFullscreen;
+    const shouldHide = !!panelPolicy.forceHidden || (!!panelPolicy.hideOnFullscreen && fullscreen);
+    if (shouldHide === panelPolicy.hidden) return;
+
+    panelPolicy.hidden = shouldHide;
+    if (shouldHide) {
+        await setPanelStrutEnabled(false);
+        await setPanelHidden(true);
+    } else {
+        await setPanelHidden(false);
+        await applyDockStrutToPanelWindow();
+    }
+}
+
+async function applyDesktopHintsToMainWindow() {
+    if (!isX11Session()) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    const xid = xidHexFromBrowserWindow(mainWindow);
+    if (!xid) return;
+
+    // Keep the shell background below normal apps.
+    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DESKTOP').catch(() => { });
+    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_BELOW,_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
+}
+
+function createPanelWindow() {
+    if (!isX11Session()) return;
+    if (panelWindow && !panelWindow.isDestroyed()) return;
+
+    const primary = screen.getPrimaryDisplay();
+    const barHeight = 58;
+    const bounds = primary?.bounds || { x: 0, y: 0, width: 1280, height: 720 };
+
+    panelWindow = new BrowserWindow({
+        x: bounds.x,
+        y: bounds.y + bounds.height - barHeight,
+        width: bounds.width,
+        height: barHeight,
+        frame: false,
+        resizable: false,
+        movable: false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        }
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+        panelWindow.loadURL('http://localhost:5173/panel.html');
+    } else {
+        panelWindow.loadFile(path.join(__dirname, '../dist/panel.html'));
+    }
+
+    panelWindow.webContents.on('did-finish-load', () => {
+        void applyDockStrutToPanelWindow().catch(() => { });
+        // Refresh ignore set for the X11 bridge (so the panel doesn't appear as an app).
+        const xid = xidHexFromBrowserWindow(panelWindow);
+        if (xid) x11IgnoreXids.add(String(xid).toLowerCase());
+    });
+
+    panelWindow.on('closed', () => {
+        panelWindow = null;
+    });
+}
+
+function xidHexFromNativeHandle(handle) {
+    try {
+        if (!Buffer.isBuffer(handle) || handle.length < 4) return null;
+        // On Linux X11, Electron returns the XID as a native-endian integer in the buffer.
+        // XIDs are 32-bit even on 64-bit systems.
+        const n = handle.readUInt32LE(0);
+        if (!n) return null;
+        return `0x${n.toString(16)}`;
+    } catch {
+        return null;
+    }
+}
+
+function xidHexFromBrowserWindow(win) {
+    try {
+        if (!win || win.isDestroyed()) return null;
+        const h = win.getNativeWindowHandle();
+        return xidHexFromNativeHandle(h);
+    } catch {
+        return null;
+    }
+}
+
+function matchInstalledAppForWmClass(wmClass) {
+    const raw = String(wmClass || '').trim();
+    if (!raw) return null;
+
+    // wmctrl -x reports "instance.Class" (from WM_CLASS strings). Try both parts + full string.
+    const parts = raw.split('.').map(p => p.trim()).filter(Boolean);
+    const candidates = [raw, ...parts].map(s => s.toLowerCase());
+    for (const c of candidates) {
+        const hit = installedAppsByStartupWmClass.get(c);
+        if (hit) return hit;
+    }
+    return null;
+}
+
+function enrichX11Snapshot(snapshot) {
+    const windows = (snapshot && Array.isArray(snapshot.windows)) ? snapshot.windows : [];
+    const active = snapshot ? snapshot.activeXidHex : null;
+    return {
+        supported: !!snapshot?.supported,
+        activeXidHex: active,
+        activeFullscreen: !!snapshot?.activeFullscreen,
+        windows: windows.map(w => {
+            const app = matchInstalledAppForWmClass(w.wmClass);
+            return {
+                xidHex: w.xidHex,
+                desktop: w.desktop ?? null,
+                pid: w.pid ?? null,
+                wmClass: w.wmClass ?? null,
+                title: w.title ?? '',
+                active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
+                appId: app ? app.id : null,
+                appName: app ? app.name : null,
+                iconUrl: app ? app.iconUrl : null,
+                source: app ? app.source : null,
+            };
+        }),
+    };
+}
+
+function broadcastX11WindowsChanged(snapshot) {
+    const payload = enrichX11Snapshot(snapshot);
+    try {
+        for (const win of BrowserWindow.getAllWindows()) {
+            if (!win || win.isDestroyed()) continue;
+            win.webContents.send('x11:windowsChanged', payload);
+        }
+    } catch {
+        // ignore
+    }
+}
+
+async function startX11EwmhBridge() {
+    if (process.platform !== 'linux') return;
+    if (ewmhBridge) return;
+
+    // Ignore our own windows to avoid self-referential taskbar entries.
+    x11IgnoreXids = new Set();
+    const mainXid = xidHexFromBrowserWindow(mainWindow);
+    if (mainXid) x11IgnoreXids.add(String(mainXid).toLowerCase());
+    const panelXid = xidHexFromBrowserWindow(panelWindow);
+    if (panelXid) x11IgnoreXids.add(String(panelXid).toLowerCase());
+
+    ewmhBridge = await createEwmhBridge({ pollMs: 650, includeHidden: false, ignoreXids: x11IgnoreXids });
+    if (!ewmhBridge.supported) {
+        ewmhBridge = null;
+        return;
+    }
+
+    ewmhBridge.onChange((snap) => {
+        broadcastX11WindowsChanged(snap);
+        void applyPanelPolicyFromSnapshot(snap).catch(() => { });
+    });
+    ewmhBridge.start();
+}
+
 app.whenReady().then(() => {
     registerTempleIconProtocol();
     createWindow();
     if (process.platform === 'linux') {
         startDesktopEntryWatcher();
         void refreshInstalledAppsCache('startup').catch(() => { });
+        if (isX11Session()) {
+            createPanelWindow();
+            if (process.env.TEMPLE_X11_DESKTOP_HINTS === '1') {
+                void applyDesktopHintsToMainWindow().catch(() => { });
+            }
+            void applyDockStrutToPanelWindow().catch(() => { });
+            void startX11EwmhBridge().catch(() => { });
+        }
     }
 });
 
@@ -714,6 +970,95 @@ ipcMain.handle('window:setBounds', (event, bounds) => {
         return { success: true };
     }
     return { success: false, error: 'Window not found' };
+});
+
+// ============================================
+// X11 WINDOW BRIDGE IPC (EWMH via wmctrl/xprop)
+// ============================================
+function isValidXidHex(x) {
+    return typeof x === 'string' && /^0x[0-9a-fA-F]+$/.test(x);
+}
+
+ipcMain.handle('x11:supported', async () => {
+    return { success: true, supported: !!ewmhBridge?.supported };
+});
+
+ipcMain.handle('x11:getWindows', async () => {
+    try {
+        if (!ewmhBridge) return { success: true, supported: false, snapshot: enrichX11Snapshot({ supported: false, windows: [], activeXidHex: null, activeFullscreen: false }) };
+        return { success: true, supported: true, snapshot: enrichX11Snapshot(ewmhBridge.getSnapshot()) };
+    } catch (e) {
+        return { success: false, supported: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('x11:activateWindow', async (event, xidHex) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        await ewmhBridge.activateWindow(xidHex);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('x11:closeWindow', async (event, xidHex) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        await ewmhBridge.closeWindow(xidHex);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('x11:minimizeWindow', async (event, xidHex) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        await ewmhBridge.minimizeWindow(xidHex);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('x11:unminimizeWindow', async (event, xidHex) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        await ewmhBridge.unminimizeWindow(xidHex);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+// Shell policies (panel hide / gaming mode)
+ipcMain.handle('shell:getPanelPolicy', async () => {
+    return { success: true, policy: { hideOnFullscreen: !!panelPolicy.hideOnFullscreen, forceHidden: !!panelPolicy.forceHidden } };
+});
+
+ipcMain.handle('shell:setHideBarOnFullscreen', async (event, enabled) => {
+    panelPolicy.hideOnFullscreen = !!enabled;
+    try {
+        await applyPanelPolicyFromSnapshot(ewmhBridge?.getSnapshot?.() || { activeFullscreen: false });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('shell:setGamingMode', async (event, enabled) => {
+    panelPolicy.forceHidden = !!enabled;
+    try {
+        await applyPanelPolicyFromSnapshot(ewmhBridge?.getSnapshot?.() || { activeFullscreen: false });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
 });
 
 // ============================================
@@ -3392,6 +3737,7 @@ async function scanDesktopEntries(options = {}) {
                 id,
                 name,
                 genericName: genericName || undefined,
+                startupWmClass: String(parsed.StartupWMClass || '').trim() || undefined,
                 icon: iconName,
                 iconPath,
                 iconUrl,
@@ -3415,6 +3761,15 @@ let installedAppsFingerprint = '';
 let installedAppsScanPromise = null;
 let stopDesktopEntryWatch = null;
 let desktopEntryRescanTimer = null;
+let installedAppsByStartupWmClass = new Map(); // lower -> app
+
+function rebuildInstalledAppsIndexes(apps) {
+    installedAppsByStartupWmClass = new Map();
+    for (const a of Array.isArray(apps) ? apps : []) {
+        const v = a && a.startupWmClass ? String(a.startupWmClass).trim() : '';
+        if (v) installedAppsByStartupWmClass.set(v.toLowerCase(), a);
+    }
+}
 
 function fingerprintApps(apps) {
     return (Array.isArray(apps) ? apps : [])
@@ -3641,6 +3996,7 @@ async function refreshInstalledAppsCache(reason) {
         const fp = fingerprintApps(apps);
         const changed = fp !== installedAppsFingerprint;
         installedAppsCache = apps;
+        rebuildInstalledAppsIndexes(apps);
         installedAppsCacheReady = true;
         installedAppsFingerprint = fp;
         if (changed) broadcastAppsChanged({ reason: reason || 'rescan' });

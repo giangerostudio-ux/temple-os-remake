@@ -163,6 +163,7 @@ declare global {
       closeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       minimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       unminimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
+      setX11WindowAlwaysOnTop?: (xidHex: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
@@ -700,6 +701,7 @@ class TempleOS {
     wmClass?: string | null;
     active?: boolean;
     minimized?: boolean;
+    alwaysOnTop?: boolean;
     iconUrl?: string | null;
     appName?: string | null;
   }> = [];
@@ -15372,7 +15374,8 @@ class TempleOS {
 
     // Windows-like taskbar behavior:
     // - If minimized, click restores + focuses.
-    // - Otherwise, click minimizes.
+    // - If focused, click minimizes.
+    // - Otherwise, click activates/raises (no minimizing on focus change).
     if (win?.minimized) {
       // Optimistic UI update (prevents needing a second click before poll catches up)
       win.minimized = false;
@@ -15393,12 +15396,35 @@ class TempleOS {
       return;
     }
 
-    // Optimistic UI update
-    win.minimized = true;
-    win.active = false;
-    updateTaskbarAppsDomOnly();
+    void (async () => {
+      let isActiveNow = !!win.active;
 
-    void api.minimizeX11Window?.(xid);
+      // Snapshot polling can lag; ask X11 directly so fast clicks still minimize/activate correctly.
+      if (api.getActiveX11Window) {
+        try {
+          const res = await api.getActiveX11Window();
+          const activeXid = String(res?.xidHex || '').toLowerCase();
+          if (activeXid) {
+            isActiveNow = activeXid === xid.toLowerCase();
+          }
+        } catch {
+          // fall back to snapshot-derived win.active
+        }
+      }
+
+      if (isActiveNow) {
+        // Minimize
+        win.minimized = true;
+        win.active = false;
+        updateTaskbarAppsDomOnly();
+        void api.minimizeX11Window?.(xid);
+      } else {
+        // Activate/raise
+        this.x11Windows.forEach(w => { if (w) w.active = String(w.xidHex).toLowerCase() === xid.toLowerCase(); });
+        updateTaskbarAppsDomOnly();
+        void api.activateX11Window?.(xid);
+      }
+    })();
   }
 
   /**
@@ -16525,6 +16551,12 @@ class TempleOS {
         const win = this.x11Windows.find(w => w.xidHex === xid);
 
         if (win) {
+          menuItems.push({
+            label: `${win.alwaysOnTop ? 'Unpin' : 'Pin'} (Always on Top)`,
+            action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
+          });
+          menuItems.push({ divider: true });
+
           if (win.minimized) {
             menuItems.push({
               label: 'Restore',

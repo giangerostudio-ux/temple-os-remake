@@ -96,16 +96,26 @@ class TemplePanel {
         const win = this.x11Windows.find(w => w.xidHex === xid);
         if (!win) return;
 
-        // Toggle behavior: if active and not minimized, minimize it.
-        // If not active or minimized, activate it.
-        if (win.active && !win.minimized) {
-          if (window.electronAPI?.minimizeX11Window) {
-            void window.electronAPI.minimizeX11Window(xid);
-          }
-        } else {
-          if (window.electronAPI?.activateX11Window) {
+        // Windows-like taskbar behavior:
+        // - If minimized, restore + focus.
+        // - If focused, minimize.
+        // - Otherwise, activate/raise.
+        if (win.minimized) {
+          if (window.electronAPI?.unminimizeX11Window) {
+            void window.electronAPI.unminimizeX11Window(xid).then(() => void window.electronAPI?.activateX11Window?.(xid));
+          } else if (window.electronAPI?.activateX11Window) {
             void window.electronAPI.activateX11Window(xid);
           }
+          return;
+        }
+
+        if (win.active && window.electronAPI?.minimizeX11Window) {
+          void window.electronAPI.minimizeX11Window(xid);
+          return;
+        }
+
+        if (window.electronAPI?.activateX11Window) {
+          void window.electronAPI.activateX11Window(xid);
         }
       };
 

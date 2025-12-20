@@ -61,15 +61,16 @@ async function getActiveWindowXidHex() {
 }
 
 async function getWindowState(xidHex) {
-  if (!xidHex) return { fullscreen: false, hidden: false, skipTaskbar: false, windowType: null };
+  if (!xidHex) return { fullscreen: false, hidden: false, above: false, skipTaskbar: false, windowType: null };
   const { stdout } = await execFileAsync('xprop', ['-id', xidHex, '_NET_WM_STATE', '_NET_WM_WINDOW_TYPE']);
   const s = stdout || '';
   const fullscreen = /_NET_WM_STATE_FULLSCREEN/.test(s);
   const hidden = /_NET_WM_STATE_HIDDEN/.test(s);
+  const above = /_NET_WM_STATE_ABOVE/.test(s);
   const skipTaskbar = /_NET_WM_STATE_SKIP_TASKBAR/.test(s) || /_NET_WM_WINDOW_TYPE_DOCK/.test(s);
   const windowTypeMatch = s.match(/_NET_WM_WINDOW_TYPE\\(ATOM\\)\\s*=\\s*(.*)$/m);
   const windowType = windowTypeMatch ? windowTypeMatch[1].trim() : null;
-  return { fullscreen, hidden, skipTaskbar, windowType };
+  return { fullscreen, hidden, above, skipTaskbar, windowType };
 }
 
 async function listClientWindows() {
@@ -94,9 +95,13 @@ async function unminimizeWindow(xidHex) {
   await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,hidden']);
 }
 
+async function setAlwaysOnTop(xidHex, enabled) {
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-b', `${enabled ? 'add' : 'remove'},above`]);
+}
+
 function fingerprintSnapshot(snap) {
   const ids = (snap?.windows || [])
-    .map(w => `${w.xidHex}:${w?.minimized ? '1' : '0'}`)
+    .map(w => `${w.xidHex}:${w?.minimized ? '1' : '0'}:${w?.alwaysOnTop ? '1' : '0'}`)
     .sort()
     .join(',');
   return `${ids}|active=${snap?.activeXidHex || ''}|fs=${snap?.activeFullscreen ? '1' : '0'}`;
@@ -142,6 +147,9 @@ async function createEwmhBridge(options = {}) {
         // Don't filter hidden (minimized) windows, just mark them
         if (st?.hidden) {
           w.minimized = true;
+        }
+        if (st?.above) {
+          w.alwaysOnTop = true;
         }
       }
       windows.push(w);
@@ -190,6 +198,7 @@ async function createEwmhBridge(options = {}) {
     closeWindow,
     minimizeWindow,
     unminimizeWindow,
+    setAlwaysOnTop,
   };
 }
 

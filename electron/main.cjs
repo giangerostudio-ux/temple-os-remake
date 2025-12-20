@@ -946,19 +946,20 @@ function enrichX11Snapshot(snapshot) {
         activeFullscreen: !!snapshot?.activeFullscreen,
         windows: filteredWindows.map(w => {
             const app = matchInstalledAppForWmClass(w.wmClass);
-            return {
-                xidHex: w.xidHex,
-                desktop: w.desktop ?? null,
-                pid: w.pid ?? null,
-                wmClass: w.wmClass ?? null,
-                title: w.title ?? '',
-                active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
-                minimized: !!w.minimized,
-                appId: app ? app.id : null,
-                appName: app ? app.name : null,
-                iconUrl: app ? app.iconUrl : null,
-                source: app ? app.source : null,
-            };
+                return {
+                    xidHex: w.xidHex,
+                    desktop: w.desktop ?? null,
+                    pid: w.pid ?? null,
+                    wmClass: w.wmClass ?? null,
+                    title: w.title ?? '',
+                    active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
+                    minimized: !!w.minimized,
+                    alwaysOnTop: !!w.alwaysOnTop,
+                    appId: app ? app.id : null,
+                    appName: app ? app.name : null,
+                    iconUrl: app ? app.iconUrl : null,
+                    source: app ? app.source : null,
+                };
         }),
     };
 }
@@ -1120,6 +1121,18 @@ ipcMain.handle('x11:unminimizeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.unminimizeWindow(xidHex);
+        await ewmhBridge.refreshNow?.().catch(() => { });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        await ewmhBridge.setAlwaysOnTop(xidHex, !!enabled);
         await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
     } catch (e) {

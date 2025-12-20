@@ -845,8 +845,6 @@ async function applyDesktopHintsToMainWindow() {
     // _NET_WM_STATE_BELOW ensures it stays at the bottom of the stack (like a desktop),
     // preventing it from obscuring other windows when clicked/focused.
     await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
-    // Reinforce desktop nature so clicking it doesn't raise it above other apps
-    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DESKTOP').catch(() => { });
 }
 
 function createPanelWindow() {

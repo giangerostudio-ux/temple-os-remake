@@ -724,6 +724,9 @@ function createWindow() {
             // Only re-apply if we suspect we lost the 'below' state. 
             // We just fire-and-forget this to ensure we stay at the bottom.
             void xpropSet(xidHexFromBrowserWindow(mainWindow), '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
+            // Prevent WMs from leaving "show desktop" mode on, which can cause external apps to be iconified
+            // whenever the desktop shell gets focus.
+            void setShowDesktopMode(false).catch(() => { });
         }
     });
 }
@@ -758,6 +761,15 @@ async function xpropSet(winIdHex, propName, format, value) {
     const cmd = `xprop -id ${winIdHex} -f ${propName} ${format} -set ${propName} ${value}`;
     const res = await execAsync(cmd, { timeout: 2000 });
     if (res.error) return { success: false, error: res.stderr || res.error.message || 'xprop failed' };
+    return { success: true };
+}
+
+async function setShowDesktopMode(enabled) {
+    if (!isX11Session()) return { success: false, error: 'Not an X11 session' };
+    if (!(await hasCommand('wmctrl'))) return { success: false, error: 'wmctrl not installed' };
+    const arg = enabled ? 'on' : 'off';
+    const res = await execAsync(`wmctrl -k ${arg} 2>/dev/null`, { timeout: 2000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'wmctrl failed' };
     return { success: true };
 }
 
@@ -1084,6 +1096,7 @@ ipcMain.handle('x11:activateWindow', async (event, xidHex) => {
     if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
+        await setShowDesktopMode(false).catch(() => ({ success: false }));
         await ewmhBridge.activateWindow(xidHex);
         await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
@@ -1120,6 +1133,7 @@ ipcMain.handle('x11:unminimizeWindow', async (event, xidHex) => {
     if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
+        await setShowDesktopMode(false).catch(() => ({ success: false }));
         await ewmhBridge.unminimizeWindow(xidHex);
         await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };

@@ -63,10 +63,28 @@ xset -dpms &
 
 EOF
 
-echo "[4/4] Done."
+echo "[4/5] Writing Openbox rc.xml (disable Show Desktop + Win key binds)..."
+RC_DIR="${HOME}/.config/openbox"
+RC_XML="${RC_DIR}/rc.xml"
+mkdir -p "${RC_DIR}"
+if [[ -f "${RC_XML}" ]]; then
+  cp -a "${RC_XML}" "${RC_XML}.bak.$(date +%s)"
+else
+  if [[ -f "/etc/xdg/openbox/rc.xml" ]]; then
+    cp -a "/etc/xdg/openbox/rc.xml" "${RC_XML}"
+  elif [[ -f "/etc/xdg/openbox/rc.xml.in" ]]; then
+    cp -a "/etc/xdg/openbox/rc.xml.in" "${RC_XML}"
+  else
+    echo "WARN: Could not find /etc/xdg/openbox/rc.xml to base config on."
+    touch "${RC_XML}"
+  fi
+fi
+
+python3 "${APP_DIR}/scripts/patch-openbox-rcxml.py" "${RC_XML}" || true
+
+echo "[5/5] Done."
 echo
 echo "Next:"
 echo "  - Reboot to a TTY, then run: startx"
 echo "  - In a GUI terminal, verify: echo \"XDG_SESSION_TYPE=\$XDG_SESSION_TYPE DISPLAY=\$DISPLAY WAYLAND_DISPLAY=\$WAYLAND_DISPLAY\""
 echo "  - Install apps with apt/snap and confirm they appear in the panel launcher search."
-

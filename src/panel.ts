@@ -21,6 +21,7 @@ function escapeHtml(s: string): string {
 
 class TemplePanel {
   private x11Windows: X11Window[] = [];
+  private lastActiveXid: string | null = null;
 
   constructor() {
     this.init().catch(() => { /* ignore */ });
@@ -33,6 +34,8 @@ class TemplePanel {
       window.electronAPI.onX11WindowsChanged((payload: any) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
         this.x11Windows = wins;
+        const activeWin = wins.find((w: X11Window) => w.active);
+        if (activeWin) this.lastActiveXid = activeWin.xidHex;
         this.render();
       });
     }
@@ -48,6 +51,8 @@ class TemplePanel {
     if (!res?.success || !res.supported) return;
     const wins = Array.isArray(res.snapshot?.windows) ? res.snapshot.windows : [];
     this.x11Windows = wins;
+    const activeWin = wins.find((w: X11Window) => w.active);
+    if (activeWin) this.lastActiveXid = activeWin.xidHex;
     this.render();
   }
 
@@ -92,8 +97,12 @@ class TemplePanel {
         if (!xid) return;
 
 
+
         const win = this.x11Windows.find(w => w.xidHex === xid);
-        if (win?.active && !win.minimized) {
+        // Toggle logic: Minimize if it is active OR if it was the last active window
+        const isEffectivelyActive = (win?.active) || (xid === this.lastActiveXid && !win?.minimized);
+
+        if (isEffectivelyActive) {
           if (window.electronAPI?.minimizeX11Window) {
             void window.electronAPI.minimizeX11Window(xid);
           }

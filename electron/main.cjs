@@ -1313,8 +1313,8 @@ function buildContextMenuHtml(items) {
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{background:rgba(13,17,23,0.98);border:1px solid rgba(0,255,65,0.3);border-radius:6px;overflow:hidden;font-family:'VT323',monospace}
-.ctx-item{padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;user-select:none}
+html,body{background:rgba(13,17,23,0.98);border:1px solid rgba(0,255,65,0.3);border-radius:6px;overflow:hidden;font-family:'VT323','Noto Color Emoji',monospace}
+.ctx-item{padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctx-item:hover{background:rgba(0,255,65,0.15)}
 .ctx-divider{height:1px;background:rgba(0,255,65,0.2);margin:4px 8px}
 </style></head><body>${itemsHtml}</body></html>`;
@@ -1337,9 +1337,9 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
         }
 
         // Calculate popup size
-        const itemHeight = 32;
-        const padding = 12;
-        const width = 220;
+        const itemHeight = 36;
+        const padding = 16;
+        const width = 250;
         const dividerCount = items.filter(i => i.divider).length;
         const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + padding;
 

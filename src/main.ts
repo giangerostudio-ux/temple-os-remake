@@ -173,6 +173,10 @@ declare global {
       hasExternalPanel?: () => Promise<{ success: boolean; enabled: boolean }>;
       panelToggleStartMenu?: () => Promise<{ success: boolean; error?: string }>;
       onShellToggleStartMenu?: (callback: (payload: any) => void) => () => void;
+      // Context Menu Popup (Linux X11 floating menus)
+      showContextMenuPopup?: (x: number, y: number, items: Array<{ id: string; label?: string; divider?: boolean }>) => Promise<{ success: boolean; error?: string }>;
+      closeContextMenuPopup?: () => Promise<{ success: boolean }>;
+      onContextMenuAction?: (callback: (actionId: string) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -709,6 +713,7 @@ class TempleOS {
   private x11UserMinimized = new Set<string>(); // lowercased xidHex
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
   private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
+  private pendingContextMenuActions: Map<string, () => void | Promise<void>> | null = null; // For floating popup menu callbacks
 
   // Taskbar App Grouping (Tier 9.1)
   private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
@@ -991,6 +996,17 @@ class TempleOS {
     // Electron main-process lock request
     if (window.electronAPI?.onLockScreen) {
       window.electronAPI.onLockScreen(() => this.lock());
+    }
+
+    // Context menu popup action listener (Linux X11 floating menus)
+    if (window.electronAPI?.onContextMenuAction) {
+      window.electronAPI.onContextMenuAction((actionId: string) => {
+        const action = this.pendingContextMenuActions?.get(actionId);
+        if (action) {
+          void action();
+        }
+        this.pendingContextMenuActions = null;
+      });
     }
 
     // Periodically save state (if we had complex state)
@@ -15847,6 +15863,26 @@ class TempleOS {
   private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean; submenu?: any[] }>): void {
     this.closeContextMenu();
 
+    // On Linux X11 with external windows, use floating popup to appear above Firefox/X11 apps
+    // Check if popup API is available and we're on X11 (indicated by having x11Windows support)
+    if (window.electronAPI?.showContextMenuPopup && this.x11Windows.length > 0) {
+      // Serialize items with IDs for IPC, store action callbacks
+      const serializedItems = items.map((item, idx) => ({
+        id: `action_${idx}`,
+        label: item.label || '',
+        divider: !!item.divider,
+      }));
+
+      // Store action callbacks
+      this.pendingContextMenuActions = new Map(
+        items.filter(i => !i.divider && i.action).map((item, idx) => [`action_${idx}`, item.action!])
+      );
+
+      void window.electronAPI.showContextMenuPopup(x, y, serializedItems);
+      return;
+    }
+
+    // Fallback: DOM-based menu (Windows, macOS, non-X11 Linux)
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.style.cssText = `

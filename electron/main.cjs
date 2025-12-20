@@ -27,6 +27,7 @@ const ptyProcesses = new Map(); // id -> { pty, cwd }
 
 let mainWindow;
 let panelWindow;
+let contextPopup = null; // Floating context menu popup (alwaysOnTop)
 let ewmhBridge = null;
 let x11IgnoreXids = new Set();
 let panelPolicy = {
@@ -969,20 +970,20 @@ function enrichX11Snapshot(snapshot) {
         activeFullscreen: !!snapshot?.activeFullscreen,
         windows: filteredWindows.map(w => {
             const app = matchInstalledAppForWmClass(w.wmClass);
-                return {
-                    xidHex: w.xidHex,
-                    desktop: w.desktop ?? null,
-                    pid: w.pid ?? null,
-                    wmClass: w.wmClass ?? null,
-                    title: w.title ?? '',
-                    active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
-                    minimized: !!w.minimized,
-                    alwaysOnTop: !!w.alwaysOnTop,
-                    appId: app ? app.id : null,
-                    appName: app ? app.name : null,
-                    iconUrl: app ? app.iconUrl : null,
-                    source: app ? app.source : null,
-                };
+            return {
+                xidHex: w.xidHex,
+                desktop: w.desktop ?? null,
+                pid: w.pid ?? null,
+                wmClass: w.wmClass ?? null,
+                title: w.title ?? '',
+                active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
+                minimized: !!w.minimized,
+                alwaysOnTop: !!w.alwaysOnTop,
+                appId: app ? app.id : null,
+                appName: app ? app.name : null,
+                iconUrl: app ? app.iconUrl : null,
+                source: app ? app.source : null,
+            };
         }),
     };
 }
@@ -1276,6 +1277,156 @@ ipcMain.handle('panel:toggleStartMenu', async () => {
         if (!mainWindow || mainWindow.isDestroyed()) return { success: false, error: 'Main window not available' };
         mainWindow.webContents.send('shell:toggleStartMenu', {});
         try { mainWindow.focus(); } catch { }
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+// ============================================
+// CONTEXT MENU POPUP (Floating alwaysOnTop window)
+// ============================================
+function buildContextMenuHtml(items) {
+    const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const itemsHtml = items.map((item, idx) => {
+        if (item.divider) {
+            return `<div style="height:1px;background:rgba(0,255,65,0.2);margin:4px 8px;"></div>`;
+        }
+        return `
+            <div class="ctx-item" data-action-id="${escapeHtml(item.id)}"
+                 style="padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;font-family:'VT323',monospace;"
+                 onmouseenter="this.style.background='rgba(0,255,65,0.15)'"
+                 onmouseleave="this.style.background='transparent'">
+                ${escapeHtml(item.label)}
+            </div>`;
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body {
+            background: rgba(13,17,23,0.98);
+            border: 1px solid rgba(0,255,65,0.3);
+            border-radius: 6px;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+        }
+        .ctx-item { user-select: none; }
+    </style>
+</head>
+<body>
+    ${itemsHtml}
+    <script>
+        const { ipcRenderer } = require('electron');
+        document.body.addEventListener('click', (e) => {
+            const item = e.target.closest('.ctx-item');
+            if (item && item.dataset.actionId) {
+                ipcRenderer.invoke('contextmenu:action', item.dataset.actionId);
+            }
+        });
+    </script>
+</body>
+</html>`;
+}
+
+ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
+    try {
+        // Close existing popup
+        if (contextPopup && !contextPopup.isDestroyed()) {
+            contextPopup.close();
+            contextPopup = null;
+        }
+
+        if (!items || items.length === 0) {
+            return { success: false, error: 'No items' };
+        }
+
+        // Calculate popup size
+        const itemHeight = 32;
+        const padding = 12;
+        const width = 200;
+        const dividerCount = items.filter(i => i.divider).length;
+        const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + padding;
+
+        // Position above click point (taskbar), adjusted for screen bounds
+        const primary = screen.getPrimaryDisplay();
+        let posX = Math.round(x);
+        let posY = Math.round(y - height);
+
+        // Keep on screen
+        if (posX + width > primary.bounds.x + primary.bounds.width) {
+            posX = primary.bounds.x + primary.bounds.width - width - 10;
+        }
+        if (posX < primary.bounds.x) posX = primary.bounds.x + 10;
+        if (posY < primary.bounds.y) posY = primary.bounds.y + 10;
+
+        contextPopup = new BrowserWindow({
+            x: posX,
+            y: posY,
+            width,
+            height,
+            frame: false,
+            resizable: false,
+            movable: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            focusable: true,
+            show: false,
+            transparent: true,
+            hasShadow: true,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+            }
+        });
+
+        const html = buildContextMenuHtml(items);
+        contextPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+        contextPopup.once('ready-to-show', () => {
+            if (contextPopup && !contextPopup.isDestroyed()) {
+                contextPopup.show();
+            }
+        });
+
+        contextPopup.on('blur', () => {
+            if (contextPopup && !contextPopup.isDestroyed()) {
+                contextPopup.close();
+            }
+        });
+
+        contextPopup.on('closed', () => {
+            contextPopup = null;
+        });
+
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('contextmenu:close', async () => {
+    if (contextPopup && !contextPopup.isDestroyed()) {
+        contextPopup.close();
+        contextPopup = null;
+    }
+    return { success: true };
+});
+
+ipcMain.handle('contextmenu:action', async (event, actionId) => {
+    try {
+        // Broadcast action to main window
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('contextmenu:executeAction', actionId);
+        }
+        // Close popup
+        if (contextPopup && !contextPopup.isDestroyed()) {
+            contextPopup.close();
+            contextPopup = null;
+        }
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };

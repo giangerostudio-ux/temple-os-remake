@@ -211,4 +211,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('shell:toggleStartMenu', handler);
         return () => ipcRenderer.removeListener('shell:toggleStartMenu', handler);
     },
+
+    // ============================================
+    // CONTEXT MENU POPUP (Linux X11 floating menus)
+    // ============================================
+    showContextMenuPopup: (x, y, items) => ipcRenderer.invoke('contextmenu:show', { x, y, items }),
+    closeContextMenuPopup: () => ipcRenderer.invoke('contextmenu:close'),
+    onContextMenuAction: (callback) => {
+        const handler = (event, actionId) => callback(actionId);
+        ipcRenderer.on('contextmenu:executeAction', handler);
+        return () => ipcRenderer.removeListener('contextmenu:executeAction', handler);
+    },
 });

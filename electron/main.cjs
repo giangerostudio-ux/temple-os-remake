@@ -1055,10 +1055,14 @@ class X11LayoutManager {
                     const wmClass = w.wmClass ? w.wmClass.toLowerCase() : '';
 
                     let ignored = false;
+                    // FILTER: Ignore Dock, Desktop, and TempleOS itself
                     if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') ignored = true;
                     else if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') ignored = true;
                     else if (x11IgnoreXids.has(xid)) ignored = true;
+                    // App Filters
                     else if (wmClass.includes('templeos') || wmClass.includes('electron')) ignored = true;
+                    else if (wmClass.includes('visual studio code') || wmClass.includes('code')) ignored = true;
+                    else if (wmClass.includes('gnome-terminal') || wmClass.includes('xterm') || wmClass.includes('konsole')) ignored = true; // Ignore terminals in dev mode
 
                     debugLog.push(`[X11Mgr] Win: ${xid} Class: ${wmClass} Type: ${w.windowType} Ignored: ${ignored}`);
 

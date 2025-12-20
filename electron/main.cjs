@@ -1286,58 +1286,53 @@ ipcMain.handle('panel:toggleStartMenu', async () => {
 // ============================================
 // CONTEXT MENU POPUP (Floating alwaysOnTop window)
 // ============================================
+let contextPopupBusy = false; // Mutex to prevent multiple popups
+let contextPollInterval = null;
+
+function closeContextPopupSync() {
+    if (contextPollInterval) {
+        clearInterval(contextPollInterval);
+        contextPollInterval = null;
+    }
+    if (contextPopup && !contextPopup.isDestroyed()) {
+        try {
+            contextPopup.destroy(); // Force destroy, don't wait for close
+        } catch { }
+    }
+    contextPopup = null;
+}
+
 function buildContextMenuHtml(items) {
     const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const itemsHtml = items.map((item, idx) => {
+    const itemsHtml = items.map((item) => {
         if (item.divider) {
             return `<div class="ctx-divider"></div>`;
         }
         return `<div class="ctx-item" data-action-id="${escapeHtml(item.id)}">${escapeHtml(item.label)}</div>`;
     }).join('');
 
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html, body {
-            background: rgba(13,17,23,0.98);
-            border: 1px solid rgba(0,255,65,0.3);
-            border-radius: 6px;
-            overflow: hidden;
-            font-family: 'VT323', monospace;
-        }
-        .ctx-item {
-            padding: 8px 14px;
-            cursor: pointer;
-            color: #00ff41;
-            font-size: 16px;
-            user-select: none;
-        }
-        .ctx-item:hover {
-            background: rgba(0,255,65,0.15);
-        }
-        .ctx-divider {
-            height: 1px;
-            background: rgba(0,255,65,0.2);
-            margin: 4px 8px;
-        }
-    </style>
-</head>
-<body>${itemsHtml}</body>
-</html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:rgba(13,17,23,0.98);border:1px solid rgba(0,255,65,0.3);border-radius:6px;overflow:hidden;font-family:'VT323',monospace}
+.ctx-item{padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;user-select:none}
+.ctx-item:hover{background:rgba(0,255,65,0.15)}
+.ctx-divider{height:1px;background:rgba(0,255,65,0.2);margin:4px 8px}
+</style></head><body>${itemsHtml}</body></html>`;
 }
 
 ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
+    // Prevent multiple simultaneous popups
+    if (contextPopupBusy) {
+        return { success: false, error: 'Busy' };
+    }
+    contextPopupBusy = true;
+
     try {
-        // Close existing popup
-        if (contextPopup && !contextPopup.isDestroyed()) {
-            contextPopup.close();
-            contextPopup = null;
-        }
+        // Force-close any existing popup immediately
+        closeContextPopupSync();
 
         if (!items || items.length === 0) {
+            contextPopupBusy = false;
             return { success: false, error: 'No items' };
         }
 
@@ -1377,79 +1372,87 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
-                preload: path.join(__dirname, 'preload.cjs'),
             }
         });
 
         const html = buildContextMenuHtml(items);
-        await contextPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-        // Set up click handling via executeJavaScript since data URL can't use preload properly
-        await contextPopup.webContents.executeJavaScript(`
-            document.body.addEventListener('click', (e) => {
-                const item = e.target.closest('.ctx-item');
-                if (item && item.dataset.actionId) {
-                    // Use postMessage to notify parent - we'll poll via IPC
-                    window.__selectedActionId = item.dataset.actionId;
-                }
-            });
-            true; // Return value to avoid promise issues
-        `);
+        // Use loadURL without waiting for complete load - show immediately
+        contextPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-        // Poll for click (since we can't use IPC directly from data URL)
-        const pollClick = setInterval(async () => {
+        // Show immediately, don't wait for ready-to-show
+        contextPopup.showInactive();
+        setTimeout(() => {
+            if (contextPopup && !contextPopup.isDestroyed()) {
+                contextPopup.focus();
+            }
+        }, 10);
+
+        // Set up click handling once content is loaded
+        contextPopup.webContents.once('did-finish-load', async () => {
+            if (!contextPopup || contextPopup.isDestroyed()) return;
+
+            try {
+                await contextPopup.webContents.executeJavaScript(`
+                    document.body.addEventListener('click', (e) => {
+                        const item = e.target.closest('.ctx-item');
+                        if (item && item.dataset.actionId) {
+                            window.__selectedActionId = item.dataset.actionId;
+                        }
+                    });
+                    true;
+                `);
+            } catch { }
+        });
+
+        // Poll for click with faster interval
+        contextPollInterval = setInterval(async () => {
             if (!contextPopup || contextPopup.isDestroyed()) {
-                clearInterval(pollClick);
+                closeContextPopupSync();
+                contextPopupBusy = false;
                 return;
             }
             try {
                 const actionId = await contextPopup.webContents.executeJavaScript('window.__selectedActionId || null');
                 if (actionId) {
-                    clearInterval(pollClick);
                     // Broadcast action to main window
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.webContents.send('contextmenu:executeAction', actionId);
                     }
-                    // Close popup
-                    if (contextPopup && !contextPopup.isDestroyed()) {
-                        contextPopup.close();
-                        contextPopup = null;
-                    }
+                    closeContextPopupSync();
+                    contextPopupBusy = false;
                 }
             } catch {
-                clearInterval(pollClick);
+                closeContextPopupSync();
+                contextPopupBusy = false;
             }
-        }, 50);
+        }, 16); // ~60fps polling
 
-        // Auto-close on blur with small delay to allow click to register
+        // Close on blur (clicking outside)
         contextPopup.on('blur', () => {
+            // Small delay so click on menu item can register before blur closes it
             setTimeout(() => {
-                if (contextPopup && !contextPopup.isDestroyed()) {
-                    clearInterval(pollClick);
-                    contextPopup.close();
-                    contextPopup = null;
-                }
-            }, 100);
+                closeContextPopupSync();
+                contextPopupBusy = false;
+            }, 50);
         });
 
         contextPopup.on('closed', () => {
-            clearInterval(pollClick);
-            contextPopup = null;
+            closeContextPopupSync();
+            contextPopupBusy = false;
         });
-
-        contextPopup.show();
 
         return { success: true };
     } catch (e) {
+        closeContextPopupSync();
+        contextPopupBusy = false;
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
 });
 
 ipcMain.handle('contextmenu:close', async () => {
-    if (contextPopup && !contextPopup.isDestroyed()) {
-        contextPopup.close();
-        contextPopup = null;
-    }
+    closeContextPopupSync();
+    contextPopupBusy = false;
     return { success: true };
 });
 
@@ -1459,11 +1462,8 @@ ipcMain.handle('contextmenu:action', async (event, actionId) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('contextmenu:executeAction', actionId);
         }
-        // Close popup
-        if (contextPopup && !contextPopup.isDestroyed()) {
-            contextPopup.close();
-            contextPopup = null;
-        }
+        closeContextPopupSync();
+        contextPopupBusy = false;
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };

@@ -15721,6 +15721,14 @@ class TempleOS {
     // Minimize all active X11 windows so they don't cover the lock screen
     if (this.x11Windows.length > 0 && window.electronAPI?.minimizeX11Window) {
       this.x11Windows.forEach(win => {
+        // CRITICAL: Do NOT minimize the main TempleOS shell window itself!
+        // The main window might appear in this list if the filter in the main process isn't perfect.
+        const title = (win.title || '').toLowerCase();
+        const appName = (win.appName || '').toLowerCase();
+        if (title.startsWith('temple') || appName.startsWith('temple')) {
+          return;
+        }
+
         if (!win.minimized) {
           void window.electronAPI!.minimizeX11Window!(win.xidHex);
         }

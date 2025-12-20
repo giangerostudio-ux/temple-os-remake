@@ -21,7 +21,7 @@ function escapeHtml(s: string): string {
 
 class TemplePanel {
   private x11Windows: X11Window[] = [];
-  private lastActiveXid: string | null = null;
+
 
   constructor() {
     this.init().catch(() => { /* ignore */ });
@@ -34,8 +34,8 @@ class TemplePanel {
       window.electronAPI.onX11WindowsChanged((payload: any) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
         this.x11Windows = wins;
-        const activeWin = wins.find((w: X11Window) => w.active);
-        if (activeWin) this.lastActiveXid = activeWin.xidHex;
+
+
         this.render();
       });
     }
@@ -51,8 +51,8 @@ class TemplePanel {
     if (!res?.success || !res.supported) return;
     const wins = Array.isArray(res.snapshot?.windows) ? res.snapshot.windows : [];
     this.x11Windows = wins;
-    const activeWin = wins.find((w: X11Window) => w.active);
-    if (activeWin) this.lastActiveXid = activeWin.xidHex;
+
+
     this.render();
   }
 
@@ -65,20 +65,7 @@ class TemplePanel {
     el.textContent = `${hh}:${mm}`;
   }
 
-  private async activateWindow(xidHex: string): Promise<void> {
-    // Optimistic Update
-    this.lastActiveXid = xidHex;
-    const win = this.x11Windows.find(w => w.xidHex === xidHex);
-    if (win) {
-      this.x11Windows.forEach(w => w.active = false);
-      win.active = true;
-      win.minimized = false;
-      this.render(); // Re-render to reflect active state immediately
-    }
 
-    if (!window.electronAPI?.activateX11Window) return;
-    await window.electronAPI.activateX11Window(xidHex);
-  }
 
   private visibleX11Windows(): X11Window[] {
     const wins = Array.isArray(this.x11Windows) ? this.x11Windows : [];

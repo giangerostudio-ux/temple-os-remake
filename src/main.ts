@@ -2433,7 +2433,7 @@ class TempleOS {
 
     return `
     <div id="start-menu-container">${this.renderStartMenu()}</div>
-    <div class="taskbar ${extraClasses}" oncontextmenu="window.appInstance.showTaskbarContextMenu(event); return false;">
+    <div class="taskbar ${extraClasses}">
       <button class="start-btn ${this.showStartMenu ? 'active' : ''}">TEMPLE</button>
       ${this.renderWorkspaceSwitcher()}
       <div class="taskbar-apps">
@@ -8355,6 +8355,7 @@ class TempleOS {
 
       // 2. Global Item Listener (Delegation for Icons, Taskbar, etc)
       app.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
         // NOTE: Removed setupComplete guard - it was blocking ALL context menus
         // The wizard overlay already prevents interaction during setup, so this guard was redundant
         // and was causing a ~1 minute delay where users couldn't right-click or use UI
@@ -8491,6 +8492,12 @@ class TempleOS {
         }
 
         if (taskbarItem) {
+          // X11 external window (Firefox, etc.) taskbar entry
+          if (taskbarItem.dataset.x11Xid) {
+            this.showTaskbarContextMenu(e);
+            return;
+          }
+
           const key = taskbarItem.dataset.launchKey || '';
           const windowId = taskbarItem.dataset.taskbarWindow || '';
           if (key) {
@@ -9404,75 +9411,6 @@ class TempleOS {
           this.tilingManager.clearSnapAssist();
           this.showSnapAssist = false;
           this.render();
-        }
-      });
-
-      // ============================================
-      // CONTEXT MENU HANDLER (Restoring Fix)
-      // ============================================
-      app.addEventListener('contextmenu', (e) => {
-        e.preventDefault(); // Always prevent default browser menu
-
-        // Don't show custom menu if setup isn't done
-        if (!this.setupComplete) return;
-
-        const target = e.target as HTMLElement;
-
-        // Taskbar Context Menu
-        if (target.closest('.taskbar')) {
-          this.showTaskbarContextMenu(e);
-          return;
-        }
-
-        // Desktop Context Menu
-        // Check if clicking on desktop directly or desktop icons
-        if (target.closest('.desktop') || target.closest('#desktop')) {
-          // Exclude windows
-          if (target.closest('.window')) return;
-
-          this.showContextMenu(e.clientX, e.clientY, [
-            {
-              label: 'View',
-              submenu: [
-                { label: 'Large Icons', action: () => this.setDesktopIconSize('large') },
-                { label: 'Medium Icons', action: () => this.setDesktopIconSize('medium') },
-                { label: 'Small Icons', action: () => this.setDesktopIconSize('small') },
-                { divider: true },
-                { label: `${this.desktopAutoArrange ? 'Disable' : 'Enable'} Auto Arrange`, action: () => this.toggleDesktopAutoArrange() }
-              ]
-            },
-            {
-              label: 'Sort by',
-              submenu: [
-                { label: 'Name', action: () => this.setDesktopSort('name') },
-                { label: 'Size', action: () => this.setDesktopSort('size') }
-              ]
-            },
-            { label: 'Refresh', action: () => this.render() },
-            { divider: true },
-            { label: 'New Folder', action: () => this.promptNewFolder() },
-            { label: 'New Text File', action: () => this.promptNewFile() },
-            { label: 'Paste', action: () => this.pasteIntoCurrentFolder() },
-            { divider: true },
-            {
-              label: 'Change Wallpaper', action: () => {
-                this.openApp('settings');
-                this.activeSettingsCategory = 'Personalization';
-                this.refreshSettingsWindow();
-              }
-            },
-            {
-              label: 'Display Settings', action: () => {
-                this.openApp('settings');
-                this.activeSettingsCategory = 'System';
-                this.refreshSettingsWindow();
-              }
-            },
-            { label: 'All Settings', action: () => this.openApp('settings') },
-            { divider: true },
-            { label: 'Open Terminal', action: () => this.openApp('terminal') },
-          ]);
-          return;
         }
       });
 

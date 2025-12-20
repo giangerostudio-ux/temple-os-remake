@@ -662,17 +662,30 @@ async function restoreLinuxTrash(trashPath, originalPath) {
 }
 
 function createWindow() {
+    // Detect X11 before creating window
+    const x11Mode = process.platform === 'linux'
+        && !!process.env.DISPLAY
+        && !process.env.WAYLAND_DISPLAY
+        && process.env.XDG_SESSION_TYPE !== 'wayland';
+
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 720,
         frame: false,           // Custom title bar
         fullscreen: false,      // Start windowed
+        resizable: !x11Mode,    // Prevent resize in X11 (desktop shell mode)
+        movable: !x11Mode,      // Prevent dragging in X11 (desktop shell mode)
         webPreferences: {
             preload: path.join(__dirname, 'preload.cjs'),
             nodeIntegration: false,
             contextIsolation: true,
         }
     });
+
+    // In X11 mode, maximize immediately to act as desktop
+    if (x11Mode) {
+        mainWindow.maximize();
+    }
 
     // Load Vite dev server or built files
     if (process.env.NODE_ENV === 'development') {
@@ -693,6 +706,7 @@ function createWindow() {
         }
     });
 }
+
 
 function resizeMainWindowToWorkArea() {
     try {

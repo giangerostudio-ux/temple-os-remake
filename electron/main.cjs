@@ -893,11 +893,20 @@ function matchInstalledAppForWmClass(wmClass) {
 function enrichX11Snapshot(snapshot) {
     const windows = (snapshot && Array.isArray(snapshot.windows)) ? snapshot.windows : [];
     const active = snapshot ? snapshot.activeXidHex : null;
+
+    // Filter out the TempleOS desktop window from the list
+    const filteredWindows = windows.filter(w => {
+        const title = w.title ?? '';
+        // Exclude the main TempleOS desktop window
+        if (title.startsWith('TempleOS')) return false;
+        return true;
+    });
+
     return {
         supported: !!snapshot?.supported,
         activeXidHex: active,
         activeFullscreen: !!snapshot?.activeFullscreen,
-        windows: windows.map(w => {
+        windows: filteredWindows.map(w => {
             const app = matchInstalledAppForWmClass(w.wmClass);
             return {
                 xidHex: w.xidHex,

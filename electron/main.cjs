@@ -668,9 +668,25 @@ function createWindow() {
         && !process.env.WAYLAND_DISPLAY
         && process.env.XDG_SESSION_TYPE !== 'wayland';
 
+    // Get screen dimensions for X11 mode
+    let initialBounds = { width: 1280, height: 720, x: undefined, y: undefined };
+    if (x11Mode) {
+        const primary = screen.getPrimaryDisplay();
+        if (primary?.bounds) {
+            initialBounds = {
+                x: primary.bounds.x,
+                y: primary.bounds.y,
+                width: primary.bounds.width,
+                height: primary.bounds.height
+            };
+        }
+    }
+
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
+        width: initialBounds.width,
+        height: initialBounds.height,
+        x: initialBounds.x,
+        y: initialBounds.y,
         frame: false,           // Custom title bar
         fullscreen: false,      // Start windowed
         resizable: !x11Mode,    // Prevent resize in X11 (desktop shell mode)
@@ -681,11 +697,6 @@ function createWindow() {
             contextIsolation: true,
         }
     });
-
-    // In X11 mode, maximize immediately to act as desktop
-    if (x11Mode) {
-        mainWindow.maximize();
-    }
 
     // Load Vite dev server or built files
     if (process.env.NODE_ENV === 'development') {
@@ -706,6 +717,7 @@ function createWindow() {
         }
     });
 }
+
 
 
 function resizeMainWindowToWorkArea() {

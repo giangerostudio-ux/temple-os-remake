@@ -1009,28 +1009,10 @@ class X11LayoutManager {
         this.windowSlots = new Map();
         this.processing = false;
         this.suggestionCooldown = 0;
-        this.initialSnapshotProcessed = false;
     }
 
     async handleSnapshot(snapshot) {
         if (!snapshot || !snapshot.windows) return;
-
-        // 0. INITIAL SETUP: Ignore all windows present at launch (e.g. Terminal, VS Code)
-        if (!this.initialSnapshotProcessed) {
-            this.initialSnapshotProcessed = true;
-            const debugSetup = [];
-            for (const w of snapshot.windows) {
-                // We add them to the global ignore list so they never get counted/tiled
-                if (w.windowType !== '_NET_WM_WINDOW_TYPE_DOCK' && w.windowType !== '_NET_WM_WINDOW_TYPE_DESKTOP') {
-                    x11IgnoreXids.add(w.xidHex.toLowerCase());
-                    debugSetup.push(`Ignored Initial: ${w.xidHex} (${w.wmClass})`);
-                }
-            }
-            if (debugSetup.length > 0) {
-                console.log('[X11Mgr] Initial Startup Ignore List:', debugSetup.join(', '));
-            }
-            return; // Don't process auto-tiling for existing windows on simple reload
-        }
 
         // 1. AUTO-TILING (New Windows)
         if (!this.processing) {
@@ -1048,25 +1030,14 @@ class X11LayoutManager {
 
                 // Detect new
                 const newWindows = [];
-                const debugLog = [];
-
                 for (const w of snapshot.windows) {
                     const xid = w.xidHex.toLowerCase();
-                    const wmClass = w.wmClass ? w.wmClass.toLowerCase() : '';
-
-                    let ignored = false;
                     // FILTER: Ignore Dock, Desktop, and TempleOS itself
-                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') ignored = true;
-                    else if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') ignored = true;
-                    else if (x11IgnoreXids.has(xid)) ignored = true;
-                    // App Filters
-                    else if (wmClass.includes('templeos') || wmClass.includes('electron')) ignored = true;
-                    else if (wmClass.includes('visual studio code') || wmClass.includes('code')) ignored = true;
-                    else if (wmClass.includes('gnome-terminal') || wmClass.includes('xterm') || wmClass.includes('konsole')) ignored = true; // Ignore terminals in dev mode
-
-                    debugLog.push(`[X11Mgr] Win: ${xid} Class: ${wmClass} Type: ${w.windowType} Ignored: ${ignored}`);
-
-                    if (ignored) continue;
+                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') continue;
+                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') continue;
+                    if (x11IgnoreXids.has(xid)) continue;
+                    // WM_CLASS filtering to avoid counting our own Electron windows if xid matching fails
+                    if (w.wmClass && (w.wmClass.toLowerCase().includes('templeos') || w.wmClass.toLowerCase().includes('electron'))) continue;
 
                     if (!this.knownWindows.has(xid)) {
                         this.knownWindows.add(xid);
@@ -1075,29 +1046,26 @@ class X11LayoutManager {
                 }
 
                 if (newWindows.length > 0) {
-                    // console.log('--- X11 SNAPSHOT DEBUG ---');
-                    // DELAY: Wait for windows to fully map before snapping (Fixes "unaligned" spawn)
-                    setTimeout(() => {
-                        this.applyAutoTiling(newWindows);
-                    }, 500);
+                    await this.applyAutoTiling(newWindows);
                 }
             } finally {
                 this.processing = false;
             }
         }
 
-        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top)
+        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top) & DRAG SNA (Corners/Edges)
         if (Date.now() > this.suggestionCooldown && snapshot.activeXidHex) {
             const activeWin = snapshot.windows.find(w => w.xidHex === snapshot.activeXidHex);
 
             if (activeWin && !activeWin.minimized && activeWin.windowType !== '_NET_WM_WINDOW_TYPE_DOCK') {
-                const { x, y } = activeWin;
+                const { x, y, width, height } = activeWin;
+                const primary = screen.getPrimaryDisplay();
+                const bounds = primary.bounds;
 
                 // TOP EDGE -> SNAP LAYOUTS MENU
-                // Increased range [-60, 60] to ensure we catch it even with panels or sloppy drags
-                if (y <= 60 && y >= -60) {
+                // Relaxed condition: y < 20 to catch it easier
+                if (y <= 20 && y >= -20) {
                     if (mainWindow && !mainWindow.isDestroyed()) {
-                        // console.log(`[X11Mgr] Suggesting Snap Layout for ${activeWin.wmClass} at y=${y}`);
                         mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeWin.xidHex });
                         this.suggestionCooldown = Date.now() + 1000;
                         return;
@@ -1114,15 +1082,8 @@ class X11LayoutManager {
         });
         const count = managed.length;
 
-        console.log(`[X11Mgr] Auto-Tiling: ${count} windows. New: ${newWindows.join(',')}`);
-
         const doSnap = async (xid, mode) => {
-            // Retry snap a few times if it fails initially
             await snapWindowX11Values(xid, mode);
-            // Double tap for maximize to ensure it sticks
-            if (mode === 'maximize') {
-                setTimeout(() => snapWindowX11Values(xid, mode), 300);
-            }
         };
 
         if (count === 1) {
@@ -1159,7 +1120,6 @@ async function snapWindowX11Values(xidHex, mode) {
     const halfW = Math.max(1, Math.floor(wa.width / 2));
     const halfH = Math.max(1, Math.floor(wa.height / 2));
     let x = wa.x, y = wa.y, w = wa.width, h = wa.height;
-    let maximize = false;
 
     switch (mode) {
         case 'left': w = halfW; break;
@@ -1170,26 +1130,20 @@ async function snapWindowX11Values(xidHex, mode) {
         case 'top-right': x += halfW; w = wa.width - halfW; h = halfH; break;
         case 'bottom-left': y += halfH; w = halfW; h = wa.height - halfH; break;
         case 'bottom-right': x += halfW; y += halfH; w = wa.width - halfW; h = wa.height - halfH; break;
-        case 'maximize': maximize = true; break;
+        case 'maximize': break;
         default: return;
     }
 
     try {
         await ewmhBridge.activateWindow(xidHex).catch(() => { });
-
-        if (maximize) {
-            // Force remove max first, then add max
-            await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
-            await new Promise(r => setTimeout(r, 100));
-            await execAsync(`wmctrl -ir ${xidHex} -b add,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
+        if (mode === 'maximize') {
+            await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 1000 }).catch(() => { });
+            if (ewmhBridge.setWindowGeometry) await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
         } else {
-            // Remove maximization features before moving
             await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
             if (ewmhBridge.setWindowGeometry) await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
         }
-    } catch (e) {
-        console.error('AutoSnap failed', e);
-    }
+    } catch (e) { console.error('AutoSnap failed', e); }
 }
 
 let layoutManager = new X11LayoutManager();

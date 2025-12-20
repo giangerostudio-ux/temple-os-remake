@@ -1528,80 +1528,106 @@ function buildStartMenuHtml(config) {
     const installedHtml = installedApps.map(app => `
         <div class="sm-app installed" data-action="launch" data-key="${escapeHtml(app.key)}">
             <span class="sm-icon">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;">` : escapeHtml(app.icon || app.name.charAt(0).toUpperCase())}</span>
-            <span class="sm-name">${escapeHtml(app.name)}</span>
+            <div class="sm-app-info">
+                <span class="sm-name">${escapeHtml(app.name)}</span>
+                <span class="sm-comment">${app.comment ? escapeHtml(app.comment) : 'Application'}</span>
+            </div>
         </div>
     `).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Noto+Color+Emoji&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
-    background: rgba(8, 12, 16, 0.98);
-    border: 2px solid rgba(0, 255, 65, 0.5);
-    border-radius: 12px;
+    background: rgba(13, 17, 23, 0.98);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 8px 8px 0 0;
     overflow: hidden;
-    font-family: 'VT323', 'Consolas', monospace;
+    font-family: 'VT323', 'Noto Color Emoji', monospace;
     color: #00ff41;
+    height: 100vh;
 }
 .sm-container { display: flex; height: 100%; }
-.sm-left { flex: 2; display: flex; flex-direction: column; border-right: 1px solid rgba(0,255,65,0.2); }
-.sm-right { flex: 1; padding: 16px; display: flex; flex-direction: column; background: rgba(0,0,0,0.3); }
-.sm-search { padding: 16px; border-bottom: 1px solid rgba(0,255,65,0.2); }
-.sm-search input {
-    width: 100%; padding: 12px 16px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3);
-    color: #00ff41; font-size: 18px; border-radius: 8px; font-family: inherit; outline: none;
+.sm-left { flex: 1; display: flex; flex-direction: column; border-right: 1px solid rgba(0, 255, 65, 0.2); overflow: hidden; }
+.sm-right { width: 200px; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.2); }
+
+.sm-header { padding: 15px; border-bottom: 1px solid rgba(0, 255, 65, 0.2); }
+.sm-search-container { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.sm-search-input {
+    flex: 1; padding: 10px 15px; background: rgba(0, 255, 65, 0.1); border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 6px; color: #00ff41; font-size: 16px; outline: none; font-family: inherit;
 }
-.sm-search input::placeholder { color: rgba(0,255,65,0.5); }
-.sm-search input:focus { border-color: #00ff41; box-shadow: 0 0 12px rgba(0,255,65,0.4); }
-.sm-section { padding: 12px 16px; }
-.sm-section h3 { font-size: 14px; color: rgba(0,255,65,0.7); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 2px; }
-.sm-pinned-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.sm-apps-list { flex: 1; overflow-y: auto; padding: 0 16px 16px 16px; max-height: 280px; }
-.sm-app {
-    display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer;
-    border-radius: 8px; transition: background 0.15s, transform 0.1s;
+.sm-search-input:focus { border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
+.sm-search-input::placeholder { color: rgba(0, 255, 65, 0.5); }
+
+.sm-dropdowns { display: flex; gap: 10px; }
+.sm-select {
+    flex: 1; background: rgba(0, 255, 65, 0.08); border: 1px solid rgba(0, 255, 65, 0.25);
+    color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;
 }
-.sm-app:hover { background: rgba(0,255,65,0.2); transform: translateX(4px); }
-.sm-app.pinned { flex-direction: column; text-align: center; padding: 14px 10px; }
-.sm-app.pinned .sm-icon { font-size: 32px; margin-bottom: 6px; }
-.sm-app.pinned .sm-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
-.sm-icon { font-size: 22px; min-width: 32px; display: flex; align-items: center; justify-content: center; }
-.sm-name { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sm-user { text-align: center; margin-bottom: 24px; }
-.sm-user-avatar { width: 72px; height: 72px; border-radius: 50%; border: 3px solid #00ff41; margin: 0 auto 10px; overflow: hidden; box-shadow: 0 0 16px rgba(0,255,65,0.4); }
+
+.sm-section { padding: 10px 15px; overflow-y: auto; flex: 1; }
+.sm-section::-webkit-scrollbar { width: 8px; }
+.sm-section::-webkit-scrollbar-track { background: transparent; }
+.sm-section::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.3); border-radius: 4px; }
+
+.sm-section h3 {
+    font-size: 12px; color: rgba(0, 255, 65, 0.7); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+}
+
+.sm-pinned-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+.sm-app { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; }
+.sm-app:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
+.sm-app.pinned { flex-direction: column; text-align: center; gap: 6px; }
+.sm-app.pinned .sm-icon { font-size: 28px; width: 34px; height: 34px; }
+.sm-app.pinned .sm-name { font-size: 13px; }
+.sm-app.installed { border-bottom: 1px solid rgba(0, 255, 65, 0.05); }
+
+.sm-icon { font-size: 20px; flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.sm-app-info { display: flex; flex-direction: column; overflow: hidden; }
+.sm-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-comment { font-size: 12px; color: rgba(200, 200, 200, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sm-user { padding: 20px; text-align: center; border-bottom: 1px solid rgba(0, 255, 65, 0.2); }
+.sm-user-avatar { width: 64px; height: 64px; margin: 0 auto 8px auto; border-radius: 50%; overflow: hidden; border: 2px solid #00ff41; box-shadow: 0 0 15px rgba(0, 255, 65, 0.3); }
 .sm-user-avatar img, .sm-user-avatar div { width: 100%; height: 100%; object-fit: cover; }
-.sm-user-name { font-size: 16px; font-weight: bold; text-shadow: 0 0 8px rgba(0,255,65,0.5); }
-.sm-quick-links { flex: 1; }
-.sm-quick-link { padding: 10px 14px; cursor: pointer; border-radius: 8px; transition: background 0.15s; font-size: 15px; margin-bottom: 4px; }
-.sm-quick-link:hover { background: rgba(0,255,65,0.2); }
-.sm-power { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,255,65,0.2); }
+.sm-user-name { font-size: 16px; color: #00ff41; font-weight: bold; }
+
+.sm-quick-links { flex: 1; padding: 10px; overflow-y: auto; }
+.sm-quick-link { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.sm-quick-link:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
+
+.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex; gap: 8px; }
 .sm-power-btn {
-    padding: 12px 14px; border: none; background: rgba(0,255,65,0.1); color: #00ff41;
-    cursor: pointer; border-radius: 8px; font-size: 15px; font-family: inherit; transition: background 0.15s, transform 0.1s;
+    flex: 1; padding: 10px; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3);
+    color: #ff6464; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s ease;
 }
-.sm-power-btn:hover { background: rgba(0,255,65,0.25); transform: scale(1.02); }
-.sm-power-btn[data-power="shutdown"] { background: rgba(255,100,100,0.15); color: #ff6464; }
-.sm-power-btn[data-power="shutdown"]:hover { background: rgba(255,100,100,0.3); }
+.sm-power-btn:hover { background: rgba(255, 100, 100, 0.2); border-color: #ff6464; }
 </style></head>
 <body>
 <div class="sm-container">
     <div class="sm-left">
-        <div class="sm-search">
-            <input type="text" class="sm-search-input" placeholder="🔍 Search apps..." autofocus>
+        <div class="sm-header">
+            <div class="sm-search-container">
+                <input type="text" class="sm-search-input" placeholder="🔍 Search apps..." autofocus>
+            </div>
+            <div class="sm-dropdowns">
+                <select class="sm-select"><option>All apps</option><option>Recent</option><option>Frequent</option></select>
+                <select class="sm-select"><option>All</option><option>Games</option><option>Internet</option></select>
+            </div>
         </div>
         <div class="sm-section">
             <h3>Pinned</h3>
             <div class="sm-pinned-grid">${pinnedHtml}</div>
-        </div>
-        <div class="sm-section" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
             <h3>All Apps</h3>
             <div class="sm-apps-list">${installedHtml || '<div style="color:#666;padding:8px;">No installed apps found</div>'}</div>
         </div>
     </div>
     <div class="sm-right">
         <div class="sm-user">
-            <div class="sm-user-avatar"><div style="width:100%;height:100%;background:linear-gradient(135deg, #00ff41, #00cc33);display:flex;align-items:center;justify-content:center;font-size:36px;">✝️</div></div>
+            <div class="sm-user-avatar"><div style="width:100%;height:100%;background:linear-gradient(135deg, #00ff41, #00cc33);display:flex;align-items:center;justify-content:center;font-size:32px;">✝️</div></div>
             <div class="sm-user-name">TempleOS Remake</div>
         </div>
         <div class="sm-quick-links">
@@ -1609,6 +1635,8 @@ html, body {
             <div class="sm-quick-link" data-action="quicklink" data-path="home">🏠 Home</div>
             <div class="sm-quick-link" data-action="quicklink" data-path="Documents">📄 Documents</div>
             <div class="sm-quick-link" data-action="quicklink" data-path="Downloads">⬇️ Downloads</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Music">🎵 Music</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Pictures">🖼️ Pictures</div>
             <div class="sm-quick-link" data-action="quicklink" data-path="settings">⚙️ Settings</div>
         </div>
         <div class="sm-power">

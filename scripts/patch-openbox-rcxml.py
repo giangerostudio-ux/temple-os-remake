@@ -64,8 +64,12 @@ def main() -> int:
         [
             r"<keybind\b[^>]*>.*?<action\b[^>]*name=['\"]ToggleShowDesktop['\"][^>]*>.*?</keybind>",
             r"<keybind\b[^>]*>.*?<action\b[^>]*name=['\"]ToggleShowDesktop['\"][^>]*/>.*?</keybind>",
+            r"<keybind\b[^>]*>.*?<action\b[^>]*name=['\"]ShowDesktop['\"][^>]*>.*?</keybind>",
+            r"<keybind\b[^>]*>.*?<action\b[^>]*name=['\"]ShowDesktop['\"][^>]*/>.*?</keybind>",
             r"<mousebind\b[^>]*>.*?<action\b[^>]*name=['\"]ToggleShowDesktop['\"][^>]*>.*?</mousebind>",
             r"<mousebind\b[^>]*>.*?<action\b[^>]*name=['\"]ToggleShowDesktop['\"][^>]*/>.*?</mousebind>",
+            r"<mousebind\b[^>]*>.*?<action\b[^>]*name=['\"]ShowDesktop['\"][^>]*>.*?</mousebind>",
+            r"<mousebind\b[^>]*>.*?<action\b[^>]*name=['\"]ShowDesktop['\"][^>]*/>.*?</mousebind>",
         ],
     )
 

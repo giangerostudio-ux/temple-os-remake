@@ -35,7 +35,7 @@ cat > "${XINITRC}" <<EOF
 set -e
 
 # Start the window manager
-openbox-session &
+openbox --sm-disable --config-file "${HOME}/.config/openbox/rc.xml" &
 
 # Start the TempleOS Electron shell
 export TEMPLE_X11_DESKTOP_HINTS=0

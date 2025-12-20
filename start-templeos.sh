@@ -27,7 +27,7 @@ if [ ! -f "${OPENBOX_MARKER}" ]; then
 fi
 
 # Start Openbox window manager
-openbox &
+openbox --sm-disable --config-file "${OPENBOX_RC}" &
 
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true

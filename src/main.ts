@@ -957,6 +957,18 @@ class TempleOS {
         } else if (action.type === 'open_launcher') {
           // Open the native full-screen app launcher grid like the inline start menu does
           this.openAppLauncher();
+
+          // FIX: Minimize X11 windows so the desktop (where the launcher lives) is visible
+          if (this.x11Windows.length > 0) {
+            this.x11Windows.forEach(w => {
+              if (!w.minimized) {
+                window.electronAPI?.minimizeX11Window?.(w.xidHex);
+              }
+            });
+            // Ensure popup is closed
+            window.electronAPI?.hideStartMenuPopup?.();
+            this.startMenuPopupOpen = false;
+          }
         } else if (action.type === 'quicklink' && action.path) {
           if (action.path === 'settings') {
             this.openApp('settings');

@@ -1313,8 +1313,8 @@ function buildContextMenuHtml(items) {
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{background:rgba(13,17,23,0.98);border:1px solid rgba(0,255,65,0.3);border-radius:6px;overflow:hidden;font-family:'VT323','Noto Color Emoji',monospace}
-.ctx-item{padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html,body{background:rgba(13,17,23,0.98);border:1px solid rgba(0,255,65,0.3);border-radius:6px;overflow:hidden;font-family:'VT323','Noto Color Emoji',monospace;padding:2px 0}
+.ctx-item{height:32px;padding:0 14px;display:flex;align-items:center;cursor:pointer;color:#00ff41;font-size:16px;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background 0.1s}
 .ctx-item:hover{background:rgba(0,255,65,0.15)}
 .ctx-divider{height:1px;background:rgba(0,255,65,0.2);margin:4px 8px}
 </style></head><body>${itemsHtml}</body></html>`;
@@ -1336,12 +1336,12 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
             return { success: false, error: 'No items' };
         }
 
-        // Calculate popup size (must match CSS: padding 8px*2 + font 16px = 32px per item)
+        // Calculate popup size (must match CSS precisely)
         const itemHeight = 32;
-        const borderPadding = 6; // 2px border + 4px extra
+        const totalPadding = 10; // 2px border + 4px body-padding + 4px extra safety
         const width = 250;
         const dividerCount = items.filter(i => i.divider).length;
-        const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + borderPadding;
+        const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + totalPadding;
 
         // Position above click point (taskbar), adjusted for screen bounds
         const primary = screen.getPrimaryDisplay();

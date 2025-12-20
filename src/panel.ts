@@ -96,9 +96,10 @@ class TemplePanel {
         const win = this.x11Windows.find(w => w.xidHex === xid);
         if (!win) return;
 
-        // TempleOS X11 task behavior:
+        // Windows-like taskbar behavior:
         // - If minimized, restore + focus.
-        // - Otherwise, minimize.
+        // - If not active, activate (bring to front).
+        // - If active, minimize.
         if (win.minimized) {
           if (window.electronAPI?.unminimizeX11Window) {
             void window.electronAPI.unminimizeX11Window(xid).then(() => void window.electronAPI?.activateX11Window?.(xid));
@@ -108,9 +109,12 @@ class TemplePanel {
           return;
         }
 
-        if (window.electronAPI?.minimizeX11Window) {
-          void window.electronAPI.minimizeX11Window(xid);
+        if (!win.active) {
+          void window.electronAPI?.activateX11Window?.(xid);
+          return;
         }
+
+        void window.electronAPI?.minimizeX11Window?.(xid);
       };
 
       x11List.oncontextmenu = (e) => {
@@ -190,12 +194,24 @@ class TemplePanel {
 
     const items = [
       {
-        label: win.active ? 'Minimize' : 'Restore',
+        label: win.minimized ? 'Restore' : (win.active ? 'Minimize' : 'Activate'),
         action: () => {
-          if (win.active && window.electronAPI?.minimizeX11Window) {
-            window.electronAPI.minimizeX11Window(xid);
-          } else if (window.electronAPI?.activateX11Window) {
-            window.electronAPI.activateX11Window(xid);
+          if (win.minimized) {
+            if (window.electronAPI?.unminimizeX11Window) {
+              void window.electronAPI.unminimizeX11Window(xid).then(() => void window.electronAPI?.activateX11Window?.(xid));
+            } else if (window.electronAPI?.activateX11Window) {
+              void window.electronAPI.activateX11Window(xid);
+            }
+            return;
+          }
+
+          if (!win.active) {
+            void window.electronAPI?.activateX11Window?.(xid);
+            return;
+          }
+
+          if (window.electronAPI?.minimizeX11Window) {
+            void window.electronAPI.minimizeX11Window(xid);
           }
         }
       },

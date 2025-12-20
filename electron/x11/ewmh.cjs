@@ -62,10 +62,11 @@ async function getActiveWindowXidHex() {
 
 async function getWindowState(xidHex) {
   if (!xidHex) return { fullscreen: false, hidden: false, above: false, skipTaskbar: false, windowType: null };
-  const { stdout } = await execFileAsync('xprop', ['-id', xidHex, '_NET_WM_STATE', '_NET_WM_WINDOW_TYPE']);
+  const { stdout } = await execFileAsync('xprop', ['-id', xidHex, '_NET_WM_STATE', 'WM_STATE', '_NET_WM_WINDOW_TYPE']);
   const s = stdout || '';
   const fullscreen = /_NET_WM_STATE_FULLSCREEN/.test(s);
-  const hidden = /_NET_WM_STATE_HIDDEN/.test(s);
+  // Some WMs set WM_STATE=Iconic but do not always include _NET_WM_STATE_HIDDEN.
+  const hidden = /_NET_WM_STATE_HIDDEN/.test(s) || /WM_STATE\\(WM_STATE\\):\\s*window state:\\s*Iconic/i.test(s);
   const above = /_NET_WM_STATE_ABOVE/.test(s);
   const skipTaskbar = /_NET_WM_STATE_SKIP_TASKBAR/.test(s) || /_NET_WM_WINDOW_TYPE_DOCK/.test(s);
   const windowTypeMatch = s.match(/_NET_WM_WINDOW_TYPE\\(ATOM\\)\\s*=\\s*(.*)$/m);

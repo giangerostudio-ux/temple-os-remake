@@ -43,6 +43,32 @@ def strip_blocks(xml: str, patterns: list[str]) -> str:
     return out
 
 
+TEMPLEOS_TITLE = "TempleOS - Divine Operating System"
+
+
+def ensure_templeos_app_rule(xml: str) -> str:
+    # Keep the Electron shell window in the "below" layer and prevent it from raising on click/focus.
+    # This avoids the "X11 apps disappear when I click the TempleOS desktop" behavior.
+    if re.search(rf"<application\b[^>]*\btitle=['\"]{re.escape(TEMPLEOS_TITLE)}['\"]", xml, flags=re.IGNORECASE):
+        return xml
+
+    rule = f"""
+  <application title="{TEMPLEOS_TITLE}">
+    <layer>below</layer>
+    <raise>no</raise>
+    <focus>yes</focus>
+  </application>
+"""
+
+    if re.search(r"<applications\b", xml, flags=re.IGNORECASE):
+        return re.sub(r"(</applications\s*>)", rule + r"\1", xml, count=1, flags=re.IGNORECASE)
+
+    block = f"""
+  <applications>{rule}  </applications>
+"""
+    return re.sub(r"(</openbox_config\s*>)", block + r"\1", xml, count=1, flags=re.IGNORECASE)
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("Usage: patch-openbox-rcxml.py /path/to/rc.xml", file=sys.stderr)
@@ -89,6 +115,8 @@ def main() -> int:
     # Safety: ensure we didn't end up with an empty/invalid file.
     if not xml.strip() or "<openbox_config" not in xml:
         xml = DEFAULT_RC_XML
+
+    xml = ensure_templeos_app_rule(xml)
 
     path.write_text(xml, encoding="utf-8")
     return 0

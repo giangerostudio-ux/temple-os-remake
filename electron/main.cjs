@@ -723,7 +723,7 @@ function createWindow() {
         if (isX11Session()) {
             // Only re-apply if we suspect we lost the 'below' state. 
             // We just fire-and-forget this to ensure we stay at the bottom.
-            void xpropSet(xidHexFromBrowserWindow(mainWindow), '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
+            void wmctrlSetState(xidHexFromBrowserWindow(mainWindow), 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
         }
     });
 }
@@ -758,6 +758,28 @@ async function xpropSet(winIdHex, propName, format, value) {
     const cmd = `xprop -id ${winIdHex} -f ${propName} ${format} -set ${propName} ${value}`;
     const res = await execAsync(cmd, { timeout: 2000 });
     if (res.error) return { success: false, error: res.stderr || res.error.message || 'xprop failed' };
+    return { success: true };
+}
+
+async function wmctrlSetState(winIdHex, op, statesCsv) {
+    const xid = String(winIdHex || '').trim().toLowerCase();
+    if (!/^0x[0-9a-f]+$/.test(xid)) return { success: false, error: 'Invalid window id' };
+    if (!(await hasCommand('wmctrl'))) return { success: false, error: 'wmctrl not installed' };
+
+    const mode = (op === 'add' || op === 'remove' || op === 'toggle') ? op : 'add';
+    const raw = String(statesCsv || '').trim();
+    if (!raw) return { success: false, error: 'Missing state list' };
+    const states = raw
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(s => s.replace(/[^a-z0-9_]/gi, ''))
+        .filter(Boolean);
+    if (states.length === 0) return { success: false, error: 'Missing state list' };
+
+    const cmd = `wmctrl -ir ${xid} -b ${mode},${states.join(',')}`;
+    const res = await execAsync(cmd, { timeout: 2000 });
+    if (res.error) return { success: false, error: res.stderr || res.error.message || 'wmctrl failed' };
     return { success: true };
 }
 
@@ -844,7 +866,8 @@ async function applyDesktopHintsToMainWindow() {
     // Avoid setting WINDOW_TYPE=DESKTOP because some WMs treat it as non-focusable.
     // _NET_WM_STATE_BELOW ensures it stays at the bottom of the stack (like a desktop),
     // preventing it from obscuring other windows when clicked/focused.
-    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
+    // Use wmctrl to request EWMH state changes (more reliable than directly setting _NET_WM_STATE).
+    await wmctrlSetState(xid, 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
 }
 
 function createPanelWindow() {

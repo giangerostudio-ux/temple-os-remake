@@ -15404,7 +15404,8 @@ class TempleOS {
 
     // Windows-like taskbar behavior:
     // - If minimized, click restores + focuses.
-    // - Otherwise, click minimizes.
+    // - If not active, click activates (brings to front).
+    // - If active, click minimizes.
     if (win?.minimized) {
       // Optimistic UI update (prevents needing a second click before poll catches up)
       win.minimized = false;
@@ -15422,6 +15423,14 @@ class TempleOS {
 
     // If we don't have snapshot info, fall back to focus (best effort).
     if (!win) {
+      void api.activateX11Window?.(xid);
+      return;
+    }
+
+    if (!win.active) {
+      // Optimistic UI update
+      this.x11Windows.forEach(w => { if (w) w.active = String(w.xidHex).toLowerCase() === xid.toLowerCase(); });
+      updateTaskbarAppsDomOnly();
       void api.activateX11Window?.(xid);
       return;
     }

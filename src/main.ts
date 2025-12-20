@@ -164,7 +164,7 @@ declare global {
       minimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       unminimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       setX11WindowAlwaysOnTop?: (xidHex: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
-      snapX11Window?: (xidHex: string, mode: string) => Promise<{ success: boolean; error?: string }>;
+      snapX11Window?: (xidHex: string, mode: string, taskbarConfig?: { height: number; position: 'top' | 'bottom' }) => Promise<{ success: boolean; error?: string }>;
       onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
@@ -177,6 +177,16 @@ declare global {
       showContextMenuPopup?: (x: number, y: number, items: Array<{ id: string; label?: string; divider?: boolean }>) => Promise<{ success: boolean; error?: string }>;
       closeContextMenuPopup?: () => Promise<{ success: boolean }>;
       onContextMenuAction?: (callback: (actionId: string) => void) => () => void;
+      // Start Menu Popup (Linux X11 floating Start Menu)
+      showStartMenuPopup?: (config: {
+        taskbarHeight: number;
+        taskbarPosition: 'top' | 'bottom';
+        pinnedApps: Array<{ key: string; icon: string; name: string }>;
+        installedApps: Array<{ key: string; name: string; icon?: string; iconUrl?: string }>;
+      }) => Promise<{ success: boolean; error?: string }>;
+      hideStartMenuPopup?: () => Promise<{ success: boolean }>;
+      onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string }) => void) => () => void;
+      onStartMenuClosed?: (callback: (payload: any) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -933,6 +943,58 @@ class TempleOS {
     if (window.electronAPI?.onShellToggleStartMenu) {
       window.electronAPI.onShellToggleStartMenu(() => {
         this.toggleStartMenu();
+      });
+    }
+
+    // Handle actions from floating Start Menu popup (X11)
+    if (window.electronAPI?.onStartMenuAction) {
+      window.electronAPI.onStartMenuAction((action) => {
+        this.showStartMenu = false;
+        this.startMenuSearchQuery = '';
+
+        if (action.type === 'launch' && action.key) {
+          this.launchByKey(action.key);
+        } else if (action.type === 'quicklink' && action.path) {
+          if (action.path === 'settings') {
+            this.openApp('settings');
+          } else if (action.path === 'root') {
+            this.openApp('files');
+            this.currentPath = '/';
+            void this.loadFiles('/');
+          } else if (action.path === 'home') {
+            this.openApp('files');
+            // loadFiles will use the current home-based path
+            void this.loadFiles();
+          } else {
+            // Documents, Downloads, etc.
+            this.openApp('files');
+            const homePath = this.currentPath.startsWith('/home') ? this.currentPath.split('/').slice(0, 3).join('/') : '/home';
+            const targetPath = `${homePath}/${action.path}`;
+            this.currentPath = targetPath;
+            void this.loadFiles(targetPath);
+          }
+        } else if (action.type === 'power' && action.action) {
+          if (action.action === 'shutdown') {
+            this.shutdownSystem();
+          } else if (action.action === 'restart') {
+            void window.electronAPI?.restart?.();
+          } else if (action.action === 'lock') {
+            this.lock();
+          }
+        }
+
+        this.render();
+      });
+    }
+
+    // Handle Start Menu popup closed (e.g., blur)
+    if (window.electronAPI?.onStartMenuClosed) {
+      window.electronAPI.onStartMenuClosed(() => {
+        if (this.showStartMenu) {
+          this.showStartMenu = false;
+          this.startMenuSearchQuery = '';
+          this.render();
+        }
       });
     }
 
@@ -2981,11 +3043,69 @@ class TempleOS {
   }
 
   private toggleStartMenu(): void {
+    // On X11 with external windows, use floating popup that appears above Firefox etc.
+    if (this.isX11Active() && window.electronAPI?.showStartMenuPopup) {
+      if (this.showStartMenu) {
+        // Already open, close it
+        this.showStartMenu = false;
+        this.startMenuSearchQuery = '';
+        window.electronAPI.hideStartMenuPopup?.();
+        this.render();
+      } else {
+        // Open floating popup
+        this.showStartMenu = true;
+        this.render();
+
+        // Gather pinned apps
+        const legacyPinnedApps = [
+          { id: 'terminal', icon: '💻', name: 'Terminal' },
+          { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
+          { id: 'files', icon: '📁', name: 'Files' },
+          { id: 'editor', icon: '📝', name: 'HolyC Editor' },
+          { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
+          { id: 'settings', icon: '⚙️', name: 'Settings' },
+          { id: 'help', icon: '❓', name: 'Help' },
+          { id: 'godly-notes', icon: '📋', name: 'Godly Notes' },
+        ];
+
+        const pinnedApps = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
+          .slice(0, 8)
+          .map(key => {
+            const display = this.launcherDisplayForKey(key);
+            if (!display) return null;
+            return { key, icon: display.icon, name: display.label };
+          })
+          .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
+
+        // Gather installed apps
+        const installedApps = this.installedApps.slice(0, 30).map(app => ({
+          key: this.keyForInstalledApp(app),
+          name: app.name,
+          icon: app.name.charAt(0).toUpperCase(),
+          iconUrl: app.iconUrl || undefined,
+        }));
+
+        window.electronAPI.showStartMenuPopup({
+          taskbarHeight: 50,
+          taskbarPosition: this.taskbarPosition,
+          pinnedApps,
+          installedApps,
+        });
+      }
+      return;
+    }
+
+    // Fallback: inline Start Menu for non-X11
     this.showStartMenu = !this.showStartMenu;
     if (!this.showStartMenu) {
       this.startMenuSearchQuery = '';
     }
     this.render();
+  }
+
+  // Check if X11 mode is active (have external windows or X11 bridge enabled)
+  private isX11Active(): boolean {
+    return this.x11Windows.length > 0 || (typeof window.electronAPI?.onX11WindowsChanged === 'function');
   }
 
   private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
@@ -16575,13 +16695,14 @@ class TempleOS {
             action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
           });
           if (window.electronAPI?.snapX11Window) {
+            const taskbarCfg = { height: 50, position: this.taskbarPosition };
             menuItems.push(
-              { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left') },
-              { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right') },
-              { label: 'Snap Top', action: () => void window.electronAPI?.snapX11Window?.(xid, 'top') },
-              { label: 'Snap Bottom', action: () => void window.electronAPI?.snapX11Window?.(xid, 'bottom') },
-              { label: 'Maximize', action: () => void window.electronAPI?.snapX11Window?.(xid, 'maximize') },
-              { label: 'Center', action: () => void window.electronAPI?.snapX11Window?.(xid, 'center') },
+              { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left', taskbarCfg) },
+              { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right', taskbarCfg) },
+              { label: 'Snap Top', action: () => void window.electronAPI?.snapX11Window?.(xid, 'top', taskbarCfg) },
+              { label: 'Snap Bottom', action: () => void window.electronAPI?.snapX11Window?.(xid, 'bottom', taskbarCfg) },
+              { label: 'Maximize', action: () => void window.electronAPI?.snapX11Window?.(xid, 'maximize', taskbarCfg) },
+              { label: 'Center', action: () => void window.electronAPI?.snapX11Window?.(xid, 'center', taskbarCfg) },
             );
           }
           menuItems.push({ divider: true });

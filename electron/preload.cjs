@@ -193,7 +193,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     minimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:minimizeWindow', xidHex),
     unminimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:unminimizeWindow', xidHex),
     setX11WindowAlwaysOnTop: (xidHex, enabled) => ipcRenderer.invoke('x11:setAlwaysOnTop', xidHex, enabled),
-    snapX11Window: (xidHex, mode) => ipcRenderer.invoke('x11:snapWindow', xidHex, mode),
+    snapX11Window: (xidHex, mode, taskbarConfig) => ipcRenderer.invoke('x11:snapWindow', xidHex, mode, taskbarConfig),
     onX11WindowsChanged: (callback) => {
         const handler = (event, payload) => callback(payload);
         ipcRenderer.on('x11:windowsChanged', handler);
@@ -221,5 +221,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (event, actionId) => callback(actionId);
         ipcRenderer.on('contextmenu:executeAction', handler);
         return () => ipcRenderer.removeListener('contextmenu:executeAction', handler);
+    },
+
+    // ============================================
+    // START MENU POPUP (Linux X11 floating Start Menu)
+    // ============================================
+    showStartMenuPopup: (config) => ipcRenderer.invoke('startmenu:show', config),
+    hideStartMenuPopup: () => ipcRenderer.invoke('startmenu:hide'),
+    onStartMenuAction: (callback) => {
+        const handler = (event, action) => callback(action);
+        ipcRenderer.on('startmenu:action', handler);
+        return () => ipcRenderer.removeListener('startmenu:action', handler);
+    },
+    onStartMenuClosed: (callback) => {
+        const handler = (event, payload) => callback(payload);
+        ipcRenderer.on('startmenu:closed', handler);
+        return () => ipcRenderer.removeListener('startmenu:closed', handler);
     },
 });

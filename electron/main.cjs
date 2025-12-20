@@ -1032,9 +1032,12 @@ class X11LayoutManager {
                 const newWindows = [];
                 for (const w of snapshot.windows) {
                     const xid = w.xidHex.toLowerCase();
+                    // FILTER: Ignore Dock, Desktop, and TempleOS itself
                     if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') continue;
                     if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') continue;
                     if (x11IgnoreXids.has(xid)) continue;
+                    // WM_CLASS filtering to avoid counting our own Electron windows if xid matching fails
+                    if (w.wmClass && (w.wmClass.toLowerCase().includes('templeos') || w.wmClass.toLowerCase().includes('electron'))) continue;
 
                     if (!this.knownWindows.has(xid)) {
                         this.knownWindows.add(xid);
@@ -1050,15 +1053,22 @@ class X11LayoutManager {
             }
         }
 
-        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top)
+        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top) & DRAG SNA (Corners/Edges)
         if (Date.now() > this.suggestionCooldown && snapshot.activeXidHex) {
             const activeWin = snapshot.windows.find(w => w.xidHex === snapshot.activeXidHex);
-            // Criteria: Near top edge (y approx 0), not minimized
-            if (activeWin && !activeWin.minimized && activeWin.y <= 10 && activeWin.y >= -10) {
-                if (activeWin.windowType !== '_NET_WM_WINDOW_TYPE_DOCK' && activeWin.windowType !== '_NET_WM_WINDOW_TYPE_DESKTOP') {
+
+            if (activeWin && !activeWin.minimized && activeWin.windowType !== '_NET_WM_WINDOW_TYPE_DOCK') {
+                const { x, y, width, height } = activeWin;
+                const primary = screen.getPrimaryDisplay();
+                const bounds = primary.bounds;
+
+                // TOP EDGE -> SNAP LAYOUTS MENU
+                // Relaxed condition: y < 20 to catch it easier
+                if (y <= 20 && y >= -20) {
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeWin.xidHex });
-                        this.suggestionCooldown = Date.now() + 1500; // Debounce 1.5s
+                        this.suggestionCooldown = Date.now() + 1000;
+                        return;
                     }
                 }
             }
@@ -1066,7 +1076,10 @@ class X11LayoutManager {
     }
 
     async applyAutoTiling(newWindows) {
-        const managed = Array.from(this.knownWindows).filter(x => !x11IgnoreXids.has(x));
+        // Re-filter managed list to be safe
+        const managed = Array.from(this.knownWindows).filter(xid => {
+            return !x11IgnoreXids.has(xid);
+        });
         const count = managed.length;
 
         const doSnap = async (xid, mode) => {

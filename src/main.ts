@@ -1314,69 +1314,121 @@ class TempleOS {
     this.snapLayoutsOverlay = overlay;
 
     overlay.style.position = 'fixed';
-    overlay.style.top = '0';
+    overlay.style.top = '10px';
     overlay.style.left = '50%';
     overlay.style.transform = 'translateX(-50%)';
-    overlay.style.zIndex = '100000';
-    overlay.style.background = '#1a1a1a';
-    overlay.style.border = '2px solid #00ff41';
-    overlay.style.borderTop = 'none';
-    overlay.style.borderBottomLeftRadius = '8px';
-    overlay.style.borderBottomRightRadius = '8px';
-    overlay.style.padding = '10px';
+    overlay.style.zIndex = '999999'; // Ensure it's on top of everything
+    overlay.style.background = 'rgba(30, 30, 30, 0.95)';
+    overlay.style.backdropFilter = 'blur(10px)';
+    overlay.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+    overlay.style.borderRadius = '12px';
+    overlay.style.padding = '8px';
     overlay.style.display = 'flex';
-    overlay.style.gap = '10px';
-    overlay.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
-    overlay.style.transition = 'transform 0.2s';
+    overlay.style.gap = '8px';
+    overlay.style.boxShadow = '0 8px 32px rgba(0,0,0,0.5)';
+    overlay.style.transition = 'opacity 0.2s, transform 0.2s';
+    overlay.style.opacity = '0';
 
-    const createOption = (label: string, mode: string, icon: string) => {
-      const btn = document.createElement('div');
-      btn.style.width = '50px';
-      btn.style.height = '40px';
-      btn.style.border = '1px solid #444';
-      btn.style.display = 'flex';
-      btn.style.alignItems = 'center';
-      btn.style.justifyContent = 'center';
-      btn.style.cursor = 'pointer';
-      btn.style.color = '#00ff41';
-      btn.style.fontSize = '20px';
-      btn.innerText = icon;
-      btn.title = label;
+    // Animate in
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+      overlay.style.transform = 'translateX(-50%) translateY(0)';
+    });
 
-      btn.onmouseenter = () => btn.style.background = 'rgba(0, 255, 65, 0.2)';
-      btn.onmouseleave = () => btn.style.background = 'transparent';
+    // Helper to create graphical layout icons
+    const createLayoutIcon = (mode: string, type: 'split' | 'grid' | 'full') => {
+      const container = document.createElement('div');
+      container.style.width = '60px';
+      container.style.height = '40px';
+      container.style.background = 'rgba(255,255,255,0.05)';
+      container.style.borderRadius = '6px';
+      container.style.cursor = 'pointer';
+      container.style.display = 'flex';
+      container.style.padding = '4px';
+      container.style.gap = '2px';
+      container.style.border = '1px solid transparent';
+      container.title = mode;
 
-      btn.onclick = () => {
+      container.onmouseenter = () => {
+        container.style.background = 'rgba(255,255,255,0.15)';
+        container.style.border = '1px solid rgba(255,255,255,0.3)';
+      };
+      container.onmouseleave = () => {
+        container.style.background = 'rgba(255,255,255,0.05)';
+        container.style.border = '1px solid transparent';
+      };
+      container.onclick = () => {
         if (window.electronAPI?.snapX11Window) {
           window.electronAPI.snapX11Window(xid, mode);
         }
         this.hideSnapLayoutsOverlay();
       };
-      return btn;
+
+      // Draw the blocks inside
+      const blockStyle = 'background: #ccc; borderRadius: 2px; opacity: 0.8;';
+      const activeBlockStyle = 'background: #00ff41; borderRadius: 2px; box-shadow: 0 0 5px #00ff41;';
+
+      if (type === 'full') {
+        const b = document.createElement('div');
+        b.style.cssText = activeBlockStyle + 'width: 100%; height: 100%;';
+        container.appendChild(b);
+      } else if (type === 'split') {
+        const b1 = document.createElement('div');
+        const b2 = document.createElement('div');
+        b1.style.cssText = mode === 'left' ? activeBlockStyle : blockStyle;
+        b2.style.cssText = mode === 'right' ? activeBlockStyle : blockStyle;
+        b1.style.flex = '1'; b2.style.flex = '1';
+        b1.style.height = '100%'; b2.style.height = '100%';
+        container.appendChild(b1);
+        container.appendChild(b2);
+      } else if (type === 'grid') {
+        container.style.flexWrap = 'wrap';
+        const b1 = document.createElement('div'); b1.style.width = 'calc(50% - 1px)'; b1.style.height = 'calc(50% - 1px)';
+        const b2 = document.createElement('div'); b2.style.width = 'calc(50% - 1px)'; b2.style.height = 'calc(50% - 1px)';
+        const b3 = document.createElement('div'); b3.style.width = 'calc(50% - 1px)'; b3.style.height = 'calc(50% - 1px)';
+        const b4 = document.createElement('div'); b4.style.width = 'calc(50% - 1px)'; b4.style.height = 'calc(50% - 1px)';
+
+        b1.style.cssText = (mode === 'top-left' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
+        b2.style.cssText = (mode === 'top-right' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
+        b3.style.cssText = (mode === 'bottom-left' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
+        b4.style.cssText = (mode === 'bottom-right' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
+
+        container.appendChild(b1); container.appendChild(b2);
+        container.appendChild(b3); container.appendChild(b4);
+      }
+
+      return container;
     };
 
-    overlay.appendChild(createOption('Maximize', 'maximize', '🔲'));
-    overlay.appendChild(createOption('Left', 'left', '⬅️'));
-    overlay.appendChild(createOption('Right', 'right', '➡️'));
-    overlay.appendChild(createOption('Top-Left', 'top-left', '↖️'));
-    overlay.appendChild(createOption('Top-Right', 'top-right', '↗️'));
-    overlay.appendChild(createOption('Bottom-Left', 'bottom-left', '↙️'));
-    overlay.appendChild(createOption('Bottom-Right', 'bottom-right', '↘️'));
+    overlay.appendChild(createLayoutIcon('maximize', 'full'));
+    overlay.appendChild(createLayoutIcon('left', 'split'));
+    overlay.appendChild(createLayoutIcon('right', 'split'));
+    overlay.appendChild(createLayoutIcon('top-left', 'grid'));
+    overlay.appendChild(createLayoutIcon('top-right', 'grid'));
+    overlay.appendChild(createLayoutIcon('bottom-left', 'grid'));
+    overlay.appendChild(createLayoutIcon('bottom-right', 'grid'));
 
     document.body.appendChild(overlay);
 
-    // Auto-hide logic
+    // Auto-hide logic (debounce)
     let hideTimer: any;
-    overlay.onmouseleave = () => {
-      hideTimer = setTimeout(() => this.hideSnapLayoutsOverlay(), 800);
+    const resetTimer = () => {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => this.hideSnapLayoutsOverlay(), 2000); // 2 seconds
     };
+
     overlay.onmouseenter = () => clearTimeout(hideTimer);
+    overlay.onmouseleave = resetTimer;
+    resetTimer();
   }
 
   private hideSnapLayoutsOverlay() {
     if (this.snapLayoutsOverlay) {
-      this.snapLayoutsOverlay.remove();
-      this.snapLayoutsOverlay = null;
+      this.snapLayoutsOverlay.style.opacity = '0';
+      setTimeout(() => {
+        if (this.snapLayoutsOverlay) this.snapLayoutsOverlay.remove();
+        this.snapLayoutsOverlay = null;
+      }, 200);
     }
     this.currentSnapXid = null;
   }

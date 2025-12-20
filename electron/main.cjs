@@ -687,6 +687,18 @@ function createWindow() {
     });
 }
 
+function resizeMainWindowToWorkArea() {
+    try {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        const primary = screen.getPrimaryDisplay();
+        const wa = primary?.workArea;
+        if (!wa || !wa.width || !wa.height) return;
+        mainWindow.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
+    } catch {
+        // ignore
+    }
+}
+
 function isX11Session() {
     if (process.platform !== 'linux') return false;
     if (!process.env.DISPLAY) return false;
@@ -725,6 +737,9 @@ async function applyDockStrutToPanelWindow() {
     // _NET_WM_STRUT_PARTIAL = left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x
     const strut = `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`;
     await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch(() => { });
+
+    // Give the WM a moment to apply workarea, then resize the main window so it doesn't cover the panel.
+    setTimeout(() => resizeMainWindowToWorkArea(), 120);
 }
 
 async function setPanelStrutEnabled(enabled) {
@@ -741,6 +756,9 @@ async function setPanelStrutEnabled(enabled) {
         ? `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`
         : `"0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"`;
     await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', value).catch(() => { });
+
+    // Workarea changes when struts change; resize main accordingly.
+    setTimeout(() => resizeMainWindowToWorkArea(), 120);
 }
 
 async function setPanelHidden(hidden) {
@@ -938,6 +956,8 @@ app.whenReady().then(() => {
                 void applyDesktopHintsToMainWindow().catch(() => { });
             }
             void applyDockStrutToPanelWindow().catch(() => { });
+            // Fit the desktop to the workarea (so the panel isn't covered).
+            setTimeout(() => resizeMainWindowToWorkArea(), 200);
             void startX11EwmhBridge().catch(() => { });
         }
     }
@@ -1059,6 +1079,10 @@ ipcMain.handle('shell:setGamingMode', async (event, enabled) => {
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
+});
+
+ipcMain.handle('shell:hasExternalPanel', async () => {
+    return { success: true, enabled: !!(panelWindow && !panelWindow.isDestroyed()) };
 });
 
 // ============================================

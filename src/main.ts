@@ -167,6 +167,7 @@ declare global {
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       setGamingMode?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      hasExternalPanel?: () => Promise<{ success: boolean; enabled: boolean }>;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -689,6 +690,9 @@ class TempleOS {
   private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
   private taskbarHoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // X11 external panel support (when enabled, the panel owns the taskbar UI)
+  private externalPanelEnabled = false;
+
   // Taskbar App Grouping (Tier 9.1)
   private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
 
@@ -836,6 +840,14 @@ class TempleOS {
     }
     if (window.electronAPI?.setGamingMode) {
       void window.electronAPI.setGamingMode(this.gamingModeActive);
+    }
+    if (window.electronAPI?.hasExternalPanel) {
+      void window.electronAPI.hasExternalPanel().then(res => {
+        if (res?.success) {
+          this.externalPanelEnabled = !!res.enabled;
+          this.render();
+        }
+      }).catch(() => { });
     }
 
     this.setupGodlyNotesGlobals();
@@ -2338,6 +2350,12 @@ class TempleOS {
   }
 
   private renderTaskbar(): string {
+    if (this.externalPanelEnabled) {
+      // When running with the external X11 panel, keep start menu rendering (for keyboard actions / legacy hooks),
+      // but hide the in-renderer taskbar to avoid two stacked bars.
+      return `<div id="start-menu-container">${this.renderStartMenu()}</div>`;
+    }
+
     const extraClasses = [
       this.taskbarTransparent ? 'taskbar-transparent' : '',
       this.taskbarAutoHide ? 'taskbar-autohide' : ''

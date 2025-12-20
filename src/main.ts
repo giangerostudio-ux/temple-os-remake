@@ -705,6 +705,8 @@ class TempleOS {
     iconUrl?: string | null;
     appName?: string | null;
   }> = [];
+  private x11UserMinimized = new Set<string>(); // lowercased xidHex
+  private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
 
   // Taskbar App Grouping (Tier 9.1)
   private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
@@ -859,6 +861,33 @@ class TempleOS {
       window.electronAPI.onX11WindowsChanged((payload: any) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
         this.x11Windows = wins;
+
+        // Clean up tracking for closed windows
+        const alive = new Set(this.x11Windows.map(w => String(w?.xidHex || '').toLowerCase()).filter(Boolean));
+        for (const xid of Array.from(this.x11UserMinimized)) {
+          if (!alive.has(xid)) this.x11UserMinimized.delete(xid);
+        }
+
+        // Auto-restore any external window that gets minimized unexpectedly.
+        // This prevents cases where clicking the desktop / opening an in-app window causes X11 apps (Firefox, etc.) to disappear.
+        // Only windows the user explicitly minimized via our taskbar stay minimized.
+        const api = window.electronAPI;
+        if (api?.unminimizeX11Window) {
+          const now = Date.now();
+          for (const w of this.x11Windows) {
+            const xid = String(w?.xidHex || '').toLowerCase();
+            if (!xid || !w?.minimized) continue;
+            if (this.x11UserMinimized.has(xid)) continue;
+
+            const last = this.x11AutoRestoreCooldown.get(xid) || 0;
+            if (now - last < 800) continue; // avoid thrash if WM keeps toggling
+            this.x11AutoRestoreCooldown.set(xid, now);
+
+            // Fire-and-forget: the bridge will refresh snapshot and update taskbar
+            void api.unminimizeX11Window(w.xidHex);
+          }
+        }
+
         // Update taskbar without full re-render to avoid flickering
         this.updateTaskbarX11Windows();
       });
@@ -15361,6 +15390,7 @@ class TempleOS {
   private toggleX11Window(xidHex: string): void {
     const xid = String(xidHex || '').trim();
     if (!xid) return;
+    const xidKey = xid.toLowerCase();
 
     const api = window.electronAPI;
     if (!api) return;
@@ -15380,6 +15410,7 @@ class TempleOS {
       win.minimized = false;
       this.x11Windows.forEach(w => { if (w) w.active = String(w.xidHex).toLowerCase() === xid.toLowerCase(); });
       updateTaskbarAppsDomOnly();
+      this.x11UserMinimized.delete(xidKey);
 
       if (api.unminimizeX11Window) {
         void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
@@ -15399,6 +15430,7 @@ class TempleOS {
     win.minimized = true;
     win.active = false;
     updateTaskbarAppsDomOnly();
+    this.x11UserMinimized.add(xidKey);
     void api.minimizeX11Window?.(xid);
   }
 
@@ -16539,6 +16571,7 @@ class TempleOS {
                 const api = window.electronAPI;
                 if (!api) return;
                 if (api.unminimizeX11Window) {
+                  this.x11UserMinimized.delete(String(xid).toLowerCase());
                   void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
                 } else {
                   void api.activateX11Window?.(xid);
@@ -16548,13 +16581,19 @@ class TempleOS {
           } else {
             menuItems.push({
               label: 'Minimize',
-              action: () => window.electronAPI?.minimizeX11Window?.(xid)
+              action: () => {
+                this.x11UserMinimized.add(String(xid).toLowerCase());
+                void window.electronAPI?.minimizeX11Window?.(xid);
+              }
             });
           }
           menuItems.push({ divider: true });
           menuItems.push({
             label: 'Close Window',
-            action: () => window.electronAPI?.closeX11Window?.(xid)
+            action: () => {
+              this.x11UserMinimized.delete(String(xid).toLowerCase());
+              void window.electronAPI?.closeX11Window?.(xid);
+            }
           });
         }
       }

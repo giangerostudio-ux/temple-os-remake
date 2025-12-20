@@ -708,6 +708,7 @@ class TempleOS {
   }> = [];
   private x11UserMinimized = new Set<string>(); // lowercased xidHex
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
+  private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
 
   // Taskbar App Grouping (Tier 9.1)
   private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
@@ -895,6 +896,10 @@ class TempleOS {
             const xid = String(w?.xidHex || '').toLowerCase();
             if (!xid || !w?.minimized) continue;
             if (this.x11UserMinimized.has(xid)) continue;
+            // Only auto-restore if the minimize likely happened because the user interacted with the
+            // TempleOS shell (the original bug). If the user minimized inside the X11 app itself,
+            // we should respect it and not pop the window back.
+            if (now - this.lastShellPointerDownMs > 1200) continue;
 
             const last = this.x11AutoRestoreCooldown.get(xid) || 0;
             if (now - last < 800) continue; // avoid thrash if WM keeps toggling
@@ -9861,6 +9866,9 @@ class TempleOS {
 
     // Global click to close context menus if clicking outside
     document.addEventListener('mousedown', (e) => {
+      // Only fires for clicks inside the TempleOS shell (not inside external X11 windows).
+      // Used to decide whether an X11 minimize was likely caused by interacting with the shell.
+      this.lastShellPointerDownMs = Date.now();
       const target = e.target as HTMLElement;
       if (!target.closest('.context-menu')) {
         this.closeContextMenu();

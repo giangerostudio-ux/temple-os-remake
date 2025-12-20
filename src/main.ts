@@ -15873,14 +15873,18 @@ class TempleOS {
         divider: !!item.divider,
       }));
 
-      // Store action callbacks
-      this.pendingContextMenuActions = new Map(
-        items.filter(i => !i.divider && i.action).map((item, idx) => [`action_${idx}`, item.action!])
-      );
+      // Store action callbacks (use same index as serialized items)
+      this.pendingContextMenuActions = new Map();
+      items.forEach((item, idx) => {
+        if (!item.divider && item.action) {
+          this.pendingContextMenuActions!.set(`action_${idx}`, item.action);
+        }
+      });
 
       void window.electronAPI.showContextMenuPopup(x, y, serializedItems);
       return;
     }
+
 
     // Fallback: DOM-based menu (Windows, macOS, non-X11 Linux)
     const menu = document.createElement('div');

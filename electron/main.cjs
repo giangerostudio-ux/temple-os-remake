@@ -1290,15 +1290,9 @@ function buildContextMenuHtml(items) {
     const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const itemsHtml = items.map((item, idx) => {
         if (item.divider) {
-            return `<div style="height:1px;background:rgba(0,255,65,0.2);margin:4px 8px;"></div>`;
+            return `<div class="ctx-divider"></div>`;
         }
-        return `
-            <div class="ctx-item" data-action-id="${escapeHtml(item.id)}"
-                 style="padding:8px 14px;cursor:pointer;color:#00ff41;font-size:16px;font-family:'VT323',monospace;"
-                 onmouseenter="this.style.background='rgba(0,255,65,0.15)'"
-                 onmouseleave="this.style.background='transparent'">
-                ${escapeHtml(item.label)}
-            </div>`;
+        return `<div class="ctx-item" data-action-id="${escapeHtml(item.id)}">${escapeHtml(item.label)}</div>`;
     }).join('');
 
     return `<!DOCTYPE html>
@@ -1314,21 +1308,24 @@ function buildContextMenuHtml(items) {
             overflow: hidden;
             font-family: 'VT323', monospace;
         }
-        .ctx-item { user-select: none; }
+        .ctx-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            color: #00ff41;
+            font-size: 16px;
+            user-select: none;
+        }
+        .ctx-item:hover {
+            background: rgba(0,255,65,0.15);
+        }
+        .ctx-divider {
+            height: 1px;
+            background: rgba(0,255,65,0.2);
+            margin: 4px 8px;
+        }
     </style>
 </head>
-<body>
-    ${itemsHtml}
-    <script>
-        const { ipcRenderer } = require('electron');
-        document.body.addEventListener('click', (e) => {
-            const item = e.target.closest('.ctx-item');
-            if (item && item.dataset.actionId) {
-                ipcRenderer.invoke('contextmenu:action', item.dataset.actionId);
-            }
-        });
-    </script>
-</body>
+<body>${itemsHtml}</body>
 </html>`;
 }
 
@@ -1347,7 +1344,7 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
         // Calculate popup size
         const itemHeight = 32;
         const padding = 12;
-        const width = 200;
+        const width = 220;
         const dividerCount = items.filter(i => i.divider).length;
         const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + padding;
 
@@ -1378,29 +1375,69 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
             transparent: true,
             hasShadow: true,
             webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
+                nodeIntegration: false,
+                contextIsolation: true,
+                preload: path.join(__dirname, 'preload.cjs'),
             }
         });
 
         const html = buildContextMenuHtml(items);
-        contextPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        await contextPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-        contextPopup.once('ready-to-show', () => {
-            if (contextPopup && !contextPopup.isDestroyed()) {
-                contextPopup.show();
+        // Set up click handling via executeJavaScript since data URL can't use preload properly
+        await contextPopup.webContents.executeJavaScript(`
+            document.body.addEventListener('click', (e) => {
+                const item = e.target.closest('.ctx-item');
+                if (item && item.dataset.actionId) {
+                    // Use postMessage to notify parent - we'll poll via IPC
+                    window.__selectedActionId = item.dataset.actionId;
+                }
+            });
+            true; // Return value to avoid promise issues
+        `);
+
+        // Poll for click (since we can't use IPC directly from data URL)
+        const pollClick = setInterval(async () => {
+            if (!contextPopup || contextPopup.isDestroyed()) {
+                clearInterval(pollClick);
+                return;
             }
-        });
+            try {
+                const actionId = await contextPopup.webContents.executeJavaScript('window.__selectedActionId || null');
+                if (actionId) {
+                    clearInterval(pollClick);
+                    // Broadcast action to main window
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('contextmenu:executeAction', actionId);
+                    }
+                    // Close popup
+                    if (contextPopup && !contextPopup.isDestroyed()) {
+                        contextPopup.close();
+                        contextPopup = null;
+                    }
+                }
+            } catch {
+                clearInterval(pollClick);
+            }
+        }, 50);
 
+        // Auto-close on blur with small delay to allow click to register
         contextPopup.on('blur', () => {
-            if (contextPopup && !contextPopup.isDestroyed()) {
-                contextPopup.close();
-            }
+            setTimeout(() => {
+                if (contextPopup && !contextPopup.isDestroyed()) {
+                    clearInterval(pollClick);
+                    contextPopup.close();
+                    contextPopup = null;
+                }
+            }, 100);
         });
 
         contextPopup.on('closed', () => {
+            clearInterval(pollClick);
             contextPopup = null;
         });
+
+        contextPopup.show();
 
         return { success: true };
     } catch (e) {

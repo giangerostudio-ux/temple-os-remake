@@ -961,9 +961,12 @@ app.whenReady().then(() => {
             // UNIFIED TASKBAR: Panel window is disabled. The main renderer handles X11 windows directly.
             // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
             void applyDesktopHintsToMainWindow().catch(() => { });
-            // void applyDockStrutToPanelWindow().catch(() => { });  // No panel, no strut needed
-            // The main window fills the entire screen
-            // setTimeout(() => resizeMainWindowToWorkArea(), 200);
+            // Maximize the main window to fill the screen (since there's no panel strut)
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.maximize();
+                }
+            }, 200);
             void startX11EwmhBridge().catch(() => { });  // Still need this to detect Firefox, etc.
         }
     }

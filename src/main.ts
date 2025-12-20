@@ -15704,6 +15704,15 @@ class TempleOS {
       // ignore
     }
 
+    // Minimize all active X11 windows so they don't cover the lock screen
+    if (this.x11Windows.length > 0 && window.electronAPI?.minimizeX11Window) {
+      this.x11Windows.forEach(win => {
+        if (!win.minimized) {
+          void window.electronAPI!.minimizeX11Window!(win.xidHex);
+        }
+      });
+    }
+
     this.isLocked = true;
 
     // Create secure lock screen

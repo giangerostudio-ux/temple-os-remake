@@ -955,10 +955,8 @@ class TempleOS {
         if (action.type === 'launch' && action.key) {
           this.launchByKey(action.key);
         } else if (action.type === 'open_launcher') {
-          // Open Files app as a fallback for the full launcher
-          this.openApp('files');
-          void this.loadFiles('/');
-          this.showNotification('System', 'Full App Grid: Coming Soon', 'info');
+          // Open the native full-screen app launcher grid like the inline start menu does
+          this.openAppLauncher();
         } else if (action.type === 'quicklink' && action.path) {
           if (action.path === 'settings') {
             this.openApp('settings');

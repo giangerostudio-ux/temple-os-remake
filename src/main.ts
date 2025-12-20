@@ -2986,24 +2986,10 @@ class TempleOS {
   private toggleStartMenu(): void {
     this.showStartMenu = !this.showStartMenu;
 
-    // On X11, raise the shell window above Firefox etc. when Start Menu is open
-    if (this.isX11Active()) {
-      if (this.showStartMenu) {
-        window.electronAPI?.raiseShell?.();
-      } else {
-        window.electronAPI?.lowerShell?.();
-      }
-    }
-
     if (!this.showStartMenu) {
       this.startMenuSearchQuery = '';
     }
     this.render();
-  }
-
-  // Check if X11 mode is active (have external windows or X11 bridge enabled)
-  private isX11Active(): boolean {
-    return this.x11Windows.length > 0 || (typeof window.electronAPI?.onX11WindowsChanged === 'function');
   }
 
   private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
@@ -16593,7 +16579,7 @@ class TempleOS {
             action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
           });
           if (window.electronAPI?.snapX11Window) {
-            const taskbarCfg = { height: 50, position: this.taskbarPosition };
+            const taskbarCfg = { height: 60, position: this.taskbarPosition };
             menuItems.push(
               { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left', taskbarCfg) },
               { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right', taskbarCfg) },

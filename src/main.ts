@@ -6364,9 +6364,7 @@ class TempleOS {
         // Handle X11 external window clicks (Firefox, etc.)
         if (taskbarApp.dataset.x11Xid) {
           const xid = taskbarApp.dataset.x11Xid;
-          if (window.electronAPI?.activateX11Window) {
-            void window.electronAPI.activateX11Window(xid);
-          }
+          this.toggleX11Window(xid);
           return;
         }
 
@@ -15357,6 +15355,36 @@ class TempleOS {
     }
   }
 
+  private toggleX11Window(xidHex: string): void {
+    const xid = String(xidHex || '').trim();
+    if (!xid) return;
+
+    const api = window.electronAPI;
+    if (!api) return;
+
+    const win = this.x11Windows.find(w => String(w?.xidHex || '').toLowerCase() === xid.toLowerCase());
+
+    // Windows-like taskbar behavior:
+    // - If active, click minimizes.
+    // - If minimized, click restores + focuses.
+    // - Otherwise, click focuses.
+    if (win?.minimized) {
+      if (api.unminimizeX11Window) {
+        void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
+      } else {
+        void api.activateX11Window?.(xid);
+      }
+      return;
+    }
+
+    if (win?.active) {
+      void api.minimizeX11Window?.(xid);
+      return;
+    }
+
+    void api.activateX11Window?.(xid);
+  }
+
   /**
    * Handle window snapping with keyboard shortcuts (Win+Arrow)
    */
@@ -16484,7 +16512,15 @@ class TempleOS {
           if (win.minimized) {
             menuItems.push({
               label: 'Restore',
-              action: () => window.electronAPI?.unminimizeX11Window?.(xid)
+              action: () => {
+                const api = window.electronAPI;
+                if (!api) return;
+                if (api.unminimizeX11Window) {
+                  void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
+                } else {
+                  void api.activateX11Window?.(xid);
+                }
+              }
             });
           } else {
             menuItems.push({

@@ -182,7 +182,8 @@ declare global {
         taskbarHeight: number;
         taskbarPosition: 'top' | 'bottom';
         pinnedApps: Array<{ key: string; icon: string; name: string }>;
-        installedApps: Array<{ key: string; name: string; icon?: string; iconUrl?: string }>;
+        installedApps: Array<{ key: string; name: string; icon?: string; iconUrl?: string; comment?: string }>;
+        logoUrl?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       hideStartMenuPopup?: () => Promise<{ success: boolean }>;
       onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string }) => void) => () => void;
@@ -3074,6 +3075,7 @@ class TempleOS {
           name: app.name,
           icon: app.name.charAt(0).toUpperCase(),
           iconUrl: app.iconUrl || undefined,
+          comment: app.comment || undefined,
         }));
 
         window.electronAPI.showStartMenuPopup({
@@ -3081,6 +3083,7 @@ class TempleOS {
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
           installedApps,
+          logoUrl: templeLogo,
         });
       }
       return;
@@ -3305,7 +3308,7 @@ class TempleOS {
               <span class="app-icon" aria-hidden="true">📦</span>
               <div class="app-info">
                 <span class="app-name">${escapeHtml(result.installed.name)}</span>
-                ${result.installed.comment ? `<span class="app-comment">${escapeHtml(result.installed.comment)}</span>` : ''}
+                <span class="app-comment">${result.installed.comment ? escapeHtml(result.installed.comment) : 'Application'}</span>
               </div>
             </div>
             `).join('')
@@ -3317,7 +3320,7 @@ class TempleOS {
               <span class="app-icon" aria-hidden="true">📦</span>
               <div class="app-info">
                 <span class="app-name">${escapeHtml(app.name)}</span>
-                ${app.comment ? `<span class="app-comment">${escapeHtml(app.comment)}</span>` : ''}
+                <span class="app-comment">${app.comment ? escapeHtml(app.comment) : 'Application'}</span>
               </div>
             </div>
             `).join('')

@@ -1627,7 +1627,7 @@ html, body {
     </div>
     <div class="sm-right">
         <div class="sm-user">
-            <div class="sm-user-avatar"><div style="width:100%;height:100%;background:linear-gradient(135deg, #00ff41, #00cc33);display:flex;align-items:center;justify-content:center;font-size:32px;">✝️</div></div>
+            <div class="sm-user-avatar">${config.logoUrl ? `<img src="${config.logoUrl}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg, #00ff41, #00cc33);display:flex;align-items:center;justify-content:center;font-size:32px;">✝️</div>`}</div>
             <div class="sm-user-name">TempleOS Remake</div>
         </div>
         <div class="sm-quick-links">

@@ -168,6 +168,8 @@ declare global {
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       setGamingMode?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       hasExternalPanel?: () => Promise<{ success: boolean; enabled: boolean }>;
+      panelToggleStartMenu?: () => Promise<{ success: boolean; error?: string }>;
+      onShellToggleStartMenu?: (callback: (payload: any) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -841,13 +843,30 @@ class TempleOS {
     if (window.electronAPI?.setGamingMode) {
       void window.electronAPI.setGamingMode(this.gamingModeActive);
     }
+    // Detect external panel (X11 mode). Poll briefly because the panel window may initialize after the desktop renderer.
     if (window.electronAPI?.hasExternalPanel) {
-      void window.electronAPI.hasExternalPanel().then(res => {
-        if (res?.success) {
-          this.externalPanelEnabled = !!res.enabled;
-          this.render();
-        }
-      }).catch(() => { });
+      let tries = 0;
+      const poll = () => {
+        tries++;
+        void window.electronAPI!.hasExternalPanel!().then(res => {
+          if (res?.success && res.enabled) {
+            this.externalPanelEnabled = true;
+            this.render();
+            return;
+          }
+          if (tries < 10) setTimeout(poll, 500);
+        }).catch(() => {
+          if (tries < 10) setTimeout(poll, 500);
+        });
+      };
+      poll();
+    }
+
+    // Panel button forwards here.
+    if (window.electronAPI?.onShellToggleStartMenu) {
+      window.electronAPI.onShellToggleStartMenu(() => {
+        this.toggleStartMenu();
+      });
     }
 
     this.setupGodlyNotesGlobals();
@@ -2847,6 +2866,14 @@ class TempleOS {
         ${this.showCalendarPopup ? this.renderCalendarPopup() : ''}
       </div>
     `;
+  }
+
+  private toggleStartMenu(): void {
+    this.showStartMenu = !this.showStartMenu;
+    if (!this.showStartMenu) {
+      this.startMenuSearchQuery = '';
+    }
+    this.render();
   }
 
   private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
@@ -6323,12 +6350,7 @@ class TempleOS {
       // Start button click
       const startBtn = target.closest('.start-btn') as HTMLElement;
       if (startBtn) {
-        this.showStartMenu = !this.showStartMenu;
-        if (!this.showStartMenu) {
-          this.startMenuSearchQuery = ''; // Reset search when closing
-        }
-
-        this.render();
+        this.toggleStartMenu();
         return;
       }
 

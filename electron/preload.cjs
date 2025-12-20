@@ -201,4 +201,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),
     setGamingMode: (enabled) => ipcRenderer.invoke('shell:setGamingMode', enabled),
     hasExternalPanel: () => ipcRenderer.invoke('shell:hasExternalPanel'),
+
+    panelToggleStartMenu: () => ipcRenderer.invoke('panel:toggleStartMenu'),
+    onShellToggleStartMenu: (callback) => {
+        const handler = (event, payload) => callback(payload);
+        ipcRenderer.on('shell:toggleStartMenu', handler);
+        return () => ipcRenderer.removeListener('shell:toggleStartMenu', handler);
+    },
 });

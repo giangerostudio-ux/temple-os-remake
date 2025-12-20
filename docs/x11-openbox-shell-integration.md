@@ -295,6 +295,38 @@ Expected:
 - `DISPLAY=:0` (or similar)
 - Note: if you run this over SSH (or from a TTY), you'll often see `XDG_SESSION_TYPE=tty` because you're not inside the graphical session.
 
+### VM gotchas (VirtualBox)
+
+Start X from a real TTY, not over SSH:
+- `sudo chvt 3`
+- log in on tty3
+- `startx`
+
+If you see `Only console users are allowed to run the X server` or Xorg crashes with permission errors:
+- `sudo apt install -y xserver-xorg-legacy`
+- create `/etc/X11/Xwrapper.config`:
+  - `allowed_users=console`
+  - `needs_root_rights=yes`
+
+If Electron fails with a `chrome-sandbox` setuid error:
+- `sudo chown root:root /opt/templeos/node_modules/electron/dist/chrome-sandbox`
+- `sudo chmod 4755 /opt/templeos/node_modules/electron/dist/chrome-sandbox`
+
+### "Two bars" / panel does nothing (common early integration issue)
+
+Symptoms:
+- You see the old in-renderer taskbar plus the new X11 panel.
+- Clicking items in the panel doesn't do anything useful, or clicking something "kills" the UI.
+
+Root cause:
+- You're running a mixed/old build where the desktop window is still rendered as a normal task window, and the panel is trying to taskbar the shell itself.
+
+Fix:
+- Update the VM to the latest commit, rebuild, and restart X:
+  - `cd /opt/templeos && git pull && npm install && npm run build`
+  - `pkill -f /opt/templeos/node_modules/.bin/electron || true`
+  - `startx`
+
 ### Confirm a WM is present
 - `xprop -root _NET_SUPPORTING_WM_CHECK`
 Expected:

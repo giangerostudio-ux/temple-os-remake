@@ -685,6 +685,13 @@ function createWindow() {
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[Renderer] ${message} (${sourceId}:${line})`);
     });
+
+    mainWindow.webContents.on('did-finish-load', () => {
+        // In X11 mode, hide the shell window from task/window lists (panel should track real apps, not itself).
+        if (isX11Session()) {
+            setTimeout(() => { void applyDesktopHintsToMainWindow().catch(() => { }); }, 150);
+        }
+    });
 }
 
 function resizeMainWindowToWorkArea() {
@@ -797,9 +804,9 @@ async function applyDesktopHintsToMainWindow() {
     const xid = xidHexFromBrowserWindow(mainWindow);
     if (!xid) return;
 
-    // Keep the shell background below normal apps.
-    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DESKTOP').catch(() => { });
-    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_BELOW,_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
+    // Hide the shell window from taskbar/window lists, but keep it interactive/focusable.
+    // Avoid setting WINDOW_TYPE=DESKTOP because some WMs treat it as non-focusable.
+    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
 }
 
 function createPanelWindow() {
@@ -952,9 +959,7 @@ app.whenReady().then(() => {
         void refreshInstalledAppsCache('startup').catch(() => { });
         if (isX11Session()) {
             createPanelWindow();
-            if (process.env.TEMPLE_X11_DESKTOP_HINTS === '1') {
-                void applyDesktopHintsToMainWindow().catch(() => { });
-            }
+            void applyDesktopHintsToMainWindow().catch(() => { });
             void applyDockStrutToPanelWindow().catch(() => { });
             // Fit the desktop to the workarea (so the panel isn't covered).
             setTimeout(() => resizeMainWindowToWorkArea(), 200);
@@ -1083,6 +1088,18 @@ ipcMain.handle('shell:setGamingMode', async (event, enabled) => {
 
 ipcMain.handle('shell:hasExternalPanel', async () => {
     return { success: true, enabled: !!(panelWindow && !panelWindow.isDestroyed()) };
+});
+
+// Panel -> Desktop (forward UI actions to the main window renderer)
+ipcMain.handle('panel:toggleStartMenu', async () => {
+    try {
+        if (!mainWindow || mainWindow.isDestroyed()) return { success: false, error: 'Main window not available' };
+        mainWindow.webContents.send('shell:toggleStartMenu', {});
+        try { mainWindow.focus(); } catch { }
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
 });
 
 // ============================================

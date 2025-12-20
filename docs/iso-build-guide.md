@@ -107,6 +107,56 @@ Notes:
 - Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.
 - The panel auto-hides in fullscreen when "Hide Bar On Fullscreen" is enabled (Settings -> Gaming).
 
+### X11 boot + VirtualBox gotchas (read this)
+
+Do NOT run `startx` over SSH or inside an existing GUI terminal. Run it from a real TTY.
+
+Switch to a TTY in VirtualBox:
+
+```bash
+sudo chvt 3
+```
+
+Then log in on tty3 and run:
+
+```bash
+startx
+```
+
+If you see `Only console users are allowed to run the X server` or Xorg crashes with permission errors in a VM, install the legacy wrapper + allow root rights:
+
+```bash
+sudo apt update
+sudo apt install -y xserver-xorg-legacy
+
+sudo tee /etc/X11/Xwrapper.config >/dev/null <<'EOF'
+allowed_users=console
+needs_root_rights=yes
+EOF
+```
+
+If Electron refuses to start with a `chrome-sandbox` SUID error, fix permissions (required when running Electron as a normal user):
+
+```bash
+sudo chown root:root /opt/templeos/node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 /opt/templeos/node_modules/electron/dist/chrome-sandbox
+```
+
+If you see two taskbars or the panel is unresponsive, you are likely running a mixed/old build:
+
+```bash
+cd /opt/templeos
+git rev-parse --short HEAD
+npm run build
+```
+
+Then restart X (tty):
+
+```bash
+pkill -f /opt/templeos/node_modules/.bin/electron || true
+startx
+```
+
 ### Optional: Gaming stack (Steam/Proton + launchers)
 
 This is not required for the desktop shell to run, but is commonly expected on a "gaming OS":
@@ -119,7 +169,6 @@ Package names vary by repo configuration (multiverse), but typical Ubuntu setup 
 ```bash
 sudo apt update
 sudo apt install -y gamemode
-```
 ```
 
 **CRITICAL**: The `node_modules/node-pty/build/Release/pty.node` file MUST be included!

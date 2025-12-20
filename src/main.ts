@@ -861,12 +861,28 @@ class TempleOS {
     if (window.electronAPI?.onX11WindowsChanged) {
       window.electronAPI.onX11WindowsChanged((payload: any) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
+        const prevByXid = new Map(
+          this.x11Windows
+            .map(w => [String(w?.xidHex || '').toLowerCase(), w] as const)
+            .filter(([xid]) => !!xid),
+        );
         this.x11Windows = wins;
 
         // Clean up tracking for closed windows
         const alive = new Set(this.x11Windows.map(w => String(w?.xidHex || '').toLowerCase()).filter(Boolean));
         for (const xid of Array.from(this.x11UserMinimized)) {
           if (!alive.has(xid)) this.x11UserMinimized.delete(xid);
+        }
+
+        // If a window was active and becomes minimized (e.g. user clicked the app's own minimize button),
+        // treat it as a user-intent minimize so we don't auto-restore it.
+        for (const w of this.x11Windows) {
+          const xid = String(w?.xidHex || '').toLowerCase();
+          if (!xid || !w?.minimized) continue;
+          const prev = prevByXid.get(xid);
+          if (prev && !prev.minimized && prev.active) {
+            this.x11UserMinimized.add(xid);
+          }
         }
 
         // Auto-restore any external window that gets minimized unexpectedly.

@@ -1,0 +1,10 @@
+# Enforce LF line endings for shell scripts
+*.sh text eol=lf
+start-templeos.sh text eol=lf
+
+# Enforce LF for other config files just in case
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+.gitignore text eol=lf

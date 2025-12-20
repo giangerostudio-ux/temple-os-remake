@@ -3093,7 +3093,7 @@ class TempleOS {
         }
 
         window.electronAPI.showStartMenuPopup({
-          taskbarHeight: 75,
+          taskbarHeight: 58,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
           installedApps,

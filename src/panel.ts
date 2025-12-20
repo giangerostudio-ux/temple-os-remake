@@ -93,13 +93,19 @@ class TemplePanel {
         const xid = item.dataset.xid || '';
         if (!xid) return;
 
-
-
         const win = this.x11Windows.find(w => w.xidHex === xid);
+        if (!win) return;
 
-        // User requested "Menu on Click" behavior
-        if (win) {
-          this.showContextMenu(e.clientX, e.clientY, xid);
+        // Toggle behavior: if active and not minimized, minimize it.
+        // If not active or minimized, activate it.
+        if (win.active && !win.minimized) {
+          if (window.electronAPI?.minimizeX11Window) {
+            void window.electronAPI.minimizeX11Window(xid);
+          }
+        } else {
+          if (window.electronAPI?.activateX11Window) {
+            void window.electronAPI.activateX11Window(xid);
+          }
         }
       };
 

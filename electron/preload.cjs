@@ -224,18 +224,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // ============================================
-    // START MENU POPUP (Linux X11 floating Start Menu)
+    // X11 SHELL WINDOW STACKING (raise above X11 apps for Start Menu)
     // ============================================
-    showStartMenuPopup: (config) => ipcRenderer.invoke('startmenu:show', config),
-    hideStartMenuPopup: () => ipcRenderer.invoke('startmenu:hide'),
-    onStartMenuAction: (callback) => {
-        const handler = (event, action) => callback(action);
-        ipcRenderer.on('startmenu:action', handler);
-        return () => ipcRenderer.removeListener('startmenu:action', handler);
-    },
-    onStartMenuClosed: (callback) => {
-        const handler = (event, payload) => callback(payload);
-        ipcRenderer.on('startmenu:closed', handler);
-        return () => ipcRenderer.removeListener('startmenu:closed', handler);
-    },
+    raiseShell: () => ipcRenderer.invoke('x11:raiseShell'),
+    lowerShell: () => ipcRenderer.invoke('x11:lowerShell'),
 });

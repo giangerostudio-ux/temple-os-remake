@@ -1494,262 +1494,58 @@ ipcMain.handle('contextmenu:action', async (event, actionId) => {
 });
 
 // ============================================
-// START MENU POPUP (Floating alwaysOnTop window for X11)
+// X11 SHELL WINDOW STACKING (raise above X11 apps for Start Menu)
 // ============================================
-let startMenuPopup = null;
-let startMenuPollInterval = null;
+let shellRaised = false;
 
-function closeStartMenuPopupSync() {
-    if (startMenuPollInterval) {
-        clearInterval(startMenuPollInterval);
-        startMenuPollInterval = null;
+ipcMain.handle('x11:raiseShell', async () => {
+    if (!ewmhBridge?.supported || !mainWindow || mainWindow.isDestroyed()) {
+        return { success: false, error: 'Not supported' };
     }
-    if (startMenuPopup && !startMenuPopup.isDestroyed()) {
-        try {
-            startMenuPopup.destroy();
-        } catch { }
-    }
-    startMenuPopup = null;
-}
-
-function buildStartMenuHtml(config) {
-    const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-    const pinnedApps = config.pinnedApps || [];
-    const installedApps = (config.installedApps || []).slice(0, 30);
-    const taskbarPosition = config.taskbarPosition || 'bottom';
-
-    const pinnedHtml = pinnedApps.map(app => `
-        <div class="sm-app pinned" data-action="launch" data-key="${escapeHtml(app.key)}">
-            <span class="sm-icon">${escapeHtml(app.icon)}</span>
-            <span class="sm-name">${escapeHtml(app.name)}</span>
-        </div>
-    `).join('');
-
-    const installedHtml = installedApps.map(app => `
-        <div class="sm-app installed" data-action="launch" data-key="${escapeHtml(app.key)}">
-            <span class="sm-icon">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" style="width:24px;height:24px;object-fit:contain;">` : escapeHtml(app.icon || app.name.charAt(0).toUpperCase())}</span>
-            <span class="sm-name">${escapeHtml(app.name)}</span>
-        </div>
-    `).join('');
-
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
-    background: rgba(8, 12, 16, 0.98);
-    border: 2px solid rgba(0, 255, 65, 0.4);
-    border-radius: 12px;
-    overflow: hidden;
-    font-family: 'VT323', 'Consolas', monospace;
-    color: #00ff41;
-}
-.sm-container { display: flex; height: 100%; }
-.sm-left { flex: 2; display: flex; flex-direction: column; border-right: 1px solid rgba(0,255,65,0.2); }
-.sm-right { flex: 1; padding: 16px; display: flex; flex-direction: column; background: rgba(0,0,0,0.3); }
-.sm-search { padding: 16px; border-bottom: 1px solid rgba(0,255,65,0.2); }
-.sm-search input {
-    width: 100%; padding: 10px 14px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25);
-    color: #00ff41; font-size: 16px; border-radius: 8px; font-family: inherit; outline: none;
-}
-.sm-search input::placeholder { color: rgba(0,255,65,0.5); }
-.sm-search input:focus { border-color: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.3); }
-.sm-section { padding: 12px 16px; }
-.sm-section h3 { font-size: 12px; color: rgba(0,255,65,0.6); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.sm-pinned-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.sm-apps-list { flex: 1; overflow-y: auto; padding: 0 16px 16px 16px; }
-.sm-app {
-    display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
-    border-radius: 8px; transition: background 0.15s;
-}
-.sm-app:hover { background: rgba(0,255,65,0.15); }
-.sm-app.pinned { flex-direction: column; text-align: center; padding: 12px 8px; }
-.sm-app.pinned .sm-icon { font-size: 28px; margin-bottom: 4px; }
-.sm-app.pinned .sm-name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
-.sm-icon { font-size: 20px; min-width: 28px; display: flex; align-items: center; justify-content: center; }
-.sm-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sm-user { text-align: center; margin-bottom: 20px; }
-.sm-user-avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #00ff41; margin: 0 auto 8px; overflow: hidden; }
-.sm-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.sm-user-name { font-size: 14px; font-weight: bold; }
-.sm-quick-links { flex: 1; }
-.sm-quick-link { padding: 8px 12px; cursor: pointer; border-radius: 6px; transition: background 0.15s; font-size: 13px; }
-.sm-quick-link:hover { background: rgba(0,255,65,0.15); }
-.sm-power { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(0,255,65,0.2); }
-.sm-power-btn {
-    padding: 10px 12px; border: none; background: rgba(0,255,65,0.1); color: #00ff41;
-    cursor: pointer; border-radius: 6px; font-size: 13px; font-family: inherit; transition: background 0.15s;
-}
-.sm-power-btn:hover { background: rgba(0,255,65,0.25); }
-</style></head>
-<body>
-<div class="sm-container">
-    <div class="sm-left">
-        <div class="sm-search">
-            <input type="text" class="sm-search-input" placeholder="🔍 Search apps..." autofocus>
-        </div>
-        <div class="sm-section">
-            <h3>Pinned</h3>
-            <div class="sm-pinned-grid">${pinnedHtml}</div>
-        </div>
-        <div class="sm-section" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-            <h3>All Apps</h3>
-            <div class="sm-apps-list">${installedHtml || '<div style="color:#666;padding:8px;">No installed apps found</div>'}</div>
-        </div>
-    </div>
-    <div class="sm-right">
-        <div class="sm-user">
-            <div class="sm-user-avatar"><div style="width:100%;height:100%;background:#00ff41;display:flex;align-items:center;justify-content:center;font-size:32px;">✝️</div></div>
-            <div class="sm-user-name">TempleOS Remake</div>
-        </div>
-        <div class="sm-quick-links">
-            <div class="sm-quick-link" data-action="quicklink" data-path="root">💻 This PC</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="home">🏠 Home</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Documents">📄 Documents</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Downloads">⬇️ Downloads</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="settings">⚙️ Settings</div>
-        </div>
-        <div class="sm-power">
-            <button class="sm-power-btn" data-action="power" data-power="lock">🔒 Lock</button>
-            <button class="sm-power-btn" data-action="power" data-power="restart">🔄 Restart</button>
-            <button class="sm-power-btn" data-action="power" data-power="shutdown">🔴 Shutdown</button>
-        </div>
-    </div>
-</div>
-<script>
-const searchInput = document.querySelector('.sm-search-input');
-const allApps = document.querySelectorAll('.sm-app');
-
-searchInput.addEventListener('input', () => {
-    const query = searchInput.value.toLowerCase();
-    allApps.forEach(app => {
-        const name = app.querySelector('.sm-name')?.textContent?.toLowerCase() || '';
-        app.style.display = name.includes(query) ? '' : 'none';
-    });
-});
-
-document.body.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-action]');
-    if (!el) return;
-    const action = el.dataset.action;
-    if (action === 'launch') {
-        window.__startMenuAction = { type: 'launch', key: el.dataset.key };
-    } else if (action === 'quicklink') {
-        window.__startMenuAction = { type: 'quicklink', path: el.dataset.path };
-    } else if (action === 'power') {
-        window.__startMenuAction = { type: 'power', action: el.dataset.power };
-    }
-});
-
-searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        window.__startMenuAction = { type: 'close' };
-    }
-});
-</script>
-</body></html>`;
-}
-
-ipcMain.handle('startmenu:show', async (event, config) => {
     try {
-        // Close any existing popup
-        closeStartMenuPopupSync();
+        // Get the main window's X11 window ID
+        const nativeHandle = mainWindow.getNativeWindowHandle();
+        if (!nativeHandle || nativeHandle.length < 4) {
+            return { success: false, error: 'No native handle' };
+        }
+        const xid = nativeHandle.readUInt32LE(0);
+        const xidHex = '0x' + xid.toString(16);
 
-        const primary = screen.getPrimaryDisplay();
-        const bounds = primary?.bounds || { x: 0, y: 0, width: 1920, height: 1080 };
-        const taskbarHeight = config?.taskbarHeight || 50;
-        const taskbarPosition = config?.taskbarPosition || 'bottom';
+        // Remove _below state and add _above state
+        await execAsync(`wmctrl -ir ${xidHex} -b remove,below`, { timeout: 1000 }).catch(() => { });
+        await execAsync(`wmctrl -ir ${xidHex} -b add,above`, { timeout: 1000 }).catch(() => { });
 
-        const popupWidth = 580;
-        const popupHeight = 520;
+        // Also bring to front
+        await execAsync(`wmctrl -ia ${xidHex}`, { timeout: 1000 }).catch(() => { });
 
-        // Position at bottom-left or top-left depending on taskbar position
-        let posX = bounds.x + 10;
-        let posY = taskbarPosition === 'bottom'
-            ? bounds.y + bounds.height - taskbarHeight - popupHeight - 10
-            : bounds.y + taskbarHeight + 10;
-
-        startMenuPopup = new BrowserWindow({
-            x: posX,
-            y: posY,
-            width: popupWidth,
-            height: popupHeight,
-            frame: false,
-            resizable: false,
-            movable: false,
-            alwaysOnTop: true,
-            skipTaskbar: true,
-            focusable: true,
-            show: false,
-            transparent: true,
-            hasShadow: true,
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-            }
-        });
-
-        const html = buildStartMenuHtml(config);
-        startMenuPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-
-        startMenuPopup.once('ready-to-show', () => {
-            if (startMenuPopup && !startMenuPopup.isDestroyed()) {
-                startMenuPopup.show();
-                startMenuPopup.focus();
-            }
-        });
-
-        // Poll for actions
-        startMenuPollInterval = setInterval(async () => {
-            if (!startMenuPopup || startMenuPopup.isDestroyed()) {
-                closeStartMenuPopupSync();
-                return;
-            }
-            try {
-                const action = await startMenuPopup.webContents.executeJavaScript('window.__startMenuAction || null');
-                if (action) {
-                    // Clear action
-                    await startMenuPopup.webContents.executeJavaScript('window.__startMenuAction = null');
-
-                    if (mainWindow && !mainWindow.isDestroyed()) {
-                        mainWindow.webContents.send('startmenu:action', action);
-                    }
-
-                    // Close popup after action (except for close which is already a close request)
-                    closeStartMenuPopupSync();
-                }
-            } catch {
-                closeStartMenuPopupSync();
-            }
-        }, 32);
-
-        // Close on blur
-        startMenuPopup.on('blur', () => {
-            setTimeout(() => {
-                closeStartMenuPopupSync();
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('startmenu:closed', {});
-                }
-            }, 100);
-        });
-
-        startMenuPopup.on('closed', () => {
-            closeStartMenuPopupSync();
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('startmenu:closed', {});
-            }
-        });
-
+        shellRaised = true;
         return { success: true };
     } catch (e) {
-        closeStartMenuPopupSync();
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
 });
 
-ipcMain.handle('startmenu:hide', async () => {
-    closeStartMenuPopupSync();
-    return { success: true };
+ipcMain.handle('x11:lowerShell', async () => {
+    if (!ewmhBridge?.supported || !mainWindow || mainWindow.isDestroyed()) {
+        return { success: false, error: 'Not supported' };
+    }
+    try {
+        const nativeHandle = mainWindow.getNativeWindowHandle();
+        if (!nativeHandle || nativeHandle.length < 4) {
+            return { success: false, error: 'No native handle' };
+        }
+        const xid = nativeHandle.readUInt32LE(0);
+        const xidHex = '0x' + xid.toString(16);
+
+        // Remove _above state and restore _below state
+        await execAsync(`wmctrl -ir ${xidHex} -b remove,above`, { timeout: 1000 }).catch(() => { });
+        await execAsync(`wmctrl -ir ${xidHex} -b add,below`, { timeout: 1000 }).catch(() => { });
+
+        shellRaised = false;
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
 });
 
 // ============================================

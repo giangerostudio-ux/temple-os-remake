@@ -3085,12 +3085,13 @@ class TempleOS {
           .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
 
         // Gather installed apps
-        const installedApps = this.installedApps.slice(0, 30).map(app => ({
+        const installedApps = this.installedApps.slice(0, 100).map(app => ({
           key: this.keyForInstalledApp(app),
           name: app.name,
           icon: app.name.charAt(0).toUpperCase(),
           iconUrl: app.iconUrl || undefined,
           comment: app.comment || undefined,
+          category: this.canonicalCategoryForInstalledApp(app),
         }));
 
         // Convert logo to base64 for main process

@@ -1526,7 +1526,7 @@ function buildStartMenuHtml(config) {
     `).join('');
 
     const installedHtml = installedApps.map(app => `
-        <div class="sm-app installed" data-action="launch" data-key="${escapeHtml(app.key)}">
+        <div class="sm-app installed" data-action="launch" data-key="${escapeHtml(app.key)}" data-category="${escapeHtml(app.category || 'Utilities')}">
             <span class="sm-icon">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;">` : escapeHtml(app.icon || app.name.charAt(0).toUpperCase())}</span>
             <div class="sm-app-info">
                 <span class="sm-name">${escapeHtml(app.name)}</span>
@@ -1624,14 +1624,23 @@ html, body {
                 </button>
             </div>
             <div class="sm-dropdowns">
-                <select class="sm-select"><option>All apps</option><option>Recent</option><option>Frequent</option></select>
-                <select class="sm-select"><option>All</option><option>Games</option><option>Internet</option></select>
+                <select class="sm-select" disabled><option>All apps</option></select>
+                <select class="sm-select" id="sm-cat-select">
+                    <option value="All">All</option>
+                    <option value="Games">Games</option>
+                    <option value="Internet">Internet</option>
+                    <option value="Office">Office</option>
+                    <option value="Multimedia">Multimedia</option>
+                    <option value="Development">Development</option>
+                    <option value="System">System</option>
+                    <option value="Utilities">Utilities</option>
+                </select>
             </div>
         </div>
         <div class="sm-section">
-            <h3>Pinned</h3>
+            <h3 id="pinned-header">Pinned</h3>
             <div class="sm-pinned-grid">${pinnedHtml}</div>
-            <h3>All Apps</h3>
+            <h3 id="all-header">All Apps</h3>
             <div class="sm-apps-list">${installedHtml || '<div style="color:#666;padding:8px;">No installed apps found</div>'}</div>
         </div>
     </div>
@@ -1658,15 +1667,37 @@ html, body {
 </div>
 <script>
 const searchInput = document.querySelector('.sm-search-input');
-const allApps = document.querySelectorAll('.sm-app');
+const catSelect = document.getElementById('sm-cat-select');
+const allApps = Array.from(document.querySelectorAll('.sm-app.installed')); // Only filter installed apps
+const pinnedSection = document.querySelector('.sm-pinned-grid');
+const pinnedHeader = document.getElementById('pinned-header');
 
-searchInput.addEventListener('input', () => {
+function filterApps() {
     const query = searchInput.value.toLowerCase();
+    const cat = catSelect.value;
+
     allApps.forEach(app => {
         const name = app.querySelector('.sm-name')?.textContent?.toLowerCase() || '';
-        app.style.display = name.includes(query) ? '' : 'none';
+        const appCat = app.dataset.category || 'Utilities';
+        
+        const matchesQuery = name.includes(query);
+        const matchesCat = cat === 'All' || appCat === cat;
+
+        app.style.display = (matchesQuery && matchesCat) ? 'flex' : 'none';
     });
-});
+
+    // Toggle pinned section based on search/filter
+    if (query || cat !== 'All') {
+        pinnedSection.style.display = 'none';
+        pinnedHeader.style.display = 'none';
+    } else {
+        pinnedSection.style.display = 'grid';
+        pinnedHeader.style.display = 'block';
+    }
+}
+
+searchInput.addEventListener('input', filterApps);
+if (catSelect) catSelect.addEventListener('change', filterApps);
 
 document.body.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
@@ -1680,6 +1711,10 @@ document.body.addEventListener('click', (e) => {
         window.__startMenuAction = { type: 'power', action: el.dataset.power };
     }
 });
+
+function emitAction(type) {
+    window.__startMenuAction = { type };
+}
 
 searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

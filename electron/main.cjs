@@ -1336,12 +1336,12 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
             return { success: false, error: 'No items' };
         }
 
-        // Calculate popup size
-        const itemHeight = 36;
-        const padding = 16;
+        // Calculate popup size (must match CSS: padding 8px*2 + font 16px = 32px per item)
+        const itemHeight = 32;
+        const borderPadding = 6; // 2px border + 4px extra
         const width = 250;
         const dividerCount = items.filter(i => i.divider).length;
-        const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + padding;
+        const height = (items.length - dividerCount) * itemHeight + dividerCount * 9 + borderPadding;
 
         // Position above click point (taskbar), adjusted for screen bounds
         const primary = screen.getPrimaryDisplay();

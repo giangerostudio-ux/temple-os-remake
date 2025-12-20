@@ -1072,8 +1072,10 @@ class X11LayoutManager {
 
                 if (newWindows.length > 0) {
                     // console.log('--- X11 SNAPSHOT DEBUG ---');
-                    // debugLog.forEach(l => console.log(l));
-                    await this.applyAutoTiling(newWindows);
+                    // DELAY: Wait for windows to fully map before snapping (Fixes "unaligned" spawn)
+                    setTimeout(() => {
+                        this.applyAutoTiling(newWindows);
+                    }, 500);
                 }
             } finally {
                 this.processing = false;
@@ -1108,8 +1110,15 @@ class X11LayoutManager {
         });
         const count = managed.length;
 
+        console.log(`[X11Mgr] Auto-Tiling: ${count} windows. New: ${newWindows.join(',')}`);
+
         const doSnap = async (xid, mode) => {
+            // Retry snap a few times if it fails initially
             await snapWindowX11Values(xid, mode);
+            // Double tap for maximize to ensure it sticks
+            if (mode === 'maximize') {
+                setTimeout(() => snapWindowX11Values(xid, mode), 300);
+            }
         };
 
         if (count === 1) {
@@ -1146,6 +1155,7 @@ async function snapWindowX11Values(xidHex, mode) {
     const halfW = Math.max(1, Math.floor(wa.width / 2));
     const halfH = Math.max(1, Math.floor(wa.height / 2));
     let x = wa.x, y = wa.y, w = wa.width, h = wa.height;
+    let maximize = false;
 
     switch (mode) {
         case 'left': w = halfW; break;
@@ -1156,20 +1166,26 @@ async function snapWindowX11Values(xidHex, mode) {
         case 'top-right': x += halfW; w = wa.width - halfW; h = halfH; break;
         case 'bottom-left': y += halfH; w = halfW; h = wa.height - halfH; break;
         case 'bottom-right': x += halfW; y += halfH; w = wa.width - halfW; h = wa.height - halfH; break;
-        case 'maximize': break;
+        case 'maximize': maximize = true; break;
         default: return;
     }
 
     try {
         await ewmhBridge.activateWindow(xidHex).catch(() => { });
-        if (mode === 'maximize') {
-            await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 1000 }).catch(() => { });
-            if (ewmhBridge.setWindowGeometry) await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
+
+        if (maximize) {
+            // Force remove max first, then add max
+            await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
+            await new Promise(r => setTimeout(r, 100));
+            await execAsync(`wmctrl -ir ${xidHex} -b add,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
         } else {
+            // Remove maximization features before moving
             await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 500 }).catch(() => { });
             if (ewmhBridge.setWindowGeometry) await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
         }
-    } catch (e) { console.error('AutoSnap failed', e); }
+    } catch (e) {
+        console.error('AutoSnap failed', e);
+    }
 }
 
 let layoutManager = new X11LayoutManager();

@@ -718,6 +718,14 @@ function createWindow() {
     });
 
 
+    // Enforce desktop behavior gently on focus (re-apply BELOW state)
+    mainWindow.on('focus', () => {
+        if (isX11Session()) {
+            // Only re-apply if we suspect we lost the 'below' state. 
+            // We just fire-and-forget this to ensure we stay at the bottom.
+            void xpropSet(xidHexFromBrowserWindow(mainWindow), '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
+        }
+    });
 }
 
 

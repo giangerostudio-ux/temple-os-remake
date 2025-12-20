@@ -17,6 +17,10 @@ if [ ! -f "${OPENBOX_RC}" ]; then
     : > "${OPENBOX_RC}"
   fi
 fi
+# If the config is empty or malformed, re-seed/patch it (Openbox will error on "Document is empty").
+if [ ! -s "${OPENBOX_RC}" ] || ! grep -q "<openbox_config" "${OPENBOX_RC}" 2>/dev/null; then
+  rm -f "${OPENBOX_MARKER}" 2>/dev/null || true
+fi
 if [ ! -f "${OPENBOX_MARKER}" ]; then
   /usr/bin/env python3 /opt/templeos/scripts/patch-openbox-rcxml.py "${OPENBOX_RC}" 2>/dev/null || true
   : > "${OPENBOX_MARKER}"

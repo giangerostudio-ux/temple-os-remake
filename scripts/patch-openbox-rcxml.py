@@ -4,6 +4,38 @@ import sys
 from pathlib import Path
 
 
+DEFAULT_RC_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <resistance>
+    <strength>10</strength>
+    <screen_edge_strength>20</screen_edge_strength>
+  </resistance>
+  <focus>
+    <focusNew>yes</focusNew>
+    <focusLast>yes</focusLast>
+    <followMouse>no</followMouse>
+    <focusDelay>200</focusDelay>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+  <placement>
+    <policy>Smart</policy>
+    <center>yes</center>
+    <monitor>Primary</monitor>
+  </placement>
+  <theme>
+    <name>Clearlooks</name>
+    <titleLayout>NLIMC</titleLayout>
+    <keepBorder>yes</keepBorder>
+    <animateIconify>no</animateIconify>
+  </theme>
+  <keyboard>
+    <!-- Keep this minimal; TempleOS handles Win-key shortcuts in-app. -->
+    <chainQuitKey>C-g</chainQuitKey>
+  </keyboard>
+</openbox_config>
+"""
+
+
 def strip_blocks(xml: str, patterns: list[str]) -> str:
     out = xml
     for pat in patterns:
@@ -22,6 +54,9 @@ def main() -> int:
         return 1
 
     xml = path.read_text(encoding="utf-8", errors="ignore")
+    if not xml.strip() or "<openbox_config" not in xml:
+        # Avoid generating an invalid config: Openbox will refuse to start if rc.xml is empty/malformed.
+        xml = DEFAULT_RC_XML
 
     # Remove any keybind/mousebind that triggers ToggleShowDesktop.
     xml = strip_blocks(
@@ -47,10 +82,13 @@ def main() -> int:
         ],
     )
 
+    # Safety: ensure we didn't end up with an empty/invalid file.
+    if not xml.strip() or "<openbox_config" not in xml:
+        xml = DEFAULT_RC_XML
+
     path.write_text(xml, encoding="utf-8")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

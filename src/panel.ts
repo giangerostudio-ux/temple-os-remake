@@ -66,6 +66,16 @@ class TemplePanel {
   }
 
   private async activateWindow(xidHex: string): Promise<void> {
+    // Optimistic Update
+    this.lastActiveXid = xidHex;
+    const win = this.x11Windows.find(w => w.xidHex === xidHex);
+    if (win) {
+      this.x11Windows.forEach(w => w.active = false);
+      win.active = true;
+      win.minimized = false;
+      this.render(); // Re-render to reflect active state immediately
+    }
+
     if (!window.electronAPI?.activateX11Window) return;
     await window.electronAPI.activateX11Window(xidHex);
   }
@@ -103,6 +113,13 @@ class TemplePanel {
         const isEffectivelyActive = (win?.active) || (xid === this.lastActiveXid && !win?.minimized);
 
         if (isEffectivelyActive) {
+          // Optimistic Update
+          if (win) {
+            win.active = false;
+            win.minimized = true; // Assume it will minimize
+            this.render();
+          }
+
           if (window.electronAPI?.minimizeX11Window) {
             void window.electronAPI.minimizeX11Window(xid);
           }

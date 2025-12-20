@@ -91,7 +91,13 @@ When packaging for ISO, include these folders:
 
 ## X11 + Openbox (External Apps + Always-Visible Panel)
 
-TempleOS now supports an **X11 panel window** (DOCK + STRUT) so external apps (Firefox, etc.) cannot cover the bar, and so the OS can enumerate/control external windows for a taskbar experience.
+TempleOS now supports an **X11 panel window** (DOCK + STRUT + UNDER) so external apps (Firefox, etc.) cannot cover the bar, and so the OS can enumerate/control external windows for a taskbar experience.
+
+**New Features (Dec 2025):**
+- **Unified Taskbar**: X11 apps appear in the main taskbar alongside built-in apps.
+- **Minimized Apps**: Minimized windows remain visible (dimmed) and can be restored.
+- **Context Menu**: Right-click taskbar items to Close or Minimize/Restore windows.
+- **Main Window Layout**: The desktop window uses `_NET_WM_STATE_BELOW` to ensure it never obscures active windows when the Start Menu is opened.
 
 Key requirement:
 - You must run an **X11 session** (`XDG_SESSION_TYPE=x11`) with an **EWMH-compliant WM** (recommended: Openbox).

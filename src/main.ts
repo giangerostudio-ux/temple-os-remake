@@ -698,6 +698,7 @@ class TempleOS {
     title: string;
     wmClass?: string | null;
     active?: boolean;
+    minimized?: boolean;
     iconUrl?: string | null;
     appName?: string | null;
   }> = [];
@@ -2532,7 +2533,7 @@ class TempleOS {
         const title = w.appName || w.title || w.wmClass || 'App';
         const shortTitle = title.length > 20 ? title.slice(0, 18) + '…' : title;
         return `
-          <div class="taskbar-app taskbar-x11-app ${w.active ? 'active' : ''}" 
+          <div class="taskbar-app taskbar-x11-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" 
                data-x11-xid="${escapeHtml(w.xidHex)}" 
                title="${escapeHtml(title)}"
                tabindex="0" role="button" aria-label="${escapeHtml(title)}">
@@ -16472,6 +16473,30 @@ class TempleOS {
               }
             });
           }
+        }
+      }
+      // Case 4: X11 External Window
+      else if (appEl.dataset.x11Xid) {
+        const xid = appEl.dataset.x11Xid;
+        const win = this.x11Windows.find(w => w.xidHex === xid);
+
+        if (win) {
+          if (win.minimized) {
+            menuItems.push({
+              label: 'Restore',
+              action: () => window.electronAPI?.unminimizeX11Window?.(xid)
+            });
+          } else {
+            menuItems.push({
+              label: 'Minimize',
+              action: () => window.electronAPI?.minimizeX11Window?.(xid)
+            });
+          }
+          menuItems.push({ divider: true });
+          menuItems.push({
+            label: 'Close Window',
+            action: () => window.electronAPI?.closeX11Window?.(xid)
+          });
         }
       }
 

@@ -584,6 +584,45 @@ textarea,
   white-space: nowrap;
 }
 
+.taskbar-x11-app.minimized {
+  opacity: 0.5;
+  border-color: rgba(0, 212, 255, 0.1);
+  background: rgba(0, 212, 255, 0.02);
+  border-style: dashed;
+}
+
+/* Panel X11 Items (for separate panel window) */
+.panel-x11-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.panel-x11-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.panel-x11-item.active {
+  border-bottom-color: var(--tos-green);
+  background: rgba(0, 255, 65, 0.1);
+}
+
+.panel-x11-item.minimized {
+  opacity: 0.5;
+  border-bottom-style: dashed;
+  filter: grayscale(0.5);
+}
+
+.panel-x11-item .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .taskbar-icon-fallback {
   font-size: 16px;
   flex-shrink: 0;

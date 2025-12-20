@@ -136,7 +136,10 @@ async function createEwmhBridge(options = {}) {
         // Best-effort: treat docks and explicit skip-taskbar as non-task windows
         const st = await getWindowState(w.xidHex).catch(() => null);
         if (st?.skipTaskbar) continue;
-        if (st?.hidden) continue;
+        // Don't filter hidden (minimized) windows, just mark them
+        if (st?.hidden) {
+          w.minimized = true;
+        }
       }
       windows.push(w);
     }

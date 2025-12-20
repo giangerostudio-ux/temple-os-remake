@@ -832,7 +832,9 @@ async function applyDesktopHintsToMainWindow() {
 
     // Hide the shell window from taskbar/window lists, but keep it interactive/focusable.
     // Avoid setting WINDOW_TYPE=DESKTOP because some WMs treat it as non-focusable.
-    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
+    // _NET_WM_STATE_BELOW ensures it stays at the bottom of the stack (like a desktop),
+    // preventing it from obscuring other windows when clicked/focused.
+    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW').catch(() => { });
 }
 
 function createPanelWindow() {
@@ -941,6 +943,7 @@ function enrichX11Snapshot(snapshot) {
                 wmClass: w.wmClass ?? null,
                 title: w.title ?? '',
                 active: !!active && String(active).toLowerCase() === String(w.xidHex).toLowerCase(),
+                minimized: !!w.minimized,
                 appId: app ? app.id : null,
                 appName: app ? app.name : null,
                 iconUrl: app ? app.iconUrl : null,

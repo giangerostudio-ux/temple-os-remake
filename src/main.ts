@@ -15366,9 +15366,8 @@ class TempleOS {
     const win = this.x11Windows.find(w => String(w?.xidHex || '').toLowerCase() === xid.toLowerCase());
 
     // Windows-like taskbar behavior:
-    // - If active, click minimizes.
     // - If minimized, click restores + focuses.
-    // - Otherwise, click focuses.
+    // - Otherwise, click minimizes.
     if (win?.minimized) {
       if (api.unminimizeX11Window) {
         void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
@@ -15378,30 +15377,13 @@ class TempleOS {
       return;
     }
 
-    void (async () => {
-      let isActiveNow = !!win?.active;
+    // If we don't have snapshot info, fall back to focus (best effort).
+    if (!win) {
+      void api.activateX11Window?.(xid);
+      return;
+    }
 
-      // Snapshot polling can lag; ask X11 directly so fast clicks still minimize.
-      if (api.getActiveX11Window) {
-        try {
-          const res = await api.getActiveX11Window();
-          const activeXid = String(res?.xidHex || '').toLowerCase();
-          if (activeXid && activeXid === xid.toLowerCase()) {
-            isActiveNow = true;
-          } else if (activeXid) {
-            isActiveNow = false;
-          }
-        } catch {
-          // fall back to snapshot-derived win.active
-        }
-      }
-
-      if (isActiveNow) {
-        void api.minimizeX11Window?.(xid);
-      } else {
-        void api.activateX11Window?.(xid);
-      }
-    })();
+    void api.minimizeX11Window?.(xid);
   }
 
   /**

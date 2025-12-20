@@ -91,6 +91,12 @@ class TemplePanel {
         const xid = item.dataset.xid || '';
         if (!xid) return;
 
+        // Debounce: prevent accidental double-clicks from toggling state twice
+        const now = Date.now();
+        const last = (this as any)._lastX11Click || 0;
+        if (now - last < 300) return;
+        (this as any)._lastX11Click = now;
+
         const win = this.x11Windows.find(w => w.xidHex === xid);
         if (win?.active && !win.minimized) {
           if (window.electronAPI?.minimizeX11Window) {

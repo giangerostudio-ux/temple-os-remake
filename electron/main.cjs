@@ -717,13 +717,7 @@ function createWindow() {
         }
     });
 
-    // Enforce desktop behavior on focus to prevent covering other apps
-    mainWindow.on('focus', () => {
-        if (isX11Session()) {
-            // slight delay to let the WM process the focus change first
-            setTimeout(() => { void applyDesktopHintsToMainWindow().catch(() => { }); }, 100);
-        }
-    });
+
 }
 
 

@@ -110,7 +110,11 @@ class TemplePanel {
 
         const win = this.x11Windows.find(w => w.xidHex === xid);
         // Toggle logic: Minimize if it is active OR if it was the last active window
-        const isEffectivelyActive = (win?.active) || (xid === this.lastActiveXid && !win?.minimized);
+        // Use loose equality and lowercasing for safety
+        const currentId = String(xid).toLowerCase();
+        const lastId = String(this.lastActiveXid || '').toLowerCase();
+
+        const isEffectivelyActive = (win?.active) || (currentId === lastId && !win?.minimized);
 
         if (isEffectivelyActive) {
           // Optimistic Update

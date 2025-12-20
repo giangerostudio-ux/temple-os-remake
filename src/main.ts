@@ -164,6 +164,7 @@ declare global {
       minimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       unminimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       setX11WindowAlwaysOnTop?: (xidHex: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      snapX11Window?: (xidHex: string, mode: string) => Promise<{ success: boolean; error?: string }>;
       onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
@@ -16571,6 +16572,16 @@ class TempleOS {
             label: `${win.alwaysOnTop ? 'Unpin' : 'Pin'} (Always on Top)`,
             action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
           });
+          if (window.electronAPI?.snapX11Window) {
+            menuItems.push(
+              { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left') },
+              { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right') },
+              { label: 'Snap Top', action: () => void window.electronAPI?.snapX11Window?.(xid, 'top') },
+              { label: 'Snap Bottom', action: () => void window.electronAPI?.snapX11Window?.(xid, 'bottom') },
+              { label: 'Maximize', action: () => void window.electronAPI?.snapX11Window?.(xid, 'maximize') },
+              { label: 'Center', action: () => void window.electronAPI?.snapX11Window?.(xid, 'center') },
+            );
+          }
           menuItems.push({ divider: true });
 
           if (win.minimized) {

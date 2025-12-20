@@ -93,11 +93,35 @@ async function minimizeWindow(xidHex) {
 }
 
 async function unminimizeWindow(xidHex) {
-  await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,hidden']);
+  // Some WMs iconify windows by setting ICCCM WM_STATE=Iconic without setting
+  // _NET_WM_STATE_HIDDEN. In that case, removing "hidden" is a no-op.
+  // Activating via wmctrl generally de-iconifies in both cases.
+  try {
+    await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,hidden']);
+  } catch {
+    // ignore
+  }
+  await execFileAsync('wmctrl', ['-ia', xidHex]);
 }
 
 async function setAlwaysOnTop(xidHex, enabled) {
   await execFileAsync('wmctrl', ['-ir', xidHex, '-b', `${enabled ? 'add' : 'remove'},above`]);
+}
+
+async function setMaximized(xidHex, enabled) {
+  const mode = enabled ? 'add' : 'remove';
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-b', `${mode},maximized_vert,maximized_horz`]);
+}
+
+async function setWindowGeometry(xidHex, x, y, width, height) {
+  const xi = Number.isFinite(x) ? Math.trunc(x) : -1;
+  const yi = Number.isFinite(y) ? Math.trunc(y) : -1;
+  const wi = Number.isFinite(width) ? Math.max(1, Math.trunc(width)) : -1;
+  const hi = Number.isFinite(height) ? Math.max(1, Math.trunc(height)) : -1;
+
+  // If a window is maximized, many WMs ignore manual geometry until maximize is cleared.
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,maximized_vert,maximized_horz']).catch(() => { });
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `0,${xi},${yi},${wi},${hi}`]);
 }
 
 function fingerprintSnapshot(snap) {
@@ -200,6 +224,8 @@ async function createEwmhBridge(options = {}) {
     minimizeWindow,
     unminimizeWindow,
     setAlwaysOnTop,
+    setMaximized,
+    setWindowGeometry,
   };
 }
 

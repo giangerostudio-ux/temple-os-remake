@@ -1163,6 +1163,83 @@ ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
     }
 });
 
+ipcMain.handle('x11:snapWindow', async (event, xidHex, mode) => {
+    if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+
+    const m = String(mode || '').toLowerCase().trim();
+    const wa = screen.getPrimaryDisplay()?.workArea || screen.getPrimaryDisplay()?.bounds;
+    if (!wa || !Number.isFinite(wa.width) || !Number.isFinite(wa.height)) {
+        return { success: false, error: 'No display work area' };
+    }
+
+    const halfW = Math.max(1, Math.floor(wa.width / 2));
+    const halfH = Math.max(1, Math.floor(wa.height / 2));
+
+    let x = wa.x;
+    let y = wa.y;
+    let w = wa.width;
+    let h = wa.height;
+
+    try {
+        // Ensure it's visible before snapping (also de-iconifies on most WMs).
+        await ewmhBridge.activateWindow(xidHex).catch(() => { });
+
+        if (m === 'maximize') {
+            await ewmhBridge.setMaximized?.(xidHex, true);
+        } else {
+            switch (m) {
+                case 'left':
+                    x = wa.x; y = wa.y; w = halfW; h = wa.height;
+                    break;
+                case 'right':
+                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = wa.height;
+                    break;
+                case 'top':
+                    x = wa.x; y = wa.y; w = wa.width; h = halfH;
+                    break;
+                case 'bottom':
+                    x = wa.x; y = wa.y + (wa.height - halfH); w = wa.width; h = halfH;
+                    break;
+                case 'topleft':
+                    x = wa.x; y = wa.y; w = halfW; h = halfH;
+                    break;
+                case 'topright':
+                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = halfH;
+                    break;
+                case 'bottomleft':
+                    x = wa.x; y = wa.y + (wa.height - halfH); w = halfW; h = halfH;
+                    break;
+                case 'bottomright':
+                    x = wa.x + (wa.width - halfW); y = wa.y + (wa.height - halfH); w = halfW; h = halfH;
+                    break;
+                case 'center': {
+                    const cw = Math.max(1, Math.floor(wa.width * 0.7));
+                    const ch = Math.max(1, Math.floor(wa.height * 0.8));
+                    x = wa.x + Math.floor((wa.width - cw) / 2);
+                    y = wa.y + Math.floor((wa.height - ch) / 2);
+                    w = cw;
+                    h = ch;
+                    break;
+                }
+                default:
+                    return { success: false, error: 'Unknown snap mode' };
+            }
+
+            if (ewmhBridge.setWindowGeometry) {
+                await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
+            } else {
+                return { success: false, error: 'Snap not supported' };
+            }
+        }
+
+        await ewmhBridge.refreshNow?.().catch(() => { });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
 // Shell policies (panel hide / gaming mode)
 ipcMain.handle('shell:getPanelPolicy', async () => {
     return { success: true, policy: { hideOnFullscreen: !!panelPolicy.hideOnFullscreen, forceHidden: !!panelPolicy.forceHidden } };

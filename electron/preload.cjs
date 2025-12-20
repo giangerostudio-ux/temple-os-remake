@@ -193,6 +193,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     minimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:minimizeWindow', xidHex),
     unminimizeX11Window: (xidHex) => ipcRenderer.invoke('x11:unminimizeWindow', xidHex),
     setX11WindowAlwaysOnTop: (xidHex, enabled) => ipcRenderer.invoke('x11:setAlwaysOnTop', xidHex, enabled),
+    snapX11Window: (xidHex, mode) => ipcRenderer.invoke('x11:snapWindow', xidHex, mode),
     onX11WindowsChanged: (callback) => {
         const handler = (event, payload) => callback(payload);
         ipcRenderer.on('x11:windowsChanged', handler);

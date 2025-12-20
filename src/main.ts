@@ -3040,7 +3040,7 @@ class TempleOS {
     `;
   }
 
-  private toggleStartMenu(): void {
+  private async toggleStartMenu(): Promise<void> {
     // On X11 with external windows, use floating popup that appears above Firefox etc.
     if (this.x11Windows.length > 0 && window.electronAPI?.showStartMenuPopup) {
       if (this.startMenuPopupOpen) {
@@ -3078,12 +3078,26 @@ class TempleOS {
           comment: app.comment || undefined,
         }));
 
+        // Convert logo to base64 for main process
+        let logoBase64 = templeLogo;
+        try {
+          const response = await fetch(templeLogo);
+          const blob = await response.blob();
+          logoBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.error('Failed to convert logo to base64:', e);
+        }
+
         window.electronAPI.showStartMenuPopup({
           taskbarHeight: 75,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
           installedApps,
-          logoUrl: templeLogo,
+          logoUrl: logoBase64,
         });
       }
       return;

@@ -1696,8 +1696,8 @@ ipcMain.handle('startmenu:show', async (event, config) => {
         // Position at bottom-left or top-left depending on taskbar position
         let posX = bounds.x + 8;
         let posY = taskbarPosition === 'bottom'
-            ? bounds.y + bounds.height - taskbarHeight - popupHeight - 8
-            : bounds.y + taskbarHeight + 8;
+            ? bounds.y + bounds.height - taskbarHeight - popupHeight
+            : bounds.y + taskbarHeight;
 
         startMenuPopup = new BrowserWindow({
             x: posX,

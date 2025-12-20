@@ -15365,10 +15365,20 @@ class TempleOS {
 
     const win = this.x11Windows.find(w => String(w?.xidHex || '').toLowerCase() === xid.toLowerCase());
 
+    const updateTaskbarAppsDomOnly = () => {
+      const taskbarApps = document.querySelector('.taskbar-apps');
+      if (taskbarApps) taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
+    };
+
     // Windows-like taskbar behavior:
     // - If minimized, click restores + focuses.
     // - Otherwise, click minimizes.
     if (win?.minimized) {
+      // Optimistic UI update (prevents needing a second click before poll catches up)
+      win.minimized = false;
+      this.x11Windows.forEach(w => { if (w) w.active = String(w.xidHex).toLowerCase() === xid.toLowerCase(); });
+      updateTaskbarAppsDomOnly();
+
       if (api.unminimizeX11Window) {
         void api.unminimizeX11Window(xid).then(() => void api.activateX11Window?.(xid));
       } else {
@@ -15382,6 +15392,11 @@ class TempleOS {
       void api.activateX11Window?.(xid);
       return;
     }
+
+    // Optimistic UI update
+    win.minimized = true;
+    win.active = false;
+    updateTaskbarAppsDomOnly();
 
     void api.minimizeX11Window?.(xid);
   }

@@ -95,7 +95,10 @@ async function unminimizeWindow(xidHex) {
 }
 
 function fingerprintSnapshot(snap) {
-  const ids = (snap?.windows || []).map(w => w.xidHex).sort().join(',');
+  const ids = (snap?.windows || [])
+    .map(w => `${w.xidHex}:${w?.minimized ? '1' : '0'}`)
+    .sort()
+    .join(',');
   return `${ids}|active=${snap?.activeXidHex || ''}|fs=${snap?.activeFullscreen ? '1' : '0'}`;
 }
 
@@ -158,6 +161,11 @@ async function createEwmhBridge(options = {}) {
     }
   }
 
+  async function refreshNow() {
+    if (!supported) return;
+    await tick();
+  }
+
   function start() {
     if (!supported) return;
     if (timer) return;
@@ -175,6 +183,7 @@ async function createEwmhBridge(options = {}) {
     supported,
     start,
     stop,
+    refreshNow,
     getSnapshot: () => lastSnapshot,
     onChange: (fn) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
     activateWindow,

@@ -1086,6 +1086,7 @@ ipcMain.handle('x11:activateWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.activateWindow(xidHex);
+        await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1097,6 +1098,7 @@ ipcMain.handle('x11:closeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.closeWindow(xidHex);
+        await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1108,6 +1110,7 @@ ipcMain.handle('x11:minimizeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.minimizeWindow(xidHex);
+        await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1119,6 +1122,7 @@ ipcMain.handle('x11:unminimizeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.unminimizeWindow(xidHex);
+        await ewmhBridge.refreshNow?.().catch(() => { });
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -4212,6 +4216,14 @@ ipcMain.handle('apps:launch', async (event, app) => {
             child.once('spawn', resolve);
         });
         child.unref();
+
+        // Help the unified taskbar "see" the new app quickly (avoid ~650ms poll delay).
+        if (ewmhBridge?.supported && ewmhBridge.refreshNow) {
+            const delays = [100, 250, 500, 900];
+            for (const ms of delays) {
+                setTimeout(() => { void ewmhBridge.refreshNow().catch(() => { }); }, ms);
+            }
+        }
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };

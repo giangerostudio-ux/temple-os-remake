@@ -90,7 +90,15 @@ class TemplePanel {
         if (!item) return;
         const xid = item.dataset.xid || '';
         if (!xid) return;
-        void this.activateWindow(xid);
+
+        const win = this.x11Windows.find(w => w.xidHex === xid);
+        if (win?.active && !win.minimized) {
+          if (window.electronAPI?.minimizeX11Window) {
+            void window.electronAPI.minimizeX11Window(xid);
+          }
+        } else {
+          void this.activateWindow(xid);
+        }
       };
 
       x11List.oncontextmenu = (e) => {

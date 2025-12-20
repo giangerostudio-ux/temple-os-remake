@@ -57,11 +57,20 @@ export class NetworkManager {
     public async refreshStatus(): Promise<void> {
         if (!window.electronAPI?.getNetworkStatus) return;
 
+        let shouldUpdate = false;
+
         try {
             const res = await window.electronAPI.getNetworkStatus();
             if (res.success && res.status) {
-                this.status = res.status as NetworkStatus;
-                this.lastError = null;
+                const next = res.status as NetworkStatus;
+                // Only trigger update if connection state actually changed
+                // (Simple deep comparison for stability)
+                if (JSON.stringify(this.status) !== JSON.stringify(next) ||
+                    this.lastError !== null) { // if recovering from error, always update
+                    this.status = next;
+                    this.lastError = null;
+                    shouldUpdate = true;
+                }
             } else {
                 this.lastError = res.error || 'Failed to read network status';
                 this.status = { connected: false };
@@ -73,13 +82,25 @@ export class NetworkManager {
 
         await this.evaluateVpnKillSwitch();
 
-        // Parallel refreshes could go here if we want to be safe or sequential
+        const preWifi = JSON.stringify(this.wifiNetworks);
         await this.refreshWifiNetworks();
-        await this.refreshWifiEnabled();
-        await this.refreshSavedNetworks();
-        await this.refreshTorStatus();
+        if (JSON.stringify(this.wifiNetworks) !== preWifi) shouldUpdate = true;
 
-        this.onUpdate();
+        const preEnabled = this.wifiEnabled;
+        await this.refreshWifiEnabled();
+        if (this.wifiEnabled !== preEnabled) shouldUpdate = true;
+
+        const preSaved = JSON.stringify(this.savedNetworks);
+        await this.refreshSavedNetworks();
+        if (JSON.stringify(this.savedNetworks) !== preSaved) shouldUpdate = true;
+
+        const preTor = JSON.stringify(this.torStatus);
+        await this.refreshTorStatus();
+        if (JSON.stringify(this.torStatus) !== preTor) shouldUpdate = true;
+
+        if (shouldUpdate) {
+            this.onUpdate();
+        }
     }
 
     public async refreshTorStatus(): Promise<void> {

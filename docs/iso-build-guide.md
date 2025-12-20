@@ -87,7 +87,9 @@ When packaging for ISO, include these folders:
 - node_modules/      # ALL dependencies (including node-pty)
 - package.json
 - package-lock.json
+- package-lock.json
 - scripts/           # Optional: setup scripts
+- start-templeos.sh  # CRITICAL: Session startup script
 
 ## X11 + Openbox (External Apps + Always-Visible Panel)
 
@@ -213,6 +215,18 @@ Copy the entire application folder to `/opt/templeos/` in your ISO.
 **CRITICAL**: Ensure the user owns the directory so the built-in updater works:
 ```bash
 sudo chown -R temple:temple /opt/templeos
+```
+
+**CRITICAL**: Fix Electron sandbox permissions (must be root owned):
+```bash
+sudo chown root:root /opt/templeos/node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 /opt/templeos/node_modules/electron/dist/chrome-sandbox
+```
+
+**CRITICAL**: Copy the `start-templeos.sh` script and make it executable:
+```bash
+cp start-templeos.sh /opt/templeos/
+chmod +x /opt/templeos/start-templeos.sh
 ```
 
 ### Step 3: Create Autostart (Optional)

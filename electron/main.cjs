@@ -1009,10 +1009,28 @@ class X11LayoutManager {
         this.windowSlots = new Map();
         this.processing = false;
         this.suggestionCooldown = 0;
+        this.initialSnapshotProcessed = false;
     }
 
     async handleSnapshot(snapshot) {
         if (!snapshot || !snapshot.windows) return;
+
+        // 0. INITIAL SETUP: Ignore all windows present at launch (e.g. Terminal, VS Code)
+        if (!this.initialSnapshotProcessed) {
+            this.initialSnapshotProcessed = true;
+            const debugSetup = [];
+            for (const w of snapshot.windows) {
+                // We add them to the global ignore list so they never get counted/tiled
+                if (w.windowType !== '_NET_WM_WINDOW_TYPE_DOCK' && w.windowType !== '_NET_WM_WINDOW_TYPE_DESKTOP') {
+                    x11IgnoreXids.add(w.xidHex.toLowerCase());
+                    debugSetup.push(`Ignored Initial: ${w.xidHex} (${w.wmClass})`);
+                }
+            }
+            if (debugSetup.length > 0) {
+                console.log('[X11Mgr] Initial Startup Ignore List:', debugSetup.join(', '));
+            }
+            return; // Don't process auto-tiling for existing windows on simple reload
+        }
 
         // 1. AUTO-TILING (New Windows)
         if (!this.processing) {
@@ -1030,14 +1048,21 @@ class X11LayoutManager {
 
                 // Detect new
                 const newWindows = [];
+                const debugLog = [];
+
                 for (const w of snapshot.windows) {
                     const xid = w.xidHex.toLowerCase();
-                    // FILTER: Ignore Dock, Desktop, and TempleOS itself
-                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') continue;
-                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') continue;
-                    if (x11IgnoreXids.has(xid)) continue;
-                    // WM_CLASS filtering to avoid counting our own Electron windows if xid matching fails
-                    if (w.wmClass && (w.wmClass.toLowerCase().includes('templeos') || w.wmClass.toLowerCase().includes('electron'))) continue;
+                    const wmClass = w.wmClass ? w.wmClass.toLowerCase() : '';
+
+                    let ignored = false;
+                    if (w.windowType === '_NET_WM_WINDOW_TYPE_DOCK') ignored = true;
+                    else if (w.windowType === '_NET_WM_WINDOW_TYPE_DESKTOP') ignored = true;
+                    else if (x11IgnoreXids.has(xid)) ignored = true;
+                    else if (wmClass.includes('templeos') || wmClass.includes('electron')) ignored = true;
+
+                    debugLog.push(`[X11Mgr] Win: ${xid} Class: ${wmClass} Type: ${w.windowType} Ignored: ${ignored}`);
+
+                    if (ignored) continue;
 
                     if (!this.knownWindows.has(xid)) {
                         this.knownWindows.add(xid);
@@ -1046,6 +1071,8 @@ class X11LayoutManager {
                 }
 
                 if (newWindows.length > 0) {
+                    // console.log('--- X11 SNAPSHOT DEBUG ---');
+                    // debugLog.forEach(l => console.log(l));
                     await this.applyAutoTiling(newWindows);
                 }
             } finally {
@@ -1053,19 +1080,18 @@ class X11LayoutManager {
             }
         }
 
-        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top) & DRAG SNA (Corners/Edges)
+        // 2. SNAP LAYOUTS SUGGESTION (Drag to Top)
         if (Date.now() > this.suggestionCooldown && snapshot.activeXidHex) {
             const activeWin = snapshot.windows.find(w => w.xidHex === snapshot.activeXidHex);
 
             if (activeWin && !activeWin.minimized && activeWin.windowType !== '_NET_WM_WINDOW_TYPE_DOCK') {
-                const { x, y, width, height } = activeWin;
-                const primary = screen.getPrimaryDisplay();
-                const bounds = primary.bounds;
+                const { x, y } = activeWin;
 
                 // TOP EDGE -> SNAP LAYOUTS MENU
-                // Relaxed condition: y < 20 to catch it easier
-                if (y <= 20 && y >= -20) {
+                // Increased range [-60, 60] to ensure we catch it even with panels or sloppy drags
+                if (y <= 60 && y >= -60) {
                     if (mainWindow && !mainWindow.isDestroyed()) {
+                        // console.log(`[X11Mgr] Suggesting Snap Layout for ${activeWin.wmClass} at y=${y}`);
                         mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeWin.xidHex });
                         this.suggestionCooldown = Date.now() + 1000;
                         return;

@@ -109,26 +109,10 @@ class TemplePanel {
 
 
         const win = this.x11Windows.find(w => w.xidHex === xid);
-        // Toggle logic: Minimize if it is active OR if it was the last active window
-        // Use loose equality and lowercasing for safety
-        const currentId = String(xid).toLowerCase();
-        const lastId = String(this.lastActiveXid || '').toLowerCase();
 
-        const isEffectivelyActive = (win?.active) || (currentId === lastId && !win?.minimized);
-
-        if (isEffectivelyActive) {
-          // Optimistic Update
-          if (win) {
-            win.active = false;
-            win.minimized = true; // Assume it will minimize
-            this.render();
-          }
-
-          if (window.electronAPI?.minimizeX11Window) {
-            void window.electronAPI.minimizeX11Window(xid);
-          }
-        } else {
-          void this.activateWindow(xid);
+        // User requested "Menu on Click" behavior
+        if (win) {
+          this.showContextMenu(e.clientX, e.clientY, xid);
         }
       };
 

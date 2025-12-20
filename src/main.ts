@@ -692,8 +692,15 @@ class TempleOS {
   private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
   private taskbarHoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // X11 external panel support (when enabled, the panel owns the taskbar UI)
-  private externalPanelEnabled = false;
+  // X11 external windows for unified taskbar (Linux X11 only)
+  private x11Windows: Array<{
+    xidHex: string;
+    title: string;
+    wmClass?: string | null;
+    active?: boolean;
+    iconUrl?: string | null;
+    appName?: string | null;
+  }> = [];
 
   // Taskbar App Grouping (Tier 9.1)
   private taskbarGroupPopup: { appType: string; x: number; y: number } | null = null;
@@ -843,23 +850,23 @@ class TempleOS {
     if (window.electronAPI?.setGamingMode) {
       void window.electronAPI.setGamingMode(this.gamingModeActive);
     }
-    // Detect external panel (X11 mode). Poll briefly because the panel window may initialize after the desktop renderer.
-    if (window.electronAPI?.hasExternalPanel) {
-      let tries = 0;
-      const poll = () => {
-        tries++;
-        void window.electronAPI!.hasExternalPanel!().then(res => {
-          if (res?.success && res.enabled) {
-            this.externalPanelEnabled = true;
-            this.render();
-            return;
+    // Subscribe to X11 external window changes for unified taskbar (Linux X11 only)
+    if (window.electronAPI?.onX11WindowsChanged) {
+      window.electronAPI.onX11WindowsChanged((payload: any) => {
+        const wins = Array.isArray(payload?.windows) ? payload.windows : [];
+        this.x11Windows = wins;
+        // Update taskbar without full re-render to avoid flickering
+        this.updateTaskbarX11Windows();
+      });
+      // Also fetch initial state
+      if (window.electronAPI?.getX11Windows) {
+        void window.electronAPI.getX11Windows().then(res => {
+          if (res?.success && res.supported && Array.isArray(res.snapshot?.windows)) {
+            this.x11Windows = res.snapshot.windows;
+            this.updateTaskbarX11Windows();
           }
-          if (tries < 10) setTimeout(poll, 500);
-        }).catch(() => {
-          if (tries < 10) setTimeout(poll, 500);
         });
-      };
-      poll();
+      }
     }
 
     // Panel button forwards here.
@@ -2369,12 +2376,6 @@ class TempleOS {
   }
 
   private renderTaskbar(): string {
-    if (this.externalPanelEnabled) {
-      // When running with the external X11 panel, keep start menu rendering (for keyboard actions / legacy hooks),
-      // but hide the in-renderer taskbar to avoid two stacked bars.
-      return `<div id="start-menu-container">${this.renderStartMenu()}</div>`;
-    }
-
     const extraClasses = [
       this.taskbarTransparent ? 'taskbar-transparent' : '',
       this.taskbarAutoHide ? 'taskbar-autohide' : ''
@@ -2507,7 +2508,47 @@ class TempleOS {
     }).join('');
 
     const sep = (pinnedHtml && windowsHtml) ? `<div class="taskbar-sep"></div>` : '';
-    return `${pinnedHtml}${sep}${windowsHtml}`;
+
+    // Render X11 external windows (Linux only)
+    const x11Html = this.renderX11WindowsHtml();
+    const x11Sep = (pinnedHtml || windowsHtml) && x11Html ? `<div class="taskbar-sep"></div>` : '';
+
+    return `${pinnedHtml}${sep}${windowsHtml}${x11Sep}${x11Html}`;
+  }
+
+  /**
+   * Render X11 external windows (Firefox, etc.) for the unified taskbar
+   */
+  private renderX11WindowsHtml(): string {
+    if (this.x11Windows.length === 0) return '';
+
+    return this.x11Windows
+      .filter(w => w && w.xidHex && (w.title || w.appName || w.wmClass))
+      .slice(0, 10) // Limit to 10 external windows
+      .map(w => {
+        const icon = w.iconUrl
+          ? `<img class="taskbar-x11-icon" src="${escapeHtml(w.iconUrl)}" alt="" onerror="this.style.display='none'">`
+          : `<span class="taskbar-icon-fallback">🖥️</span>`;
+        const title = w.appName || w.title || w.wmClass || 'App';
+        const shortTitle = title.length > 20 ? title.slice(0, 18) + '…' : title;
+        return `
+          <div class="taskbar-app taskbar-x11-app ${w.active ? 'active' : ''}" 
+               data-x11-xid="${escapeHtml(w.xidHex)}" 
+               title="${escapeHtml(title)}"
+               tabindex="0" role="button" aria-label="${escapeHtml(title)}">
+            ${icon}
+            <span class="taskbar-x11-title">${escapeHtml(shortTitle)}</span>
+          </div>
+        `;
+      }).join('');
+  }
+
+  /**
+   * Update just the X11 windows portion of the taskbar (efficient, no full re-render)
+   */
+  private updateTaskbarX11Windows(): void {
+    // For now, just trigger a full render - can optimize later if needed
+    this.render();
   }
 
   // ============================================
@@ -3536,9 +3577,9 @@ class TempleOS {
         ? 'This will uninstall the Flatpak app from your user account.'
         : canAttemptSnap
           ? 'This will uninstall the app via Snap (admin password may be required).'
-        : canAttemptApt
-          ? 'This will uninstall the app from the system via APT (admin password may be required).'
-          : 'This will remove the launcher entry from your user profile.';
+          : canAttemptApt
+            ? 'This will uninstall the app from the system via APT (admin password may be required).'
+            : 'This will remove the launcher entry from your user profile.';
 
     const confirmed = await this.openConfirmModal({
       title: 'Uninstall App',
@@ -6319,6 +6360,15 @@ class TempleOS {
       // Taskbar app click
       const taskbarApp = target.closest('.taskbar-app') as HTMLElement;
       if (taskbarApp) {
+        // Handle X11 external window clicks (Firefox, etc.)
+        if (taskbarApp.dataset.x11Xid) {
+          const xid = taskbarApp.dataset.x11Xid;
+          if (window.electronAPI?.activateX11Window) {
+            void window.electronAPI.activateX11Window(xid);
+          }
+          return;
+        }
+
         // Handle grouped apps with multiple windows
         if (taskbarApp.dataset.appGroup) {
           this.showTaskbarGroupPopup(taskbarApp.dataset.appGroup, taskbarApp);

@@ -958,12 +958,13 @@ app.whenReady().then(() => {
         startDesktopEntryWatcher();
         void refreshInstalledAppsCache('startup').catch(() => { });
         if (isX11Session()) {
-            createPanelWindow();
+            // UNIFIED TASKBAR: Panel window is disabled. The main renderer handles X11 windows directly.
+            // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
             void applyDesktopHintsToMainWindow().catch(() => { });
-            void applyDockStrutToPanelWindow().catch(() => { });
-            // Fit the desktop to the workarea (so the panel isn't covered).
-            setTimeout(() => resizeMainWindowToWorkArea(), 200);
-            void startX11EwmhBridge().catch(() => { });
+            // void applyDockStrutToPanelWindow().catch(() => { });  // No panel, no strut needed
+            // The main window fills the entire screen
+            // setTimeout(() => resizeMainWindowToWorkArea(), 200);
+            void startX11EwmhBridge().catch(() => { });  // Still need this to detect Firefox, etc.
         }
     }
 });
@@ -1087,7 +1088,8 @@ ipcMain.handle('shell:setGamingMode', async (event, enabled) => {
 });
 
 ipcMain.handle('shell:hasExternalPanel', async () => {
-    return { success: true, enabled: !!(panelWindow && !panelWindow.isDestroyed()) };
+    // UNIFIED TASKBAR: Panel window is disabled; the in-renderer taskbar handles X11 windows.
+    return { success: true, enabled: false };
 });
 
 // Panel -> Desktop (forward UI actions to the main window renderer)

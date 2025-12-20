@@ -1561,6 +1561,13 @@ html, body {
 .sm-search-input:focus { border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
 .sm-search-input::placeholder { color: rgba(0, 255, 65, 0.5); }
 
+.sm-all-apps-btn {
+    padding: 0 15px; height: 40px; background: rgba(0, 255, 65, 0.1); border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 6px; color: #00ff41; font-family: inherit; font-size: 14px; cursor: pointer; transition: all 0.15s ease;
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+}
+.sm-all-apps-btn:hover { background: rgba(0, 255, 65, 0.2); border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.2); }
+
 .sm-dropdowns { display: flex; gap: 10px; }
 .sm-select {
     flex: 1; background: rgba(0, 255, 65, 0.08); border: 1px solid rgba(0, 255, 65, 0.25);
@@ -1612,6 +1619,9 @@ html, body {
         <div class="sm-header">
             <div class="sm-search-container">
                 <input type="text" class="sm-search-input" placeholder="🔍 Search apps..." autofocus>
+                <button class="sm-all-apps-btn" onclick="emitAction('open_launcher')">
+                    <span style="font-size: 16px;">💻</span> All Apps
+                </button>
             </div>
             <div class="sm-dropdowns">
                 <select class="sm-select"><option>All apps</option><option>Recent</option><option>Frequent</option></select>

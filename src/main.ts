@@ -166,6 +166,7 @@ declare global {
       setX11WindowAlwaysOnTop?: (xidHex: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       snapX11Window?: (xidHex: string, mode: string, taskbarConfig?: { height: number; position: 'top' | 'bottom' }) => Promise<{ success: boolean; error?: string }>;
       onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
+      onX11SnapLayoutsSuggest?: (callback: (payload: { xid: string }) => void) => () => void;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -452,7 +453,8 @@ class TempleOS {
   private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
   private snapState: { type: string; rect: { x: number; y: number; width: number; height: number } } | null = null;
   private resizeState: { windowId: string; dir: string; startX: number; startY: number; startW: number; startH: number; startXLoc: number; startYLoc: number } | null = null;
-
+  private snapLayoutsOverlay: HTMLElement | null = null;
+  private currentSnapXid: string | null = null;
   // Priority 3: Window Grouping (Tier 8.3) - State prepared for future implementation
   // @ts-ignore - Will be used when Window Grouping feature is implemented
   private windowGroups: Record<string, string[]> = {}; // group ID to window IDs mapping (will be used when Window Grouping is implemented)
@@ -868,6 +870,11 @@ class TempleOS {
     this.setupEventListeners();
 
     // Sync panel policies (Linux X11 only; no-ops elsewhere)
+    if (window.electronAPI?.onX11SnapLayoutsSuggest) {
+      window.electronAPI.onX11SnapLayoutsSuggest((payload: any) => {
+        if (payload.xid) this.showSnapLayoutsOverlay(payload.xid);
+      });
+    }
     if (window.electronAPI?.setHideBarOnFullscreen) {
       void window.electronAPI.setHideBarOnFullscreen(this.hideBarOnFullscreen);
     }
@@ -1294,9 +1301,84 @@ class TempleOS {
       void this.checkForUpdates(true);
     }, 4 * 60 * 60 * 1000);
 
-    // BUGFIX: Render after bootstrap completes to ensure UI is fully interactive
-    // This fixes the "spam Temple button" bug where users had to click repeatedly to make OS responsive
     this.render();
+  }
+
+  private showSnapLayoutsOverlay(xid: string) {
+    if (this.currentSnapXid === xid && this.snapLayoutsOverlay) return;
+    this.currentSnapXid = xid;
+
+    if (this.snapLayoutsOverlay) this.snapLayoutsOverlay.remove();
+
+    const overlay = document.createElement('div');
+    this.snapLayoutsOverlay = overlay;
+
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '50%';
+    overlay.style.transform = 'translateX(-50%)';
+    overlay.style.zIndex = '100000';
+    overlay.style.background = '#1a1a1a';
+    overlay.style.border = '2px solid #00ff41';
+    overlay.style.borderTop = 'none';
+    overlay.style.borderBottomLeftRadius = '8px';
+    overlay.style.borderBottomRightRadius = '8px';
+    overlay.style.padding = '10px';
+    overlay.style.display = 'flex';
+    overlay.style.gap = '10px';
+    overlay.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+    overlay.style.transition = 'transform 0.2s';
+
+    const createOption = (label: string, mode: string, icon: string) => {
+      const btn = document.createElement('div');
+      btn.style.width = '50px';
+      btn.style.height = '40px';
+      btn.style.border = '1px solid #444';
+      btn.style.display = 'flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+      btn.style.cursor = 'pointer';
+      btn.style.color = '#00ff41';
+      btn.style.fontSize = '20px';
+      btn.innerText = icon;
+      btn.title = label;
+
+      btn.onmouseenter = () => btn.style.background = 'rgba(0, 255, 65, 0.2)';
+      btn.onmouseleave = () => btn.style.background = 'transparent';
+
+      btn.onclick = () => {
+        if (window.electronAPI?.snapX11Window) {
+          window.electronAPI.snapX11Window(xid, mode);
+        }
+        this.hideSnapLayoutsOverlay();
+      };
+      return btn;
+    };
+
+    overlay.appendChild(createOption('Maximize', 'maximize', '🔲'));
+    overlay.appendChild(createOption('Left', 'left', '⬅️'));
+    overlay.appendChild(createOption('Right', 'right', '➡️'));
+    overlay.appendChild(createOption('Top-Left', 'top-left', '↖️'));
+    overlay.appendChild(createOption('Top-Right', 'top-right', '↗️'));
+    overlay.appendChild(createOption('Bottom-Left', 'bottom-left', '↙️'));
+    overlay.appendChild(createOption('Bottom-Right', 'bottom-right', '↘️'));
+
+    document.body.appendChild(overlay);
+
+    // Auto-hide logic
+    let hideTimer: any;
+    overlay.onmouseleave = () => {
+      hideTimer = setTimeout(() => this.hideSnapLayoutsOverlay(), 800);
+    };
+    overlay.onmouseenter = () => clearTimeout(hideTimer);
+  }
+
+  private hideSnapLayoutsOverlay() {
+    if (this.snapLayoutsOverlay) {
+      this.snapLayoutsOverlay.remove();
+      this.snapLayoutsOverlay = null;
+    }
+    this.currentSnapXid = null;
   }
 
   private async checkPtySupport(): Promise<void> {

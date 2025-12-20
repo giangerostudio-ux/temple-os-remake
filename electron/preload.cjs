@@ -199,6 +199,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('x11:windowsChanged', handler);
         return () => ipcRenderer.removeListener('x11:windowsChanged', handler);
     },
+    onX11SnapLayoutsSuggest: (callback) => {
+        const handler = (event, payload) => callback(payload);
+        ipcRenderer.on('x11:snapLayouts:suggest', handler);
+        return () => ipcRenderer.removeListener('x11:snapLayouts:suggest', handler);
+    },
 
     getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),

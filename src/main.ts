@@ -15374,8 +15374,7 @@ class TempleOS {
 
     // Windows-like taskbar behavior:
     // - If minimized, click restores + focuses.
-    // - If focused, click minimizes.
-    // - Otherwise, click activates/raises (no minimizing on focus change).
+    // - Otherwise, click minimizes.
     if (win?.minimized) {
       // Optimistic UI update (prevents needing a second click before poll catches up)
       win.minimized = false;
@@ -15396,35 +15395,11 @@ class TempleOS {
       return;
     }
 
-    void (async () => {
-      let isActiveNow = !!win.active;
-
-      // Snapshot polling can lag; ask X11 directly so fast clicks still minimize/activate correctly.
-      if (api.getActiveX11Window) {
-        try {
-          const res = await api.getActiveX11Window();
-          const activeXid = String(res?.xidHex || '').toLowerCase();
-          if (activeXid) {
-            isActiveNow = activeXid === xid.toLowerCase();
-          }
-        } catch {
-          // fall back to snapshot-derived win.active
-        }
-      }
-
-      if (isActiveNow) {
-        // Minimize
-        win.minimized = true;
-        win.active = false;
-        updateTaskbarAppsDomOnly();
-        void api.minimizeX11Window?.(xid);
-      } else {
-        // Activate/raise
-        this.x11Windows.forEach(w => { if (w) w.active = String(w.xidHex).toLowerCase() === xid.toLowerCase(); });
-        updateTaskbarAppsDomOnly();
-        void api.activateX11Window?.(xid);
-      }
-    })();
+    // Optimistic UI update
+    win.minimized = true;
+    win.active = false;
+    updateTaskbarAppsDomOnly();
+    void api.minimizeX11Window?.(xid);
   }
 
   /**

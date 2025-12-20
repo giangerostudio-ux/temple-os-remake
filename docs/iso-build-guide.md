@@ -210,6 +210,11 @@ The built application will be in `dist/` (or wherever electron-builder outputs).
 
 Copy the entire application folder to `/opt/templeos/` in your ISO.
 
+**CRITICAL**: Ensure the user owns the directory so the built-in updater works:
+```bash
+sudo chown -R temple:temple /opt/templeos
+```
+
 ### Step 3: Create Autostart (Optional)
 
 Create `/etc/systemd/system/templeos.service`:

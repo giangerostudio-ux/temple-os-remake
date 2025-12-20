@@ -4429,26 +4429,49 @@ ipcMain.handle('updater:check', async () => {
 
 ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
-        // Pull updates, install deps, rebuild, and prepare for reboot
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        // Use current directory (projectRoot) implicitly by setting cwd option
         const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
 
-        exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (error) {
+        const runUpdate = () => {
+            exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                if (error) {
+                    // Self-healing: On Linux, if we get EACCES/permission denied, try to reclaim ownership via pkexec
+                    if (process.platform === 'linux' && (error.message.includes('EACCES') || error.message.includes('permission denied'))) {
+                        console.log('Update failed with permissions error. Attempting to fix ownership via pkexec...');
+                        const user = process.env.USER || 'temple';
+                        const fixCmd = `pkexec chown -R ${user}:${user} "${projectRoot}"`;
+
+                        exec(fixCmd, (fixErr) => {
+                            if (fixErr) {
+                                resolve({
+                                    success: false,
+                                    error: `Permission denied and failed to auto-fix: ${fixErr.message}`,
+                                    output: stdout + '\n' + stderr + '\n' + 'Fix attempt failed.'
+                                });
+                            } else {
+                                // Retry update after fixing permissions
+                                runUpdate();
+                            }
+                        });
+                        return;
+                    }
+
+                    resolve({
+                        success: false,
+                        error: error.message,
+                        output: stdout + '\n' + stderr
+                    });
+                    return;
+                }
                 resolve({
-                    success: false,
-                    error: error.message,
-                    output: stdout + '\n' + stderr
+                    success: true,
+                    output: stdout,
+                    message: 'Update complete! Reboot to apply changes.'
                 });
-                return;
-            }
-            resolve({
-                success: true,
-                output: stdout,
-                message: 'Update complete! Reboot to apply changes.'
             });
-        });
+        };
+
+        runUpdate();
     });
 });
 

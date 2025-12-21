@@ -1004,9 +1004,11 @@ function enrichX11Snapshot(snapshot) {
 
     // Filter out the TempleOS desktop window from the list
     const filteredWindows = windows.filter(w => {
-        const title = w.title ?? '';
-        // Exclude the main TempleOS desktop window
-        if (title.startsWith('TempleOS')) return false;
+        const title = (w.title ?? '').toLowerCase();
+        const xid = String(w.xidHex || '').toLowerCase();
+        // Exclude the main TempleOS desktop window by title (case-insensitive) or by XID
+        if (title.startsWith('templeos')) return false;
+        if (mainWindowXid && xid === mainWindowXid.toLowerCase()) return false;
         return true;
     });
 

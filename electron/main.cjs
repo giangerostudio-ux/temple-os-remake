@@ -1038,6 +1038,8 @@ async function startX11EwmhBridge() {
         void applyPanelPolicyFromSnapshot(snap).catch(() => { });
         // Phase 4: Track window closures for auto-tiling
         updateOccupiedSlotsFromSnapshot(snap);
+        // Phase 2: Check if window is near top edge to show snap layouts menu
+        void checkSnapLayoutTrigger(snap).catch(() => { });
     });
     ewmhBridge.start();
 }
@@ -1357,7 +1359,10 @@ ipcMain.handle('x11:getNextSlot', async () => {
 });
 
 // Check snap layout trigger (called from ewmhBridge.onChange)
-function checkSnapLayoutTrigger(snapshot) {
+let lastSnapSuggestXid = null;
+let lastSnapSuggestTime = 0;
+
+async function checkSnapLayoutTrigger(snapshot) {
     if (!x11SnapLayoutsEnabled) return;
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -1368,11 +1373,39 @@ function checkSnapLayoutTrigger(snapshot) {
     // CRITICAL: Never affect main window
     if (mainWindowXid && String(activeXidHex).toLowerCase() === mainWindowXid.toLowerCase()) return;
 
-    // Get window position from wmctrl -lG
-    // The snapshot may not have x/y, so we need another approach
-    // For now, we'll detect drag-to-top via the frontend monitoring mouse position
-    // This function is called on window changes, not mouse position changes
+    // Throttle: don't suggest for same window within 3 seconds
+    const now = Date.now();
+    if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 3000) return;
+
+    try {
+        // Get window geometry using wmctrl -lG
+        const { stdout } = await execPromise('wmctrl -lG 2>/dev/null');
+        const lines = stdout.split('\n').filter(Boolean);
+
+        // Parse wmctrl output: XID desktop X Y W H hostname title
+        for (const line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 7) continue;
+
+            const xid = parts[0].toLowerCase();
+            const y = parseInt(parts[3], 10);
+
+            // Check if this is the active window and near top edge (< 50 pixels)
+            if (xid === String(activeXidHex).toLowerCase() && !isNaN(y) && y < 50) {
+                // Window is near top edge - show snap layouts
+                lastSnapSuggestXid = activeXidHex;
+                lastSnapSuggestTime = now;
+
+                console.log('[X11 Snap Layouts] Detected drag-to-top for:', activeXidHex, 'Y:', y);
+                mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeXidHex });
+                return;
+            }
+        }
+    } catch (e) {
+        // wmctrl not available or failed - silently ignore
+    }
 }
+
 
 // Track window closures to free slots
 function updateOccupiedSlotsFromSnapshot(snapshot) {

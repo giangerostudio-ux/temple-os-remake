@@ -1027,7 +1027,7 @@ async function startX11EwmhBridge() {
     const panelXid = xidHexFromBrowserWindow(panelWindow);
     if (panelXid) x11IgnoreXids.add(String(panelXid).toLowerCase());
 
-    ewmhBridge = await createEwmhBridge({ pollMs: 650, includeHidden: false, ignoreXids: x11IgnoreXids });
+    ewmhBridge = await createEwmhBridge({ pollMs: 200, includeHidden: false, ignoreXids: x11IgnoreXids });
     if (!ewmhBridge.supported) {
         ewmhBridge = null;
         return;

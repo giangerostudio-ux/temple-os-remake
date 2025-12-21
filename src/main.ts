@@ -1664,27 +1664,23 @@ class TempleOS {
    * Forces multiple render cycles to ensure input handling is fully initialized.
    */
   private triggerInputWakeUp(): void {
-    console.log('[BOOT] Triggering input wake-up sequence');
+    console.log('[BOOT] Triggering input wake-up sequence (Focus Only)');
 
-    // FIX: Force focus theft from X11 root
-    // If we had a backend method to wiggle focus, we'd use it.
-    // For now, we rely on checking focus state and requesting it.
-
+    // FIX: Force focus theft from X11 root without destroying the DOM
     const performWakeUp = (i: number) => {
       if (!document.hasFocus()) {
         window.focus();
         // Also try to focus a dummy element if needed
         document.body.focus();
       }
-      this.render();
+      // NO FULL RENDER: this.render() is destructive and resets menus/selection!
+      // this.render(); 
       console.log(`[BOOT] Input wake-up cycle #${i}`);
     };
 
-    // Staggered renders to catch the timing window
+    // Staggered focus attempts - reduced frequency
     setTimeout(() => performWakeUp(1), 500);
-    setTimeout(() => performWakeUp(2), 1500);
-    setTimeout(() => performWakeUp(3), 3000);
-    setTimeout(() => performWakeUp(4), 5000);
+    setTimeout(() => performWakeUp(2), 2000);
   }
 
 

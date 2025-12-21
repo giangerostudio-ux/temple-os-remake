@@ -1143,6 +1143,21 @@ ipcMain.handle('window:setBounds', (event, bounds) => {
     return { success: false, error: 'Window not found' };
 });
 
+ipcMain.handle('input-wake-up', async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Force a minimize/restore cycle to ensure the window gets focus
+    // This fixes the "unresponsive input on boot" issue in some X11 environments
+    mainWindow.minimize();
+    setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.restore();
+            mainWindow.focus();
+        }
+    }, 50);
+    return { success: true };
+});
+
 // ============================================
 // X11 WINDOW BRIDGE IPC (EWMH via wmctrl/xprop)
 // ============================================

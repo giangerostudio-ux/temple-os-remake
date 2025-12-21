@@ -1172,36 +1172,37 @@ ipcMain.handle('input-wake-up', async () => {
         } catch (e) { }
 
         // 3.6. OS-LEVEL FORCE (Linux/X11)
-        // Reproduce manual fix: "Tab" + "CapsLock".
+        // Use xdotool windowfocus/windowactivate + mouse click for clean focus recovery.
+        // This approach is invisible (no Tab key = no focus rings on UI elements).
         if (process.platform === 'linux') {
-            // STEALTH MODE: Hide focus outlines BEFORE Tab injection
-            mainWindow.webContents.executeJavaScript(`
-                const s = document.createElement('style');
-                s.id = '__hard_focus_stealth';
-                s.textContent = '*:focus, *:focus-visible { outline: none !important; box-shadow: none !important; }';
-                document.head.appendChild(s);
-                void 0;
-            `).catch(() => { });
-
+            // Method 1: Direct window focus via xdotool (cleaner than key injection)
             if (mainWindowXid) {
+                // wmctrl activation
                 exec(`wmctrl -i -a ${mainWindowXid}`, (e) => { if (e) console.warn('[IPC] wmctrl failed:', e.message); });
+
+                // xdotool windowactivate (stronger than windowfocus)
+                exec(`xdotool windowactivate ${mainWindowXid}`, (e) => {
+                    if (e) console.warn('[IPC] xdotool windowactivate failed:', e.message);
+                    else console.log('[IPC] xdotool windowactivate success');
+                });
+
+                // xdotool windowfocus (fallback - uses XSetInputFocus)
+                exec(`xdotool windowfocus ${mainWindowXid}`, (e) => {
+                    if (e) console.warn('[IPC] xdotool windowfocus failed:', e.message);
+                });
             }
-            // Tab is REQUIRED for the X11 input wake-up. Shift alone doesn't work.
-            exec('xdotool key Tab Caps_Lock Caps_Lock', (e) => {
-                if (e) console.warn('[IPC] xdotool failed:', e.message);
-                else console.log('[IPC] xdotool injection success (Stealth Mode)');
+
+            // Method 2: Synthetic mouse click at window center (invisible interaction)
+            // This sends a click event to the window which forces the X server to route input here.
+            exec(`xdotool click --window ${mainWindowXid || 'root'} 1`, (e) => {
+                if (e) console.warn('[IPC] xdotool click failed:', e.message);
+                else console.log('[IPC] xdotool click injection success (Silent)');
             });
 
-            // After Tab injection, blur + remove stealth CSS
-            setTimeout(() => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.executeJavaScript(`
-                        document.activeElement?.blur?.();
-                        document.getElementById('__hard_focus_stealth')?.remove();
-                        void 0;
-                    `).catch(() => { });
-                }
-            }, 200);
+            // Fallback: CapsLock toggle (known to wake hardware input, no visible side effects)
+            exec('xdotool key Caps_Lock Caps_Lock', (e) => {
+                if (e) console.warn('[IPC] xdotool CapsLock toggle failed:', e.message);
+            });
         }
 
         // 4. Wait a moment for WM to comply

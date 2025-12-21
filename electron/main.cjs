@@ -1144,18 +1144,35 @@ ipcMain.handle('window:setBounds', (event, bounds) => {
 });
 
 ipcMain.handle('input-wake-up', async () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
 
-    // Force a minimize/restore cycle to ensure the window gets focus
-    // This fixes the "unresponsive input on boot" issue in some X11 environments
-    mainWindow.minimize();
-    setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.restore();
-            mainWindow.focus();
-        }
-    }, 50);
-    return { success: true };
+    console.log('[IPC] Executing Hard Focus Sequence (Aggressive)');
+
+    try {
+        // 1. Force window to top visual layer (Steal Focus)
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+
+        // 2. Ensure it's not minimized
+        if (mainWindow.isMinimized()) mainWindow.restore();
+
+        // 3. Demand Focus
+        mainWindow.show();
+        mainWindow.focus();
+
+        // 4. Wait a moment for WM to comply
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 5. Release "Always On Top" lock (so user can use other windows)
+        mainWindow.setAlwaysOnTop(false);
+
+        // 6. Final Focus Assertion
+        mainWindow.focus();
+
+        return { success: true };
+    } catch (err) {
+        console.error('[IPC] Hard Focus Failed:', err);
+        return { success: false, error: err.message };
+    }
 });
 
 // ============================================

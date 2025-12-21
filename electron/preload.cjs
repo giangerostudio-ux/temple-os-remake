@@ -204,6 +204,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('x11:snapLayouts:suggest', handler);
         return () => ipcRenderer.removeListener('x11:snapLayouts:suggest', handler);
     },
+    getSnapLayoutsEnabled: () => ipcRenderer.invoke('x11:getSnapLayoutsEnabled'),
+    setSnapLayoutsEnabled: (enabled) => ipcRenderer.invoke('x11:setSnapLayoutsEnabled', enabled),
+    getTilingState: () => ipcRenderer.invoke('x11:getTilingState'),
+    setOccupiedSlot: (xidHex, slot) => ipcRenderer.invoke('x11:setOccupiedSlot', xidHex, slot),
+    getNextSlot: () => ipcRenderer.invoke('x11:getNextSlot'),
 
     getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),

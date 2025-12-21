@@ -30,6 +30,10 @@ let panelWindow;
 let contextPopup = null; // Floating context menu popup (alwaysOnTop)
 let ewmhBridge = null;
 let x11IgnoreXids = new Set();
+let mainWindowXid = null; // Store main window XID to protect it from snap operations
+let x11SnapLayoutsEnabled = false; // Setting: Enable X11 Snap Layouts (default: OFF)
+let tilingModeActive = false; // Auto-tiling state
+const occupiedSlots = new Map(); // xidHex -> slot ('maximize', 'left', 'right', 'topleft', etc.)
 let panelPolicy = {
     hideOnFullscreen: true,
     forceHidden: false,
@@ -715,6 +719,18 @@ function createWindow() {
         // In X11 mode, hide the shell window from task/window lists (panel should track real apps, not itself).
         if (isX11Session()) {
             setTimeout(() => { void applyDesktopHintsToMainWindow().catch(() => { }); }, 150);
+
+            // CRITICAL: Capture main window XID to protect it from snap operations
+            try {
+                const handle = mainWindow.getNativeWindowHandle();
+                if (Buffer.isBuffer(handle) && handle.length >= 4) {
+                    mainWindowXid = '0x' + handle.readUInt32LE(0).toString(16);
+                    x11IgnoreXids.add(mainWindowXid.toLowerCase());
+                    console.log('[X11] Main Window XID:', mainWindowXid, '(protected from snap operations)');
+                }
+            } catch (e) {
+                console.warn('[X11] Failed to capture main window XID:', e.message);
+            }
         }
     });
 
@@ -1020,6 +1036,8 @@ async function startX11EwmhBridge() {
     ewmhBridge.onChange((snap) => {
         broadcastX11WindowsChanged(snap);
         void applyPanelPolicyFromSnapshot(snap).catch(() => { });
+        // Phase 4: Track window closures for auto-tiling
+        updateOccupiedSlotsFromSnapshot(snap);
     });
     ewmhBridge.start();
 }
@@ -1263,6 +1281,119 @@ ipcMain.handle('x11:snapWindow', async (event, xidHex, mode, taskbarConfig) => {
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
 });
+
+// ============================================
+// X11 SNAP LAYOUTS (Phase 1-4)
+// ============================================
+
+// IPC: Get/Set snap layouts enabled setting
+ipcMain.handle('x11:getSnapLayoutsEnabled', async () => {
+    return { success: true, enabled: x11SnapLayoutsEnabled };
+});
+
+ipcMain.handle('x11:setSnapLayoutsEnabled', async (event, enabled) => {
+    x11SnapLayoutsEnabled = !!enabled;
+    console.log('[X11 Snap Layouts]', enabled ? 'Enabled' : 'Disabled');
+    // Reset tiling mode when disabled
+    if (!enabled) {
+        tilingModeActive = false;
+        occupiedSlots.clear();
+    }
+    return { success: true };
+});
+
+// IPC: Get tiling state for debugging
+ipcMain.handle('x11:getTilingState', async () => {
+    return {
+        success: true,
+        tilingModeActive,
+        occupiedSlots: Object.fromEntries(occupiedSlots),
+        mainWindowXid
+    };
+});
+
+// IPC: Manually set slot (called when user snaps via right-click or drag)
+ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
+    if (!xidHex) return { success: false, error: 'No XID provided' };
+    const normalizedXid = String(xidHex).toLowerCase();
+
+    // Ignore main window
+    if (mainWindowXid && normalizedXid === mainWindowXid.toLowerCase()) {
+        return { success: false, error: 'Cannot track main window' };
+    }
+
+    // Update slot tracking
+    if (slot === 'maximize' || !slot) {
+        occupiedSlots.delete(normalizedXid);
+    } else {
+        occupiedSlots.set(normalizedXid, slot);
+        // Activate tiling mode when user manually snaps left/right
+        if (slot === 'left' || slot === 'right') {
+            tilingModeActive = true;
+            console.log('[X11 Snap Layouts] Tiling mode activated by user snap:', slot);
+        }
+    }
+
+    return { success: true };
+});
+
+// IPC: Get next available slot for auto-tiling
+ipcMain.handle('x11:getNextSlot', async () => {
+    if (!x11SnapLayoutsEnabled || !tilingModeActive) {
+        return { success: true, slot: 'maximize' };
+    }
+
+    const occupied = new Set(occupiedSlots.values());
+
+    // Priority: fill halves first, then quadrants
+    if (!occupied.has('left')) return { success: true, slot: 'left' };
+    if (!occupied.has('right')) return { success: true, slot: 'right' };
+    if (!occupied.has('topleft')) return { success: true, slot: 'topleft' };
+    if (!occupied.has('topright')) return { success: true, slot: 'topright' };
+    if (!occupied.has('bottomleft')) return { success: true, slot: 'bottomleft' };
+    if (!occupied.has('bottomright')) return { success: true, slot: 'bottomright' };
+
+    return { success: true, slot: 'maximize' }; // Overflow
+});
+
+// Check snap layout trigger (called from ewmhBridge.onChange)
+function checkSnapLayoutTrigger(snapshot) {
+    if (!x11SnapLayoutsEnabled) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Find the active window details from the snapshot
+    const activeXidHex = snapshot?.activeXidHex;
+    if (!activeXidHex) return;
+
+    // CRITICAL: Never affect main window
+    if (mainWindowXid && String(activeXidHex).toLowerCase() === mainWindowXid.toLowerCase()) return;
+
+    // Get window position from wmctrl -lG
+    // The snapshot may not have x/y, so we need another approach
+    // For now, we'll detect drag-to-top via the frontend monitoring mouse position
+    // This function is called on window changes, not mouse position changes
+}
+
+// Track window closures to free slots
+function updateOccupiedSlotsFromSnapshot(snapshot) {
+    if (!snapshot?.windows) return;
+
+    const currentXids = new Set(snapshot.windows.map(w => String(w.xidHex).toLowerCase()));
+
+    // Remove closed windows from tracking
+    for (const [xid] of occupiedSlots) {
+        if (!currentXids.has(xid)) {
+            occupiedSlots.delete(xid);
+            console.log('[X11 Snap Layouts] Removed closed window from slots:', xid);
+        }
+    }
+
+    // If no more slots occupied, disable tiling mode
+    if (occupiedSlots.size === 0 && tilingModeActive) {
+        tilingModeActive = false;
+        console.log('[X11 Snap Layouts] Tiling mode deactivated (no occupied slots)');
+    }
+}
 
 // Shell policies (panel hide / gaming mode)
 ipcMain.handle('shell:getPanelPolicy', async () => {

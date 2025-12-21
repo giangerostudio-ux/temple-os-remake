@@ -3488,3 +3488,150 @@ body.heavenly-pulse-enabled .temple-gold-beam {
   opacity: 0.65;
   border-top: 1px solid rgba(0, 255, 65, 0.12);
 }
+
+/* ============================================
+   X11 SNAP LAYOUTS OVERLAY (Phase 2)
+   ============================================ */
+
+.snap-layouts-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.snap-layouts-container {
+  background: var(--bg-window);
+  border: 2px solid var(--tos-green);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 340px;
+  box-shadow: 0 0 40px rgba(0, 255, 65, 0.3), 0 20px 60px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.snap-layouts-title {
+  font-size: 18px;
+  color: var(--tos-green);
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.snap-layouts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 70px);
+  gap: 10px;
+  justify-content: center;
+}
+
+.snap-layout-option {
+  width: 70px;
+  height: 50px;
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+.snap-layout-option:hover {
+  background: rgba(0, 255, 65, 0.15);
+  border-color: var(--tos-green);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  transform: scale(1.05);
+}
+
+.snap-layout-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  display: flex;
+  gap: 2px;
+}
+
+.snap-layout-preview.full {
+  background: var(--tos-green);
+}
+
+.snap-layout-preview.half-left::before,
+.snap-layout-preview.half-left::after {
+  content: '';
+  flex: 1;
+  border-radius: 2px;
+}
+
+.snap-layout-preview.half-left::before {
+  background: var(--tos-green);
+}
+
+.snap-layout-preview.half-left::after {
+  background: rgba(0, 255, 65, 0.2);
+}
+
+.snap-layout-preview.half-right::before,
+.snap-layout-preview.half-right::after {
+  content: '';
+  flex: 1;
+  border-radius: 2px;
+}
+
+.snap-layout-preview.half-right::before {
+  background: rgba(0, 255, 65, 0.2);
+}
+
+.snap-layout-preview.half-right::after {
+  background: var(--tos-green);
+}
+
+.snap-layout-preview.quarter-tl,
+.snap-layout-preview.quarter-tr,
+.snap-layout-preview.quarter-bl,
+.snap-layout-preview.quarter-br {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.snap-layout-preview.quarter-tl {
+  background: linear-gradient(135deg, var(--tos-green) 25%, rgba(0, 255, 65, 0.2) 25%);
+}
+
+.snap-layout-preview.quarter-tr {
+  background: linear-gradient(225deg, var(--tos-green) 25%, rgba(0, 255, 65, 0.2) 25%);
+}
+
+.snap-layout-preview.quarter-bl {
+  background: linear-gradient(45deg, var(--tos-green) 25%, rgba(0, 255, 65, 0.2) 25%);
+}
+
+.snap-layout-preview.quarter-br {
+  background: linear-gradient(315deg, var(--tos-green) 25%, rgba(0, 255, 65, 0.2) 25%);
+}
+
+.snap-layouts-close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  color: rgba(0, 255, 65, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.snap-layouts-close:hover {
+  color: var(--tos-red);
+  text-shadow: 0 0 10px rgba(255, 100, 100, 0.5);
+}

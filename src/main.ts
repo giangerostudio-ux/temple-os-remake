@@ -167,6 +167,11 @@ declare global {
       snapX11Window?: (xidHex: string, mode: string, taskbarConfig?: { height: number; position: 'top' | 'bottom' }) => Promise<{ success: boolean; error?: string }>;
       onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
       onX11SnapLayoutsSuggest?: (callback: (payload: { xid: string }) => void) => () => void;
+      getSnapLayoutsEnabled?: () => Promise<{ success: boolean; enabled: boolean }>;
+      setSnapLayoutsEnabled?: (enabled: boolean) => Promise<{ success: boolean }>;
+      getTilingState?: () => Promise<{ success: boolean; tilingModeActive: boolean; occupiedSlots: Record<string, string>; mainWindowXid: string | null }>;
+      setOccupiedSlot?: (xidHex: string, slot: string) => Promise<{ success: boolean; error?: string }>;
+      getNextSlot?: () => Promise<{ success: boolean; slot: string }>;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -455,6 +460,7 @@ class TempleOS {
   private resizeState: { windowId: string; dir: string; startX: number; startY: number; startW: number; startH: number; startXLoc: number; startYLoc: number } | null = null;
   private snapLayoutsOverlay: HTMLElement | null = null;
   private currentSnapXid: string | null = null;
+  private x11SnapLayoutsEnabled = false; // Synced with main process on init
   // Priority 3: Window Grouping (Tier 8.3) - State prepared for future implementation
   // @ts-ignore - Will be used when Window Grouping feature is implemented
   private windowGroups: Record<string, string[]> = {}; // group ID to window IDs mapping (will be used when Window Grouping is implemented)
@@ -875,6 +881,12 @@ class TempleOS {
         if (payload.xid) this.showSnapLayoutsOverlay(payload.xid);
       });
     }
+    // Sync snap layouts enabled setting from main process
+    if (window.electronAPI?.getSnapLayoutsEnabled) {
+      void window.electronAPI.getSnapLayoutsEnabled().then(res => {
+        if (res?.success) this.x11SnapLayoutsEnabled = res.enabled;
+      });
+    }
     if (window.electronAPI?.setHideBarOnFullscreen) {
       void window.electronAPI.setHideBarOnFullscreen(this.hideBarOnFullscreen);
     }
@@ -1136,6 +1148,99 @@ class TempleOS {
     */
   }
 
+  // ============================================
+  // X11 SNAP LAYOUTS OVERLAY (Phase 2)
+  // ============================================
+
+  private showSnapLayoutsOverlay(xidHex: string) {
+    // Only show if snap layouts are enabled
+    if (!this.x11SnapLayoutsEnabled) return;
+
+    // Prevent duplicate overlays
+    if (this.snapLayoutsOverlay) return;
+
+    this.currentSnapXid = xidHex;
+
+    // Create the snap layouts overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'snap-layouts-overlay';
+    overlay.innerHTML = `
+      <div class="snap-layouts-container">
+        <div class="snap-layouts-title">Choose a Layout</div>
+        <div class="snap-layouts-grid">
+          <div class="snap-layout-option" data-mode="maximize" title="Maximize">
+            <div class="snap-layout-preview full"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="left" title="Left Half">
+            <div class="snap-layout-preview half-left"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="right" title="Right Half">
+            <div class="snap-layout-preview half-right"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="topleft" title="Top-Left">
+            <div class="snap-layout-preview quarter-tl"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="topright" title="Top-Right">
+            <div class="snap-layout-preview quarter-tr"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="bottomleft" title="Bottom-Left">
+            <div class="snap-layout-preview quarter-bl"></div>
+          </div>
+          <div class="snap-layout-option" data-mode="bottomright" title="Bottom-Right">
+            <div class="snap-layout-preview quarter-br"></div>
+          </div>
+        </div>
+        <div class="snap-layouts-close" title="Close">&times;</div>
+      </div>
+    `;
+
+    // Handle layout selection
+    overlay.querySelectorAll('.snap-layout-option').forEach(opt => {
+      opt.addEventListener('click', async () => {
+        const mode = (opt as HTMLElement).dataset.mode;
+        if (mode && this.currentSnapXid) {
+          const taskbarConfig = { height: 50, position: this.taskbarPosition };
+          const res = await window.electronAPI?.snapX11Window?.(this.currentSnapXid, mode, taskbarConfig);
+          if (res?.success) {
+            // Track the slot for auto-tiling
+            await window.electronAPI?.setOccupiedSlot?.(this.currentSnapXid, mode);
+          }
+        }
+        this.hideSnapLayoutsOverlay();
+      });
+    });
+
+    // Handle close button
+    overlay.querySelector('.snap-layouts-close')?.addEventListener('click', () => {
+      this.hideSnapLayoutsOverlay();
+    });
+
+    // Handle click outside to close
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        this.hideSnapLayoutsOverlay();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    this.snapLayoutsOverlay = overlay;
+
+    // Auto-hide after 5 seconds if not interacted
+    setTimeout(() => {
+      if (this.snapLayoutsOverlay === overlay) {
+        this.hideSnapLayoutsOverlay();
+      }
+    }, 5000);
+  }
+
+  private hideSnapLayoutsOverlay() {
+    if (this.snapLayoutsOverlay) {
+      this.snapLayoutsOverlay.remove();
+      this.snapLayoutsOverlay = null;
+    }
+    this.currentSnapXid = null;
+  }
+
   private keepLegacyMethodsReferenced(): void {
     // Keeps older implementations from triggering TS6133 while we transition to v2 UI.
     // (Safe: no execution, just references.)
@@ -1302,135 +1407,6 @@ class TempleOS {
     }, 4 * 60 * 60 * 1000);
 
     this.render();
-  }
-
-  private showSnapLayoutsOverlay(xid: string) {
-    if (this.currentSnapXid === xid && this.snapLayoutsOverlay) return;
-    this.currentSnapXid = xid;
-
-    if (this.snapLayoutsOverlay) this.snapLayoutsOverlay.remove();
-
-    const overlay = document.createElement('div');
-    this.snapLayoutsOverlay = overlay;
-
-    overlay.style.position = 'fixed';
-    overlay.style.top = '10px';
-    overlay.style.left = '50%';
-    overlay.style.transform = 'translateX(-50%)';
-    overlay.style.zIndex = '999999'; // Ensure it's on top of everything
-    overlay.style.background = 'rgba(30, 30, 30, 0.95)';
-    overlay.style.backdropFilter = 'blur(10px)';
-    overlay.style.border = '1px solid rgba(255, 255, 255, 0.1)';
-    overlay.style.borderRadius = '12px';
-    overlay.style.padding = '8px';
-    overlay.style.display = 'flex';
-    overlay.style.gap = '8px';
-    overlay.style.boxShadow = '0 8px 32px rgba(0,0,0,0.5)';
-    overlay.style.transition = 'opacity 0.2s, transform 0.2s';
-    overlay.style.opacity = '0';
-
-    // Animate in
-    requestAnimationFrame(() => {
-      overlay.style.opacity = '1';
-      overlay.style.transform = 'translateX(-50%) translateY(0)';
-    });
-
-    // Helper to create graphical layout icons
-    const createLayoutIcon = (mode: string, type: 'split' | 'grid' | 'full') => {
-      const container = document.createElement('div');
-      container.style.width = '60px';
-      container.style.height = '40px';
-      container.style.background = 'rgba(255,255,255,0.05)';
-      container.style.borderRadius = '6px';
-      container.style.cursor = 'pointer';
-      container.style.display = 'flex';
-      container.style.padding = '4px';
-      container.style.gap = '2px';
-      container.style.border = '1px solid transparent';
-      container.title = mode;
-
-      container.onmouseenter = () => {
-        container.style.background = 'rgba(255,255,255,0.15)';
-        container.style.border = '1px solid rgba(255,255,255,0.3)';
-      };
-      container.onmouseleave = () => {
-        container.style.background = 'rgba(255,255,255,0.05)';
-        container.style.border = '1px solid transparent';
-      };
-      container.onclick = () => {
-        if (window.electronAPI?.snapX11Window) {
-          window.electronAPI.snapX11Window(xid, mode);
-        }
-        this.hideSnapLayoutsOverlay();
-      };
-
-      // Draw the blocks inside
-      const blockStyle = 'background: #ccc; borderRadius: 2px; opacity: 0.8;';
-      const activeBlockStyle = 'background: #00ff41; borderRadius: 2px; box-shadow: 0 0 5px #00ff41;';
-
-      if (type === 'full') {
-        const b = document.createElement('div');
-        b.style.cssText = activeBlockStyle + 'width: 100%; height: 100%;';
-        container.appendChild(b);
-      } else if (type === 'split') {
-        const b1 = document.createElement('div');
-        const b2 = document.createElement('div');
-        b1.style.cssText = mode === 'left' ? activeBlockStyle : blockStyle;
-        b2.style.cssText = mode === 'right' ? activeBlockStyle : blockStyle;
-        b1.style.flex = '1'; b2.style.flex = '1';
-        b1.style.height = '100%'; b2.style.height = '100%';
-        container.appendChild(b1);
-        container.appendChild(b2);
-      } else if (type === 'grid') {
-        container.style.flexWrap = 'wrap';
-        const b1 = document.createElement('div'); b1.style.width = 'calc(50% - 1px)'; b1.style.height = 'calc(50% - 1px)';
-        const b2 = document.createElement('div'); b2.style.width = 'calc(50% - 1px)'; b2.style.height = 'calc(50% - 1px)';
-        const b3 = document.createElement('div'); b3.style.width = 'calc(50% - 1px)'; b3.style.height = 'calc(50% - 1px)';
-        const b4 = document.createElement('div'); b4.style.width = 'calc(50% - 1px)'; b4.style.height = 'calc(50% - 1px)';
-
-        b1.style.cssText = (mode === 'top-left' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
-        b2.style.cssText = (mode === 'top-right' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
-        b3.style.cssText = (mode === 'bottom-left' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
-        b4.style.cssText = (mode === 'bottom-right' ? activeBlockStyle : blockStyle) + 'width: calc(50% - 1px); height: calc(50% - 1px);';
-
-        container.appendChild(b1); container.appendChild(b2);
-        container.appendChild(b3); container.appendChild(b4);
-      }
-
-      return container;
-    };
-
-    overlay.appendChild(createLayoutIcon('maximize', 'full'));
-    overlay.appendChild(createLayoutIcon('left', 'split'));
-    overlay.appendChild(createLayoutIcon('right', 'split'));
-    overlay.appendChild(createLayoutIcon('top-left', 'grid'));
-    overlay.appendChild(createLayoutIcon('top-right', 'grid'));
-    overlay.appendChild(createLayoutIcon('bottom-left', 'grid'));
-    overlay.appendChild(createLayoutIcon('bottom-right', 'grid'));
-
-    document.body.appendChild(overlay);
-
-    // Auto-hide logic (debounce)
-    let hideTimer: any;
-    const resetTimer = () => {
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => this.hideSnapLayoutsOverlay(), 2000); // 2 seconds
-    };
-
-    overlay.onmouseenter = () => clearTimeout(hideTimer);
-    overlay.onmouseleave = resetTimer;
-    resetTimer();
-  }
-
-  private hideSnapLayoutsOverlay() {
-    if (this.snapLayoutsOverlay) {
-      this.snapLayoutsOverlay.style.opacity = '0';
-      setTimeout(() => {
-        if (this.snapLayoutsOverlay) this.snapLayoutsOverlay.remove();
-        this.snapLayoutsOverlay = null;
-      }, 200);
-    }
-    this.currentSnapXid = null;
   }
 
   private async checkPtySupport(): Promise<void> {

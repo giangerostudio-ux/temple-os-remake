@@ -1167,8 +1167,8 @@ ipcMain.handle('input-wake-up', async () => {
 
         // 3.5. SYNTHETIC INPUT (Simulate Tab)
         try {
-            mainWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Shift' });
-            setTimeout(() => { if (mainWindow) mainWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Shift' }); }, 50);
+            mainWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+            setTimeout(() => { if (mainWindow) mainWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' }); }, 50);
         } catch (e) { }
 
         // 3.6. OS-LEVEL FORCE (Linux/X11)
@@ -1177,10 +1177,18 @@ ipcMain.handle('input-wake-up', async () => {
             if (mainWindowXid) {
                 exec(`wmctrl -i -a ${mainWindowXid}`, (e) => { if (e) console.warn('[IPC] wmctrl failed:', e.message); });
             }
-            exec('xdotool key Shift_L Caps_Lock Caps_Lock', (e) => {
+            // Tab is REQUIRED for the X11 input wake-up. Shift alone doesn't work.
+            exec('xdotool key Tab Caps_Lock Caps_Lock', (e) => {
                 if (e) console.warn('[IPC] xdotool failed:', e.message);
-                else console.log('[IPC] xdotool injection success (Silent Shift)');
+                else console.log('[IPC] xdotool injection success');
             });
+
+            // After Tab injection, blur any focused element to remove the highlight artifact
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.executeJavaScript('document.activeElement?.blur?.(); void 0;').catch(() => { });
+                }
+            }, 150);
         }
 
         // 4. Wait a moment for WM to comply

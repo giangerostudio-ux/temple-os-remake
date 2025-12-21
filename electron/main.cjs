@@ -1642,27 +1642,26 @@ async function checkSnapLayoutTrigger(snapshot) {
                 }
 
                 // Try to check if mouse button 1 is being held (user is dragging)
-                // If xdotool fails, proceed anyway (don't block just because xdotool isn't available)
-                let mouseButtonHeld = true; // Assume held if we can't check
+                let mouseButtonHeld = false; // Assume not held until verified
                 try {
                     const { stdout: mouseInfo } = await execPromise('xdotool getmouselocation 2>/dev/null');
-                    // xdotool outputs like: x:123 y:456 screen:0 window:123456 buttons:1
-                    // Empty or no buttons field = no button held
-                    mouseButtonHeld = mouseInfo.includes('buttons:') ?
-                        (mouseInfo.includes('buttons:1') || mouseInfo.match(/buttons:\d*1/)) : true;
+                    // xdotool outputs: "x:314 y:20 screen:0 window:12345"
+                    // When button IS held: "x:314 y:20 screen:0 window:12345 buttons:1"
+                    // So if "buttons:" is NOT in output, no button is pressed!
+                    mouseButtonHeld = mouseInfo.includes('buttons:');
                     log(`[X11 Snap Layouts] Mouse info: ${mouseInfo.trim().substring(0, 80)}, held=${mouseButtonHeld}`);
 
                     if (!mouseButtonHeld) {
-                        log(`[X11 Snap Layouts] In zone (Y=${y}) but xdotool says button not held, skipping`);
+                        log(`[X11 Snap Layouts] In zone (Y=${y}) but mouse button not held, skipping`);
                         return;
                     }
                 } catch (mouseErr) {
-                    log(`[X11 Snap Layouts] xdotool failed: ${mouseErr.message}, proceeding anyway`);
-                    // Proceed - xdotool not available or failed
+                    log(`[X11 Snap Layouts] xdotool failed: ${mouseErr.message}, skipping (can't verify drag)`);
+                    return; // Don't trigger if we can't verify - prevents false triggers
                 }
 
-                // Throttle: 15 seconds for same window to prevent spam
-                if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 15000) {
+                // Throttle: 3 seconds for same window to allow retrying
+                if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 3000) {
                     log(`[X11 Snap Layouts] Throttled (${Math.round((now - lastSnapSuggestTime) / 1000)}s since last)`);
                     return;
                 }

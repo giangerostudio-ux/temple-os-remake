@@ -29,7 +29,7 @@ except ImportError:
 
 # Configuration - ANTI-FLICKER TUNED
 POLL_INTERVAL_MS = 25        # Fast polling for responsiveness
-TOP_TRIGGER_ZONE = 100       # pixels from top for snap layouts menu
+TOP_TRIGGER_ZONE = 250       # LARGE zone from top for snap layouts menu (user requested)
 EDGE_TRIGGER_ZONE = 40       # pixels from left/right edge
 CORNER_TRIGGER_ZONE = 70     # pixels from corner
 
@@ -239,12 +239,16 @@ class SnapDetector:
                 
                 if zone and activated:
                     # Released in an ACTIVATED zone - apply snap!
+                    # Query current mouse position for popup hit detection
+                    result = self.root.query_pointer()
                     self.emit({
                         'event': 'snap_apply',
                         'zone': zone,
+                        'x': result.root_x,
+                        'y': result.root_y,
                         'xid': hex(xid) if xid else None
                     })
-                    self.log(f"Snap apply: {zone} to {hex(xid) if xid else 'unknown'}")
+                    self.log(f"Snap apply: {zone} at ({result.root_x}, {result.root_y}) to {hex(xid) if xid else 'unknown'}")
                 else:
                     self.emit({'event': 'drag_end'})
                     self.log("Drag ended (no activated zone)")

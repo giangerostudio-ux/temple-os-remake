@@ -1706,9 +1706,60 @@ function handleSnapDetectorEvent(event) {
         case 'snap_apply':
             console.log(`[SnapDetector] Snap apply: ${event.zone} -> ${event.xid}`);
             closeSnapPreview();
+
+            // For TOP zone: Check if mouse is over popup window and which option
+            if (event.zone === 'top' && snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+                // Get popup bounds
+                const popupBounds = snapPopupWindow.getBounds();
+                const mouseX = event.x;
+                const mouseY = event.y;
+
+                // Check if mouse is inside popup
+                if (mouseX >= popupBounds.x && mouseX <= popupBounds.x + popupBounds.width &&
+                    mouseY >= popupBounds.y && mouseY <= popupBounds.y + popupBounds.height) {
+
+                    // Calculate which option based on mouse position
+                    // Popup layout: 7 options in a single row, plus hint text
+                    // Options start ~15px from left edge, each option ~65px wide (55px + 10px gap)
+                    const relX = mouseX - popupBounds.x;
+                    const relY = mouseY - popupBounds.y;
+
+                    // Options are in a row, check if mouse is in the option area (y: ~40-100px)
+                    if (relY >= 30 && relY <= 110) {
+                        // Calculate which option (0-6)
+                        const optionStartX = 15;  // Padding
+                        const optionWidth = 65;   // 55px button + 10px gap
+                        const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
+
+                        const modes = ['maximize', 'left', 'right', 'topleft', 'topright', 'bottomleft', 'bottomright'];
+                        if (optionIndex >= 0 && optionIndex < modes.length) {
+                            const selectedMode = modes[optionIndex];
+                            console.log(`[SnapDetector] Released on popup option: ${selectedMode}`);
+                            closeSnapLayoutsPopup();
+
+                            if (event.xid) {
+                                snapX11WindowCore(event.xid, selectedMode, { height: 50, position: 'bottom' })
+                                    .then(() => {
+                                        if (selectedMode !== 'maximize') tilingModeActive = true;
+                                        occupiedSlots.set(event.xid.toLowerCase(), selectedMode);
+                                        console.log(`[SnapDetector] Snapped ${event.xid} to ${selectedMode}`);
+                                    })
+                                    .catch(err => console.error('[SnapDetector] Snap error:', err));
+                            }
+                            break;  // Don't fall through to default maximize
+                        }
+                    }
+                }
+
+                // Mouse was released in top zone but not on popup - just close popup
+                closeSnapLayoutsPopup();
+                console.log('[SnapDetector] Released in top zone but not on popup option');
+                break;
+            }
+
             closeSnapLayoutsPopup();
 
-            // Map zone names to snap modes
+            // Map zone names to snap modes (for non-top zones)
             const zoneToMode = {
                 'top': 'maximize',
                 'left': 'left',

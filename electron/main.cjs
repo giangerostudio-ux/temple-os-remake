@@ -1592,14 +1592,11 @@ function showSnapLayoutsPopup(xidHex) {
         }
     });
 
-    // Auto-close after 8 seconds (give user time to drag)
-    setTimeout(() => {
-        if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
-            snapPopupWindow.close();
-        }
-    }, 8000);
-
-    // Don't close on blur - user might be dragging and mouse leaves popup temporarily
+    // NOTE: No auto-close timeout - popup stays open until:
+    // 1. User releases mouse on an option (snap_apply)
+    // 2. User releases mouse outside popup (zone_leave closes it)
+    // 3. User presses Escape
+    // 4. User clicks the X button
 
     snapPopupWindow.on('closed', () => {
         snapPopupWindow = null;

@@ -1382,29 +1382,46 @@ async function checkSnapLayoutTrigger(snapshot) {
         const { stdout } = await execPromise('wmctrl -lG 2>/dev/null');
         const lines = stdout.split('\n').filter(Boolean);
 
+        // Debug: log what we're looking for
+        console.log('[X11 Snap Layouts] Checking window positions. Active XID:', activeXidHex);
+
         // Parse wmctrl output: XID desktop X Y W H hostname title
         for (const line of lines) {
             const parts = line.trim().split(/\s+/);
             if (parts.length < 7) continue;
 
-            const xid = parts[0].toLowerCase();
+            const wmctrlXid = parts[0].toLowerCase();
             const y = parseInt(parts[3], 10);
+            const title = parts.slice(7).join(' ');
 
-            // Check if this is the active window and near top edge (< 50 pixels)
-            if (xid === String(activeXidHex).toLowerCase() && !isNaN(y) && y < 50) {
+            // Normalize XIDs: remove 0x prefix and compare decimal values
+            const activeNormalized = String(activeXidHex).toLowerCase().replace(/^0x/, '');
+            const wmctrlNormalized = wmctrlXid.replace(/^0x/, '');
+
+            // Log each window we see
+            console.log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} Title: ${title.substring(0, 30)}`);
+
+            // Check if this is the active window (compare both with and without 0x prefix)
+            const isMatch = wmctrlXid === String(activeXidHex).toLowerCase() ||
+                activeNormalized === wmctrlNormalized ||
+                parseInt(activeXidHex, 16) === parseInt(wmctrlXid, 16);
+
+            if (isMatch && !isNaN(y) && y < 50) {
                 // Window is near top edge - show snap layouts
                 lastSnapSuggestXid = activeXidHex;
                 lastSnapSuggestTime = now;
 
-                console.log('[X11 Snap Layouts] Detected drag-to-top for:', activeXidHex, 'Y:', y);
+                console.log('[X11 Snap Layouts] *** TRIGGER! Detected drag-to-top for:', activeXidHex, 'Y:', y);
                 mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeXidHex });
                 return;
             }
         }
+        console.log('[X11 Snap Layouts] No window near top edge or XID not found');
     } catch (e) {
-        // wmctrl not available or failed - silently ignore
+        console.log('[X11 Snap Layouts] wmctrl error:', e.message);
     }
 }
+
 
 
 // Track window closures to free slots

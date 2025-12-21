@@ -114,7 +114,10 @@ sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotoo
 Notes:
 - Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.
 - The panel auto-hides in fullscreen when "Hide Bar On Fullscreen" is enabled (Settings -> Gaming).
-- `python3-xlib` is used for **Windows 11-style Snap Layouts**: a Python daemon (`scripts/snap-detector.py`) polls `XQueryPointer` to detect drag-to-edge gestures in real-time, even during window manager grabs. This enables showing snap previews while the user is still dragging a window.
+- `python3-xlib` is used for **Windows 11-style Snap Layouts**: a Python daemon (`scripts/snap-detector.py`) polls `XQueryPointer` to detect drag-to-edge gestures in real-time, even during window manager grabs. Features include:
+  - Drag window to top edge → snap layouts popup appears
+  - Real-time hover highlighting shows which snap option is selected during drag
+  - Release to snap window to the highlighted zone (maximize, halves, quarters)
 
 ### X11 boot + VirtualBox gotchas (read this)
 

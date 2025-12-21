@@ -2357,6 +2357,21 @@ document.body.addEventListener('click', (e) => {
     }
 });
 
+// Right-click context menu for apps
+document.body.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const app = e.target.closest('.sm-app');
+    if (app && app.dataset.key) {
+        // Get the position relative to the screen for the context menu
+        window.__startMenuAction = {
+            type: 'contextmenu',
+            key: app.dataset.key,
+            x: e.screenX,
+            y: e.screenY
+        };
+    }
+});
+
 function emitAction(type) {
     window.__startMenuAction = { type };
 }

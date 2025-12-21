@@ -192,7 +192,7 @@ declare global {
         logoUrl?: string;
       }) => Promise<{ success: boolean; error?: string }>;
       hideStartMenuPopup?: () => Promise<{ success: boolean }>;
-      onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string }) => void) => () => void;
+      onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string; x?: number; y?: number }) => void) => () => void;
       onStartMenuClosed?: (callback: (payload: any) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
@@ -973,6 +973,49 @@ class TempleOS {
 
         if (action.type === 'launch' && action.key) {
           this.launchByKey(action.key);
+        } else if (action.type === 'contextmenu' && action.key) {
+          // Right-click context menu from popup - close popup first then show context menu
+          window.electronAPI?.hideStartMenuPopup?.();
+
+          const key = action.key;
+          const display = this.launcherDisplayForKey(key);
+          if (key && display) {
+            const pinnedStart = this.pinnedStart.includes(key);
+            const pinnedTaskbar = this.pinnedTaskbar.includes(key);
+            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+
+            // Check if this is an installed app that can be uninstalled
+            const installedApp = this.findInstalledAppByKey(key);
+            const canUninstall = installedApp && (
+              this.canUninstallApp(installedApp) ||
+              this.canAttemptAptUninstall(installedApp) ||
+              this.canAttemptSnapUninstall(installedApp)
+            );
+
+            const menuItems: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }> = [
+              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { divider: true },
+              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+            ];
+
+            // Add uninstall option for user-installed apps
+            if (canUninstall) {
+              menuItems.push(
+                { divider: true },
+                { label: '❌ Uninstall', action: () => this.uninstallApp(installedApp) }
+              );
+            }
+
+            // Use screen coordinates from popup, converted to client coordinates
+            // Since the popup sends screenX/screenY, we need to convert to the main window's client space
+            const x = typeof action.x === 'number' ? action.x : 100;
+            const y = typeof action.y === 'number' ? action.y : 100;
+
+            // Use screen coordinates directly since showContextMenu handles positioning
+            this.showContextMenu(x, y, menuItems);
+          }
         } else if (action.type === 'open_launcher') {
           // Open the native full-screen app launcher grid like the inline start menu does
           this.openAppLauncher();

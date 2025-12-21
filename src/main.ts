@@ -1409,6 +1409,58 @@ class TempleOS {
     this.showNotification('Security', 'Duress password updated.', 'info');
   }
 
+  private setupGlobalInputListeners(): void {
+    console.log('[INPUT] Setting up global input listeners');
+
+    // Unified global key listener
+    window.addEventListener('keydown', (e) => {
+      // 1. Windows Key (Meta) -> Toggle Start Menu
+      if (e.key === 'Meta') {
+        e.preventDefault();
+        // Emulate click on start button to ensure consistent behavior with UI
+        const btn = document.querySelector('.start-btn') as HTMLElement;
+        if (btn) {
+          btn.click();
+        } else {
+          // Fallback if button not found (e.g. strict mode)
+          if (this.startMenuPopupOpen) {
+            window.electronAPI?.hideStartMenuPopup?.();
+            this.startMenuPopupOpen = false;
+          } else {
+            // If we can't find the button, we can't easily open it without knowing the internal toggle method.
+            // But .start-btn should always be there if taskbar is rendered.
+            console.warn('[INPUT] Start button not found for Meta key trigger');
+          }
+        }
+        return;
+      }
+
+      // 2. Win + Arrow -> Snap Layouts
+      if ((e.metaKey || e.ctrlKey) && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        // Only if we have an active window
+        const activeWin = this.windows.find(w => w.active && !w.minimized);
+        if (activeWin) {
+          e.preventDefault();
+          this.handleWindowSnap(activeWin.id, e.key as any);
+        }
+        return;
+      }
+
+      // 3. Focus Rescue (Wake up from X11 limbo)
+      // If we receive a key, we are technically focused, but let's make sure the document knows it
+      if (!document.hasFocus()) {
+        window.focus();
+      }
+    });
+
+    // Mouse wake-up
+    window.addEventListener('mousedown', () => {
+      if (!document.hasFocus()) {
+        window.focus();
+      }
+    });
+  }
+
   private async applyMacRandomization(): Promise<void> {
     if (!window.electronAPI?.setMacRandomization) return;
 
@@ -1432,6 +1484,9 @@ class TempleOS {
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
+
+    // INPUT FIX: Setup global listeners immediately
+    this.setupGlobalInputListeners();
 
     // Enforce lock screen on boot if password or PIN is configured
     if (this.setupComplete && (this.lockPassword || this.lockPin)) {
@@ -1610,11 +1665,26 @@ class TempleOS {
    */
   private triggerInputWakeUp(): void {
     console.log('[BOOT] Triggering input wake-up sequence');
+
+    // FIX: Force focus theft from X11 root
+    // If we had a backend method to wiggle focus, we'd use it.
+    // For now, we rely on checking focus state and requesting it.
+
+    const performWakeUp = (i: number) => {
+      if (!document.hasFocus()) {
+        window.focus();
+        // Also try to focus a dummy element if needed
+        document.body.focus();
+      }
+      this.render();
+      console.log(`[BOOT] Input wake-up cycle #${i}`);
+    };
+
     // Staggered renders to catch the timing window
-    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #1'); }, 500);
-    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #2'); }, 1500);
-    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #3'); }, 3000);
-    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #4'); }, 5000);
+    setTimeout(() => performWakeUp(1), 500);
+    setTimeout(() => performWakeUp(2), 1500);
+    setTimeout(() => performWakeUp(3), 3000);
+    setTimeout(() => performWakeUp(4), 5000);
   }
 
 

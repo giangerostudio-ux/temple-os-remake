@@ -1058,6 +1058,19 @@ app.whenReady().then(() => {
             setTimeout(() => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.maximize();
+                    // Capture main window XID for snap layout protection
+                    try {
+                        const handle = mainWindow.getNativeWindowHandle();
+                        // getNativeWindowHandle returns a Buffer with the X11 window ID
+                        if (handle && handle.length >= 4) {
+                            const xid = handle.readUInt32LE(0);
+                            mainWindowXid = '0x' + xid.toString(16);
+                            x11IgnoreXids.add(mainWindowXid.toLowerCase());
+                            console.log('[X11 Snap Layouts] Captured main window XID:', mainWindowXid);
+                        }
+                    } catch (e) {
+                        console.log('[X11 Snap Layouts] Failed to capture main window XID:', e.message);
+                    }
                 }
             }, 200);
             void startX11EwmhBridge().catch(() => { });  // Still need this to detect Firefox, etc.

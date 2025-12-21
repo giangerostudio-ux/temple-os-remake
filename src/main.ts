@@ -16888,7 +16888,7 @@ class TempleOS {
             action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
           });
           if (window.electronAPI?.snapX11Window) {
-            const taskbarCfg = { height: 75, position: this.taskbarPosition };
+            const taskbarCfg = { height: 50, position: this.taskbarPosition };
             menuItems.push(
               { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left', taskbarCfg) },
               { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right', taskbarCfg) },

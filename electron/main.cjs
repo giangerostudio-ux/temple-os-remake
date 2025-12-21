@@ -1494,7 +1494,7 @@ function showSnapLayoutsPopup(xidHex) {
             <div class="option" data-mode="bottomright" title="Bottom-Right Quarter"><div class="preview br"></div></div>
             <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
         </div>
-        <div class="hint">Drag window here and release, or click</div>
+        <div class="hint">Drag window here and release</div>
         <script>
             const options = document.querySelectorAll('.option');
             const popupRect = { x: window.screenX, y: window.screenY };

@@ -1184,13 +1184,44 @@ class TempleOS {
       void this.networkManager.refreshStatus();
     }, 15000); // Every 15 seconds
 
-    // Hide boot screen after animation completes
+    // Hide boot screen after animation completes (animation is 4.5s delay + 0.5s = 5s total)
+    // BUGFIX: Also force pointer-events: none in JS since CSS animations aren't reliable
+    setTimeout(() => {
+      const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
+      if (bootScreen) {
+        bootScreen.style.pointerEvents = 'none';
+        bootScreen.style.opacity = '0';
+        console.log('[BOOT] Boot screen pointer-events disabled at 5s');
+      }
+    }, 5000);
     setTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.display = 'none';
+        console.log('[BOOT] Boot screen hidden at 5.5s');
       }
-    }, 4500);
+    }, 5500);
+
+    // BUGFIX: Force render on first keydown to "wake up" event handling
+    // This addresses the "spam keys to fix" workaround users discovered
+    let firstInputHandled = false;
+    const forceFirstRender = (eventType: string) => {
+      if (!firstInputHandled) {
+        firstInputHandled = true;
+        console.log('[BOOT] First user input detected, forcing render:', eventType);
+        this.render();
+        // Remove these listeners after first use
+        document.removeEventListener('keydown', earlyKeyHandler);
+        document.removeEventListener('mousedown', earlyMouseHandler);
+        document.removeEventListener('click', earlyClickHandler);
+      }
+    };
+    const earlyKeyHandler = (e: KeyboardEvent) => forceFirstRender(`keydown:${e.key}`);
+    const earlyMouseHandler = () => forceFirstRender('mousedown');
+    const earlyClickHandler = () => forceFirstRender('click');
+    document.addEventListener('keydown', earlyKeyHandler);
+    document.addEventListener('mousedown', earlyMouseHandler);
+    document.addEventListener('click', earlyClickHandler);
 
     // Bootstrap async OS integration + persisted settings
     void this.bootstrap();
@@ -1199,9 +1230,12 @@ class TempleOS {
     // Don't wait for bootstrap - it can take up to 1 minute on slow systems
     this.render();
 
-    // Also render again after a short delay to catch any timing issues
+    // Also render again after short delays to catch any timing issues
+    // These are specifically timed to match boot screen phases
     setTimeout(() => this.render(), 500);
     setTimeout(() => this.render(), 2000);
+    setTimeout(() => { this.render(); console.log('[BOOT] Post-animation render at 5s'); }, 5000);
+    setTimeout(() => { this.render(); console.log('[BOOT] Final cleanup render at 6s'); }, 6000);
 
     // Memory Optimizer: check usage every 30 seconds
     // DISABLED: Users reported random refreshes disrupting workflow. 

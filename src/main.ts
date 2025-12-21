@@ -1687,20 +1687,13 @@ class TempleOS {
     // CRITICAL FIX: "Hard Focus" - Force a minimize/restore cycle to break X11 input freeze
     // This solves the issue where user has to press Tab+CapsLock to get input back.
     if (window.electronAPI?.inputWakeUp) {
-      // TRIGGER STRATEGY: Staggered Multi-Shot
-      // We fire the fix multiple times to catch the window state whenever it becomes ready.
-      // 1. T+1.0s: Early attempt (fast machines)
-      // 2. T+3.0s: Mid-boot attempt
-      // 3. T+5.5s: End-of-animation attempt (Standard)
-      const timings = [1000, 3000, 5500];
+      // TRIGGER: Single-shot AFTER boot animation (5.5s)
+      // The Tab key injection with stealth CSS hides focus rings.
+      console.log('[BOOT] Scheduling Hard Focus (Single-Shot @ 5.5s)');
 
-      console.log('[BOOT] Scheduling Hard Focus (Multi-Shot):', timings);
-
-      timings.forEach(delay => {
-        setTimeout(() => {
-          window.electronAPI!.inputWakeUp().catch((err: any) => console.error(`Hard Focus @ ${delay}ms failed:`, err));
-        }, delay);
-      });
+      setTimeout(() => {
+        window.electronAPI!.inputWakeUp().catch((err: any) => console.error('Hard Focus failed:', err));
+      }, 5500);
     }
   }
 

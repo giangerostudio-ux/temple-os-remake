@@ -1473,17 +1473,25 @@ function showSnapLayoutsPopup(xidHex) {
             <div class="option" data-mode="bottomright" title="Bottom-Right"><div class="preview br"></div></div>
         </div>
         <script>
+            // Handle both click and mouseup (for drag-drop scenario)
             document.querySelectorAll('.option').forEach(opt => {
-                opt.addEventListener('click', () => {
+                const selectMode = () => {
                     const mode = opt.dataset.mode;
                     if (mode) {
-                        // Send message to main process
                         window.postMessage({ type: 'snap-select', mode }, '*');
                     }
-                });
+                };
+                opt.addEventListener('click', selectMode);
+                opt.addEventListener('mouseup', selectMode);
             });
             // Listen for escape to close
             document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
+            // Close on any mouseup outside options (user dropped window elsewhere)
+            document.body.addEventListener('mouseup', e => {
+                if (!e.target.closest('.option')) {
+                    window.close();
+                }
+            });
         </script>
     </body>
     </html>`;
@@ -1554,6 +1562,7 @@ function showSnapLayoutsPopup(xidHex) {
 // Check snap layout trigger (called from ewmhBridge.onChange)
 let lastSnapSuggestXid = null;
 let lastSnapSuggestTime = 0;
+const windowPrevPositions = new Map(); // xidHex -> { y, time }
 
 async function checkSnapLayoutTrigger(snapshot) {
     const fs = require('fs');
@@ -1617,14 +1626,29 @@ async function checkSnapLayoutTrigger(snapshot) {
 
             log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
 
-            if (isMatch && !isNaN(y) && y > 20 && y < 100) {
-                // Window is near top edge - show snap layouts
-                lastSnapSuggestXid = activeXidHex;
-                lastSnapSuggestTime = now;
+            if (isMatch) {
+                // Track this window's position for movement detection
+                const prev = windowPrevPositions.get(wmctrlXid);
+                const isInTriggerZone = !isNaN(y) && y > 20 && y < 100;
+                const wasOutsideTriggerZone = !prev || prev.y <= 20 || prev.y >= 100;
+                const positionChanged = prev && Math.abs(prev.y - y) > 5;
 
-                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y} < 100, showing popup`);
-                showSnapLayoutsPopup(activeXidHex);
-                return;
+                // Update tracking
+                windowPrevPositions.set(wmctrlXid, { y, time: now });
+
+                // Only trigger if:
+                // 1. Window is in trigger zone (20 < Y < 100)
+                // 2. AND window either just entered the zone OR is actively moving
+                if (isInTriggerZone && (wasOutsideTriggerZone || positionChanged)) {
+                    lastSnapSuggestXid = activeXidHex;
+                    lastSnapSuggestTime = now;
+
+                    log(`[X11 Snap Layouts] *** TRIGGER! Y=${y}, wasOutside=${wasOutsideTriggerZone}, moved=${positionChanged}`);
+                    showSnapLayoutsPopup(activeXidHex);
+                    return;
+                } else if (isInTriggerZone) {
+                    log(`[X11 Snap Layouts] In zone but not moving (Y=${y}, prev=${prev?.y})`);
+                }
             }
         }
         log('[X11 Snap Layouts] No window near top edge or XID not found');

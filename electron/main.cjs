@@ -1396,6 +1396,9 @@ async function checkSnapLayoutTrigger(snapshot) {
 
     try {
         // Get window geometry using wmctrl -lG
+        const util = require('util');
+        const { exec } = require('child_process');
+        const execPromise = util.promisify(exec);
         const { stdout } = await execPromise('wmctrl -lG 2>/dev/null');
         const lines = stdout.split('\n').filter(Boolean);
 

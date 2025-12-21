@@ -1433,7 +1433,9 @@ function showSnapLayoutsPopup(xidHex) {
 
     const popupWidth = 560;   // Wide enough for all buttons (increased from 500)
     const popupHeight = 95;   // Compact height - fits content exactly
-    const popupX = Math.round((screenWidth - popupWidth) / 2);
+    // Ensure popup stays within screen bounds (clamp X position)
+    const idealX = Math.round((screenWidth - popupWidth) / 2);
+    const popupX = Math.max(10, Math.min(idealX, screenWidth - popupWidth - 10));
     const popupY = 40; // Below the very top so user can see it while dragging
 
     snapPopupWindow = new BrowserWindow({

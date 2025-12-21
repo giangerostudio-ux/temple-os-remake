@@ -1597,7 +1597,26 @@ class TempleOS {
         app.appendChild(bootEl);
       }
     }
+
+    // BUGFIX: Input wake-up workaround for Chromium/X11 race condition
+    // The desktop sometimes has unresponsive input until a keydown triggers a render.
+    // This runs after lockscreen is dismissed (or immediately if no lock) to wake up input.
+    this.triggerInputWakeUp();
   }
+
+  /**
+   * Workaround for intermittent Chromium input handling bug on X11.
+   * Forces multiple render cycles to ensure input handling is fully initialized.
+   */
+  private triggerInputWakeUp(): void {
+    console.log('[BOOT] Triggering input wake-up sequence');
+    // Staggered renders to catch the timing window
+    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #1'); }, 500);
+    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #2'); }, 1500);
+    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #3'); }, 3000);
+    setTimeout(() => { this.render(); console.log('[BOOT] Input wake-up render #4'); }, 5000);
+  }
+
 
   private renderInitial() {
     const app = document.getElementById('app')!;

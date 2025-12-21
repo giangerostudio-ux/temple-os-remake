@@ -735,8 +735,34 @@ function createWindow() {
             } catch (e) {
                 console.warn('[X11] Failed to capture main window XID:', e.message);
             }
+
+            // FIX: Force focus capture on X11 to prevent input lockout on boot
+            // X11 with _NET_WM_STATE_BELOW can fail to grant proper keyboard/mouse focus
+            // until a window manager event occurs. This forces focus at key intervals.
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.focus();
+                    mainWindow.webContents.focus();
+                    console.log('[X11] Focus capture attempt #1 (500ms)');
+                }
+            }, 500);
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.focus();
+                    console.log('[X11] Focus capture attempt #2 (2000ms)');
+                }
+            }, 2000);
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.focus();
+                    mainWindow.webContents.focus();
+                    console.log('[X11] Focus capture attempt #3 (4000ms - post boot screen)');
+                }
+            }, 4000);
         }
     });
+
+
 
 
     // Enforce desktop behavior gently on focus (re-apply BELOW state)

@@ -26,6 +26,7 @@ try {
 const ptyProcesses = new Map(); // id -> { pty, cwd }
 
 let mainWindow;
+let isHardFocusing = false; // Block auto-below logic during Hard Focus
 let panelWindow;
 let contextPopup = null; // Floating context menu popup (alwaysOnTop)
 let ewmhBridge = null;
@@ -768,6 +769,10 @@ function createWindow() {
     // Enforce desktop behavior gently on focus (re-apply BELOW state)
     mainWindow.on('focus', () => {
         if (isX11Session()) {
+            if (isHardFocusing) {
+                // CRITICAL: Do NOT send the window to background if we are actively trying to hard-focus it!
+                return;
+            }
             // Only re-apply if we suspect we lost the 'below' state. 
             // We just fire-and-forget this to ensure we stay at the bottom.
             void wmctrlSetState(xidHexFromBrowserWindow(mainWindow), 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
@@ -1146,7 +1151,8 @@ ipcMain.handle('window:setBounds', (event, bounds) => {
 ipcMain.handle('input-wake-up', async () => {
     if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
 
-    console.log('[IPC] Executing Hard Focus Sequence (Aggressive)');
+    console.log('[IPC] Executing Hard Focus Sequence (Synthesized)');
+    isHardFocusing = true;
 
     try {
         // 1. Force window to top visual layer (Steal Focus)
@@ -1158,6 +1164,12 @@ ipcMain.handle('input-wake-up', async () => {
         // 3. Demand Focus
         mainWindow.show();
         mainWindow.focus();
+
+        // 3.5. SYNTHETIC INPUT (Simulate Tab)
+        try {
+            mainWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+            setTimeout(() => { if (mainWindow) mainWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' }); }, 50);
+        } catch (e) { }
 
         // 4. Wait a moment for WM to comply
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1172,6 +1184,8 @@ ipcMain.handle('input-wake-up', async () => {
     } catch (err) {
         console.error('[IPC] Hard Focus Failed:', err);
         return { success: false, error: err.message };
+    } finally {
+        setTimeout(() => { isHardFocusing = false; }, 1000);
     }
 });
 

@@ -1,6 +1,6 @@
-# X11 Snap Layouts - Implementation Plan (v2)
+# X11 Snap Layouts - Implementation Plan (v3)
 
-A safer, incremental approach to implementing modern window snapping for X11 applications.
+Windows 11-style snap layouts using XQueryPointer polling for real-time drag detection.
 
 ---
 
@@ -13,14 +13,28 @@ Replicate modern OS window management for X11 apps:
 
 ---
 
-## Lessons Learned (v1 Issues)
+## Key Insight (v3 Improvement)
+
+The v2 approach using `wmctrl -lG` polling failed because X11 window managers perform a "pointer grab" during window drags, so window positions are only updated AFTER the drag completes.
+
+**Solution**: Use `XQueryPointer` which returns mouse position AND button state even during WM grabs!
+
+| v2 Approach (Broken) | v3 Approach (Working) |
+|----------------------|-----------------------|
+| Poll `wmctrl -lG` for window Y | Poll `XQueryPointer` for mouse X/Y + button state |
+| Only sees final position | Sees real-time mouse during drag |
+| Complex heuristics | Simple: button held + mouse at edge = drag to edge |
+
+---
+
+## Lessons Learned (Previous Issues)
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
 | Main window resized/zoomed | X11 logic affected Electron window | **Hardcode main window XID exclusion** |
 | Ghost windows counted | VS Code, Terminal not filtered | **Whitelist approach** instead of blacklist |
 | Auto-tiling race condition | `wmctrl` sent before window ready | **Delay + retry logic** |
-| Snap menu didn't appear | Tight Y-range detection | **Widen detection zone** |
+| Snap menu didn't appear | wmctrl only sees post-drag position | **XQueryPointer polling daemon** |
 
 ---
 

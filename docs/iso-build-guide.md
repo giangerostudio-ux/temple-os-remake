@@ -108,13 +108,13 @@ Runtime packages to include on the ISO (recommended):
 
 ```bash
 sudo apt update
-sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool
+sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool python3-xlib
 ```
 
 Notes:
 - Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.
 - The panel auto-hides in fullscreen when "Hide Bar On Fullscreen" is enabled (Settings -> Gaming).
-- `xdotool` is used for **Snap Layouts** drag detection (detecting when user is dragging a window to the top edge).
+- `python3-xlib` is used for **Windows 11-style Snap Layouts**: a Python daemon (`scripts/snap-detector.py`) polls `XQueryPointer` to detect drag-to-edge gestures in real-time, even during window manager grabs. This enables showing snap previews while the user is still dragging a window.
 
 ### X11 boot + VirtualBox gotchas (read this)
 

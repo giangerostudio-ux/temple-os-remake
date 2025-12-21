@@ -43,6 +43,10 @@ let lastCpuTotals = null; // { idle: number, total: number }
 let lastNetTotals = null; // { rx: number, tx: number }
 let lastNetAt = 0;
 
+// X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)
+let snapDetectorProcess = null;
+let snapPreviewWindow = null; // Visual preview for edge snaps
+
 
 function execAsync(command, options = {}) {
     const timeoutMs = options.timeout || 3000; // Default 3s timeout to prevent hangs in VMs
@@ -1038,8 +1042,8 @@ async function startX11EwmhBridge() {
         void applyPanelPolicyFromSnapshot(snap).catch(() => { });
         // Phase 4: Track window closures for auto-tiling
         updateOccupiedSlotsFromSnapshot(snap);
-        // Phase 2: Check if window is near top edge to show snap layouts menu
-        void checkSnapLayoutTrigger(snap).catch(() => { });
+        // Note: Snap layout detection is now handled by the snap-detector.py daemon
+        // which uses XQueryPointer polling for real-time drag detection
     });
     ewmhBridge.start();
 }
@@ -1067,9 +1071,13 @@ app.whenReady().then(() => {
                             mainWindowXid = '0x' + xid.toString(16);
                             x11IgnoreXids.add(mainWindowXid.toLowerCase());
                             console.log('[X11 Snap Layouts] Captured main window XID:', mainWindowXid);
+                            // Start the snap detector daemon now that we have the XID to protect
+                            startSnapDetector();
                         }
                     } catch (e) {
                         console.log('[X11 Snap Layouts] Failed to capture main window XID:', e.message);
+                        // Still try to start detector without protection
+                        startSnapDetector();
                     }
                 }
             }, 200);
@@ -1315,8 +1323,12 @@ ipcMain.handle('x11:getSnapLayoutsEnabled', async () => {
 ipcMain.handle('x11:setSnapLayoutsEnabled', async (event, enabled) => {
     x11SnapLayoutsEnabled = !!enabled;
     console.log('[X11 Snap Layouts]', enabled ? 'Enabled' : 'Disabled');
-    // Reset tiling mode when disabled
-    if (!enabled) {
+
+    // Start or stop the snap detector daemon
+    if (enabled) {
+        startSnapDetector();
+    } else {
+        stopSnapDetector();
         tilingModeActive = false;
         occupiedSlots.clear();
     }
@@ -1568,127 +1580,231 @@ function showSnapLayoutsPopup(xidHex) {
     });
 }
 
-// Check snap layout trigger (called from ewmhBridge.onChange)
-let lastSnapSuggestXid = null;
-let lastSnapSuggestTime = 0;
-const windowPrevPositions = new Map(); // xidHex -> { y, time }
+// ============================================
+// X11 SNAP DETECTOR DAEMON (Windows 11 Style)
+// ============================================
+// Uses XQueryPointer polling to detect drag-to-edge gestures in real-time
+// Works even during window manager grabs
 
-async function checkSnapLayoutTrigger(snapshot) {
-    const fs = require('fs');
-    const logFile = '/tmp/snap-debug.log';
-    const log = (msg) => {
-        const timestamp = new Date().toISOString();
-        try { fs.appendFileSync(logFile, `${timestamp} ${msg}\n`); } catch (e) { }
-        console.log(msg);
-    };
+function startSnapDetector() {
+    if (snapDetectorProcess) return; // Already running
+    if (!x11SnapLayoutsEnabled) return;
+    if (process.platform !== 'linux') return;
 
-    if (!x11SnapLayoutsEnabled) {
-        log('[X11 Snap Layouts] DISABLED - returning early');
-        return;
-    }
-    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'snap-detector.py');
 
-    // Find the active window details from the snapshot
-    const activeXidHex = snapshot?.activeXidHex;
-    if (!activeXidHex) {
-        log('[X11 Snap Layouts] No activeXidHex in snapshot');
+    // Check if script exists
+    if (!fs.existsSync(scriptPath)) {
+        console.error('[SnapDetector] Script not found:', scriptPath);
         return;
     }
 
-    // CRITICAL: Never affect main window
-    if (mainWindowXid && String(activeXidHex).toLowerCase() === mainWindowXid.toLowerCase()) {
-        log('[X11 Snap Layouts] Active window is main window, skipping');
-        return;
-    }
+    // Build protected XIDs list (main window)
+    const protectedArgs = mainWindowXid ? ['--protected', mainWindowXid] : [];
 
-    const now = Date.now();
+    console.log('[SnapDetector] Starting daemon...', { scriptPath, protectedArgs });
 
-    try {
-        // Get window geometry using wmctrl -lG
-        const util = require('util');
-        const { exec } = require('child_process');
-        const execPromise = util.promisify(exec);
-        const { stdout } = await execPromise('wmctrl -lG 2>/dev/null');
-        const lines = stdout.split('\n').filter(Boolean);
+    snapDetectorProcess = spawn('python3', [scriptPath, ...protectedArgs], {
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
 
-        log(`[X11 Snap Layouts] Checking positions. Active XID: ${activeXidHex}, mainWindowXid: ${mainWindowXid}`);
+    let buffer = '';
 
-        // Parse wmctrl output: XID desktop X Y W H hostname title
+    snapDetectorProcess.stdout.on('data', (data) => {
+        buffer += data.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
         for (const line of lines) {
-            const parts = line.trim().split(/\s+/);
-            if (parts.length < 7) continue;
-
-            const wmctrlXid = parts[0].toLowerCase();
-            const y = parseInt(parts[3], 10);
-            const title = parts.slice(7).join(' ');
-
-            // Normalize XIDs: remove 0x prefix and compare decimal values
-            const activeNormalized = String(activeXidHex).toLowerCase().replace(/^0x/, '');
-            const wmctrlNormalized = wmctrlXid.replace(/^0x/, '');
-
-            // Check if this is the active window (compare both with and without 0x prefix)
-            const isMatch = wmctrlXid === String(activeXidHex).toLowerCase() ||
-                activeNormalized === wmctrlNormalized ||
-                parseInt(activeXidHex, 16) === parseInt(wmctrlXid, 16);
-
-            log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
-
-            if (isMatch) {
-                const isInTriggerZone = !isNaN(y) && y > 20 && y < 100;
-
-                // Track window position history
-                const prevPos = windowPrevPositions.get(wmctrlXid);
-                const hasSeenBefore = !!prevPos;
-                const prevY = prevPos?.y;
-                const seenOutsideZone = prevPos?.seenOutside === true;
-
-                // Update tracking - mark if we've ever seen this window outside the zone
-                windowPrevPositions.set(wmctrlXid, {
-                    y,
-                    time: now,
-                    seenOutside: seenOutsideZone || (!isInTriggerZone && hasSeenBefore)
-                });
-
-                log(`[X11 Snap Layouts] Window ${wmctrlXid} Y=${y} inZone=${isInTriggerZone} seenBefore=${hasSeenBefore} seenOutside=${seenOutsideZone} prevY=${prevY}`);
-
-                // Don't trigger if window is not in the zone
-                if (!isInTriggerZone) {
-                    continue;
-                }
-
-                // Only trigger if:
-                // 1. We've seen this window before (not first detection)
-                // 2. We've seen it OUTSIDE the zone at some point (it actually moved from outside)
-                // 3. It just entered (previous Y was outside)
-                if (!hasSeenBefore) {
-                    log(`[X11 Snap Layouts] First detection, recording position`);
-                    continue;
-                }
-                if (!seenOutsideZone) {
-                    log(`[X11 Snap Layouts] Never seen outside zone yet, waiting`);
-                    continue;
-                }
-                if (prevY !== undefined && prevY > 20 && prevY < 100) {
-                    log(`[X11 Snap Layouts] Already in zone (prevY=${prevY}), waiting for re-entry`);
-                    continue;
-                }
-
-                // Throttle: 2 seconds for same window
-                if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 2000) {
-                    log(`[X11 Snap Layouts] Throttled`);
-                    return;
-                }
-
-                lastSnapSuggestXid = activeXidHex;
-                lastSnapSuggestTime = now;
-
-                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y} entered zone from Y=${prevY}`);
-                showSnapLayoutsPopup(activeXidHex);
-                return;
+            if (!line.trim()) continue;
+            try {
+                const event = JSON.parse(line);
+                handleSnapDetectorEvent(event);
+            } catch (e) {
+                // Not JSON, probably debug output
             }
         }
-    } catch (e) {
-        log(`[X11 Snap Layouts] Error: ${e.message}`);
+    });
+
+    snapDetectorProcess.stderr.on('data', (data) => {
+        // Debug output from Python script
+        console.log('[SnapDetector]', data.toString().trim());
+    });
+
+    snapDetectorProcess.on('close', (code) => {
+        console.log('[SnapDetector] Process exited with code:', code);
+        snapDetectorProcess = null;
+
+        // Restart after delay if still enabled
+        if (x11SnapLayoutsEnabled && !app.isQuitting) {
+            setTimeout(() => {
+                if (x11SnapLayoutsEnabled && !snapDetectorProcess) {
+                    startSnapDetector();
+                }
+            }, 2000);
+        }
+    });
+
+    snapDetectorProcess.on('error', (err) => {
+        console.error('[SnapDetector] Process error:', err.message);
+        snapDetectorProcess = null;
+    });
+}
+
+function stopSnapDetector() {
+    if (snapDetectorProcess) {
+        snapDetectorProcess.kill();
+        snapDetectorProcess = null;
+    }
+    closeSnapPreview();
+}
+
+function handleSnapDetectorEvent(event) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    switch (event.event) {
+        case 'zone_enter':
+            console.log(`[SnapDetector] Zone enter: ${event.zone} (xid: ${event.xid})`);
+            if (event.zone === 'top') {
+                // Top edge: Show the full snap layouts menu (Windows 11 style)
+                showSnapLayoutsPopup(event.xid);
+            } else {
+                // Other edges: Show visual preview of where window will snap
+                showSnapPreview(event.zone);
+            }
+            break;
+
+        case 'zone_leave':
+            console.log('[SnapDetector] Zone leave');
+            closeSnapPreview();
+            break;
+
+        case 'snap_apply':
+            console.log(`[SnapDetector] Snap apply: ${event.zone} -> ${event.xid}`);
+            closeSnapPreview();
+            closeSnapLayoutsPopup();
+
+            // Map zone names to snap modes
+            const zoneToMode = {
+                'top': 'maximize',
+                'left': 'left',
+                'right': 'right',
+                'topleft': 'topleft',
+                'topright': 'topright',
+                'bottomleft': 'bottomleft',
+                'bottomright': 'bottomright'
+            };
+            const mode = zoneToMode[event.zone] || 'maximize';
+
+            if (event.xid) {
+                // Apply the snap
+                snapX11WindowCore(event.xid, mode, { height: 50, position: 'bottom' })
+                    .then(() => {
+                        // Track slot for tiling
+                        if (mode !== 'maximize') {
+                            tilingModeActive = true;
+                        }
+                        occupiedSlots.set(event.xid.toLowerCase(), mode);
+                        console.log(`[SnapDetector] Snapped ${event.xid} to ${mode}`);
+                    })
+                    .catch(err => console.error('[SnapDetector] Snap error:', err));
+            }
+            break;
+
+        case 'drag_end':
+            console.log('[SnapDetector] Drag ended (no zone)');
+            closeSnapPreview();
+            break;
+
+        case 'error':
+            console.error('[SnapDetector] Error:', event.message);
+            break;
+    }
+}
+
+// Visual preview window for edge snaps
+function showSnapPreview(zone) {
+    closeSnapPreview();
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
+    const taskbarHeight = 50;
+    const workHeight = screenHeight - taskbarHeight;
+
+    // Calculate preview bounds based on zone
+    let x = 0, y = 0, w = screenWidth, h = workHeight;
+
+    switch (zone) {
+        case 'left':
+            w = Math.floor(screenWidth / 2);
+            break;
+        case 'right':
+            x = Math.floor(screenWidth / 2);
+            w = Math.floor(screenWidth / 2);
+            break;
+        case 'topleft':
+            w = Math.floor(screenWidth / 2);
+            h = Math.floor(workHeight / 2);
+            break;
+        case 'topright':
+            x = Math.floor(screenWidth / 2);
+            w = Math.floor(screenWidth / 2);
+            h = Math.floor(workHeight / 2);
+            break;
+        case 'bottomleft':
+            w = Math.floor(screenWidth / 2);
+            y = Math.floor(workHeight / 2);
+            h = Math.floor(workHeight / 2);
+            break;
+        case 'bottomright':
+            x = Math.floor(screenWidth / 2);
+            w = Math.floor(screenWidth / 2);
+            y = Math.floor(workHeight / 2);
+            h = Math.floor(workHeight / 2);
+            break;
+    }
+
+    snapPreviewWindow = new BrowserWindow({
+        x, y, width: w, height: h,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        focusable: false,
+        resizable: false,
+        hasShadow: false,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    const previewHtml = `<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; }
+        body {
+            background: rgba(0, 255, 65, 0.15);
+            border: 3px solid rgba(0, 255, 65, 0.8);
+            border-radius: 8px;
+            width: 100vw;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+    </style></head><body></body></html>`;
+
+    snapPreviewWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(previewHtml));
+    snapPreviewWindow.showInactive();
+
+    // Ensure it doesn't steal focus
+    snapPreviewWindow.setIgnoreMouseEvents(true);
+}
+
+function closeSnapPreview() {
+    if (snapPreviewWindow && !snapPreviewWindow.isDestroyed()) {
+        try { snapPreviewWindow.destroy(); } catch { }
+    }
+    snapPreviewWindow = null;
+}
+
+function closeSnapLayoutsPopup() {
+    if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+        try { snapPopupWindow.close(); } catch { }
     }
 }
 
@@ -5908,6 +6024,11 @@ ipcMain.handle('security:installTor', async () => {
 // ============================================
 // APP LIFECYCLE
 // ============================================
+
+app.on('before-quit', () => {
+    app.isQuitting = true;
+    stopSnapDetector();
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

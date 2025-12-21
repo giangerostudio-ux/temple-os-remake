@@ -1405,10 +1405,10 @@ function showSnapLayoutsPopup(xidHex) {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth } = primaryDisplay.workAreaSize;
 
-    const popupWidth = 480;   // Wider to fit larger buttons
-    const popupHeight = 150;  // Taller for bigger options + hint text
+    const popupWidth = 500;   // Wide enough for all buttons
+    const popupHeight = 180;  // Tall enough for buttons + hint text (no scrollbar)
     const popupX = Math.round((screenWidth - popupWidth) / 2);
-    const popupY = 30; // Slightly lower from top so user can drop into it
+    const popupY = 40; // Below the very top so user can see it while dragging
 
     snapPopupWindow = new BrowserWindow({
         width: popupWidth,

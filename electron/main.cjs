@@ -1363,15 +1363,32 @@ let lastSnapSuggestXid = null;
 let lastSnapSuggestTime = 0;
 
 async function checkSnapLayoutTrigger(snapshot) {
-    if (!x11SnapLayoutsEnabled) return;
+    const fs = require('fs');
+    const logFile = '/tmp/snap-debug.log';
+    const log = (msg) => {
+        const timestamp = new Date().toISOString();
+        try { fs.appendFileSync(logFile, `${timestamp} ${msg}\n`); } catch (e) { }
+        console.log(msg);
+    };
+
+    if (!x11SnapLayoutsEnabled) {
+        log('[X11 Snap Layouts] DISABLED - returning early');
+        return;
+    }
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     // Find the active window details from the snapshot
     const activeXidHex = snapshot?.activeXidHex;
-    if (!activeXidHex) return;
+    if (!activeXidHex) {
+        log('[X11 Snap Layouts] No activeXidHex in snapshot');
+        return;
+    }
 
     // CRITICAL: Never affect main window
-    if (mainWindowXid && String(activeXidHex).toLowerCase() === mainWindowXid.toLowerCase()) return;
+    if (mainWindowXid && String(activeXidHex).toLowerCase() === mainWindowXid.toLowerCase()) {
+        log('[X11 Snap Layouts] Active window is main window, skipping');
+        return;
+    }
 
     // Throttle: don't suggest for same window within 3 seconds
     const now = Date.now();
@@ -1382,8 +1399,7 @@ async function checkSnapLayoutTrigger(snapshot) {
         const { stdout } = await execPromise('wmctrl -lG 2>/dev/null');
         const lines = stdout.split('\n').filter(Boolean);
 
-        // Debug: log what we're looking for
-        console.log('[X11 Snap Layouts] Checking window positions. Active XID:', activeXidHex);
+        log(`[X11 Snap Layouts] Checking positions. Active XID: ${activeXidHex}, mainWindowXid: ${mainWindowXid}`);
 
         // Parse wmctrl output: XID desktop X Y W H hostname title
         for (const line of lines) {
@@ -1398,29 +1414,29 @@ async function checkSnapLayoutTrigger(snapshot) {
             const activeNormalized = String(activeXidHex).toLowerCase().replace(/^0x/, '');
             const wmctrlNormalized = wmctrlXid.replace(/^0x/, '');
 
-            // Log each window we see
-            console.log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} Title: ${title.substring(0, 30)}`);
-
             // Check if this is the active window (compare both with and without 0x prefix)
             const isMatch = wmctrlXid === String(activeXidHex).toLowerCase() ||
                 activeNormalized === wmctrlNormalized ||
                 parseInt(activeXidHex, 16) === parseInt(wmctrlXid, 16);
+
+            log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
 
             if (isMatch && !isNaN(y) && y < 50) {
                 // Window is near top edge - show snap layouts
                 lastSnapSuggestXid = activeXidHex;
                 lastSnapSuggestTime = now;
 
-                console.log('[X11 Snap Layouts] *** TRIGGER! Detected drag-to-top for:', activeXidHex, 'Y:', y);
+                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y} < 50, sending suggest event`);
                 mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeXidHex });
                 return;
             }
         }
-        console.log('[X11 Snap Layouts] No window near top edge or XID not found');
+        log('[X11 Snap Layouts] No window near top edge or XID not found');
     } catch (e) {
-        console.log('[X11 Snap Layouts] wmctrl error:', e.message);
+        log(`[X11 Snap Layouts] wmctrl error: ${e.message}`);
     }
 }
+
 
 
 

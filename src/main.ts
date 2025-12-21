@@ -203,6 +203,8 @@ declare global {
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;
       setWindowBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<{ success: boolean; error?: string }>;
+      inputWakeUp: () => Promise<{ success: boolean; error?: string }>;
+      // Events
       // Events
       onLockScreen?: (callback: () => void) => void;
 
@@ -1678,9 +1680,20 @@ class TempleOS {
       console.log(`[BOOT] Input wake-up cycle #${i}`);
     };
 
-    // Staggered focus attempts - reduced frequency
+    // Staggered focus attempts
     setTimeout(() => performWakeUp(1), 500);
     setTimeout(() => performWakeUp(2), 2000);
+
+    // CRITICAL FIX: "Hard Focus" - Force a minimize/restore cycle to break X11 input freeze
+    // This solves the issue where user has to press Tab+CapsLock to get input back.
+    if (window.electronAPI?.inputWakeUp) {
+      setTimeout(() => {
+        console.log('[BOOT] Requesting Hard Focus Reset (Minimize/Restore cycle)...');
+        // We do this late enough (3.5s) so the user has likely stared at the desktop for a moment
+        // and won't be disoriented by a quick flicker.
+        window.electronAPI!.inputWakeUp().catch((err: any) => console.error('Hard Focus failed:', err));
+      }, 3500);
+    }
   }
 
 

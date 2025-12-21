@@ -1197,7 +1197,8 @@ ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
     }
 });
 
-ipcMain.handle('x11:snapWindow', async (event, xidHex, mode, taskbarConfig) => {
+// Core snap logic - shared between IPC handler and popup
+async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
 
@@ -1295,7 +1296,12 @@ ipcMain.handle('x11:snapWindow', async (event, xidHex, mode, taskbarConfig) => {
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
+}
+
+ipcMain.handle('x11:snapWindow', async (event, xidHex, mode, taskbarConfig) => {
+    return snapX11WindowCore(xidHex, mode, taskbarConfig);
 });
+
 
 // ============================================
 // X11 SNAP LAYOUTS (Phase 1-4)
@@ -1371,6 +1377,176 @@ ipcMain.handle('x11:getNextSlot', async () => {
     return { success: true, slot: 'maximize' }; // Overflow
 });
 
+// Snap Layouts Popup Window (alwaysOnTop to appear above X11 windows)
+let snapPopupWindow = null;
+let snapPopupXid = null;
+
+function showSnapLayoutsPopup(xidHex) {
+    // Close existing popup
+    if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+        snapPopupWindow.close();
+    }
+
+    snapPopupXid = xidHex;
+
+    // Get primary display dimensions for centering
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth } = primaryDisplay.workAreaSize;
+
+    const popupWidth = 360;
+    const popupHeight = 120;
+    const popupX = Math.round((screenWidth - popupWidth) / 2);
+    const popupY = 20; // Near top of screen
+
+    snapPopupWindow = new BrowserWindow({
+        width: popupWidth,
+        height: popupHeight,
+        x: popupX,
+        y: popupY,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: false,
+        focusable: true,
+        show: false,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+        }
+    });
+
+    // HTML content for the popup
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Segoe UI', sans-serif;
+                background: rgba(20, 30, 25, 0.95);
+                border: 2px solid #00ff41;
+                border-radius: 12px;
+                padding: 12px;
+                color: #00ff41;
+                text-align: center;
+                user-select: none;
+                -webkit-app-region: no-drag;
+            }
+            .title { font-size: 12px; margin-bottom: 10px; opacity: 0.8; }
+            .grid { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+            .option {
+                width: 40px; height: 30px;
+                border: 1px solid #00ff41;
+                border-radius: 4px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.15s;
+                background: rgba(0,255,65,0.1);
+            }
+            .option:hover { background: rgba(0,255,65,0.3); transform: scale(1.1); }
+            .option .preview { width: 100%; height: 100%; border-radius: 2px; }
+            .full { background: #00ff41; }
+            .left { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); }
+            .right { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); }
+            .tl { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); background-size: 100% 50%; background-repeat: no-repeat; }
+            .tr { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); background-size: 100% 50%; background-repeat: no-repeat; }
+            .bl { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); background-size: 100% 50%; background-position: bottom; background-repeat: no-repeat; }
+            .br { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); background-size: 100% 50%; background-position: bottom; background-repeat: no-repeat; }
+            .close { position: absolute; top: 4px; right: 8px; cursor: pointer; font-size: 16px; opacity: 0.6; }
+            .close:hover { opacity: 1; }
+        </style>
+    </head>
+    <body>
+        <div class="close" onclick="window.close()">×</div>
+        <div class="title">Snap Layout for Window</div>
+        <div class="grid">
+            <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
+            <div class="option" data-mode="left" title="Left"><div class="preview left"></div></div>
+            <div class="option" data-mode="right" title="Right"><div class="preview right"></div></div>
+            <div class="option" data-mode="topleft" title="Top-Left"><div class="preview tl"></div></div>
+            <div class="option" data-mode="topright" title="Top-Right"><div class="preview tr"></div></div>
+            <div class="option" data-mode="bottomleft" title="Bottom-Left"><div class="preview bl"></div></div>
+            <div class="option" data-mode="bottomright" title="Bottom-Right"><div class="preview br"></div></div>
+        </div>
+        <script>
+            document.querySelectorAll('.option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    const mode = opt.dataset.mode;
+                    if (mode) {
+                        // Send message to main process
+                        window.postMessage({ type: 'snap-select', mode }, '*');
+                    }
+                });
+            });
+            // Listen for escape to close
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
+        </script>
+    </body>
+    </html>`;
+
+    snapPopupWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+
+    snapPopupWindow.once('ready-to-show', () => {
+        snapPopupWindow.show();
+    });
+
+    // Handle snap selection from popup
+    snapPopupWindow.webContents.on('console-message', (e, level, msg) => {
+        try {
+            const data = JSON.parse(msg);
+            if (data.type === 'snap-select' && snapPopupXid) {
+                // Perform the snap
+                void snapX11WindowCore(snapPopupXid, data.mode, { height: 50, position: 'bottom' }).then(() => {
+                    // Track slot
+                    if (data.mode !== 'maximize') {
+                        tilingModeActive = true;
+                    }
+                    occupiedSlots.set(snapPopupXid.toLowerCase(), data.mode);
+                });
+                if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+                    snapPopupWindow.close();
+                }
+            }
+        } catch { }
+    });
+
+    // Handle postMessage from renderer
+    snapPopupWindow.webContents.on('did-finish-load', () => {
+        snapPopupWindow.webContents.executeJavaScript(`
+            window.addEventListener('message', e => {
+                if (e.data && e.data.type === 'snap-select') {
+                    console.log(JSON.stringify(e.data));
+                }
+            });
+        `);
+    });
+
+    // Auto-close after 5 seconds
+    setTimeout(() => {
+        if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+            snapPopupWindow.close();
+        }
+    }, 5000);
+
+    // Close on blur
+    snapPopupWindow.on('blur', () => {
+        setTimeout(() => {
+            if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+                snapPopupWindow.close();
+            }
+        }, 100);
+    });
+
+    snapPopupWindow.on('closed', () => {
+        snapPopupWindow = null;
+        snapPopupXid = null;
+    });
+}
+
 // Check snap layout trigger (called from ewmhBridge.onChange)
 let lastSnapSuggestXid = null;
 let lastSnapSuggestTime = 0;
@@ -1442,8 +1618,8 @@ async function checkSnapLayoutTrigger(snapshot) {
                 lastSnapSuggestXid = activeXidHex;
                 lastSnapSuggestTime = now;
 
-                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y} < 50, sending suggest event`);
-                mainWindow.webContents.send('x11:snapLayouts:suggest', { xid: activeXidHex });
+                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y} < 100, showing popup`);
+                showSnapLayoutsPopup(activeXidHex);
                 return;
             }
         }

@@ -1491,7 +1491,9 @@ function showSnapLayoutsPopup(xidHex) {
     snapPopupWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 
     snapPopupWindow.once('ready-to-show', () => {
-        snapPopupWindow.show();
+        if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+            snapPopupWindow.show();
+        }
     });
 
     // Handle snap selection from popup
@@ -1516,13 +1518,15 @@ function showSnapLayoutsPopup(xidHex) {
 
     // Handle postMessage from renderer
     snapPopupWindow.webContents.on('did-finish-load', () => {
-        snapPopupWindow.webContents.executeJavaScript(`
-            window.addEventListener('message', e => {
-                if (e.data && e.data.type === 'snap-select') {
-                    console.log(JSON.stringify(e.data));
-                }
-            });
-        `);
+        if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+            snapPopupWindow.webContents.executeJavaScript(`
+                window.addEventListener('message', e => {
+                    if (e.data && e.data.type === 'snap-select') {
+                        console.log(JSON.stringify(e.data));
+                    }
+                });
+            `);
+        }
     });
 
     // Auto-close after 5 seconds
@@ -1613,7 +1617,7 @@ async function checkSnapLayoutTrigger(snapshot) {
 
             log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
 
-            if (isMatch && !isNaN(y) && y < 100) {
+            if (isMatch && !isNaN(y) && y > 20 && y < 100) {
                 // Window is near top edge - show snap layouts
                 lastSnapSuggestXid = activeXidHex;
                 lastSnapSuggestTime = now;

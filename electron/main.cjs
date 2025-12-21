@@ -1497,7 +1497,6 @@ function showSnapLayoutsPopup(xidHex) {
         <div class="hint">Drag window here and release</div>
         <script>
             const options = document.querySelectorAll('.option');
-            const popupRect = { x: window.screenX, y: window.screenY };
             
             // Click to select (for non-drag usage)
             options.forEach(opt => {
@@ -1510,9 +1509,13 @@ function showSnapLayoutsPopup(xidHex) {
             
             // Called from main process with screen coordinates during drag
             function highlightAtScreenPos(screenX, screenY) {
-                // Convert screen coords to relative coords
-                const relX = screenX - popupRect.x;
-                const relY = screenY - popupRect.y;
+                // Read window position dynamically (was stale when captured at load)
+                const winX = window.screenX || 0;
+                const winY = window.screenY || 0;
+                
+                // Convert screen coords to window-relative coords
+                const relX = screenX - winX;
+                const relY = screenY - winY;
                 
                 // Find which option the mouse is over
                 let foundOpt = null;
@@ -1524,8 +1527,9 @@ function showSnapLayoutsPopup(xidHex) {
                     }
                 });
                 
-                // Update active state
+                // Always clear all active states first
                 options.forEach(opt => opt.classList.remove('active'));
+                // Then add to found option (if any)
                 if (foundOpt) {
                     foundOpt.classList.add('active');
                 }

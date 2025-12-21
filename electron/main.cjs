@@ -1723,16 +1723,19 @@ function handleSnapDetectorEvent(event) {
                     mouseY >= popupBounds.y && mouseY <= popupBounds.y + popupBounds.height) {
 
                     // Calculate which option based on mouse position
-                    // Popup layout: 7 options in a single row, plus hint text
-                    // Options start ~15px from left edge, each option ~65px wide (55px + 10px gap)
+                    // Popup layout: 7 options in a single row, centered via flexbox
+                    // Popup width = 560px, total options width = 7 * 65px = 455px
+                    // Centered offset = (560 - 455) / 2 ≈ 52px
                     const relX = mouseX - popupBounds.x;
                     const relY = mouseY - popupBounds.y;
 
                     // Options are in a row, check if mouse is in the option area (y: ~40-100px)
                     if (relY >= 30 && relY <= 110) {
                         // Calculate which option (0-6)
-                        const optionStartX = 15;  // Padding
+                        const popupContentWidth = popupBounds.width - 30; // Account for body padding (15px each side)
                         const optionWidth = 65;   // 55px button + 10px gap
+                        const totalOptionsWidth = 7 * optionWidth - 10; // 7 options, minus last gap
+                        const optionStartX = 15 + (popupContentWidth - totalOptionsWidth) / 2; // Centered
                         const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
 
                         const modes = ['left', 'topleft', 'bottomleft', 'maximize', 'topright', 'bottomright', 'right'];

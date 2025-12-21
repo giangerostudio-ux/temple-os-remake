@@ -1171,6 +1171,18 @@ ipcMain.handle('input-wake-up', async () => {
             setTimeout(() => { if (mainWindow) mainWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' }); }, 50);
         } catch (e) { }
 
+        // 3.6. OS-LEVEL FORCE (Linux/X11)
+        // Reproduce manual fix: "Tab" + "CapsLock".
+        if (process.platform === 'linux') {
+            if (mainWindowXid) {
+                exec(`wmctrl -i -a ${mainWindowXid}`, (e) => { if (e) console.warn('[IPC] wmctrl failed:', e.message); });
+            }
+            exec('xdotool key Tab Caps_Lock Caps_Lock', (e) => {
+                if (e) console.warn('[IPC] xdotool failed:', e.message);
+                else console.log('[IPC] xdotool injection success');
+            });
+        }
+
         // 4. Wait a moment for WM to comply
         await new Promise(resolve => setTimeout(resolve, 100));
 

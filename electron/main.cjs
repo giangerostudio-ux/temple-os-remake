@@ -1735,7 +1735,7 @@ function handleSnapDetectorEvent(event) {
                         const optionWidth = 65;   // 55px button + 10px gap
                         const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
 
-                        const modes = ['maximize', 'left', 'right', 'topleft', 'topright', 'bottomleft', 'bottomright'];
+                        const modes = ['left', 'topleft', 'bottomleft', 'maximize', 'topright', 'bottomright', 'right'];
                         if (optionIndex >= 0 && optionIndex < modes.length) {
                             const selectedMode = modes[optionIndex];
                             console.log(`[SnapDetector] Released on popup option: ${selectedMode}`);

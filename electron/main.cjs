@@ -1461,10 +1461,7 @@ function showSnapLayoutsPopup(xidHex) {
                 background: rgba(0,255,65,0.08);
             }
             .option:hover, .option.active { 
-                background: rgba(0,255,65,0.4); 
-                transform: scale(1.12);
-                border-color: #00ff88;
-                box-shadow: 0 0 15px rgba(0,255,65,0.5);
+                background: rgba(0,255,65,0.15); 
             }
             .option .preview { width: 90%; height: 85%; border-radius: 3px; }
             .full { background: #00ff41; }
@@ -1496,56 +1493,14 @@ function showSnapLayoutsPopup(xidHex) {
         </div>
         <div class="hint">Drag window here and release, or click</div>
         <script>
-            let activeZone = null;
             const options = document.querySelectorAll('.option');
             
-            // Track which zone mouse is over - works for both drag and hover
-            function updateActiveZone(e) {
-                let found = null;
-                options.forEach(opt => {
-                    const rect = opt.getBoundingClientRect();
-                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                        found = opt.dataset.mode;
-                        opt.classList.add('active');
-                    } else {
-                        opt.classList.remove('active');
-                    }
-                });
-                activeZone = found;
-            }
-            
-            // Mouse enter/leave for hover state
+            // Click to select (for non-drag usage)
             options.forEach(opt => {
-                opt.addEventListener('mouseenter', () => {
-                    activeZone = opt.dataset.mode;
-                    options.forEach(o => o.classList.remove('active'));
-                    opt.classList.add('active');
-                });
-                opt.addEventListener('mouseleave', () => {
-                    if (activeZone === opt.dataset.mode) activeZone = null;
-                    opt.classList.remove('active');
-                });
-                // Click also works
                 opt.addEventListener('click', () => {
                     if (opt.dataset.mode) {
                         window.postMessage({ type: 'snap-select', mode: opt.dataset.mode }, '*');
                     }
-                });
-            });
-            
-            // Track mouse movement for drag detection
-            document.addEventListener('mousemove', updateActiveZone);
-            
-            // When mouse button is released, apply the active zone
-            document.addEventListener('mouseup', (e) => {
-                updateActiveZone(e);  // Final position check
-                if (activeZone) {
-                    window.postMessage({ type: 'snap-select', mode: activeZone }, '*');
-                } else {
-                    // Released outside any option - close popup
-                    window.close();
-                }
             });
             
             // Escape to close

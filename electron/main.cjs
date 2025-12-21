@@ -1405,8 +1405,8 @@ function showSnapLayoutsPopup(xidHex) {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth } = primaryDisplay.workAreaSize;
 
-    const popupWidth = 500;   // Wide enough for all buttons
-    const popupHeight = 180;  // Tall enough for buttons + hint text (no scrollbar)
+    const popupWidth = 560;   // Wide enough for all buttons (increased from 500)
+    const popupHeight = 130;  // Reduced height (was 180) to fit better
     const popupX = Math.round((screenWidth - popupWidth) / 2);
     const popupY = 40; // Below the very top so user can see it while dragging
 
@@ -1445,9 +1445,10 @@ function showSnapLayoutsPopup(xidHex) {
                 text-align: center;
                 user-select: none;
                 -webkit-app-region: no-drag;
+                overflow: hidden; /* Prevent scrollbars */
             }
             .title { font-size: 13px; margin-bottom: 12px; opacity: 0.9; font-weight: 500; }
-            .grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+            .grid { display: flex; gap: 10px; justify-content: center; flex-wrap: nowrap; } /* Force single row */
             .option {
                 width: 55px; height: 40px;
                 border: 2px solid #00ff41;
@@ -1482,13 +1483,16 @@ function showSnapLayoutsPopup(xidHex) {
         <div class="close" onclick="window.close()">×</div>
         <div class="title">Choose Snap Layout</div>
         <div class="grid">
-            <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
+            <!-- Order adjusted: Left group, then Maximize (center), then Right group -->
             <div class="option" data-mode="left" title="Left Half"><div class="preview left"></div></div>
-            <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
             <div class="option" data-mode="topleft" title="Top-Left Quarter"><div class="preview tl"></div></div>
-            <div class="option" data-mode="topright" title="Top-Right Quarter"><div class="preview tr"></div></div>
             <div class="option" data-mode="bottomleft" title="Bottom-Left Quarter"><div class="preview bl"></div></div>
+            
+            <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
+            
+            <div class="option" data-mode="topright" title="Top-Right Quarter"><div class="preview tr"></div></div>
             <div class="option" data-mode="bottomright" title="Bottom-Right Quarter"><div class="preview br"></div></div>
+            <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
         </div>
         <div class="hint">Drag window here and release, or click</div>
         <script>
@@ -2257,6 +2261,19 @@ html, body {
     color: #ff6464; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s ease;
 }
 .sm-power-btn:hover { background: rgba(255, 100, 100, 0.2); border-color: #ff6464; }
+
+.sm-context-menu {
+    position: fixed; z-index: 1000; background: rgba(13, 17, 23, 0.98);
+    border: 1px solid #00ff41; border-radius: 6px; padding: 5px 0;
+    min-width: 180px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    display: none; flex-direction: column;
+}
+.sm-ctx-item {
+    padding: 8px 15px; cursor: pointer; color: #c9d1d9; font-size: 14px;
+    display: flex; align-items: center; gap: 8px; transition: all 0.1s;
+}
+.sm-ctx-item:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
+.sm-ctx-divider { height: 1px; background: rgba(0, 255, 65, 0.2); margin: 4px 0; }
 </style></head>
 <body>
 <div class="sm-container">
@@ -2310,6 +2327,7 @@ html, body {
         </div>
     </div>
 </div>
+<div id="sm-ctx-menu" class="sm-context-menu"></div>
 <script>
 const searchInput = document.querySelector('.sm-search-input');
 const catSelect = document.getElementById('sm-cat-select');
@@ -2357,20 +2375,66 @@ document.body.addEventListener('click', (e) => {
     }
 });
 
-// Right-click context menu for apps
+// Internal Context Menu Logic
+const pinnedStartKeys = ${JSON.stringify(config.pinnedApps ? config.pinnedApps.map(a => a.key) : [])};
+const pinnedTaskbarKeys = ${JSON.stringify(config.pinnedTaskbar || [])};
+const ctxMenu = document.getElementById('sm-ctx-menu');
+
+document.addEventListener('click', (e) => {
+    // Hide context menu on any click (unless clicking inside it, but clicking logic usually handles actions)
+    if (ctxMenu) ctxMenu.style.display = 'none';
+});
+
 document.body.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const app = e.target.closest('.sm-app');
     if (app && app.dataset.key) {
-        // Get the position relative to the screen for the context menu
-        window.__startMenuAction = {
-            type: 'contextmenu',
-            key: app.dataset.key,
-            x: e.screenX,
-            y: e.screenY
-        };
+        const key = app.dataset.key;
+        const isPinnedStart = pinnedStartKeys.includes(key);
+        const isPinnedTaskbar = pinnedTaskbarKeys.includes(key);
+        const onDesktop = false; // We don't track desktop status easily here yet, default to false (add only) or generic
+
+        const actions = [
+            { label: '🚀 Open', action: 'launch' },
+            { divider: true },
+            { label: isPinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: isPinnedStart ? 'unpin-start' : 'pin-start' },
+            { label: isPinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: isPinnedTaskbar ? 'unpin-taskbar' : 'pin-taskbar' },
+            { label: '➕ Add to Desktop', action: 'add-desktop' },
+            { divider: true },
+            { label: '❌ Uninstall', action: 'uninstall' }
+        ];
+
+        ctxMenu.innerHTML = actions.map(act => {
+            if (act.divider) return '<div class="sm-ctx-divider"></div>';
+            return \`<div class="sm-ctx-item" onclick="emitAppAction('\${act.action}', '\${key}')">\${act.label}</div>\`;
+        }).join('');
+
+        // Ensure menu doesn't go off screen
+        let x = e.clientX;
+        let y = e.clientY;
+        const w = 200; // approx width
+        const h = actions.length * 35; // approx height
+        
+        if (x + w > window.innerWidth) x = window.innerWidth - w - 10;
+        if (y + h > window.innerHeight) y = window.innerHeight - h - 10;
+
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top = y + 'px';
+        ctxMenu.style.display = 'flex';
     }
 });
+
+function emitAppAction(type, key) {
+    if (type === 'launch') {
+        window.__startMenuAction = { type: 'launch', key };
+    } else {
+        // For pin/unpin etc, we just emit the action. 
+        // Code in main.ts should handle these without closing popup (except Launch/Uninstall)
+        window.__startMenuAction = { type, key };
+    }
+    // Context menu will hide due to document click listener propagation or implicit blur
+}
+
 
 function emitAction(type) {
     window.__startMenuAction = { type };

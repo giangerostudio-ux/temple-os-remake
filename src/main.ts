@@ -188,6 +188,7 @@ declare global {
         taskbarHeight: number;
         taskbarPosition: 'top' | 'bottom';
         pinnedApps: Array<{ key: string; icon: string; name: string }>;
+        pinnedTaskbar: string[];
         installedApps: Array<{ key: string; name: string; icon?: string; iconUrl?: string; comment?: string }>;
         logoUrl?: string;
       }) => Promise<{ success: boolean; error?: string }>;
@@ -973,6 +974,27 @@ class TempleOS {
 
         if (action.type === 'launch' && action.key) {
           this.launchByKey(action.key);
+        } else if (action.type === 'pin-start' && action.key) {
+          this.pinStart(action.key);
+          this.render();
+        } else if (action.type === 'unpin-start' && action.key) {
+          this.unpinStart(action.key);
+          this.render();
+        } else if (action.type === 'pin-taskbar' && action.key) {
+          this.pinTaskbar(action.key);
+          this.render();
+        } else if (action.type === 'unpin-taskbar' && action.key) {
+          this.unpinTaskbar(action.key);
+          this.render();
+        } else if (action.type === 'add-desktop' && action.key) {
+          this.addDesktopShortcut(action.key);
+        } else if (action.type === 'remove-desktop' && action.key) {
+          this.removeDesktopShortcut(action.key);
+        } else if (action.type === 'uninstall' && action.key) {
+          // Close for uninstall
+          window.electronAPI?.hideStartMenuPopup?.();
+          const app = this.findInstalledAppByKey(action.key);
+          if (app) this.uninstallApp(app);
         } else if (action.type === 'contextmenu' && action.key) {
           // Right-click context menu from popup - close popup first then show context menu
           window.electronAPI?.hideStartMenuPopup?.();
@@ -3265,6 +3287,7 @@ class TempleOS {
           taskbarHeight: 58,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
+          pinnedTaskbar: this.pinnedTaskbar,
           installedApps,
           logoUrl: logoBase64,
         });

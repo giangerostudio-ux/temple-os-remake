@@ -1689,10 +1689,10 @@ class TempleOS {
     if (window.electronAPI?.inputWakeUp) {
       setTimeout(() => {
         console.log('[BOOT] Requesting Hard Focus Reset (Minimize/Restore cycle)...');
-        // We do this late enough (6.0s) so it happens AFTER the boot animation (5.5s)
-        // ensures the desktop is fully visible and the overlay is gone.
+        // We do this EARLY (100ms) to fix input *before* the desktop renders.
+        // The fix (OS-level key injection) works even if the boot overlay is visible.
         window.electronAPI!.inputWakeUp().catch((err: any) => console.error('Hard Focus failed:', err));
-      }, 6000);
+      }, 100);
     }
   }
 

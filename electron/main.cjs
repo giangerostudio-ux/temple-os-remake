@@ -1432,7 +1432,7 @@ function showSnapLayoutsPopup(xidHex) {
     const { width: screenWidth } = primaryDisplay.workAreaSize;
 
     const popupWidth = 560;   // Wide enough for all buttons (increased from 500)
-    const popupHeight = 130;  // Reduced height (was 180) to fit better
+    const popupHeight = 145;  // Adjusted height to fit content within border
     const popupX = Math.round((screenWidth - popupWidth) / 2);
     const popupY = 40; // Below the very top so user can see it while dragging
 
@@ -1466,7 +1466,7 @@ function showSnapLayoutsPopup(xidHex) {
                 background: rgba(15, 25, 20, 0.98);
                 border: 2px solid #00ff41;
                 border-radius: 12px;
-                padding: 15px;
+                padding: 12px;
                 color: #00ff41;
                 text-align: center;
                 user-select: none;
@@ -1758,10 +1758,10 @@ function handleSnapDetectorEvent(event) {
                     // Options are in a row, check if mouse is in the option area (y: ~40-100px)
                     if (relY >= 30 && relY <= 110) {
                         // Calculate which option (0-6)
-                        const popupContentWidth = popupBounds.width - 30; // Account for body padding (15px each side)
+                        const popupContentWidth = popupBounds.width - 24; // Account for body padding (12px each side)
                         const optionWidth = 65;   // 55px button + 10px gap
                         const totalOptionsWidth = 7 * optionWidth - 10; // 7 options, minus last gap
-                        const optionStartX = 15 + (popupContentWidth - totalOptionsWidth) / 2; // Centered
+                        const optionStartX = 12 + (popupContentWidth - totalOptionsWidth) / 2; // Centered
                         const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
 
                         const modes = ['left', 'topleft', 'bottomleft', 'maximize', 'topright', 'bottomright', 'right'];

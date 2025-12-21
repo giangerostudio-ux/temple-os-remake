@@ -1392,7 +1392,7 @@ async function checkSnapLayoutTrigger(snapshot) {
 
     // Throttle: don't suggest for same window within 3 seconds
     const now = Date.now();
-    if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 3000) return;
+    if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 1000) return;
 
     try {
         // Get window geometry using wmctrl -lG

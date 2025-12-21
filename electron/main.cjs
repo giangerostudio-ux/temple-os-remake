@@ -1424,7 +1424,7 @@ async function checkSnapLayoutTrigger(snapshot) {
 
             log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
 
-            if (isMatch && !isNaN(y) && y < 50) {
+            if (isMatch && !isNaN(y) && y < 100) {
                 // Window is near top edge - show snap layouts
                 lastSnapSuggestXid = activeXidHex;
                 lastSnapSuggestTime = now;

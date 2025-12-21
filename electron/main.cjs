@@ -1165,11 +1165,8 @@ ipcMain.handle('input-wake-up', async () => {
         mainWindow.show();
         mainWindow.focus();
 
-        // 3.5. SYNTHETIC INPUT (Simulate Tab)
-        try {
-            mainWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
-            setTimeout(() => { if (mainWindow) mainWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' }); }, 50);
-        } catch (e) { }
+        // NOTE: Synthetic Tab removed - it causes visible focus ring highlighting.
+        // The OS-level xdotool approach below is cleaner and invisible.
 
         // 3.6. OS-LEVEL FORCE (Linux/X11)
         // Use xdotool windowfocus/windowactivate + mouse click for clean focus recovery.

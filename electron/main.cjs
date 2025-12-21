@@ -1601,9 +1601,7 @@ async function checkSnapLayoutTrigger(snapshot) {
         return;
     }
 
-    // Throttle: don't suggest for same window within 3 seconds
     const now = Date.now();
-    if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 1000) return;
 
     try {
         // Get window geometry using wmctrl -lG
@@ -1636,50 +1634,51 @@ async function checkSnapLayoutTrigger(snapshot) {
             log(`[X11 Snap Layouts] Window: ${wmctrlXid} Y=${y} isMatch=${isMatch} Title: ${title.substring(0, 30)}`);
 
             if (isMatch) {
-                // Track this window's position for movement detection
-                const prev = windowPrevPositions.get(wmctrlXid);
                 const isInTriggerZone = !isNaN(y) && y > 20 && y < 100;
-                const wasOutsideTriggerZone = !prev || prev.y <= 20 || prev.y >= 100;
-                const positionChanged = prev && Math.abs(prev.y - y) > 5;
 
-                // Update tracking
-                windowPrevPositions.set(wmctrlXid, { y, time: now });
-
-                // Only trigger if:
-                // 1. Window is in trigger zone (20 < Y < 100)
-                // 2. AND window either just entered the zone OR is actively moving
-                if (isInTriggerZone && (wasOutsideTriggerZone || positionChanged)) {
-                    // Check if mouse button is being held (user is dragging)
-                    try {
-                        const { stdout: mouseInfo } = await execPromise('xdotool getmouselocation --shell 2>/dev/null');
-                        const buttonsMatch = mouseInfo.match(/BUTTON1=(\d+)/);
-                        const button1Pressed = buttonsMatch && buttonsMatch[1] === '1';
-
-                        if (!button1Pressed) {
-                            log(`[X11 Snap Layouts] In zone but mouse not held, skipping`);
-                            return;
-                        }
-                    } catch (mouseErr) {
-                        // If xdotool fails, proceed anyway
-                        log(`[X11 Snap Layouts] xdotool check failed: ${mouseErr.message}`);
-                    }
-
-                    lastSnapSuggestXid = activeXidHex;
-                    lastSnapSuggestTime = now;
-
-                    log(`[X11 Snap Layouts] *** TRIGGER! Y=${y}, wasOutside=${wasOutsideTriggerZone}, moved=${positionChanged}`);
-                    showSnapLayoutsPopup(activeXidHex);
-                    return;
-                } else if (isInTriggerZone) {
-                    log(`[X11 Snap Layouts] In zone but not moving (Y=${y}, prev=${prev?.y})`);
+                if (!isInTriggerZone) {
+                    log(`[X11 Snap Layouts] Not in trigger zone (Y=${y})`);
+                    continue;
                 }
+
+                // Check if mouse button 1 is being held (user is dragging)
+                let mouseButtonHeld = false;
+                try {
+                    const { stdout: mouseInfo } = await execPromise('xdotool getmouselocation 2>/dev/null');
+                    // xdotool outputs like: x:123 y:456 screen:0 window:123456 buttons:1
+                    // "buttons:1" means button 1 is held
+                    mouseButtonHeld = mouseInfo.includes('buttons:1') || mouseInfo.includes('BUTTONS=1') || mouseInfo.includes('button1');
+                    log(`[X11 Snap Layouts] Mouse info: ${mouseInfo.trim().substring(0, 80)}, held=${mouseButtonHeld}`);
+                } catch (mouseErr) {
+                    log(`[X11 Snap Layouts] xdotool failed: ${mouseErr.message}, skipping trigger`);
+                    return; // Don't trigger if we can't verify drag
+                }
+
+                if (!mouseButtonHeld) {
+                    log(`[X11 Snap Layouts] In zone (Y=${y}) but mouse not held, skipping`);
+                    return;
+                }
+
+                // Throttle: 15 seconds for same window to prevent spam
+                if (lastSnapSuggestXid === activeXidHex && now - lastSnapSuggestTime < 15000) {
+                    log(`[X11 Snap Layouts] Throttled (${Math.round((now - lastSnapSuggestTime) / 1000)}s since last)`);
+                    return;
+                }
+
+                lastSnapSuggestXid = activeXidHex;
+                lastSnapSuggestTime = now;
+
+                log(`[X11 Snap Layouts] *** TRIGGER! Y=${y}, mouse held, showing popup`);
+                showSnapLayoutsPopup(activeXidHex);
+                return;
             }
         }
-        log('[X11 Snap Layouts] No window near top edge or XID not found');
+        log('[X11 Snap Layouts] No matching window in trigger zone');
     } catch (e) {
-        log(`[X11 Snap Layouts] wmctrl error: ${e.message}`);
+        log(`[X11 Snap Layouts] Error: ${e.message}`);
     }
 }
+
 
 
 

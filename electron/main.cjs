@@ -1473,28 +1473,44 @@ function showSnapLayoutsPopup(xidHex) {
             <div class="option" data-mode="bottomright" title="Bottom-Right"><div class="preview br"></div></div>
         </div>
         <script>
-            // Handle both click and mouseup (for drag-drop scenario)
+            let activeZone = null;
+
+            // Track which zone mouse is over
             document.querySelectorAll('.option').forEach(opt => {
-                const selectMode = () => {
-                    const mode = opt.dataset.mode;
-                    if (mode) {
-                        window.postMessage({ type: 'snap-select', mode }, '*');
+                opt.addEventListener('mouseenter', () => {
+                    activeZone = opt.dataset.mode;
+                    opt.style.background = 'rgba(0,255,65,0.5)';
+                    opt.style.transform = 'scale(1.15)';
+                });
+                opt.addEventListener('mouseleave', () => {
+                    if (activeZone === opt.dataset.mode) activeZone = null;
+                    opt.style.background = '';
+                    opt.style.transform = '';
+                });
+                // Click also works
+                opt.addEventListener('click', () => {
+                    if (opt.dataset.mode) {
+                        window.postMessage({ type: 'snap-select', mode: opt.dataset.mode }, '*');
                     }
-                };
-                opt.addEventListener('click', selectMode);
-                opt.addEventListener('mouseup', selectMode);
+                });
             });
-            // Listen for escape to close
-            document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
-            // Close on any mouseup outside options (user dropped window elsewhere)
-            document.body.addEventListener('mouseup', e => {
-                if (!e.target.closest('.option')) {
+
+            // When mouse button is released anywhere, check if over a zone
+            document.addEventListener('mouseup', () => {
+                if (activeZone) {
+                    window.postMessage({ type: 'snap-select', mode: activeZone }, '*');
+                } else {
+                    // Dropped outside any zone - close popup
                     window.close();
                 }
             });
+
+            // Escape to close
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
         </script>
     </body>
     </html>`;
+
 
     snapPopupWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 
@@ -1537,21 +1553,14 @@ function showSnapLayoutsPopup(xidHex) {
         }
     });
 
-    // Auto-close after 5 seconds
+    // Auto-close after 8 seconds (give user time to drag)
     setTimeout(() => {
         if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
             snapPopupWindow.close();
         }
-    }, 5000);
+    }, 8000);
 
-    // Close on blur
-    snapPopupWindow.on('blur', () => {
-        setTimeout(() => {
-            if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
-                snapPopupWindow.close();
-            }
-        }, 100);
-    });
+    // Don't close on blur - user might be dragging and mouse leaves popup temporarily
 
     snapPopupWindow.on('closed', () => {
         snapPopupWindow = null;
@@ -1640,6 +1649,21 @@ async function checkSnapLayoutTrigger(snapshot) {
                 // 1. Window is in trigger zone (20 < Y < 100)
                 // 2. AND window either just entered the zone OR is actively moving
                 if (isInTriggerZone && (wasOutsideTriggerZone || positionChanged)) {
+                    // Check if mouse button is being held (user is dragging)
+                    try {
+                        const { stdout: mouseInfo } = await execPromise('xdotool getmouselocation --shell 2>/dev/null');
+                        const buttonsMatch = mouseInfo.match(/BUTTON1=(\d+)/);
+                        const button1Pressed = buttonsMatch && buttonsMatch[1] === '1';
+
+                        if (!button1Pressed) {
+                            log(`[X11 Snap Layouts] In zone but mouse not held, skipping`);
+                            return;
+                        }
+                    } catch (mouseErr) {
+                        // If xdotool fails, proceed anyway
+                        log(`[X11 Snap Layouts] xdotool check failed: ${mouseErr.message}`);
+                    }
+
                     lastSnapSuggestXid = activeXidHex;
                     lastSnapSuggestTime = now;
 

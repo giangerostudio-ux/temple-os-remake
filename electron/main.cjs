@@ -1461,7 +1461,10 @@ function showSnapLayoutsPopup(xidHex) {
                 background: rgba(0,255,65,0.08);
             }
             .option:hover, .option.active { 
-                background: rgba(0,255,65,0.15); 
+                background: rgba(0,255,65,0.4); 
+                transform: scale(1.12);
+                border-color: #00ff88;
+                box-shadow: 0 0 15px rgba(0,255,65,0.5);
             }
             .option .preview { width: 90%; height: 85%; border-radius: 3px; }
             .full { background: #00ff41; }
@@ -1494,6 +1497,7 @@ function showSnapLayoutsPopup(xidHex) {
         <div class="hint">Drag window here and release, or click</div>
         <script>
             const options = document.querySelectorAll('.option');
+            const popupRect = { x: window.screenX, y: window.screenY };
             
             // Click to select (for non-drag usage)
             options.forEach(opt => {
@@ -1501,7 +1505,31 @@ function showSnapLayoutsPopup(xidHex) {
                     if (opt.dataset.mode) {
                         window.postMessage({ type: 'snap-select', mode: opt.dataset.mode }, '*');
                     }
+                });
             });
+            
+            // Called from main process with screen coordinates during drag
+            function highlightAtScreenPos(screenX, screenY) {
+                // Convert screen coords to relative coords
+                const relX = screenX - popupRect.x;
+                const relY = screenY - popupRect.y;
+                
+                // Find which option the mouse is over
+                let foundOpt = null;
+                options.forEach(opt => {
+                    const rect = opt.getBoundingClientRect();
+                    if (relX >= rect.left && relX <= rect.right &&
+                        relY >= rect.top && relY <= rect.bottom) {
+                        foundOpt = opt;
+                    }
+                });
+                
+                // Update active state
+                options.forEach(opt => opt.classList.remove('active'));
+                if (foundOpt) {
+                    foundOpt.classList.add('active');
+                }
+            }
             
             // Escape to close
             document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
@@ -1660,6 +1688,19 @@ function handleSnapDetectorEvent(event) {
         case 'zone_leave':
             console.log('[SnapDetector] Zone leave');
             closeSnapPreview();
+            break;
+
+        case 'drag_position':
+            // Real-time mouse position while dragging in top zone
+            // Forward to popup for hover highlighting
+            if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
+                const px = event.x;
+                const py = event.y;
+                // Execute JS directly in popup to update highlight
+                snapPopupWindow.webContents.executeJavaScript(
+                    `if (typeof highlightAtScreenPos === 'function') highlightAtScreenPos(${px}, ${py});`
+                ).catch(() => { }); // Ignore errors if popup closed
+            }
             break;
 
         case 'snap_apply':

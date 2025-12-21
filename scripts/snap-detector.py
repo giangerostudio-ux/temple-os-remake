@@ -223,6 +223,15 @@ class SnapDetector:
                             'xid': hex(self.drag_xid) if self.drag_xid else None
                         })
                         self.log(f"Zone activated: {zone}")
+                
+                # Stream mouse position while in activated top zone (for popup highlighting)
+                if zone == 'top' and self.zone_activated:
+                    self.emit({
+                        'event': 'drag_position',
+                        'x': x,
+                        'y': y,
+                        'xid': hex(self.drag_xid) if self.drag_xid else None
+                    })
             
             # === BUTTON RELEASED ===
             elif self.is_dragging:

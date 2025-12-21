@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-X11 Snap Layout Detector - Windows 11 Style
-============================================
+X11 Snap Layout Detector - Windows 11 Style (v2)
+=================================================
 Polls XQueryPointer to detect drag-to-edge gestures in real-time.
 Works even during window manager grabs (Openbox, etc.)
+
+v2 Changes:
+- Increased top trigger zone (120px)
+- Removed debounce for top zone (immediate response)
+- Fixed corner/top zone priority conflict
+- Better state machine for consistent detection
 
 Usage:
     python3 snap-detector.py --protected 0x1a00003 0x1b00004
@@ -27,12 +33,12 @@ except ImportError:
     print('{"event": "error", "message": "python3-xlib not installed. Run: sudo apt install python3-xlib"}', flush=True)
     sys.exit(1)
 
-# Configuration
-POLL_INTERVAL_MS = 40        # 40ms = 25fps, responsive enough for smooth UX
-TOP_TRIGGER_ZONE = 80        # pixels from top for snap layouts menu
-EDGE_TRIGGER_ZONE = 30       # pixels from left/right edge for direct snap
-CORNER_TRIGGER_ZONE = 60     # pixels from corner for quadrant snap
-DEBOUNCE_MS = 150            # delay before registering zone entry (prevents flicker)
+# Configuration - TUNED FOR RESPONSIVENESS
+POLL_INTERVAL_MS = 30        # 30ms = ~33fps for snappy response
+TOP_TRIGGER_ZONE = 120       # LARGE zone for top (snap layouts menu) - 120px
+EDGE_TRIGGER_ZONE = 40       # pixels from left/right edge for direct snap
+CORNER_TRIGGER_ZONE = 80     # pixels from corner for quadrant snap (but NOT at very top)
+DEBOUNCE_MS = 80             # shorter debounce for quicker response
 
 # Button masks (from X11)
 Button1Mask = 1 << 8  # Left mouse button (256)
@@ -60,6 +66,7 @@ class SnapDetector:
         self.is_dragging = False
         self.current_zone = None
         self.zone_enter_time = 0
+        self.zone_emitted = False  # Track if we've emitted zone_enter for current zone
         self.last_xid = None
         self.running = True
         
@@ -95,24 +102,31 @@ class SnapDetector:
     
     def get_zone(self, x, y):
         """Determine which snap zone the mouse coordinates are in"""
-        # Corners first (they have priority over edges)
-        if y < CORNER_TRIGGER_ZONE:
+        
+        # TOP ZONE HAS HIGHEST PRIORITY (for snap layouts menu)
+        # This ensures dragging to top always shows the layouts menu
+        if y < TOP_TRIGGER_ZONE:
+            # Only check corners if we're in the corner area
+            # But top edge takes priority in the very top 50px
+            if y < 50:
+                return 'top'  # Very top - always snap layouts menu
+            
+            # In the 50-120px range, corners can take over
             if x < CORNER_TRIGGER_ZONE:
                 return 'topleft'
             elif x > self.screen_width - CORNER_TRIGGER_ZONE:
                 return 'topright'
+            else:
+                return 'top'  # Middle of top area
         
+        # Bottom corners
         if y > self.screen_height - CORNER_TRIGGER_ZONE:
             if x < CORNER_TRIGGER_ZONE:
                 return 'bottomleft'
             elif x > self.screen_width - CORNER_TRIGGER_ZONE:
                 return 'bottomright'
         
-        # Top edge - triggers the full snap layouts menu (like Windows 11)
-        if y < TOP_TRIGGER_ZONE:
-            return 'top'
-        
-        # Side edges - direct left/right snap
+        # Side edges - only if not in corner zones
         if x < EDGE_TRIGGER_ZONE:
             return 'left'
         elif x > self.screen_width - EDGE_TRIGGER_ZONE:
@@ -152,40 +166,35 @@ class SnapDetector:
                     self.is_dragging = True
                     self.current_zone = None
                     self.zone_enter_time = 0
+                    self.zone_emitted = False
                     self.last_xid = active_xid
+                    self.log(f"Drag started, xid={hex(active_xid)}")
                 
-                # Zone change detection with debounce
+                # Zone change detection
                 if zone != self.current_zone:
+                    # Left old zone
+                    if self.current_zone and self.zone_emitted:
+                        self.emit({'event': 'zone_leave', 'x': x, 'y': y})
+                        self.log(f"Left zone: {self.current_zone}")
+                    
+                    # Enter new zone
+                    self.current_zone = zone
+                    self.zone_enter_time = now
+                    self.zone_emitted = False
+                    
                     if zone:
-                        # Entered a new zone
-                        if self.current_zone is None:
-                            # First zone entry - start debounce timer
-                            self.zone_enter_time = now
-                            self.current_zone = zone
-                        elif (now - self.zone_enter_time) > DEBOUNCE_MS:
-                            # Debounce passed, emit zone enter
-                            self.current_zone = zone
-                            self.zone_enter_time = now
-                            self.emit({
-                                'event': 'zone_enter',
-                                'zone': zone,
-                                'x': x,
-                                'y': y,
-                                'xid': hex(self.last_xid) if self.last_xid else None
-                            })
-                        else:
-                            # Still debouncing, update potential zone
-                            self.current_zone = zone
-                    else:
-                        # Left all zones
-                        if self.current_zone:
-                            self.emit({'event': 'zone_leave', 'x': x, 'y': y})
-                        self.current_zone = None
-                        self.zone_enter_time = 0
-                elif zone and self.current_zone == zone and self.zone_enter_time > 0:
-                    # Still in same zone - check if debounce passed
-                    if (now - self.zone_enter_time) > DEBOUNCE_MS:
-                        # Debounce passed, emit zone enter if not already emitted
+                        self.log(f"Entered zone: {zone} at ({x}, {y})")
+                
+                # Debounce check - emit zone_enter after staying in zone
+                if zone and not self.zone_emitted:
+                    time_in_zone = now - self.zone_enter_time
+                    
+                    # TOP zone gets NO debounce - instant popup
+                    # Other zones get short debounce
+                    debounce_for_zone = 0 if zone == 'top' else DEBOUNCE_MS
+                    
+                    if time_in_zone >= debounce_for_zone:
+                        self.zone_emitted = True
                         self.emit({
                             'event': 'zone_enter',
                             'zone': zone,
@@ -193,34 +202,41 @@ class SnapDetector:
                             'y': y,
                             'xid': hex(self.last_xid) if self.last_xid else None
                         })
-                        self.zone_enter_time = 0  # Clear so we don't emit again
+                        self.log(f"Emitted zone_enter: {zone}")
                         
             elif self.is_dragging:
                 # Button released - drag ended
                 zone = self.current_zone
                 xid = self.last_xid
+                emitted = self.zone_emitted
                 
                 self.is_dragging = False
                 self.current_zone = None
                 self.zone_enter_time = 0
+                self.zone_emitted = False
                 self.last_xid = None
                 
-                if zone:
-                    # Released in a snap zone - apply the snap!
+                if zone and emitted:
+                    # Released in a snap zone that was already active
                     self.emit({
                         'event': 'snap_apply',
                         'zone': zone,
                         'xid': hex(xid) if xid else None
                     })
+                    self.log(f"Snap apply: {zone} to {hex(xid) if xid else 'unknown'}")
                 else:
                     self.emit({'event': 'drag_end'})
+                    self.log("Drag ended (no zone)")
                     
         except Exception as e:
             self.emit({'event': 'error', 'message': str(e)})
+            self.log(f"Error: {e}")
     
     def run(self):
         """Main loop - continuously poll and emit events"""
-        self.log(f"Started. Screen: {self.screen_width}x{self.screen_height}, Protected: {[hex(x) for x in self.protected_xids]}")
+        self.log(f"Started v2. Screen: {self.screen_width}x{self.screen_height}")
+        self.log(f"Top zone: {TOP_TRIGGER_ZONE}px, Edge: {EDGE_TRIGGER_ZONE}px, Corner: {CORNER_TRIGGER_ZONE}px")
+        self.log(f"Protected XIDs: {[hex(x) for x in self.protected_xids]}")
         
         while self.running:
             self.poll()
@@ -232,7 +248,7 @@ class SnapDetector:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='X11 Snap Layout Detector (Windows 11 Style)')
+    parser = argparse.ArgumentParser(description='X11 Snap Layout Detector v2 (Windows 11 Style)')
     parser.add_argument('--protected', nargs='*', default=[], 
                         help='Protected window XIDs that should be ignored (hex, e.g., 0x1a00003)')
     args = parser.parse_args()

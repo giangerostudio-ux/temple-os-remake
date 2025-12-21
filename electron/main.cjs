@@ -1405,10 +1405,10 @@ function showSnapLayoutsPopup(xidHex) {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth } = primaryDisplay.workAreaSize;
 
-    const popupWidth = 360;
-    const popupHeight = 120;
+    const popupWidth = 480;   // Wider to fit larger buttons
+    const popupHeight = 150;  // Taller for bigger options + hint text
     const popupX = Math.round((screenWidth - popupWidth) / 2);
-    const popupY = 20; // Near top of screen
+    const popupY = 30; // Slightly lower from top so user can drop into it
 
     snapPopupWindow = new BrowserWindow({
         width: popupWidth,
@@ -1428,7 +1428,7 @@ function showSnapLayoutsPopup(xidHex) {
         }
     });
 
-    // HTML content for the popup
+    // HTML content for the popup - IMPROVED for drag-and-release
     const html = `
     <!DOCTYPE html>
     <html>
@@ -1437,67 +1437,90 @@ function showSnapLayoutsPopup(xidHex) {
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 font-family: 'Segoe UI', sans-serif;
-                background: rgba(20, 30, 25, 0.95);
+                background: rgba(15, 25, 20, 0.98);
                 border: 2px solid #00ff41;
                 border-radius: 12px;
-                padding: 12px;
+                padding: 15px;
                 color: #00ff41;
                 text-align: center;
                 user-select: none;
                 -webkit-app-region: no-drag;
             }
-            .title { font-size: 12px; margin-bottom: 10px; opacity: 0.8; }
-            .grid { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+            .title { font-size: 13px; margin-bottom: 12px; opacity: 0.9; font-weight: 500; }
+            .grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
             .option {
-                width: 40px; height: 30px;
-                border: 1px solid #00ff41;
-                border-radius: 4px;
+                width: 55px; height: 40px;
+                border: 2px solid #00ff41;
+                border-radius: 6px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                transition: all 0.15s;
-                background: rgba(0,255,65,0.1);
+                transition: all 0.1s ease;
+                background: rgba(0,255,65,0.08);
             }
-            .option:hover { background: rgba(0,255,65,0.3); transform: scale(1.1); }
-            .option .preview { width: 100%; height: 100%; border-radius: 2px; }
+            .option:hover, .option.active { 
+                background: rgba(0,255,65,0.4); 
+                transform: scale(1.12);
+                border-color: #00ff88;
+                box-shadow: 0 0 15px rgba(0,255,65,0.5);
+            }
+            .option .preview { width: 90%; height: 85%; border-radius: 3px; }
             .full { background: #00ff41; }
-            .left { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); }
-            .right { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); }
-            .tl { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); background-size: 100% 50%; background-repeat: no-repeat; }
-            .tr { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); background-size: 100% 50%; background-repeat: no-repeat; }
-            .bl { background: linear-gradient(90deg, #00ff41 50%, transparent 50%); background-size: 100% 50%; background-position: bottom; background-repeat: no-repeat; }
-            .br { background: linear-gradient(90deg, transparent 50%, #00ff41 50%); background-size: 100% 50%; background-position: bottom; background-repeat: no-repeat; }
-            .close { position: absolute; top: 4px; right: 8px; cursor: pointer; font-size: 16px; opacity: 0.6; }
+            .left { background: linear-gradient(90deg, #00ff41 50%, rgba(0,255,65,0.2) 50%); }
+            .right { background: linear-gradient(90deg, rgba(0,255,65,0.2) 50%, #00ff41 50%); }
+            .tl { background: linear-gradient(135deg, #00ff41 50%, rgba(0,255,65,0.15) 50%); background-size: 100% 100%; }
+            .tr { background: linear-gradient(225deg, #00ff41 50%, rgba(0,255,65,0.15) 50%); background-size: 100% 100%; }
+            .bl { background: linear-gradient(45deg, #00ff41 50%, rgba(0,255,65,0.15) 50%); background-size: 100% 100%; }
+            .br { background: linear-gradient(315deg, #00ff41 50%, rgba(0,255,65,0.15) 50%); background-size: 100% 100%; }
+            .close { position: absolute; top: 6px; right: 10px; cursor: pointer; font-size: 18px; opacity: 0.6; }
             .close:hover { opacity: 1; }
+            .hint { font-size: 10px; margin-top: 10px; opacity: 0.6; }
         </style>
     </head>
     <body>
         <div class="close" onclick="window.close()">×</div>
-        <div class="title">Snap Layout for Window</div>
+        <div class="title">Choose Snap Layout</div>
         <div class="grid">
             <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
-            <div class="option" data-mode="left" title="Left"><div class="preview left"></div></div>
-            <div class="option" data-mode="right" title="Right"><div class="preview right"></div></div>
-            <div class="option" data-mode="topleft" title="Top-Left"><div class="preview tl"></div></div>
-            <div class="option" data-mode="topright" title="Top-Right"><div class="preview tr"></div></div>
-            <div class="option" data-mode="bottomleft" title="Bottom-Left"><div class="preview bl"></div></div>
-            <div class="option" data-mode="bottomright" title="Bottom-Right"><div class="preview br"></div></div>
+            <div class="option" data-mode="left" title="Left Half"><div class="preview left"></div></div>
+            <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
+            <div class="option" data-mode="topleft" title="Top-Left Quarter"><div class="preview tl"></div></div>
+            <div class="option" data-mode="topright" title="Top-Right Quarter"><div class="preview tr"></div></div>
+            <div class="option" data-mode="bottomleft" title="Bottom-Left Quarter"><div class="preview bl"></div></div>
+            <div class="option" data-mode="bottomright" title="Bottom-Right Quarter"><div class="preview br"></div></div>
         </div>
+        <div class="hint">Drag window here and release, or click</div>
         <script>
             let activeZone = null;
-
-            // Track which zone mouse is over
-            document.querySelectorAll('.option').forEach(opt => {
+            const options = document.querySelectorAll('.option');
+            
+            // Track which zone mouse is over - works for both drag and hover
+            function updateActiveZone(e) {
+                let found = null;
+                options.forEach(opt => {
+                    const rect = opt.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        found = opt.dataset.mode;
+                        opt.classList.add('active');
+                    } else {
+                        opt.classList.remove('active');
+                    }
+                });
+                activeZone = found;
+            }
+            
+            // Mouse enter/leave for hover state
+            options.forEach(opt => {
                 opt.addEventListener('mouseenter', () => {
                     activeZone = opt.dataset.mode;
-                    opt.style.background = 'rgba(0,255,65,0.5)';
-                    opt.style.transform = 'scale(1.15)';
+                    options.forEach(o => o.classList.remove('active'));
+                    opt.classList.add('active');
                 });
                 opt.addEventListener('mouseleave', () => {
                     if (activeZone === opt.dataset.mode) activeZone = null;
-                    opt.style.background = '';
-                    opt.style.transform = '';
+                    opt.classList.remove('active');
                 });
                 // Click also works
                 opt.addEventListener('click', () => {
@@ -1506,17 +1529,21 @@ function showSnapLayoutsPopup(xidHex) {
                     }
                 });
             });
-
-            // When mouse button is released anywhere, check if over a zone
-            document.addEventListener('mouseup', () => {
+            
+            // Track mouse movement for drag detection
+            document.addEventListener('mousemove', updateActiveZone);
+            
+            // When mouse button is released, apply the active zone
+            document.addEventListener('mouseup', (e) => {
+                updateActiveZone(e);  // Final position check
                 if (activeZone) {
                     window.postMessage({ type: 'snap-select', mode: activeZone }, '*');
                 } else {
-                    // Dropped outside any zone - close popup
+                    // Released outside any option - close popup
                     window.close();
                 }
             });
-
+            
             // Escape to close
             document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
         </script>

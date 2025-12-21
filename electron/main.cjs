@@ -1174,21 +1174,34 @@ ipcMain.handle('input-wake-up', async () => {
         // 3.6. OS-LEVEL FORCE (Linux/X11)
         // Reproduce manual fix: "Tab" + "CapsLock".
         if (process.platform === 'linux') {
+            // STEALTH MODE: Hide focus outlines BEFORE Tab injection
+            mainWindow.webContents.executeJavaScript(`
+                const s = document.createElement('style');
+                s.id = '__hard_focus_stealth';
+                s.textContent = '*:focus, *:focus-visible { outline: none !important; box-shadow: none !important; }';
+                document.head.appendChild(s);
+                void 0;
+            `).catch(() => { });
+
             if (mainWindowXid) {
                 exec(`wmctrl -i -a ${mainWindowXid}`, (e) => { if (e) console.warn('[IPC] wmctrl failed:', e.message); });
             }
             // Tab is REQUIRED for the X11 input wake-up. Shift alone doesn't work.
             exec('xdotool key Tab Caps_Lock Caps_Lock', (e) => {
                 if (e) console.warn('[IPC] xdotool failed:', e.message);
-                else console.log('[IPC] xdotool injection success');
+                else console.log('[IPC] xdotool injection success (Stealth Mode)');
             });
 
-            // After Tab injection, blur any focused element to remove the highlight artifact
+            // After Tab injection, blur + remove stealth CSS
             setTimeout(() => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.executeJavaScript('document.activeElement?.blur?.(); void 0;').catch(() => { });
+                    mainWindow.webContents.executeJavaScript(`
+                        document.activeElement?.blur?.();
+                        document.getElementById('__hard_focus_stealth')?.remove();
+                        void 0;
+                    `).catch(() => { });
                 }
-            }, 150);
+            }, 200);
         }
 
         // 4. Wait a moment for WM to comply

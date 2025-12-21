@@ -1432,7 +1432,7 @@ function showSnapLayoutsPopup(xidHex) {
     const { width: screenWidth } = primaryDisplay.workAreaSize;
 
     const popupWidth = 560;   // Wide enough for all buttons (increased from 500)
-    const popupHeight = 145;  // Adjusted height to fit content within border
+    const popupHeight = 115;  // Compact height - content fits within border
     const popupX = Math.round((screenWidth - popupWidth) / 2);
     const popupY = 40; // Below the very top so user can see it while dragging
 
@@ -1473,10 +1473,10 @@ function showSnapLayoutsPopup(xidHex) {
                 -webkit-app-region: no-drag;
                 overflow: hidden; /* Prevent scrollbars */
             }
-            .title { font-size: 13px; margin-bottom: 12px; opacity: 0.9; font-weight: 500; }
+            .title { font-size: 12px; margin-bottom: 8px; opacity: 0.9; font-weight: 500; }
             .grid { display: flex; gap: 10px; justify-content: center; flex-wrap: nowrap; } /* Force single row */
             .option {
-                width: 55px; height: 40px;
+                width: 55px; height: 35px;
                 border: 2px solid #00ff41;
                 border-radius: 6px;
                 cursor: pointer;
@@ -1502,7 +1502,7 @@ function showSnapLayoutsPopup(xidHex) {
             .br { background: linear-gradient(315deg, #00ff41 50%, rgba(0,255,65,0.15) 50%); background-size: 100% 100%; }
             .close { position: absolute; top: 6px; right: 10px; cursor: pointer; font-size: 18px; opacity: 0.6; }
             .close:hover { opacity: 1; }
-            .hint { font-size: 10px; margin-top: 10px; opacity: 0.6; }
+            .hint { font-size: 9px; margin-top: 6px; opacity: 0.6; }
         </style>
     </head>
     <body>

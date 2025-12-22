@@ -6425,6 +6425,14 @@ let keybindDaemon = null;
 let keybindFileWatcher = null;
 let keybindFilePosition = 0;
 const KEYBIND_ACTIONS_FILE = '/tmp/templeos-keybind.sock';
+const KEYBIND_DEBUG_FILE = '/tmp/keybind-watcher-debug.txt';
+
+// Debug helper for file watcher
+function keybindDebug(msg) {
+    try {
+        fs.appendFileSync(KEYBIND_DEBUG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch (e) { }
+}
 
 /**
  * Start watching the keybind daemon output file.
@@ -6438,14 +6446,18 @@ function startKeybindWatcher() {
     }
 
     console.log('[KeybindWatcher] Starting file watcher for:', KEYBIND_ACTIONS_FILE);
+    keybindDebug('=== WATCHER STARTING ===');
+    keybindDebug(`Actions file: ${KEYBIND_ACTIONS_FILE}`);
 
     // Clear the file on startup to avoid processing stale actions
     try {
         if (fs.existsSync(KEYBIND_ACTIONS_FILE)) {
             fs.truncateSync(KEYBIND_ACTIONS_FILE, 0);
+            keybindFilePosition = 0;
+            keybindDebug('Truncated actions file, position reset to 0');
         }
     } catch (e) {
-        // File may not exist yet, that's OK
+        keybindDebug(`Truncate error: ${e.message}`);
     }
 
     // Watch for file changes
@@ -6462,6 +6474,7 @@ function startKeybindWatcher() {
 
             // Get new content since last read
             const newContent = content.substring(keybindFilePosition);
+            keybindDebug(`New content (len=${newContent.length}): ${newContent.substring(0, 100)}`);
             keybindFilePosition = content.length;
 
             // Process each line (each action is a JSON line)
@@ -6471,15 +6484,18 @@ function startKeybindWatcher() {
                 try {
                     const msg = JSON.parse(line);
                     if (msg.action && mainWindow && !mainWindow.isDestroyed()) {
+                        keybindDebug(`SENDING ACTION: ${msg.action}`);
                         console.log('[KeybindWatcher] Action:', msg.action);
                         mainWindow.webContents.send('global-shortcut', msg.action);
+                    } else {
+                        keybindDebug(`NOT SENDING: action=${msg.action}, mainWindow=${!!mainWindow}`);
                     }
                 } catch (e) {
-                    // Not JSON, ignore
+                    keybindDebug(`JSON parse error: ${e.message}`);
                 }
             }
         } catch (e) {
-            // Ignore read errors
+            keybindDebug(`processActions error: ${e.message}`);
         }
     };
 
@@ -6493,6 +6509,7 @@ function startKeybindWatcher() {
     // Also check periodically in case watchFile misses events
     keybindFileWatcher = setInterval(processActions, 100);
 
+    keybindDebug('Watcher started with 50ms watchFile + 100ms interval');
     console.log('[KeybindWatcher] Watcher started, polling every 50-100ms');
 }
 

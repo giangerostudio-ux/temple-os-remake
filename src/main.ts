@@ -740,7 +740,8 @@ class TempleOS {
     iconUrl?: string | null;
     appName?: string | null;
   }> = [];
-  private x11UserMinimized = new Set<string>(); // lowercased xidHex
+  private x11UserMinimized = new Set<string>(); // lowercased xidHex - user explicitly minimized
+  private x11WorkspaceMinimized = new Set<string>(); // lowercased xidHex - minimized due to workspace switch
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
 
   private x11LostWindows = new Map<string, number>(); // xidHex -> timestamp (ms) when lost
@@ -786,23 +787,25 @@ class TempleOS {
   private _doApplyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
 
-
-
     for (const x11Win of this.x11Windows) {
       const xidLower = x11Win.xidHex.toLowerCase();
-
-
 
       const assignedWorkspace = this.x11WindowWorkspaces.get(xidLower) || 1;
 
       if (assignedWorkspace === targetWorkspace) {
         // Window belongs to this workspace - unminimize if minimized, BUT respect manual user minimize
-        if (x11Win.minimized && window.electronAPI.unminimizeX11Window && !this.x11UserMinimized.has(xidLower)) {
+        // Also check that it wasn't minimized by workspace switching
+        if (x11Win.minimized && window.electronAPI.unminimizeX11Window && 
+            !this.x11UserMinimized.has(xidLower) && !this.x11WorkspaceMinimized.has(xidLower)) {
           void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
         }
+        // Clear the workspace-minimized flag since we're on the right workspace
+        this.x11WorkspaceMinimized.delete(xidLower);
       } else {
         // Window belongs to a different workspace - minimize if not already
         if (!x11Win.minimized && window.electronAPI.minimizeX11Window) {
+          // Mark as minimized due to workspace switch (not user action)
+          this.x11WorkspaceMinimized.add(xidLower);
           void window.electronAPI.minimizeX11Window(x11Win.xidHex);
         }
       }
@@ -991,6 +994,9 @@ class TempleOS {
         for (const xid of Array.from(this.x11UserMinimized)) {
           if (!alive.has(xid)) this.x11UserMinimized.delete(xid);
         }
+        for (const xid of Array.from(this.x11WorkspaceMinimized)) {
+          if (!alive.has(xid)) this.x11WorkspaceMinimized.delete(xid);
+        }
         let workspacesChanged = false;
 
         // Rescue found windows from lost list
@@ -1058,6 +1064,7 @@ class TempleOS {
         // Auto-restore any external window that gets minimized unexpectedly.
         // This prevents cases where clicking the desktop / opening an in-app window causes X11 apps (Firefox, etc.) to disappear.
         // Only windows the user explicitly minimized via our taskbar stay minimized.
+        // Also skip windows minimized due to workspace switching.
         const api = window.electronAPI;
         if (api?.unminimizeX11Window) {
           const now = Date.now();
@@ -1067,6 +1074,7 @@ class TempleOS {
             const xid = String(w?.xidHex || '').toLowerCase();
             if (!xid || !w?.minimized) continue;
             if (this.x11UserMinimized.has(xid)) continue;
+            if (this.x11WorkspaceMinimized.has(xid)) continue; // Don't auto-restore workspace-minimized windows
 
             // Don't auto-restore if the window belongs to a different workspace
             const assignedWs = this.x11WindowWorkspaces.get(xid) || 1;
@@ -10680,7 +10688,16 @@ class TempleOS {
     return base + sep + name;
   }
 
+  // Track apps currently being opened to prevent duplicate window creation
+  private appsBeingOpened = new Set<string>();
+
   private async openApp(appId: string, arg?: any) {
+    // Prevent duplicate opens while async operations are in progress
+    if (this.appsBeingOpened.has(appId)) {
+      console.log(`[openApp] Already opening ${appId}, ignoring duplicate call`);
+      return;
+    }
+
     const toggle = typeof arg === 'boolean' ? arg : false;
     const fileToPlay = typeof arg === 'object' && arg?.file ? arg.file : null;
 
@@ -10703,7 +10720,11 @@ class TempleOS {
       return;
     }
 
-    this.recordAppLaunch(`builtin:${appId}`);
+    // Mark this app as being opened
+    this.appsBeingOpened.add(appId);
+
+    try {
+      this.recordAppLaunch(`builtin:${appId}`);
 
     const nextId = `${appId}-${++this.windowIdCounter}`;
     let windowConfig: Partial<WindowState> = {};
@@ -11005,6 +11026,10 @@ class TempleOS {
 
     if (appId === 'editor') {
       setTimeout(() => this.ensureEditorView(), 100);
+    }
+    } finally {
+      // Always clear the guard when done
+      this.appsBeingOpened.delete(appId);
     }
   }
 
@@ -17448,9 +17473,13 @@ class TempleOS {
             const taskbarCfg = { height: 50, position: this.taskbarPosition };
             // Helper to snap and track the slot
             const snapAndTrack = async (mode: string) => {
+              console.log(`[Snap] Snapping ${xid} to ${mode}...`);
               const res = await window.electronAPI?.snapX11Window?.(xid, mode, taskbarCfg);
+              console.log(`[Snap] snapX11Window result:`, res);
               if (res?.success) {
-                await window.electronAPI?.setOccupiedSlot?.(xid, mode);
+                console.log(`[Snap] Calling setOccupiedSlot(${xid}, ${mode})...`);
+                const slotRes = await window.electronAPI?.setOccupiedSlot?.(xid, mode);
+                console.log(`[Snap] setOccupiedSlot result:`, slotRes);
               }
             };
             menuItems.push(

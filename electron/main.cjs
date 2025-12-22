@@ -6041,13 +6041,8 @@ ipcMain.handle('updater:check', async () => {
 ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        // CRITICAL: After npm install, the chrome-sandbox permissions get reset.
-        // We must fix them or the OS won't boot. Use pkexec for graphical sudo prompt.
-        const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
-        const fixSandboxCmd = process.platform === 'linux'
-            ? ` && pkexec sh -c 'chown root:root "${sandboxPath}" && chmod 4755 "${sandboxPath}"'`
-            : '';
-        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./${fixSandboxCmd}`;
+        // Core update script (no sandbox fix - that's done separately)
+        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
 
         const runUpdate = () => {
             exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
@@ -6080,6 +6075,22 @@ ipcMain.handle('updater:update', async () => {
                     });
                     return;
                 }
+
+                // Update succeeded! Now try to fix sandbox permissions (non-blocking)
+                if (process.platform === 'linux') {
+                    const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
+                    const sandboxFixCmd = `sudo chown root:root "${sandboxPath}" && sudo chmod 4755 "${sandboxPath}"`;
+
+                    // Try to fix sandbox in background - don't block on it
+                    exec(sandboxFixCmd, { timeout: 5000 }, (sandboxErr) => {
+                        if (sandboxErr) {
+                            console.warn('[Holy Updater] Sandbox fix failed (may need manual fix):', sandboxErr.message);
+                        } else {
+                            console.log('[Holy Updater] Sandbox permissions fixed automatically');
+                        }
+                    });
+                }
+
                 resolve({
                     success: true,
                     output: stdout,

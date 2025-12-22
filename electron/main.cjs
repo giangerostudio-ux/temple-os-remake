@@ -6430,6 +6430,9 @@ const MAX_DAEMON_RESPAWN_ATTEMPTS = 3;
  * This bypasses X11 keyboard grabs and works even when fullscreen apps have focus.
  */
 function startKeybindDaemon() {
+    // Debug: marker at function entry (before any checks)
+    try { fs.writeFileSync('/tmp/keybind-debug-entry.txt', `FUNCTION ENTERED at ${new Date().toISOString()}\nPlatform: ${process.platform}\n`); } catch (e) { }
+
     if (process.platform !== 'linux') {
         console.log('[KeybindDaemon] Not on Linux, using globalShortcut fallback only');
         return;

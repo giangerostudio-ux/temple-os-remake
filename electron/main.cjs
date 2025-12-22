@@ -2010,9 +2010,11 @@ function showSnapPreview(zone) {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
     const taskbarHeight = 50;
-    const workHeight = screenHeight - taskbarHeight;
+    // Match the decoration height used in snapX11WindowCore for consistent preview
+    const decorationHeight = 24;
+    const workHeight = screenHeight - taskbarHeight - decorationHeight;
 
-    // Calculate preview bounds based on zone
+    // Calculate preview bounds based on zone (matching snapX11WindowCore calculations)
     let x = 0, y = 0, w = screenWidth, h = workHeight;
 
     switch (zone) {
@@ -2089,12 +2091,32 @@ function closeSnapLayoutsPopup() {
     }
 }
 
+// Track previously seen X11 windows for detecting new window arrivals
+let previousX11Xids = new Set();
+// Cooldown to avoid re-snapping windows that were just snapped (e.g. during rapid open/close)
+const recentlySnappedXids = new Map(); // xidHex -> timestamp
+const AUTO_SNAP_COOLDOWN_MS = 2000;
 
+// Get next available slot for auto-tiling (same logic as IPC handler)
+function getNextAvailableSlot() {
+    if (!x11SnapLayoutsEnabled || !tilingModeActive) {
+        return 'maximize';
+    }
 
+    const occupied = new Set(occupiedSlots.values());
 
+    // Priority: fill halves first, then quadrants
+    if (!occupied.has('left')) return 'left';
+    if (!occupied.has('right')) return 'right';
+    if (!occupied.has('topleft')) return 'topleft';
+    if (!occupied.has('topright')) return 'topright';
+    if (!occupied.has('bottomleft')) return 'bottomleft';
+    if (!occupied.has('bottomright')) return 'bottomright';
 
+    return 'maximize'; // Overflow
+}
 
-// Track window closures to free slots
+// Track window closures AND detect new windows to auto-snap
 function updateOccupiedSlotsFromSnapshot(snapshot) {
     if (!snapshot?.windows) return;
 
@@ -2107,6 +2129,62 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             console.log('[X11 Snap Layouts] Removed closed window from slots:', xid);
         }
     }
+
+    // Clean up old entries from recentlySnappedXids
+    const now = Date.now();
+    for (const [xid, timestamp] of recentlySnappedXids) {
+        if (now - timestamp > AUTO_SNAP_COOLDOWN_MS) {
+            recentlySnappedXids.delete(xid);
+        }
+    }
+
+    // Detect NEW windows (not seen in previous snapshot)
+    if (x11SnapLayoutsEnabled && tilingModeActive) {
+        for (const w of snapshot.windows) {
+            const xid = String(w.xidHex).toLowerCase();
+            if (!xid) continue;
+
+            // Skip main window
+            if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
+
+            // Skip windows we've already seen
+            if (previousX11Xids.has(xid)) continue;
+
+            // Skip windows already in occupiedSlots
+            if (occupiedSlots.has(xid)) continue;
+
+            // Skip recently snapped windows (cooldown)
+            if (recentlySnappedXids.has(xid)) continue;
+
+            // Skip minimized windows
+            if (w.minimized) continue;
+
+            // This is a NEW window - auto-snap it!
+            const slot = getNextAvailableSlot();
+            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), auto-snapping to: ${slot}`);
+
+            // Mark as recently snapped to avoid re-snapping
+            recentlySnappedXids.set(xid, now);
+
+            // Snap the window with proper taskbar config
+            snapX11WindowCore(w.xidHex, slot, { height: 50, position: 'bottom' })
+                .then((result) => {
+                    if (result.success) {
+                        // Track the slot
+                        occupiedSlots.set(xid, slot);
+                        console.log(`[X11 Snap Layouts] Auto-snapped ${xid} to ${slot}`);
+                    } else {
+                        console.error(`[X11 Snap Layouts] Failed to auto-snap ${xid}:`, result.error);
+                    }
+                })
+                .catch((err) => {
+                    console.error(`[X11 Snap Layouts] Error auto-snapping ${xid}:`, err.message);
+                });
+        }
+    }
+
+    // Update previous XIDs for next comparison
+    previousX11Xids = currentXids;
 
     // If no more slots occupied, disable tiling mode
     if (occupiedSlots.size === 0 && tilingModeActive) {

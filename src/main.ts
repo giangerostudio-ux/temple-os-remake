@@ -10680,7 +10680,7 @@ class TempleOS {
     return base + sep + name;
   }
 
-  private openApp(appId: string, arg?: any) {
+  private async openApp(appId: string, arg?: any) {
     const toggle = typeof arg === 'boolean' ? arg : false;
     const fileToPlay = typeof arg === 'object' && arg?.file ? arg.file : null;
 
@@ -10887,18 +10887,98 @@ class TempleOS {
         break;
     }
 
+    // Determine initial position - integrate with X11 tiling if active
+    let initialX = 100 + (this.windows.length * 30);
+    let initialY = 50 + (this.windows.length * 30);
+    let initialWidth = windowConfig.width || 400;
+    let initialHeight = windowConfig.height || 300;
+    let initialMaximized = false;
+
+    // Try to integrate with X11 tiling state
+    try {
+      if (window.electronAPI?.getTilingState) {
+        const tilingState = await window.electronAPI.getTilingState();
+        if (tilingState.success && tilingState.tilingModeActive) {
+          // X11 tiling is active - position this internal window in an available slot
+          const occupied = new Set(Object.values(tilingState.occupiedSlots));
+          let targetSlot: string | null = null;
+
+          // Find next available slot
+          if (!occupied.has('left')) targetSlot = 'left';
+          else if (!occupied.has('right')) targetSlot = 'right';
+          else if (!occupied.has('topleft')) targetSlot = 'topleft';
+          else if (!occupied.has('topright')) targetSlot = 'topright';
+          else if (!occupied.has('bottomleft')) targetSlot = 'bottomleft';
+          else if (!occupied.has('bottomright')) targetSlot = 'bottomright';
+
+          if (targetSlot) {
+            // Calculate bounds using TilingManager
+            const usableBounds = this.tilingManager.getUsableBounds();
+            const halfWidth = Math.floor(usableBounds.width / 2);
+            const halfHeight = Math.floor(usableBounds.height / 2);
+
+            switch (targetSlot) {
+              case 'left':
+                initialX = usableBounds.x;
+                initialY = usableBounds.y;
+                initialWidth = halfWidth;
+                initialHeight = usableBounds.height;
+                break;
+              case 'right':
+                initialX = usableBounds.x + halfWidth;
+                initialY = usableBounds.y;
+                initialWidth = halfWidth;
+                initialHeight = usableBounds.height;
+                break;
+              case 'topleft':
+                initialX = usableBounds.x;
+                initialY = usableBounds.y;
+                initialWidth = halfWidth;
+                initialHeight = halfHeight;
+                break;
+              case 'topright':
+                initialX = usableBounds.x + halfWidth;
+                initialY = usableBounds.y;
+                initialWidth = halfWidth;
+                initialHeight = halfHeight;
+                break;
+              case 'bottomleft':
+                initialX = usableBounds.x;
+                initialY = usableBounds.y + halfHeight;
+                initialWidth = halfWidth;
+                initialHeight = halfHeight;
+                break;
+              case 'bottomright':
+                initialX = usableBounds.x + halfWidth;
+                initialY = usableBounds.y + halfHeight;
+                initialWidth = halfWidth;
+                initialHeight = halfHeight;
+                break;
+            }
+            console.log(`[Tiling] Positioned internal window ${nextId} to slot: ${targetSlot}`);
+          } else {
+            // All slots taken - maximize or use default
+            initialMaximized = true;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore errors - use default positioning
+      console.warn('[Tiling] Failed to get X11 tiling state:', e);
+    }
+
     const newWindow: WindowState = {
       id: nextId,
       title: windowConfig.title || 'Window',
       icon: windowConfig.icon || '📄',
-      x: 100 + (this.windows.length * 30),
-      y: 50 + (this.windows.length * 30),
-      width: windowConfig.width || 400,
-      height: windowConfig.height || 300,
+      x: initialX,
+      y: initialY,
+      width: initialWidth,
+      height: initialHeight,
       content: windowConfig.content || '',
       active: true,
       minimized: false,
-      maximized: false
+      maximized: initialMaximized
     };
 
     this.windows.forEach(w => w.active = false);

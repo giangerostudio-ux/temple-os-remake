@@ -6538,15 +6538,22 @@ app.whenReady().then(() => {
     // Register globalShortcut as fallback (secondary - works when daemon unavailable)
     // These use XGrabKey which can be blocked by X11 apps with active grabs
 
-    // Ctrl+Alt+Tab: Toggle workspace overview
-    // Ctrl+Alt+Tab: Toggle workspace overview
-    const toggleOverview = () => {
+    // Super (Windows key): Toggle Start Menu
+    // Note: globalShortcut can't detect bare Super key tap, but daemon handles it
+    globalShortcut.register('Super', () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('global-shortcut', 'workspace-overview');
+            mainWindow.webContents.send('global-shortcut', 'start-menu');
+        }
+    });
+
+    // Ctrl+Alt+Tab: Cycle to next workspace (same as Ctrl+Alt+Right)
+    const cycleWorkspace = () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'workspace-next');
         }
     };
-    globalShortcut.register('Control+Alt+Tab', toggleOverview);
-    globalShortcut.register('Control+Alt+O', toggleOverview); // Alternate for daemon to bypass X11 Alt-Tab grabs
+    globalShortcut.register('Control+Alt+Tab', cycleWorkspace);
+    globalShortcut.register('Control+Alt+O', cycleWorkspace); // Alternate for daemon to bypass X11 Alt-Tab grabs
 
     // Ctrl+Alt+Left: Previous workspace
     globalShortcut.register('Control+Alt+Left', () => {

@@ -36,6 +36,7 @@ import glob
 import argparse
 import signal
 import subprocess
+import time
 
 # ============================================
 # LINUX INPUT EVENT CONSTANTS
@@ -130,6 +131,10 @@ class KeybindDaemon:
         self.alt_pressed = False
         self.shift_pressed = False
         self.super_pressed = False
+        
+        # Track Super key for tap detection (start menu)
+        self.super_press_time = 0
+        self.super_used_in_combo = False
         
     def log(self, msg):
         """Log to stderr (stdout reserved for JSON output)"""
@@ -290,9 +295,9 @@ class KeybindDaemon:
         # ============================================
         if self.ctrl_pressed and self.alt_pressed and not self.super_pressed:
             
-            # Ctrl+Alt+Tab: Workspace overview toggle
+            # Ctrl+Alt+Tab: Cycle to next workspace (same as Ctrl+Alt+Right)
             if keycode == KEY_TAB and not self.shift_pressed:
-                self.emit('workspace-overview')
+                self.emit('workspace-next')
                 return True
             
             # Ctrl+Alt+Left: Previous workspace
@@ -366,6 +371,10 @@ class KeybindDaemon:
                 self.emit('alt-tab')
                 return True
         
+        # Mark Super key as used in a combo if any other key is pressed while Super is held
+        if self.super_pressed and keycode not in (KEY_LEFTMETA, KEY_RIGHTMETA):
+            self.super_used_in_combo = True
+        
         return False
     
     def _handle_event(self, ev_type, code, value):
@@ -381,7 +390,17 @@ class KeybindDaemon:
         elif code in (KEY_LEFTSHIFT, KEY_RIGHTSHIFT):
             self.shift_pressed = (value != KEY_RELEASED)
         elif code in (KEY_LEFTMETA, KEY_RIGHTMETA):
-            self.super_pressed = (value != KEY_RELEASED)
+            # Super/Windows key handling for start menu tap
+            if value == KEY_PRESSED:
+                self.super_pressed = True
+                self.super_press_time = time.time()
+                self.super_used_in_combo = False
+            elif value == KEY_RELEASED:
+                self.super_pressed = False
+                # Check if it was a quick tap (no combo used) - toggle start menu
+                elapsed = time.time() - self.super_press_time
+                if elapsed < 0.4 and not self.super_used_in_combo:
+                    self.emit('start-menu')
         elif value == KEY_PRESSED:
             # Only check hotkeys on key press (not repeat or release)
             self._check_hotkey(code)
@@ -440,7 +459,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Supported Hotkeys:
-  Ctrl+Alt+Tab         Workspace overview
+  Super (tap)          Toggle Start Menu
+  Ctrl+Alt+Tab         Cycle to next workspace
   Ctrl+Alt+Left/Right  Previous/Next workspace
   Ctrl+Alt+1-4         Switch to workspace 1-4
   Ctrl+Shift+Alt+1-4   Move window to workspace 1-4

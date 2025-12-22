@@ -24,7 +24,10 @@ When X11 applications (Firefox, Chromium, terminals, games, etc.) have keyboard 
 ```javascript
 // GLOBAL SHORTCUTS FOR WORKSPACE KEYBINDS
 app.whenReady().then(() => {
-    // Ctrl+Alt+Tab: Toggle workspace overview
+    // Super key tap: Toggle Start Menu
+    globalShortcut.register('Super', () => {...});
+    
+    // Ctrl+Alt+Tab: Cycle to next workspace
     globalShortcut.register('Control+Alt+Tab', () => {...});
     
     // Ctrl+Alt+Left/Right: Prev/Next workspace

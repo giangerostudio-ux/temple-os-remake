@@ -227,7 +227,19 @@ sudo chown root:root /opt/templeos/node_modules/electron/dist/chrome-sandbox
 sudo chmod 4755 /opt/templeos/node_modules/electron/dist/chrome-sandbox
 ```
 
+**CRITICAL**: Setup keybind daemon permissions (evdev access for global hotkeys):
+```bash
+# Run the setup script to configure input group and udev rules
+sudo /opt/templeos/scripts/setup-keybinds.sh temple
+
+# This will:
+# - Add user 'temple' to the 'input' group (for /dev/input access)
+# - Create udev rule for keyboard device permissions
+# - No logout needed on fresh ISO boot!
+```
+
 **CRITICAL**: Copy the `start-templeos.sh` script and make it executable:
+
 ```bash
 cp start-templeos.sh /opt/templeos/
 chmod +x /opt/templeos/start-templeos.sh

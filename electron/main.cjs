@@ -46,6 +46,7 @@ let lastNetAt = 0;
 
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)
 let snapDetectorProcess = null;
+let keybindListenerProcess = null;
 let snapPreviewWindow = null; // Visual preview for edge snaps
 
 
@@ -1871,6 +1872,60 @@ function stopSnapDetector() {
         snapDetectorProcess = null;
     }
     closeSnapPreview();
+}
+
+function startKeybindListener() {
+    if (keybindListenerProcess) return;
+    if (process.platform !== 'linux') return;
+
+    const scriptPath = path.join(__dirname, 'scripts', 'keybind-listener.py');
+    if (!fs.existsSync(scriptPath)) {
+        console.error('[KeybindListener] Script not found:', scriptPath);
+        return;
+    }
+
+    console.log('[KeybindListener] Starting daemon...', scriptPath);
+    keybindListenerProcess = spawn('python3', [scriptPath], {
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let buffer = '';
+    keybindListenerProcess.stdout.on('data', (data) => {
+        buffer += data.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const event = JSON.parse(line);
+                if (event.event && mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('global-shortcut', event.event);
+                }
+            } catch (e) { }
+        }
+    });
+
+    keybindListenerProcess.stderr.on('data', (data) => {
+        console.log('[KeybindListener]', data.toString().trim());
+    });
+
+    keybindListenerProcess.on('close', (code) => {
+        console.log('[KeybindListener] Process exited with code:', code);
+        keybindListenerProcess = null;
+        if (!app.isQuitting) {
+            setTimeout(() => {
+                if (!keybindListenerProcess) startKeybindListener();
+            }, 2000);
+        }
+    });
+}
+
+function stopKeybindListener() {
+    if (keybindListenerProcess) {
+        keybindListenerProcess.kill();
+        keybindListenerProcess = null;
+    }
 }
 
 function handleSnapDetectorEvent(event) {
@@ -6401,6 +6456,7 @@ ipcMain.handle('security:installTor', async () => {
 app.on('before-quit', () => {
     app.isQuitting = true;
     stopSnapDetector();
+    stopKeybindListener();
 });
 
 app.on('window-all-closed', () => {
@@ -6421,43 +6477,13 @@ app.on('activate', () => {
 // ============================================
 app.whenReady().then(() => {
     createWindow(); // Initial window creation
-    // Register global shortcuts for workspace controls
-    // These bypass X11 focus issues - work system-wide
-
-    // Ctrl+Alt+Tab: Toggle workspace overview
-    globalShortcut.register('Control+Alt+Tab', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('global-shortcut', 'workspace-overview');
-        }
-    });
-
-    // Ctrl+Alt+Left: Previous workspace
-    globalShortcut.register('Control+Alt+Left', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('global-shortcut', 'workspace-prev');
-        }
-    });
-
-    // Ctrl+Alt+Right: Next workspace
-    globalShortcut.register('Control+Alt+Right', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('global-shortcut', 'workspace-next');
-        }
-    });
-
-    // Ctrl+Alt+1-4: Direct workspace switch
-    for (let i = 1; i <= 4; i++) {
-        globalShortcut.register(`Control+Alt+${i}`, () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('global-shortcut', `workspace-${i}`);
-            }
-        });
+    // Start robust Python-based keybind listener for X11
+    if (process.platform === 'linux') {
+        startKeybindListener();
     }
-
-    console.log('[GlobalShortcut] Workspace keybinds registered');
 });
 
 // Unregister all shortcuts when quitting
 app.on('will-quit', () => {
-    globalShortcut.unregisterAll();
+    // globalShortcut.unregisterAll(); // Not using globalShortcut anymore
 });

@@ -3854,7 +3854,6 @@ class TempleOS {
             <div class="start-quick-link" data-path="Music">🎵 Music</div>
             <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
             <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
-            <div class="start-quick-link" data-path="trash">🗑️ Trash</div>
           </div>
           
           <div class="start-power-section">

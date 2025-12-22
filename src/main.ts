@@ -739,6 +739,7 @@ class TempleOS {
   }> = [];
   private x11UserMinimized = new Set<string>(); // lowercased xidHex
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
+  private x11LostWindows = new Map<string, number>(); // xidHex -> timestamp (ms) when lost
   private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
 
   // X11 Fake Workspaces - track which workspace each X11 window belongs to
@@ -977,13 +978,42 @@ class TempleOS {
         }
         let workspacesChanged = false;
 
-        // Cleanup workspace assignments for closed windows
+        // Rescue found windows from lost list
+        for (const xid of alive) {
+          if (this.x11LostWindows.has(xid)) {
+            this.x11LostWindows.delete(xid);
+          }
+        }
+
+        // Check for missing windows
+        const now = Date.now();
         for (const [xid] of this.x11WindowWorkspaces) {
           if (!alive.has(xid)) {
+            // It's missing. Is it already marked lost?
+            if (!this.x11LostWindows.has(xid)) {
+              this.x11LostWindows.set(xid, now);
+            }
+          }
+        }
+
+        // Evict truly dead windows (lost > 3000ms)
+        for (const [xid, lostAt] of this.x11LostWindows) {
+          if (alive.has(xid)) {
+            // Should have been rescued above, but just in case
+            this.x11LostWindows.delete(xid);
+            continue;
+          }
+
+          if (now - lostAt > 3000) {
+            // Time to let go
             this.x11WindowWorkspaces.delete(xid);
+            this.x11LostWindows.delete(xid);
             workspacesChanged = true;
           }
         }
+
+        // Do NOT delete from x11WindowWorkspaces in the simple loop anymore.
+        // We rely on the eviction logic above.
 
         // Auto-assign new X11 windows to current workspace
         const activeWsId = this.workspaceManager.getActiveWorkspaceId();

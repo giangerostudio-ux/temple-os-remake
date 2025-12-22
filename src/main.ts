@@ -760,6 +760,11 @@ class TempleOS {
     return new Map();
   })();
 
+  // Track workspace at the time an X11 app was launched
+  // Key: timestamp (ms), Value: workspace number - we match new windows that appear within a time window
+  private x11PendingLaunchWorkspace: number | null = null;
+  private x11PendingLaunchTime: number = 0;
+
   private pendingContextMenuActions: Map<string, () => void | Promise<void>> | null = null; // For floating popup menu callbacks
 
   // Taskbar App Grouping (Tier 9.1)
@@ -1043,13 +1048,26 @@ class TempleOS {
         // Do NOT delete from x11WindowWorkspaces in the simple loop anymore.
         // We rely on the eviction logic above.
 
-        // Auto-assign new X11 windows to current workspace
-        const activeWsId = this.workspaceManager.getActiveWorkspaceId();
+        // Auto-assign new X11 windows to the workspace they were launched from (not current workspace)
+        // If launched recently (within 10 seconds), use the launch workspace; otherwise use current workspace
+        const launchWorkspaceValid = this.x11PendingLaunchWorkspace !== null && 
+                                     (now - this.x11PendingLaunchTime) < 10000; // 10 second window
+        const assignWorkspace = launchWorkspaceValid 
+          ? this.x11PendingLaunchWorkspace! 
+          : this.workspaceManager.getActiveWorkspaceId();
+
         for (const w of this.x11Windows) {
           const xid = String(w?.xidHex || '').toLowerCase();
           if (xid && !this.x11WindowWorkspaces.has(xid)) {
-            this.x11WindowWorkspaces.set(xid, activeWsId);
+            console.log(`[X11 Workspace] Assigning new window ${xid} to workspace ${assignWorkspace} (launch pending: ${launchWorkspaceValid})`);
+            this.x11WindowWorkspaces.set(xid, assignWorkspace);
             workspacesChanged = true;
+            
+            // Clear the pending launch after assigning (only for the first new window)
+            if (launchWorkspaceValid) {
+              this.x11PendingLaunchWorkspace = null;
+              this.x11PendingLaunchTime = 0;
+            }
           }
         }
 
@@ -5408,6 +5426,10 @@ class TempleOS {
           appToLaunch = { ...installed, exec: `gamemoderun ${installed.exec}` };
         }
       }
+
+      // Track the workspace at the time of launch so new X11 windows get assigned correctly
+      this.x11PendingLaunchWorkspace = this.workspaceManager.getActiveWorkspaceId();
+      this.x11PendingLaunchTime = Date.now();
 
       void window.electronAPI.launchApp(appToLaunch).then(res => {
         if (!res?.success) {

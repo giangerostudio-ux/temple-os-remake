@@ -284,11 +284,12 @@ async function moveWindowToDesktop(xidHex, desktopIndex) {
 
 /**
  * Make a window appear on all desktops (sticky/omnipresent)
+ * Uses _NET_WM_STATE_STICKY which is more reliable on Openbox
  * @param {string} xidHex - Window ID in hex format
  */
 async function makeWindowSticky(xidHex) {
-  // -1 means "all desktops" in wmctrl
-  await execFileAsync('wmctrl', ['-ir', xidHex, '-t', '-1']);
+  // Use _NET_WM_STATE_STICKY which is EWMH-compliant and works on Openbox
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'add,sticky']);
 }
 
 module.exports = {

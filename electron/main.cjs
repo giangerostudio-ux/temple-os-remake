@@ -6459,6 +6459,9 @@ function startKeybindDaemon() {
 
     console.log('[KeybindDaemon] Starting evdev keybind daemon from:', daemonPath);
 
+    // Debug: write marker file to trace execution (console.log not visible in logs)
+    try { fs.writeFileSync('/tmp/keybind-debug-start.txt', `Daemon path: ${daemonPath}\nTime: ${new Date().toISOString()}\n`); } catch (e) { }
+
     try {
         // Spawn the Python daemon
         keybindDaemon = spawn('python3', [daemonPath], {
@@ -6466,6 +6469,8 @@ function startKeybindDaemon() {
             detached: false,
         });
 
+        // Debug: write marker for spawn success
+        try { fs.writeFileSync('/tmp/keybind-debug-spawn.txt', `PID: ${keybindDaemon.pid}\nTime: ${new Date().toISOString()}\n`); } catch (e) { }
         console.log('[KeybindDaemon] Spawn called, PID:', keybindDaemon.pid);
 
 

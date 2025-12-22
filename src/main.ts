@@ -9840,10 +9840,8 @@ class TempleOS {
           const wsId = parseInt(workspaceIndicator.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
-            // CRITICAL: Also switch the actual X11 desktop (workspaces are 1-indexed, X11 is 0-indexed)
-            if (window.electronAPI?.switchX11Desktop) {
-              void window.electronAPI.switchX11Desktop(wsId - 1);
-            }
+            // NOTE: X11 desktop switching disabled - sticky window doesn't work reliably on Openbox
+            // Workspaces now only manage internal app organization
             this.render();
           }
         }
@@ -9854,10 +9852,7 @@ class TempleOS {
           const wsId = parseInt(workspacePreview.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
-            // CRITICAL: Also switch the actual X11 desktop (workspaces are 1-indexed, X11 is 0-indexed)
-            if (window.electronAPI?.switchX11Desktop) {
-              void window.electronAPI.switchX11Desktop(wsId - 1);
-            }
+            // NOTE: X11 desktop switching disabled - sticky window doesn't work reliably on Openbox
             this.showWorkspaceOverview = false;
             this.render();
           }

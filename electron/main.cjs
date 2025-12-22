@@ -6417,12 +6417,107 @@ app.on('activate', () => {
 
 // ============================================
 // GLOBAL SHORTCUTS FOR WORKSPACE KEYBINDS
-// These work even when X11 windows have focus
+// Primary: EVDEV daemon (bypasses X11 grabs)
+// Fallback: Electron globalShortcut (works when no active X11 grabs)
 // ============================================
+
+let keybindDaemon = null;
+let keybindDaemonRespawnAttempts = 0;
+const MAX_DAEMON_RESPAWN_ATTEMPTS = 3;
+
+/**
+ * Start the evdev keybind daemon (Python script that reads /dev/input directly).
+ * This bypasses X11 keyboard grabs and works even when fullscreen apps have focus.
+ */
+function startKeybindDaemon() {
+    if (process.platform !== 'linux') {
+        console.log('[KeybindDaemon] Not on Linux, using globalShortcut fallback only');
+        return;
+    }
+
+    const daemonPath = path.join(__dirname, '..', 'scripts', 'keybind-daemon.py');
+
+    if (!fs.existsSync(daemonPath)) {
+        console.warn('[KeybindDaemon] Daemon script not found:', daemonPath);
+        return;
+    }
+
+    console.log('[KeybindDaemon] Starting evdev keybind daemon...');
+
+    // Spawn the Python daemon
+    keybindDaemon = spawn('python3', [daemonPath], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+    });
+
+    // Parse JSON output from daemon
+    let buffer = '';
+    keybindDaemon.stdout.on('data', (data) => {
+        buffer += data.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const msg = JSON.parse(line);
+                if (msg.action && mainWindow && !mainWindow.isDestroyed()) {
+                    console.log('[KeybindDaemon] Action:', msg.action);
+                    mainWindow.webContents.send('global-shortcut', msg.action);
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
+    });
+
+    // Log daemon stderr
+    keybindDaemon.stderr.on('data', (data) => {
+        console.log('[KeybindDaemon]', data.toString().trim());
+    });
+
+    // Handle daemon exit
+    keybindDaemon.on('exit', (code, signal) => {
+        console.log(`[KeybindDaemon] Daemon exited with code ${code}, signal ${signal}`);
+        keybindDaemon = null;
+
+        // Respawn if it crashed unexpectedly (not during shutdown)
+        if (!app.isQuitting && keybindDaemonRespawnAttempts < MAX_DAEMON_RESPAWN_ATTEMPTS) {
+            keybindDaemonRespawnAttempts++;
+            console.log(`[KeybindDaemon] Attempting respawn (${keybindDaemonRespawnAttempts}/${MAX_DAEMON_RESPAWN_ATTEMPTS})...`);
+            setTimeout(() => startKeybindDaemon(), 1000);
+        }
+    });
+
+    keybindDaemon.on('error', (err) => {
+        console.error('[KeybindDaemon] Failed to start daemon:', err.message);
+        keybindDaemon = null;
+    });
+}
+
+/**
+ * Stop the keybind daemon gracefully.
+ */
+function stopKeybindDaemon() {
+    if (keybindDaemon) {
+        console.log('[KeybindDaemon] Stopping daemon...');
+        try {
+            keybindDaemon.kill('SIGTERM');
+        } catch (e) {
+            // Ignore
+        }
+        keybindDaemon = null;
+    }
+}
+
 app.whenReady().then(() => {
     createWindow(); // Initial window creation
-    // Register global shortcuts for workspace controls
-    // These bypass X11 focus issues - work system-wide
+
+    // Start evdev daemon (primary - bypasses X11 grabs)
+    startKeybindDaemon();
+
+    // Register globalShortcut as fallback (secondary - works when daemon unavailable)
+    // These use XGrabKey which can be blocked by X11 apps with active grabs
 
     // Ctrl+Alt+Tab: Toggle workspace overview
     globalShortcut.register('Control+Alt+Tab', () => {
@@ -6454,10 +6549,11 @@ app.whenReady().then(() => {
         });
     }
 
-    console.log('[GlobalShortcut] Workspace keybinds registered');
+    console.log('[GlobalShortcut] Workspace keybinds registered (XGrabKey fallback)');
 });
 
-// Unregister all shortcuts when quitting
+// Cleanup on quit
 app.on('will-quit', () => {
+    stopKeybindDaemon();
     globalShortcut.unregisterAll();
 });

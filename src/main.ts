@@ -10393,14 +10393,23 @@ class TempleOS {
     // ============================================
     // GLOBAL SHORTCUT HANDLER (system-wide from main process)
     // This handles keybinds even when X11 windows have focus
+    // Primary: evdev daemon (bypasses X11 grabs)
+    // Fallback: Electron globalShortcut (XGrabKey)
     // ============================================
     if (window.electronAPI?.onGlobalShortcut) {
       window.electronAPI.onGlobalShortcut((action: string) => {
         const now = Date.now();
-        if (now - this.lastWorkspaceSwitchMs < 150) return; // Debounce 150ms
-        this.lastWorkspaceSwitchMs = now;
+
+        // Workspace actions need debouncing
+        const workspaceActions = ['workspace-overview', 'workspace-prev', 'workspace-next',
+          'workspace-1', 'workspace-2', 'workspace-3', 'workspace-4'];
+        if (workspaceActions.includes(action)) {
+          if (now - this.lastWorkspaceSwitchMs < 150) return; // Debounce 150ms
+          this.lastWorkspaceSwitchMs = now;
+        }
 
         switch (action) {
+          // ========== WORKSPACE SWITCHING ==========
           case 'workspace-overview':
             this.showWorkspaceOverview = !this.showWorkspaceOverview;
             this.render();
@@ -10426,9 +10435,91 @@ class TempleOS {
               this.render();
             }
             break;
+
+          // ========== MOVE WINDOW TO WORKSPACE ==========
+          case 'move-to-workspace-1':
+          case 'move-to-workspace-2':
+          case 'move-to-workspace-3':
+          case 'move-to-workspace-4':
+            const targetWs = parseInt(action.split('-').pop()!, 10);
+            const activeWin = this.windows.find(w => w.active);
+            if (activeWin && targetWs <= this.workspaceManager.getTotalWorkspaces()) {
+              this.workspaceManager.moveWindowToWorkspace(activeWin.id, targetWs);
+              this.showNotification('Workspace', `Window moved to Desktop ${targetWs}`, 'info');
+              this.render();
+            }
+            break;
+
+          // ========== WINDOW SNAPPING (Super+Arrow) ==========
+          case 'snap-left':
+          case 'snap-right':
+          case 'snap-up':
+          case 'snap-down':
+            const snapWin = this.windows.find(w => w.active);
+            if (snapWin) {
+              const arrowKey = 'Arrow' + action.split('-')[1].charAt(0).toUpperCase() + action.split('-')[1].slice(1);
+              this.handleWindowSnap(snapWin.id, arrowKey as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown');
+            }
+            break;
+
+          // ========== SHOW DESKTOP (Super+D) ==========
+          case 'show-desktop':
+            if (!this.showDesktopMode) {
+              this.showDesktopRestoreIds = this.windows.filter(w => !w.minimized).map(w => w.id);
+              this.windows.forEach(w => w.minimized = true);
+              this.showDesktopMode = true;
+            } else {
+              this.showDesktopRestoreIds.forEach(id => {
+                const w = this.windows.find(win => win.id === id);
+                if (w) w.minimized = false;
+              });
+              this.showDesktopRestoreIds = [];
+              this.showDesktopMode = false;
+            }
+            this.render();
+            break;
+
+          // ========== OPEN FILE MANAGER (Super+E) ==========
+          case 'open-files':
+            this.openApp('builtin:files');
+            break;
+
+          // ========== LOCK SCREEN (Super+L) ==========
+          case 'lock-screen':
+            this.isLocked = true;
+            this.render();
+            break;
+
+          // ========== TASK SWITCHER (Super+Tab, Alt+Tab) ==========
+          case 'task-switcher':
+          case 'alt-tab':
+            if (!this.altTabOpen) {
+              this.altTabOrder = this.windows
+                .filter(w => !w.minimized)
+                .map(w => w.id);
+              if (this.altTabOrder.length > 0) {
+                this.altTabOpen = true;
+                this.altTabIndex = 0;
+                this.render();
+              }
+            } else {
+              // Cycle to next window
+              this.altTabIndex = (this.altTabIndex + 1) % this.altTabOrder.length;
+              this.render();
+            }
+            break;
+
+          // ========== CLOSE WINDOW (Alt+F4) ==========
+          case 'close-window':
+            const closeWin = this.windows.find(w => w.active);
+            if (closeWin) {
+              this.closeWindow(closeWin.id);
+            }
+            break;
         }
       });
     }
+
     // ============================================
     // THEME SYSTEM EVENTS (Tier 9.4)
     // ============================================

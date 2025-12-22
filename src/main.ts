@@ -739,7 +739,9 @@ class TempleOS {
   }> = [];
   private x11UserMinimized = new Set<string>(); // lowercased xidHex
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
+
   private x11LostWindows = new Map<string, number>(); // xidHex -> timestamp (ms) when lost
+  private _workspaceSwitchTimer: any = null; // Debounce timer for workspace switching
   private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
 
   // X11 Fake Workspaces - track which workspace each X11 window belongs to
@@ -769,6 +771,16 @@ class TempleOS {
    * Windows not assigned to any workspace are assigned to the current workspace by default.
    */
   private applyX11WorkspaceVisibility(targetWorkspace: number): void {
+    if (this._workspaceSwitchTimer) {
+      clearTimeout(this._workspaceSwitchTimer);
+    }
+    this._workspaceSwitchTimer = setTimeout(() => {
+      this._doApplyX11WorkspaceVisibility(targetWorkspace);
+      this._workspaceSwitchTimer = null;
+    }, 150);
+  }
+
+  private _doApplyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
 
 

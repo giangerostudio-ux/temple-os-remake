@@ -121,9 +121,9 @@ async function setWindowGeometry(xidHex, x, y, width, height) {
 
   // If a window is maximized, many WMs ignore manual geometry until maximize is cleared.
   await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,maximized_vert,maximized_horz']).catch(() => { });
-  // Use gravity 10 (Static) for precise pixel positioning without frame decoration offset
-  // Gravity values: 0=NW, 1=N, 2=NE, 3=W, 4=C, 5=E, 6=SW, 7=S, 8=SE, 10=Static
-  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `10,${xi},${yi},${wi},${hi}`]);
+  // Use gravity 1 (NorthWest) so that coordinates apply to the top-left of the frame (including decorations)
+  // Gravity values: 0=NW (deprecated/forget), 1=NorthWest, 2=North, ... 10=Static
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `1,${xi},${yi},${wi},${hi}`]);
 }
 
 function fingerprintSnapshot(snap) {

@@ -184,64 +184,71 @@ class KeybindDaemon:
     
     def execute_action(self, action):
         """
-        Directly execute the action using X11 commands.
-        This bypasses Electron IPC entirely for reliable hotkey handling.
+        Execute action by focusing Electron window then sending synthetic keypress.
+        This ensures Electron receives the key event even when X11 apps had focus.
         """
         try:
-            if action == 'workspace-next':
-                # Get current desktop and switch to next
-                subprocess.run(['xdotool', 'key', 'Super+Right'], 
-                               capture_output=True, timeout=1)
-                # Alternative: use wmctrl to switch to next desktop
-                result = subprocess.run(['wmctrl', '-d'], capture_output=True, text=True, timeout=1)
-                desktops = result.stdout.strip().split('\n')
-                current = next((i for i, d in enumerate(desktops) if '*' in d), 0)
-                next_desktop = (current + 1) % len(desktops) if len(desktops) > 1 else 0
-                subprocess.run(['wmctrl', '-s', str(next_desktop)], timeout=1)
-                self.log(f"Executed: workspace-next (switched to desktop {next_desktop})")
+            # Find the Electron window (templeos)
+            result = subprocess.run(
+                ['xdotool', 'search', '--name', 'templeos'],
+                capture_output=True, text=True, timeout=2
+            )
+            window_ids = result.stdout.strip().split('\n')
+            electron_wid = window_ids[0] if window_ids and window_ids[0] else None
+            
+            if not electron_wid:
+                # Try alternative: search for Electron
+                result = subprocess.run(
+                    ['xdotool', 'search', '--class', 'Electron'],
+                    capture_output=True, text=True, timeout=2
+                )
+                window_ids = result.stdout.strip().split('\n')
+                electron_wid = window_ids[0] if window_ids and window_ids[0] else None
+            
+            if electron_wid:
+                self.log(f"Found Electron window: {electron_wid}")
                 
-            elif action == 'workspace-prev':
-                result = subprocess.run(['wmctrl', '-d'], capture_output=True, text=True, timeout=1)
-                desktops = result.stdout.strip().split('\n')
-                current = next((i for i, d in enumerate(desktops) if '*' in d), 0)
-                prev_desktop = (current - 1) % len(desktops) if len(desktops) > 1 else 0
-                subprocess.run(['wmctrl', '-s', str(prev_desktop)], timeout=1)
-                self.log(f"Executed: workspace-prev (switched to desktop {prev_desktop})")
+                # Focus the Electron window first
+                subprocess.run(['xdotool', 'windowactivate', '--sync', electron_wid], timeout=2)
                 
-            elif action.startswith('workspace-') and action[-1].isdigit():
-                # workspace-1, workspace-2, etc.
-                ws_num = int(action.split('-')[1]) - 1  # wmctrl uses 0-indexed
-                subprocess.run(['wmctrl', '-s', str(ws_num)], timeout=1)
-                self.log(f"Executed: {action} (switched to desktop {ws_num})")
+                # Map action to key combination
+                key_map = {
+                    'workspace-next': 'ctrl+alt+Right',
+                    'workspace-prev': 'ctrl+alt+Left',
+                    'workspace-1': 'ctrl+alt+1',
+                    'workspace-2': 'ctrl+alt+2',
+                    'workspace-3': 'ctrl+alt+3',
+                    'workspace-4': 'ctrl+alt+4',
+                    'workspace-overview': 'ctrl+alt+Tab',
+                    'snap-left': 'super+Left',
+                    'snap-right': 'super+Right',
+                    'snap-up': 'super+Up',
+                    'snap-down': 'super+Down',
+                    'show-desktop': 'super+d',
+                    'alt-tab': 'alt+Tab',
+                    'task-switcher': 'super+Tab',
+                    'close-window': 'alt+F4',
+                    'lock-screen': 'super+l',
+                }
                 
-            elif action == 'show-desktop':
-                subprocess.run(['wmctrl', '-k', 'on'], timeout=1)
-                self.log("Executed: show-desktop")
-                
-            elif action == 'open-files':
-                # Try common file managers
-                for fm in ['nautilus', 'thunar', 'pcmanfm', 'dolphin', 'nemo']:
-                    try:
-                        subprocess.Popen([fm], start_new_session=True)
-                        self.log(f"Executed: open-files (launched {fm})")
-                        break
-                    except FileNotFoundError:
-                        continue
-                        
-            elif action == 'close-window':
-                subprocess.run(['xdotool', 'getactivewindow', 'windowclose'], timeout=1)
-                self.log("Executed: close-window")
-                
-            elif action in ('snap-left', 'snap-right', 'snap-up', 'snap-down'):
-                direction = action.split('-')[1].capitalize()
-                subprocess.run(['xdotool', 'key', f'Super+{direction}'], timeout=1)
-                self.log(f"Executed: {action}")
-                
-            elif action in ('task-switcher', 'alt-tab'):
-                subprocess.run(['xdotool', 'key', 'alt+Tab'], timeout=1)
-                self.log(f"Executed: {action}")
-                
-            # Note: lock-screen needs to be handled by Electron since it's a custom UI
+                if action in key_map:
+                    # Send the key to the focused Electron window
+                    subprocess.run(
+                        ['xdotool', 'key', '--window', electron_wid, key_map[action]],
+                        timeout=2
+                    )
+                    self.log(f"Sent key '{key_map[action]}' to Electron for action: {action}")
+                elif action.startswith('move-to-workspace-'):
+                    ws_num = action.split('-')[-1]
+                    subprocess.run(
+                        ['xdotool', 'key', '--window', electron_wid, f'ctrl+shift+alt+{ws_num}'],
+                        timeout=2
+                    )
+                    self.log(f"Sent key for: {action}")
+                else:
+                    self.log(f"No key mapping for action: {action}")
+            else:
+                self.log("Could not find Electron window!")
                 
         except subprocess.TimeoutExpired:
             self.log(f"Timeout executing: {action}")

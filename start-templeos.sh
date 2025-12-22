@@ -33,9 +33,10 @@ openbox --sm-disable --config-file "${OPENBOX_RC}" &
 # Wait for Openbox to initialize
 sleep 0.3
 
-# Set 4 virtual desktops for workspace switching.
-# The keybind daemon uses wmctrl -s to switch between them.
-wmctrl -n 4 2>/dev/null || true
+# CRITICAL: Disable Openbox's virtual desktops to prevent black screen issues.
+# The Electron shell uses its OWN virtual workspace system (minimize/show windows).
+# Using wmctrl desktop switching causes the Electron shell to "disappear".
+wmctrl -n 1 2>/dev/null || true
 
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true

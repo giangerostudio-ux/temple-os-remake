@@ -191,7 +191,13 @@ class KeybindDaemon:
         """
         Execute action by focusing Electron window then sending synthetic keypress.
         This ensures Electron receives the key event even when X11 apps had focus.
+        
+        For some actions (like start-menu), we only focus and let file watcher handle it.
         """
+        # Actions that should ONLY focus window and rely on file watcher
+        # (no synthetic keypress needed - Electron handles via IPC)
+        focus_only_actions = {'start-menu'}
+        
         try:
             # Find the Electron window (templeos)
             result = subprocess.run(
@@ -215,6 +221,11 @@ class KeybindDaemon:
                 
                 # Focus the Electron window first
                 subprocess.run(['xdotool', 'windowactivate', '--sync', electron_wid], timeout=2)
+                
+                # For focus-only actions, we're done - file watcher handles the rest
+                if action in focus_only_actions:
+                    self.log(f"Focus-only action: {action} (file watcher will handle)")
+                    return
                 
                 # Map action to key combination
                 key_map = {

@@ -3003,7 +3003,7 @@ class TempleOS {
     }).join('');
 
     return `
-      <div class="workspace-switcher" title="Virtual Desktops (Ctrl+Win+Arrows)">
+      <div class="workspace-switcher" title="Virtual Desktops (Ctrl+Alt+Arrows)">
         ${indicators}
       </div>
     `;
@@ -10037,8 +10037,8 @@ class TempleOS {
 
       // Global Keyboard Event Handler
       window.addEventListener('keydown', (e: KeyboardEvent) => {
-        // Workspace Overview: Win+Tab
-        if (e.metaKey && e.key === 'Tab') {
+        // Workspace Overview: Ctrl+Alt+Tab (avoid Win key to prevent OS Start Menu)
+        if (e.ctrlKey && e.altKey && !e.metaKey && e.key === 'Tab') {
           e.preventDefault();
           this.showWorkspaceOverview = !this.showWorkspaceOverview;
           this.render();
@@ -10060,24 +10060,28 @@ class TempleOS {
           return;
         }
 
-        // Workspace Switching: Ctrl+Win+Left/Right
-        if (e.ctrlKey && e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        // Workspace Switching: Ctrl+Alt+Left/Right (avoid Win key to prevent OS Start Menu)
+        if (e.ctrlKey && e.altKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
           e.preventDefault();
           if (e.key === 'ArrowLeft') {
             this.workspaceManager.previousWorkspace();
           } else {
             this.workspaceManager.nextWorkspace();
           }
+          // Apply X11 fake workspaces
+          this.applyX11WorkspaceVisibility(this.workspaceManager.getActiveWorkspaceId());
           this.render();
           return;
         }
 
-        // Direct Workspace Switch: Ctrl+Win+1-4
-        if (e.ctrlKey && e.metaKey && e.key >= '1' && e.key <= '9') {
+        // Direct Workspace Switch: Ctrl+Alt+1-4 (avoid Win key to prevent OS Start Menu)
+        if (e.ctrlKey && e.altKey && !e.metaKey && e.key >= '1' && e.key <= '9') {
           e.preventDefault();
           const wsId = parseInt(e.key, 10);
           if (wsId <= this.workspaceManager.getTotalWorkspaces()) {
             this.workspaceManager.switchToWorkspace(wsId);
+            // Apply X11 fake workspaces
+            this.applyX11WorkspaceVisibility(wsId);
             this.render();
           }
           return;
@@ -10093,8 +10097,8 @@ class TempleOS {
           }
         }
 
-        // Move window to another workspace: Ctrl+Shift+Win+1-4
-        if (e.ctrlKey && e.shiftKey && e.metaKey && e.key >= '1' && e.key <= '9') {
+        // Move window to another workspace: Ctrl+Shift+Alt+1-4 (avoid Win key to prevent OS Start Menu)
+        if (e.ctrlKey && e.shiftKey && e.altKey && !e.metaKey && e.key >= '1' && e.key <= '9') {
           e.preventDefault();
           const activeWin = this.windows.find(w => w.active);
           if (activeWin) {

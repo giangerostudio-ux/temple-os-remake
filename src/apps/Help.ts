@@ -114,7 +114,7 @@ export class HelpApp {
         },
         {
             title: 'Window Management',
-            content: 'Drag windows by the title bar, resize from edges, and snap to screen edges. Use Win+Arrow keys for quick tiling. Alt+Tab switches between windows. Virtual desktops (Ctrl+Win+Arrows) help organize your workspace.',
+            content: 'Drag windows by the title bar, resize from edges, and snap to screen edges. Use Win+Arrow keys for quick tiling. Alt+Tab switches between windows. Virtual desktops (Ctrl+Alt+Arrows) help organize your workspace.',
             icon: '🪟'
         },
         {
@@ -151,7 +151,7 @@ export class HelpApp {
         },
         {
             question: 'How do virtual desktops work?',
-            answer: 'You have 4 virtual desktops (workspaces). Use Ctrl+Win+Arrow keys to switch, or click the workspace indicators in the taskbar. Win+Tab opens an overview of all workspaces. Move windows between workspaces with Ctrl+Shift+Win+Number.'
+            answer: 'You have 4 virtual desktops (workspaces). Use Ctrl+Alt+Arrow keys to switch, or click the workspace indicators in the taskbar. Ctrl+Alt+Tab opens an overview of all workspaces. Move windows between workspaces with Ctrl+Shift+Alt+Number.'
         },
         {
             question: 'What are the special terminal commands?',

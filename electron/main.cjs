@@ -2166,20 +2166,25 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Mark as recently snapped to avoid re-snapping
             recentlySnappedXids.set(xid, now);
 
-            // Snap the window with proper taskbar config
-            snapX11WindowCore(w.xidHex, slot, { height: 50, position: 'bottom' })
-                .then((result) => {
-                    if (result.success) {
-                        // Track the slot
-                        occupiedSlots.set(xid, slot);
-                        console.log(`[X11 Snap Layouts] Auto-snapped ${xid} to ${slot}`);
-                    } else {
-                        console.error(`[X11 Snap Layouts] Failed to auto-snap ${xid}:`, result.error);
-                    }
-                })
-                .catch((err) => {
-                    console.error(`[X11 Snap Layouts] Error auto-snapping ${xid}:`, err.message);
-                });
+            // Delay the snap slightly to let the window fully appear and settle
+            // This helps avoid issues where the WM hasn't finished placing the window
+            const xidToSnap = w.xidHex;
+            setTimeout(() => {
+                // Snap the window with proper taskbar config
+                snapX11WindowCore(xidToSnap, slot, { height: 50, position: 'bottom' })
+                    .then((result) => {
+                        if (result.success) {
+                            // Track the slot
+                            occupiedSlots.set(xid, slot);
+                            console.log(`[X11 Snap Layouts] Auto-snapped ${xid} to ${slot}`);
+                        } else {
+                            console.error(`[X11 Snap Layouts] Failed to auto-snap ${xid}:`, result.error);
+                        }
+                    })
+                    .catch((err) => {
+                        console.error(`[X11 Snap Layouts] Error auto-snapping ${xid}:`, err.message);
+                    });
+            }, 300); // 300ms delay for window to settle
         }
     }
 

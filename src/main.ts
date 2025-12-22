@@ -17446,13 +17446,20 @@ class TempleOS {
           });
           if (window.electronAPI?.snapX11Window) {
             const taskbarCfg = { height: 50, position: this.taskbarPosition };
+            // Helper to snap and track the slot
+            const snapAndTrack = async (mode: string) => {
+              const res = await window.electronAPI?.snapX11Window?.(xid, mode, taskbarCfg);
+              if (res?.success) {
+                await window.electronAPI?.setOccupiedSlot?.(xid, mode);
+              }
+            };
             menuItems.push(
-              { label: 'Snap Left', action: () => void window.electronAPI?.snapX11Window?.(xid, 'left', taskbarCfg) },
-              { label: 'Snap Right', action: () => void window.electronAPI?.snapX11Window?.(xid, 'right', taskbarCfg) },
-              { label: 'Snap Top', action: () => void window.electronAPI?.snapX11Window?.(xid, 'top', taskbarCfg) },
-              { label: 'Snap Bottom', action: () => void window.electronAPI?.snapX11Window?.(xid, 'bottom', taskbarCfg) },
-              { label: 'Maximize', action: () => void window.electronAPI?.snapX11Window?.(xid, 'maximize', taskbarCfg) },
-              { label: 'Center', action: () => void window.electronAPI?.snapX11Window?.(xid, 'center', taskbarCfg) },
+              { label: 'Snap Left', action: () => void snapAndTrack('left') },
+              { label: 'Snap Right', action: () => void snapAndTrack('right') },
+              { label: 'Snap Top', action: () => void snapAndTrack('top') },
+              { label: 'Snap Bottom', action: () => void snapAndTrack('bottom') },
+              { label: 'Maximize', action: () => void snapAndTrack('maximize') },
+              { label: 'Center', action: () => void snapAndTrack('center') },
             );
           }
           menuItems.push({ divider: true });

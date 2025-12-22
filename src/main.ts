@@ -775,8 +775,8 @@ class TempleOS {
       const assignedWorkspace = this.x11WindowWorkspaces.get(xidLower) || 1;
 
       if (assignedWorkspace === targetWorkspace) {
-        // Window belongs to this workspace - unminimize if minimized
-        if (x11Win.minimized && window.electronAPI.unminimizeX11Window) {
+        // Window belongs to this workspace - unminimize if minimized, BUT respect manual user minimize
+        if (x11Win.minimized && window.electronAPI.unminimizeX11Window && !this.x11UserMinimized.has(xidLower)) {
           void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
         }
       } else {
@@ -987,10 +987,17 @@ class TempleOS {
         const api = window.electronAPI;
         if (api?.unminimizeX11Window) {
           const now = Date.now();
+          const currentWs = this.workspaceManager.getActiveWorkspaceId();
+
           for (const w of this.x11Windows) {
             const xid = String(w?.xidHex || '').toLowerCase();
             if (!xid || !w?.minimized) continue;
             if (this.x11UserMinimized.has(xid)) continue;
+
+            // Don't auto-restore if the window belongs to a different workspace
+            const assignedWs = this.x11WindowWorkspaces.get(xid) || 1;
+            if (assignedWs !== currentWs) continue;
+
             // Only auto-restore if the minimize likely happened because the user interacted with the
             // TempleOS shell (the original bug). If the user minimized inside the X11 app itself,
             // we should respect it and not pop the window back.

@@ -767,10 +767,7 @@ class TempleOS {
     for (const x11Win of this.x11Windows) {
       const xidLower = x11Win.xidHex.toLowerCase();
 
-      // Auto-assign new X11 windows to current workspace if not already assigned
-      if (!this.x11WindowWorkspaces.has(xidLower)) {
-        this.x11WindowWorkspaces.set(xidLower, currentWorkspace);
-      }
+
 
       const assignedWorkspace = this.x11WindowWorkspaces.get(xidLower) || 1;
 
@@ -968,6 +965,19 @@ class TempleOS {
         const alive = new Set(this.x11Windows.map(w => String(w?.xidHex || '').toLowerCase()).filter(Boolean));
         for (const xid of Array.from(this.x11UserMinimized)) {
           if (!alive.has(xid)) this.x11UserMinimized.delete(xid);
+        }
+        // Cleanup workspace assignments for closed windows
+        for (const [xid] of this.x11WindowWorkspaces) {
+          if (!alive.has(xid)) this.x11WindowWorkspaces.delete(xid);
+        }
+
+        // Auto-assign new X11 windows to current workspace
+        const activeWsId = this.workspaceManager.getActiveWorkspaceId();
+        for (const w of this.x11Windows) {
+          const xid = String(w?.xidHex || '').toLowerCase();
+          if (xid && !this.x11WindowWorkspaces.has(xid)) {
+            this.x11WindowWorkspaces.set(xid, activeWsId);
+          }
         }
 
         // If a window was active and becomes minimized (e.g. user clicked the app's own minimize button),

@@ -17142,6 +17142,20 @@ class TempleOS {
             });
           }
           menuItems.push({ divider: true });
+          // Move to Workspace sub-menu items
+          for (let i = 1; i <= 4; i++) {
+            const currentWs = this.x11WindowWorkspaces.get(xid.toLowerCase()) || 1;
+            if (i !== currentWs) {
+              menuItems.push({
+                label: `Move to Workspace ${i}`,
+                action: () => {
+                  this.moveX11WindowToWorkspace(xid, i);
+                  this.render();
+                }
+              });
+            }
+          }
+          menuItems.push({ divider: true });
           menuItems.push({
             label: 'Close Window',
             action: () => {

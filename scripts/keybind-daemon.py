@@ -219,7 +219,7 @@ class KeybindDaemon:
                     'workspace-2': 'ctrl+alt+2',
                     'workspace-3': 'ctrl+alt+3',
                     'workspace-4': 'ctrl+alt+4',
-                    'workspace-overview': 'ctrl+alt+Tab',
+                    'workspace-overview': 'ctrl+alt+o',
                     'snap-left': 'super+Left',
                     'snap-right': 'super+Right',
                     'snap-up': 'super+Up',

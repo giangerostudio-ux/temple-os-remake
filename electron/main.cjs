@@ -6539,11 +6539,14 @@ app.whenReady().then(() => {
     // These use XGrabKey which can be blocked by X11 apps with active grabs
 
     // Ctrl+Alt+Tab: Toggle workspace overview
-    globalShortcut.register('Control+Alt+Tab', () => {
+    // Ctrl+Alt+Tab: Toggle workspace overview
+    const toggleOverview = () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('global-shortcut', 'workspace-overview');
         }
-    });
+    };
+    globalShortcut.register('Control+Alt+Tab', toggleOverview);
+    globalShortcut.register('Control+Alt+O', toggleOverview); // Alternate for daemon to bypass X11 Alt-Tab grabs
 
     // Ctrl+Alt+Left: Previous workspace
     globalShortcut.register('Control+Alt+Left', () => {

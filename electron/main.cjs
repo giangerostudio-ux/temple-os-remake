@@ -6041,7 +6041,13 @@ ipcMain.handle('updater:check', async () => {
 ipcMain.handle('updater:update', async () => {
     return new Promise((resolve) => {
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
+        // CRITICAL: After npm install, the chrome-sandbox permissions get reset.
+        // We must fix them or the OS won't boot. Use pkexec for graphical sudo prompt.
+        const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
+        const fixSandboxCmd = process.platform === 'linux'
+            ? ` && pkexec sh -c 'chown root:root "${sandboxPath}" && chmod 4755 "${sandboxPath}"'`
+            : '';
+        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./${fixSandboxCmd}`;
 
         const runUpdate = () => {
             exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {

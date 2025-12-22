@@ -7,7 +7,7 @@
 OPENBOX_DIR="${HOME}/.config/openbox"
 OPENBOX_RC="${OPENBOX_DIR}/rc.xml"
 OPENBOX_MARKER="${OPENBOX_DIR}/.templeos-openbox-patched"
-OPENBOX_MARKER_VER="templeos-openbox-patched-v2"
+OPENBOX_MARKER_VER="templeos-openbox-patched-v3"
 mkdir -p "${OPENBOX_DIR}" 2>/dev/null || true
 if [ ! -f "${OPENBOX_RC}" ]; then
   if [ -f "/etc/xdg/openbox/rc.xml" ]; then

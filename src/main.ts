@@ -743,7 +743,15 @@ class TempleOS {
 
   // X11 Fake Workspaces - track which workspace each X11 window belongs to
   // Key: lowercased xidHex, Value: workspace number (1-4)
-  private x11WindowWorkspaces = new Map<string, number>();
+  private x11WindowWorkspaces: Map<string, number> = (() => {
+    try {
+      const stored = localStorage.getItem('temple_x11_workspaces');
+      if (stored) {
+        return new Map(JSON.parse(stored));
+      }
+    } catch { /* ignore */ }
+    return new Map();
+  })();
 
   private pendingContextMenuActions: Map<string, () => void | Promise<void>> | null = null; // For floating popup menu callbacks
 
@@ -791,6 +799,7 @@ class TempleOS {
   private moveX11WindowToWorkspace(xidHex: string, workspaceId: number): void {
     const xidLower = xidHex.toLowerCase();
     this.x11WindowWorkspaces.set(xidLower, workspaceId);
+    localStorage.setItem('temple_x11_workspaces', JSON.stringify(Array.from(this.x11WindowWorkspaces.entries())));
 
     // If we're on a different workspace, minimize it immediately
     const currentWorkspace = this.workspaceManager.getActiveWorkspaceId();
@@ -966,9 +975,14 @@ class TempleOS {
         for (const xid of Array.from(this.x11UserMinimized)) {
           if (!alive.has(xid)) this.x11UserMinimized.delete(xid);
         }
+        let workspacesChanged = false;
+
         // Cleanup workspace assignments for closed windows
         for (const [xid] of this.x11WindowWorkspaces) {
-          if (!alive.has(xid)) this.x11WindowWorkspaces.delete(xid);
+          if (!alive.has(xid)) {
+            this.x11WindowWorkspaces.delete(xid);
+            workspacesChanged = true;
+          }
         }
 
         // Auto-assign new X11 windows to current workspace
@@ -977,7 +991,12 @@ class TempleOS {
           const xid = String(w?.xidHex || '').toLowerCase();
           if (xid && !this.x11WindowWorkspaces.has(xid)) {
             this.x11WindowWorkspaces.set(xid, activeWsId);
+            workspacesChanged = true;
           }
+        }
+
+        if (workspacesChanged) {
+          localStorage.setItem('temple_x11_workspaces', JSON.stringify(Array.from(this.x11WindowWorkspaces.entries())));
         }
 
         // If a window was active and becomes minimized (e.g. user clicked the app's own minimize button),

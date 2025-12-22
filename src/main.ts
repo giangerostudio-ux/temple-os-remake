@@ -2682,18 +2682,18 @@ class TempleOS {
           x = stored.x;
           y = stored.y;
 
-          // Full bounds check (prevent off-screen in ALL directions)
-          const maxX = width - CELL_W - PADDING;
-          const maxY = ((desktopEl && desktopEl.clientHeight > 0) ? desktopEl.clientHeight : window.innerHeight) - CELL_H - PADDING - 60; // 60 for taskbar
-          if (x < 0) x = PADDING;
-          if (y < 0) y = PADDING;
-          // Also check right/bottom bounds - if icon is off-screen, reset to grid position
-          if (x > maxX || y > maxY) {
-            const r = Math.floor(index / cols);
-            const c = index % cols;
-            x = PADDING + c * (CELL_W + GAP);
-            y = PADDING + r * (CELL_H + GAP);
-            // Update stored position so it persists
+          // Bounds check with Clamping (preserves position, just keeps on-screen)
+          const safeMaxX = width - CELL_W - 5;
+          const viewH = (desktopEl && desktopEl.clientHeight > 0) ? desktopEl.clientHeight : window.innerHeight;
+          const safeMaxY = viewH - CELL_H - 50; // Account for taskbar
+
+          let clamped = false;
+          if (x < 5) { x = 10; clamped = true; }
+          if (y < 5) { y = 10; clamped = true; }
+          if (x > safeMaxX) { x = Math.max(10, safeMaxX); clamped = true; }
+          if (y > safeMaxY) { y = Math.max(10, safeMaxY); clamped = true; }
+
+          if (clamped) {
             this.desktopIconPositions[key] = { x, y };
             localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
           }

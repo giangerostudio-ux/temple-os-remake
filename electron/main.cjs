@@ -1413,10 +1413,10 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         ? taskbarConfig.position
         : 'bottom';
 
-    // Estimated window decoration height (Openbox title bar ~30px)
+    // Estimated window decoration height (Openbox title bar)
     // With NorthWest gravity, we position the frame at y=0, but the WM adds decorations
     // which increases total window height. Subtract this to prevent overlap with taskbar.
-    const decorationHeight = 30;
+    const decorationHeight = 5;
 
     // Calculate adjusted work area excluding taskbar AND decorations
     const wa = {

@@ -114,8 +114,9 @@ class KeybindDaemon:
     Listens to keyboard events via evdev and emits hotkey actions.
     """
     
-    def __init__(self, device_path=None):
+    def __init__(self, device_path=None, output_file=None):
         self.device_path = device_path or self._find_keyboard()
+        self.output_file = output_file  # If set, write actions to this file
         self.device_fd = None
         self.running = True
         
@@ -177,9 +178,20 @@ class KeybindDaemon:
         )
     
     def emit(self, action):
-        """Output action as JSON to stdout for Electron to consume"""
+        """Output action as JSON - either to stdout or to output file"""
         output = json.dumps({'action': action})
-        print(output, flush=True)
+        
+        if self.output_file:
+            # Write to file (append mode, with newline)
+            try:
+                with open(self.output_file, 'a') as f:
+                    f.write(output + '\n')
+                    f.flush()
+            except Exception as e:
+                self.log(f"Error writing to output file: {e}")
+        else:
+            # Write to stdout
+            print(output, flush=True)
     
     def _check_hotkey(self, keycode):
         """
@@ -369,6 +381,16 @@ Permissions:
         action='store_true',
         help='List available input devices and exit'
     )
+    parser.add_argument(
+        '--output-file', '-o',
+        help='Write actions to this file instead of stdout (for file-based IPC)',
+        default=None
+    )
+    parser.add_argument(
+        '--socket', '-s',
+        help='Socket path (alias for --output-file for compatibility)',
+        default=None
+    )
     
     args = parser.parse_args()
     
@@ -387,7 +409,10 @@ Permissions:
             print(f"  {event_path}: {name}")
         return 0
     
-    daemon = KeybindDaemon(device_path=args.device)
+    # Determine output file (--socket is alias for --output-file)
+    output_file = args.output_file or args.socket
+    
+    daemon = KeybindDaemon(device_path=args.device, output_file=output_file)
     
     # Handle signals for clean shutdown
     def signal_handler(sig, frame):

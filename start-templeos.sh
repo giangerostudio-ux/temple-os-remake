@@ -41,5 +41,23 @@ wmctrl -n 1 2>/dev/null || true
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true
 
+# Start keybind daemon (evdev-based global hotkeys that bypass X11 grabs)
+# This MUST run before Electron so the daemon can capture keypresses
+KEYBIND_DAEMON="/opt/templeos/scripts/keybind-daemon.py"
+KEYBIND_SOCKET="/tmp/templeos-keybind.sock"
+if [ -f "${KEYBIND_DAEMON}" ]; then
+  # Kill any existing daemon
+  pkill -f keybind-daemon.py 2>/dev/null || true
+  rm -f "${KEYBIND_SOCKET}" 2>/dev/null || true
+  
+  # Start daemon with socket mode
+  python3 "${KEYBIND_DAEMON}" --socket "${KEYBIND_SOCKET}" &
+  KEYBIND_PID=$!
+  echo "[TempleOS] Started keybind daemon (PID: ${KEYBIND_PID})"
+  
+  # Give daemon time to create socket
+  sleep 0.3
+fi
+
 # Start TempleOS Electron app
 exec /opt/templeos/node_modules/.bin/electron /opt/templeos

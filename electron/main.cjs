@@ -6422,129 +6422,101 @@ app.on('activate', () => {
 // ============================================
 
 let keybindDaemon = null;
-let keybindDaemonRespawnAttempts = 0;
-const MAX_DAEMON_RESPAWN_ATTEMPTS = 3;
+let keybindFileWatcher = null;
+let keybindFilePosition = 0;
+const KEYBIND_ACTIONS_FILE = '/tmp/templeos-keybind.sock';
 
 /**
- * Start the evdev keybind daemon (Python script that reads /dev/input directly).
- * This bypasses X11 keyboard grabs and works even when fullscreen apps have focus.
+ * Start watching the keybind daemon output file.
+ * The daemon is started by start-templeos.sh and writes actions to a file.
+ * This approach avoids spawn() issues and works reliably.
  */
-function startKeybindDaemon() {
-    // Debug: marker at function entry (before any checks)
-    try { fs.writeFileSync('/tmp/keybind-debug-entry.txt', `FUNCTION ENTERED at ${new Date().toISOString()}\nPlatform: ${process.platform}\n`); } catch (e) { }
-
+function startKeybindWatcher() {
     if (process.platform !== 'linux') {
-        console.log('[KeybindDaemon] Not on Linux, using globalShortcut fallback only');
+        console.log('[KeybindWatcher] Not on Linux, using globalShortcut fallback only');
         return;
     }
 
-    // Try multiple paths - handles both dev and production
-    const possiblePaths = [
-        path.join(__dirname, '..', 'scripts', 'keybind-daemon.py'),
-        '/opt/templeos/scripts/keybind-daemon.py',
-        path.join(process.cwd(), 'scripts', 'keybind-daemon.py'),
-    ];
+    console.log('[KeybindWatcher] Starting file watcher for:', KEYBIND_ACTIONS_FILE);
 
-    let daemonPath = null;
-    for (const p of possiblePaths) {
-        console.log('[KeybindDaemon] Checking path:', p);
-        if (fs.existsSync(p)) {
-            daemonPath = p;
-            console.log('[KeybindDaemon] Found daemon at:', p);
-            break;
-        }
-    }
-
-    if (!daemonPath) {
-        console.warn('[KeybindDaemon] Daemon script not found in any path:', possiblePaths);
-        return;
-    }
-
-    console.log('[KeybindDaemon] Starting evdev keybind daemon from:', daemonPath);
-
-    // Debug: write marker file to trace execution (console.log not visible in logs)
-    try { fs.writeFileSync('/tmp/keybind-debug-start.txt', `Daemon path: ${daemonPath}\nTime: ${new Date().toISOString()}\n`); } catch (e) { }
-
+    // Clear the file on startup to avoid processing stale actions
     try {
-        // Spawn the Python daemon
-        keybindDaemon = spawn('python3', [daemonPath], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            detached: false,
-        });
+        if (fs.existsSync(KEYBIND_ACTIONS_FILE)) {
+            fs.truncateSync(KEYBIND_ACTIONS_FILE, 0);
+        }
+    } catch (e) {
+        // File may not exist yet, that's OK
+    }
 
-        // Debug: write marker for spawn success
-        try { fs.writeFileSync('/tmp/keybind-debug-spawn.txt', `PID: ${keybindDaemon.pid}\nTime: ${new Date().toISOString()}\n`); } catch (e) { }
-        console.log('[KeybindDaemon] Spawn called, PID:', keybindDaemon.pid);
+    // Watch for file changes
+    const processActions = () => {
+        try {
+            if (!fs.existsSync(KEYBIND_ACTIONS_FILE)) {
+                return;
+            }
 
+            const content = fs.readFileSync(KEYBIND_ACTIONS_FILE, 'utf8');
+            if (content.length <= keybindFilePosition) {
+                return;
+            }
 
-        // Parse JSON output from daemon
-        let buffer = '';
-        keybindDaemon.stdout.on('data', (data) => {
-            buffer += data.toString();
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep incomplete line in buffer
+            // Get new content since last read
+            const newContent = content.substring(keybindFilePosition);
+            keybindFilePosition = content.length;
 
+            // Process each line (each action is a JSON line)
+            const lines = newContent.split('\n');
             for (const line of lines) {
                 if (!line.trim()) continue;
                 try {
                     const msg = JSON.parse(line);
                     if (msg.action && mainWindow && !mainWindow.isDestroyed()) {
-                        console.log('[KeybindDaemon] Action:', msg.action);
+                        console.log('[KeybindWatcher] Action:', msg.action);
                         mainWindow.webContents.send('global-shortcut', msg.action);
                     }
                 } catch (e) {
                     // Not JSON, ignore
                 }
             }
-        });
+        } catch (e) {
+            // Ignore read errors
+        }
+    };
 
-        // Log daemon stderr
-        keybindDaemon.stderr.on('data', (data) => {
-            console.log('[KeybindDaemon]', data.toString().trim());
-        });
+    // Use fs.watchFile for polling (more reliable than fs.watch for temp files)
+    fs.watchFile(KEYBIND_ACTIONS_FILE, { interval: 50 }, (curr, prev) => {
+        if (curr.mtime > prev.mtime || curr.size !== prev.size) {
+            processActions();
+        }
+    });
 
-        // Handle daemon exit
-        keybindDaemon.on('exit', (code, signal) => {
-            console.log(`[KeybindDaemon] Daemon exited with code ${code}, signal ${signal}`);
-            keybindDaemon = null;
+    // Also check periodically in case watchFile misses events
+    keybindFileWatcher = setInterval(processActions, 100);
 
-            // Respawn if it crashed unexpectedly (not during shutdown)
-            if (!app.isQuitting && keybindDaemonRespawnAttempts < MAX_DAEMON_RESPAWN_ATTEMPTS) {
-                keybindDaemonRespawnAttempts++;
-                console.log(`[KeybindDaemon] Attempting respawn (${keybindDaemonRespawnAttempts}/${MAX_DAEMON_RESPAWN_ATTEMPTS})...`);
-                setTimeout(() => startKeybindDaemon(), 1000);
-            }
-        });
-
-        keybindDaemon.on('error', (err) => {
-            console.error('[KeybindDaemon] Failed to start daemon:', err.message);
-            keybindDaemon = null;
-        });
-    } catch (spawnErr) {
-        console.error('[KeybindDaemon] Spawn exception:', spawnErr.message);
-    }
+    console.log('[KeybindWatcher] Watcher started, polling every 50-100ms');
 }
 
 /**
- * Stop the keybind daemon gracefully.
+ * Stop the keybind file watcher.
  */
-function stopKeybindDaemon() {
-    if (keybindDaemon) {
-        console.log('[KeybindDaemon] Stopping daemon...');
-        try {
-            keybindDaemon.kill('SIGTERM');
-        } catch (e) {
-            // Ignore
-        }
-        keybindDaemon = null;
+function stopKeybindWatcher() {
+    if (keybindFileWatcher) {
+        clearInterval(keybindFileWatcher);
+        keybindFileWatcher = null;
     }
+    try {
+        fs.unwatchFile(KEYBIND_ACTIONS_FILE);
+    } catch (e) {
+        // Ignore
+    }
+    console.log('[KeybindWatcher] Watcher stopped');
 }
 
 app.whenReady().then(() => {
     createWindow(); // Initial window creation
 
-    // Start evdev daemon (primary - bypasses X11 grabs)
-    startKeybindDaemon();
+    // Start file watcher for evdev daemon (daemon started by start-templeos.sh)
+    startKeybindWatcher();
 
     // Register globalShortcut as fallback (secondary - works when daemon unavailable)
     // These use XGrabKey which can be blocked by X11 apps with active grabs

@@ -787,16 +787,21 @@ class TempleOS {
   private _doApplyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
 
+    console.log(`[X11 Workspace] Applying visibility for workspace ${targetWorkspace}`);
+    console.log(`[X11 Workspace] x11WindowWorkspaces:`, Object.fromEntries(this.x11WindowWorkspaces));
+
     for (const x11Win of this.x11Windows) {
       const xidLower = x11Win.xidHex.toLowerCase();
 
       const assignedWorkspace = this.x11WindowWorkspaces.get(xidLower) || 1;
+      console.log(`[X11 Workspace] Window ${xidLower} assigned to ws ${assignedWorkspace}, target ws ${targetWorkspace}, minimized: ${x11Win.minimized}`);
 
       if (assignedWorkspace === targetWorkspace) {
         // Window belongs to this workspace - unminimize if minimized, BUT respect manual user minimize
         // Also check that it wasn't minimized by workspace switching
         if (x11Win.minimized && window.electronAPI.unminimizeX11Window && 
             !this.x11UserMinimized.has(xidLower) && !this.x11WorkspaceMinimized.has(xidLower)) {
+          console.log(`[X11 Workspace] Unminimizing ${xidLower}`);
           void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
         }
         // Clear the workspace-minimized flag since we're on the right workspace
@@ -805,6 +810,7 @@ class TempleOS {
         // Window belongs to a different workspace - minimize if not already
         if (!x11Win.minimized && window.electronAPI.minimizeX11Window) {
           // Mark as minimized due to workspace switch (not user action)
+          console.log(`[X11 Workspace] Minimizing ${xidLower} (belongs to ws ${assignedWorkspace}, not ${targetWorkspace})`);
           this.x11WorkspaceMinimized.add(xidLower);
           void window.electronAPI.minimizeX11Window(x11Win.xidHex);
         }
@@ -10726,12 +10732,12 @@ class TempleOS {
     try {
       this.recordAppLaunch(`builtin:${appId}`);
 
-    const nextId = `${appId}-${++this.windowIdCounter}`;
-    let windowConfig: Partial<WindowState> = {};
+      const nextId = `${appId}-${++this.windowIdCounter}`;
+      let windowConfig: Partial<WindowState> = {};
 
-    switch (appId) {
-      case 'terminal':
-        windowConfig = {
+      switch (appId) {
+        case 'terminal':
+          windowConfig = {
           title: 'Terminal',
           icon: '💻',
           width: 600,
@@ -11002,31 +11008,31 @@ class TempleOS {
       maximized: initialMaximized
     };
 
-    this.windows.forEach(w => w.active = false);
-    this.windows.push(newWindow);
+      this.windows.forEach(w => w.active = false);
+      this.windows.push(newWindow);
 
-    // Register window with current workspace
-    this.workspaceManager.addWindowToCurrentWorkspace(nextId);
+      // Register window with current workspace
+      this.workspaceManager.addWindowToCurrentWorkspace(nextId);
 
-    this.render();
+      this.render();
 
-    // Focus terminal input or initialize xterm
-    if (appId === 'terminal') {
-      setTimeout(() => {
-        if (this.ptySupported) {
-          // Initialize xterm.js for visible panes
-          this.ensureVisibleTerminalXterms();
-        } else {
-          // Fallback: focus basic terminal input
-          const input = document.querySelector('.terminal-input') as HTMLInputElement;
-          if (input) input.focus();
-        }
-      }, 100);
-    }
+      // Focus terminal input or initialize xterm
+      if (appId === 'terminal') {
+        setTimeout(() => {
+          if (this.ptySupported) {
+            // Initialize xterm.js for visible panes
+            this.ensureVisibleTerminalXterms();
+          } else {
+            // Fallback: focus basic terminal input
+            const input = document.querySelector('.terminal-input') as HTMLInputElement;
+            if (input) input.focus();
+          }
+        }, 100);
+      }
 
-    if (appId === 'editor') {
-      setTimeout(() => this.ensureEditorView(), 100);
-    }
+      if (appId === 'editor') {
+        setTimeout(() => this.ensureEditorView(), 100);
+      }
     } finally {
       // Always clear the guard when done
       this.appsBeingOpened.delete(appId);

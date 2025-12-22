@@ -762,7 +762,7 @@ class TempleOS {
   private applyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
 
-    const currentWorkspace = this.workspaceManager.getActiveWorkspaceId();
+
 
     for (const x11Win of this.x11Windows) {
       const xidLower = x11Win.xidHex.toLowerCase();

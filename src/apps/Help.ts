@@ -32,7 +32,7 @@ export class HelpApp {
         {
             name: '🖥️ Virtual Desktops',
             shortcuts: [
-                { key: 'Ctrl + Alt + Tab', desc: 'Next Workspace (Cycle)' },
+                { key: 'Ctrl + Alt + Tab', desc: 'Workspace Overview' },
                 { key: 'Ctrl + Alt + ← / →', desc: 'Previous / Next workspace' },
                 { key: 'Ctrl + Alt + 1-4', desc: 'Switch to workspace 1-4' },
                 { key: 'Ctrl + Shift + Alt + 1-4', desc: 'Move window to workspace' },
@@ -42,7 +42,7 @@ export class HelpApp {
         {
             name: '📱 App Shortcuts',
             shortcuts: [
-                { key: 'Win (Tap)', desc: 'Open Start Menu' },
+                { key: 'Win / Super', desc: 'Open Start Menu' },
                 { key: 'Win + T', desc: 'Open Terminal' },
                 { key: 'Win + E', desc: 'Open File Browser' },
                 { key: 'Win + L', desc: 'Lock screen' },
@@ -151,7 +151,7 @@ export class HelpApp {
         },
         {
             question: 'How do virtual desktops work?',
-            answer: 'You have 4 virtual desktops (workspaces). Use Ctrl+Alt+Arrow keys to switch, or click the workspace indicators in the taskbar. Ctrl+Alt+Tab cycles to the next workspace. Move windows between workspaces with Ctrl+Shift+Alt+Number.'
+            answer: 'You have 4 virtual desktops (workspaces). Use Ctrl+Alt+Arrow keys to switch, or click the workspace indicators in the taskbar. Ctrl+Alt+Tab opens the workspace overview. Move windows between workspaces with Ctrl+Shift+Alt+Number.'
         },
         {
             question: 'What are the special terminal commands?',

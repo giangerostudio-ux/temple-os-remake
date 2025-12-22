@@ -30,6 +30,14 @@ fi
 # Start Openbox window manager
 openbox --sm-disable --config-file "${OPENBOX_RC}" &
 
+# Wait for Openbox to initialize
+sleep 0.3
+
+# CRITICAL: Disable Openbox's virtual desktops to prevent black screen issues.
+# The Electron shell can't follow desktop switches, so having multiple desktops
+# causes the shell to "disappear" when switching. Set to 1 desktop.
+wmctrl -n 1 2>/dev/null || true
+
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true
 

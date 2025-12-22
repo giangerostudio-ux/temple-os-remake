@@ -1555,13 +1555,13 @@ ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
         return { success: false, error: 'Cannot track main window' };
     }
 
-    // Update slot tracking
-    if (slot === 'maximize' || !slot) {
+    // Update slot tracking - track ALL slots including maximize
+    if (!slot) {
         occupiedSlots.delete(normalizedXid);
-        console.log(`[X11 Snap Layouts] Removed ${normalizedXid} from slots (was maximize or empty)`);
+        console.log(`[X11 Snap Layouts] Removed ${normalizedXid} from slots (empty slot)`);
     } else {
         occupiedSlots.set(normalizedXid, slot);
-        // Activate tiling mode when user manually snaps to ANY non-maximize slot
+        // Activate tiling mode when user manually snaps to ANY slot (including maximize)
         tilingModeActive = true;
         console.log(`[X11 Snap Layouts] Tiling mode activated by user snap: ${slot}, occupiedSlots:`, Object.fromEntries(occupiedSlots));
     }
@@ -2111,7 +2111,15 @@ function getNextAvailableSlot() {
         return 'maximize';
     }
 
-    const occupied = new Set(occupiedSlots.values());
+    const slots = Array.from(occupiedSlots.values());
+    
+    // If ALL existing windows are maximized, new windows should also be maximized
+    if (slots.length > 0 && slots.every(s => s === 'maximize')) {
+        console.log('[X11 Snap Layouts] All existing windows are maximized, new window will maximize too');
+        return 'maximize';
+    }
+
+    const occupied = new Set(slots);
 
     // Priority: fill halves first, then quadrants
     if (!occupied.has('left')) return 'left';
@@ -2122,6 +2130,53 @@ function getNextAvailableSlot() {
     if (!occupied.has('bottomright')) return 'bottomright';
 
     return 'maximize'; // Overflow
+}
+
+// Infer what slot a window occupies based on its geometry
+function inferSlotFromGeometry(w, workArea) {
+    if (!w || !workArea) return null;
+    
+    const { x, y, width, height } = w;
+    const wa = workArea;
+    const tolerance = 50; // Allow some tolerance for WM decoration differences
+    
+    // Check if near work area edges
+    const nearLeft = Math.abs(x - wa.x) < tolerance;
+    const nearRight = Math.abs((x + width) - (wa.x + wa.width)) < tolerance;
+    const nearTop = Math.abs(y - wa.y) < tolerance;
+    const nearBottom = Math.abs((y + height) - (wa.y + wa.height)) < tolerance;
+    
+    const halfWidth = wa.width / 2;
+    const halfHeight = wa.height / 2;
+    const isHalfWidth = Math.abs(width - halfWidth) < tolerance;
+    const isFullWidth = Math.abs(width - wa.width) < tolerance;
+    const isHalfHeight = Math.abs(height - halfHeight) < tolerance;
+    const isFullHeight = Math.abs(height - wa.height) < tolerance;
+    
+    // Maximize: full width and height, near top-left
+    if (isFullWidth && isFullHeight && nearLeft && nearTop) {
+        return 'maximize';
+    }
+    
+    // Left half
+    if (isHalfWidth && isFullHeight && nearLeft && nearTop) {
+        return 'left';
+    }
+    
+    // Right half
+    if (isHalfWidth && isFullHeight && nearRight && nearTop) {
+        return 'right';
+    }
+    
+    // Quadrants
+    if (isHalfWidth && isHalfHeight) {
+        if (nearLeft && nearTop) return 'topleft';
+        if (nearRight && nearTop) return 'topright';
+        if (nearLeft && nearBottom) return 'bottomleft';
+        if (nearRight && nearBottom) return 'bottomright';
+    }
+    
+    return null; // No recognized snap position
 }
 
 // Track window closures AND detect new windows to auto-snap
@@ -2148,6 +2203,34 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
 
     // Debug: Log current state
     console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
+
+    // When tiling mode is active, infer slots for existing windows that aren't tracked yet
+    // This helps detect when a user manually positions a window before opening a new one
+    if (x11SnapLayoutsEnabled && tilingModeActive && snapshot.workArea) {
+        for (const w of snapshot.windows) {
+            const xid = String(w.xidHex).toLowerCase();
+            if (!xid) continue;
+            
+            // Skip main window
+            if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
+            
+            // Skip if already tracked
+            if (occupiedSlots.has(xid)) continue;
+            
+            // Skip minimized windows
+            if (w.minimized) continue;
+            
+            // Skip windows without geometry
+            if (w.x === undefined || w.y === undefined || w.width === undefined || w.height === undefined) continue;
+            
+            // Try to infer the slot from the window's current position
+            const inferredSlot = inferSlotFromGeometry(w, snapshot.workArea);
+            if (inferredSlot) {
+                occupiedSlots.set(xid, inferredSlot);
+                console.log(`[X11 Snap Layouts] Inferred slot '${inferredSlot}' for existing window ${xid} (${w.wmClass || w.title})`);
+            }
+        }
+    }
 
     // Detect NEW windows (not seen in previous snapshot)
     if (x11SnapLayoutsEnabled && tilingModeActive) {

@@ -151,7 +151,7 @@ export class HelpApp {
         },
         {
             question: 'How do virtual desktops work?',
-            answer: 'You have 4 virtual desktops (workspaces). Click the 1-4 buttons in the taskbar or use Ctrl+Win+Arrow keys to switch. Win+Tab opens an overview. Move windows between workspaces with Ctrl+Shift+Win+Number. Your shell stays visible on all desktops while apps stay on their assigned desktop.'
+            answer: 'You have 4 virtual desktops (workspaces). Use Ctrl+Win+Arrow keys to switch, or click the workspace indicators in the taskbar. Win+Tab opens an overview of all workspaces. Move windows between workspaces with Ctrl+Shift+Win+Number.'
         },
         {
             question: 'What are the special terminal commands?',

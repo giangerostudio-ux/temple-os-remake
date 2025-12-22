@@ -1413,26 +1413,30 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         ? taskbarConfig.position
         : 'bottom';
 
-    // Estimated window decoration height (Openbox title bar)
-    // With NorthWest gravity, we position the frame at y=0, but the WM adds decorations
-    // which increases total window height. Subtract this to prevent overlap with taskbar.
-    const decorationHeight = 24;
+    // Note: wmctrl with gravity 1 (NorthWest) sets the CLIENT AREA size, not the frame size.
+    // The window manager adds decorations (title bar ~24px) ON TOP of the client area.
+    // So if we want the total window (frame + content) to fit in our work area, we need to
+    // subtract the decoration height from the client area height we request.
+    const decorationHeight = 28; // Openbox title bar is typically ~24-28px
 
-    // Calculate adjusted work area excluding taskbar AND decorations
+    // Calculate adjusted work area excluding taskbar
     const wa = {
         x: bounds.x,
         y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
         width: bounds.width,
-        height: bounds.height - taskbarHeight - decorationHeight
+        height: bounds.height - taskbarHeight
     };
 
+    // The actual client area height needs to account for decorations
+    const clientHeight = wa.height - decorationHeight;
+    const clientHalfH = Math.max(1, Math.floor(clientHeight / 2));
+
     const halfW = Math.max(1, Math.floor(wa.width / 2));
-    const halfH = Math.max(1, Math.floor(wa.height / 2));
 
     let x = wa.x;
     let y = wa.y;
     let w = wa.width;
-    let h = wa.height;
+    let h = clientHeight;
 
     try {
         // Ensure it's visible before snapping (also de-iconifies on most WMs).
@@ -1444,41 +1448,41 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
             if (ewmhBridge.setWindowGeometry) {
                 // First remove any existing maximized state
                 await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
-                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y, wa.width, wa.height);
+                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y, wa.width, clientHeight);
             } else {
                 await ewmhBridge.setMaximized?.(xidHex, true);
             }
         } else {
             switch (m) {
                 case 'left':
-                    x = wa.x; y = wa.y; w = halfW; h = wa.height;
+                    x = wa.x; y = wa.y; w = halfW; h = clientHeight;
                     break;
                 case 'right':
-                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = wa.height;
+                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = clientHeight;
                     break;
                 case 'top':
-                    x = wa.x; y = wa.y; w = wa.width; h = halfH;
+                    x = wa.x; y = wa.y; w = wa.width; h = clientHalfH;
                     break;
                 case 'bottom':
-                    x = wa.x; y = wa.y + (wa.height - halfH); w = wa.width; h = halfH;
+                    x = wa.x; y = wa.y + clientHalfH + decorationHeight; w = wa.width; h = clientHalfH;
                     break;
                 case 'topleft':
-                    x = wa.x; y = wa.y; w = halfW; h = halfH;
+                    x = wa.x; y = wa.y; w = halfW; h = clientHalfH;
                     break;
                 case 'topright':
-                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = halfH;
+                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = clientHalfH;
                     break;
                 case 'bottomleft':
-                    x = wa.x; y = wa.y + (wa.height - halfH); w = halfW; h = halfH;
+                    x = wa.x; y = wa.y + clientHalfH + decorationHeight; w = halfW; h = clientHalfH;
                     break;
                 case 'bottomright':
-                    x = wa.x + (wa.width - halfW); y = wa.y + (wa.height - halfH); w = halfW; h = halfH;
+                    x = wa.x + (wa.width - halfW); y = wa.y + clientHalfH + decorationHeight; w = halfW; h = clientHalfH;
                     break;
                 case 'center': {
                     const cw = Math.max(1, Math.floor(wa.width * 0.7));
-                    const ch = Math.max(1, Math.floor(wa.height * 0.8));
+                    const ch = Math.max(1, Math.floor(clientHeight * 0.8));
                     x = wa.x + Math.floor((wa.width - cw) / 2);
-                    y = wa.y + Math.floor((wa.height - ch) / 2);
+                    y = wa.y + Math.floor((clientHeight - ch) / 2);
                     w = cw;
                     h = ch;
                     break;
@@ -2010,12 +2014,16 @@ function showSnapPreview(zone) {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
     const taskbarHeight = 50;
-    // Match the decoration height used in snapX11WindowCore for consistent preview
-    const decorationHeight = 24;
-    const workHeight = screenHeight - taskbarHeight - decorationHeight;
+    // Decoration height - the preview shows where the TOTAL window (including decorations) will be
+    const decorationHeight = 28;
+    // Work area height (excluding taskbar)
+    const workHeight = screenHeight - taskbarHeight;
+    // Visual height for preview (where the whole window including decorations will fit)
+    const visualHeight = workHeight;
+    const halfVisualH = Math.floor(visualHeight / 2);
 
-    // Calculate preview bounds based on zone (matching snapX11WindowCore calculations)
-    let x = 0, y = 0, w = screenWidth, h = workHeight;
+    // Calculate preview bounds based on zone
+    let x = 0, y = 0, w = screenWidth, h = visualHeight;
 
     switch (zone) {
         case 'left':
@@ -2027,23 +2035,23 @@ function showSnapPreview(zone) {
             break;
         case 'topleft':
             w = Math.floor(screenWidth / 2);
-            h = Math.floor(workHeight / 2);
+            h = halfVisualH;
             break;
         case 'topright':
             x = Math.floor(screenWidth / 2);
             w = Math.floor(screenWidth / 2);
-            h = Math.floor(workHeight / 2);
+            h = halfVisualH;
             break;
         case 'bottomleft':
             w = Math.floor(screenWidth / 2);
-            y = Math.floor(workHeight / 2);
-            h = Math.floor(workHeight / 2);
+            y = halfVisualH;
+            h = halfVisualH;
             break;
         case 'bottomright':
             x = Math.floor(screenWidth / 2);
             w = Math.floor(screenWidth / 2);
-            y = Math.floor(workHeight / 2);
-            h = Math.floor(workHeight / 2);
+            y = halfVisualH;
+            h = halfVisualH;
             break;
     }
 

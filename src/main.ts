@@ -797,11 +797,12 @@ class TempleOS {
       console.log(`[X11 Workspace] Window ${xidLower} assigned to ws ${assignedWorkspace}, target ws ${targetWorkspace}, minimized: ${x11Win.minimized}`);
 
       if (assignedWorkspace === targetWorkspace) {
-        // Window belongs to this workspace - unminimize if minimized, BUT respect manual user minimize
-        // Also check that it wasn't minimized by workspace switching
+        // Window belongs to this workspace - unminimize if minimized by workspace switching
+        // BUT respect manual user minimize (x11UserMinimized)
+        // We SHOULD unminimize if it was minimized by workspace switch (in x11WorkspaceMinimized)
         if (x11Win.minimized && window.electronAPI.unminimizeX11Window && 
-            !this.x11UserMinimized.has(xidLower) && !this.x11WorkspaceMinimized.has(xidLower)) {
-          console.log(`[X11 Workspace] Unminimizing ${xidLower}`);
+            !this.x11UserMinimized.has(xidLower)) {
+          console.log(`[X11 Workspace] Unminimizing ${xidLower} (was workspace-minimized: ${this.x11WorkspaceMinimized.has(xidLower)})`);
           void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
         }
         // Clear the workspace-minimized flag since we're on the right workspace

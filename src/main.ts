@@ -740,6 +740,11 @@ class TempleOS {
   private x11UserMinimized = new Set<string>(); // lowercased xidHex
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
   private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
+
+  // X11 Fake Workspaces - track which workspace each X11 window belongs to
+  // Key: lowercased xidHex, Value: workspace number (1-4)
+  private x11WindowWorkspaces = new Map<string, number>();
+
   private pendingContextMenuActions: Map<string, () => void | Promise<void>> | null = null; // For floating popup menu callbacks
 
   // Taskbar App Grouping (Tier 9.1)
@@ -748,6 +753,53 @@ class TempleOS {
   // Helper for Random Quotes
   public getRandomQuote(): string {
     return terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+  }
+
+  /**
+   * Apply X11 "fake workspaces" - minimize/unminimize X11 windows based on workspace assignment.
+   * Windows not assigned to any workspace are assigned to the current workspace by default.
+   */
+  private applyX11WorkspaceVisibility(targetWorkspace: number): void {
+    if (!window.electronAPI) return;
+
+    const currentWorkspace = this.workspaceManager.getActiveWorkspaceId();
+
+    for (const x11Win of this.x11Windows) {
+      const xidLower = x11Win.xidHex.toLowerCase();
+
+      // Auto-assign new X11 windows to current workspace if not already assigned
+      if (!this.x11WindowWorkspaces.has(xidLower)) {
+        this.x11WindowWorkspaces.set(xidLower, currentWorkspace);
+      }
+
+      const assignedWorkspace = this.x11WindowWorkspaces.get(xidLower) || 1;
+
+      if (assignedWorkspace === targetWorkspace) {
+        // Window belongs to this workspace - unminimize if minimized
+        if (x11Win.minimized && window.electronAPI.unminimizeX11Window) {
+          void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
+        }
+      } else {
+        // Window belongs to a different workspace - minimize if not already
+        if (!x11Win.minimized && window.electronAPI.minimizeX11Window) {
+          void window.electronAPI.minimizeX11Window(x11Win.xidHex);
+        }
+      }
+    }
+  }
+
+  /**
+   * Move an X11 window to a specific workspace
+   */
+  private moveX11WindowToWorkspace(xidHex: string, workspaceId: number): void {
+    const xidLower = xidHex.toLowerCase();
+    this.x11WindowWorkspaces.set(xidLower, workspaceId);
+
+    // If we're on a different workspace, minimize it immediately
+    const currentWorkspace = this.workspaceManager.getActiveWorkspaceId();
+    if (workspaceId !== currentWorkspace && window.electronAPI?.minimizeX11Window) {
+      void window.electronAPI.minimizeX11Window(xidHex);
+    }
   }
 
   // Terminal State (basic shell exec)
@@ -9840,8 +9892,8 @@ class TempleOS {
           const wsId = parseInt(workspaceIndicator.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
-            // NOTE: X11 desktop switching disabled - sticky window doesn't work reliably on Openbox
-            // Workspaces now only manage internal app organization
+            // Apply X11 fake workspaces - minimize/unminimize based on workspace assignment
+            this.applyX11WorkspaceVisibility(wsId);
             this.render();
           }
         }
@@ -9852,7 +9904,8 @@ class TempleOS {
           const wsId = parseInt(workspacePreview.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
-            // NOTE: X11 desktop switching disabled - sticky window doesn't work reliably on Openbox
+            // Apply X11 fake workspaces - minimize/unminimize based on workspace assignment
+            this.applyX11WorkspaceVisibility(wsId);
             this.showWorkspaceOverview = false;
             this.render();
           }

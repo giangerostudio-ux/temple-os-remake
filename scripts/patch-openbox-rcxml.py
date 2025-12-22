@@ -6,6 +6,17 @@ from pathlib import Path
 
 DEFAULT_RC_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
+  <desktops>
+    <number>4</number>
+    <firstdesk>1</firstdesk>
+    <names>
+      <name>Desktop 1</name>
+      <name>Desktop 2</name>
+      <name>Desktop 3</name>
+      <name>Desktop 4</name>
+    </names>
+    <popupTime>875</popupTime>
+  </desktops>
   <resistance>
     <strength>10</strength>
     <screen_edge_strength>20</screen_edge_strength>
@@ -57,6 +68,9 @@ def ensure_templeos_app_rule(xml: str) -> str:
     <layer>below</layer>
     <raise>no</raise>
     <focus>yes</focus>
+    <desktop>all</desktop>
+    <skip_pager>yes</skip_pager>
+    <skip_taskbar>yes</skip_taskbar>
   </application>
 """
 
@@ -115,6 +129,27 @@ def main() -> int:
     # Safety: ensure we didn't end up with an empty/invalid file.
     if not xml.strip() or "<openbox_config" not in xml:
         xml = DEFAULT_RC_XML
+
+    # Ensure 4 desktops are configured (for workspace switching)
+    if not re.search(r"<desktops\b", xml, flags=re.IGNORECASE):
+        desktops_block = """
+  <desktops>
+    <number>4</number>
+    <firstdesk>1</firstdesk>
+    <names>
+      <name>Desktop 1</name>
+      <name>Desktop 2</name>
+      <name>Desktop 3</name>
+      <name>Desktop 4</name>
+    </names>
+    <popupTime>875</popupTime>
+  </desktops>
+"""
+        # Insert after <openbox_config...>
+        xml = re.sub(r"(<openbox_config\b[^>]*>)", r"\1" + desktops_block, xml, count=1, flags=re.IGNORECASE)
+    else:
+        # Ensure number is at least 4
+        xml = re.sub(r"(<desktops\b[^>]*>.*?<number>)\d+(</number>)", r"\g<1>4\g<2>", xml, count=1, flags=re.DOTALL | re.IGNORECASE)
 
     xml = ensure_templeos_app_rule(xml)
 

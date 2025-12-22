@@ -701,6 +701,7 @@ class TempleOS {
   // Workspace Manager (Tier 9.2 - Virtual Desktops)
   private workspaceManager = new WorkspaceManager();
   private showWorkspaceOverview = false;
+  private lastWorkspaceSwitchMs = 0; // Debounce timestamp for keyboard workspace switching
 
   // Tiling Manager (Tier 14.1 - Smart Window Tiling)
   private tilingManager = new TilingManager();
@@ -10061,8 +10062,13 @@ class TempleOS {
         }
 
         // Workspace Switching: Ctrl+Alt+Left/Right (avoid Win key to prevent OS Start Menu)
+        // Debounce to prevent rapid-fire key events causing erratic cycling
         if (e.ctrlKey && e.altKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
           e.preventDefault();
+          e.stopPropagation();
+          const now = Date.now();
+          if (now - this.lastWorkspaceSwitchMs < 150) return; // Debounce 150ms
+          this.lastWorkspaceSwitchMs = now;
           if (e.key === 'ArrowLeft') {
             this.workspaceManager.previousWorkspace();
           } else {

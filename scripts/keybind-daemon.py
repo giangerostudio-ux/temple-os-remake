@@ -131,6 +131,9 @@ class KeybindDaemon:
         self.shift_pressed = False
         self.super_pressed = False
         
+        # Track if Super key was used in a combo
+        self.super_used = False
+        
     def log(self, msg):
         """Log to stderr (stdout reserved for JSON output)"""
         print(f"[KeybindDaemon] {msg}", file=sys.stderr, flush=True)
@@ -220,6 +223,7 @@ class KeybindDaemon:
                     'workspace-3': 'ctrl+alt+3',
                     'workspace-4': 'ctrl+alt+4',
                     'workspace-overview': 'ctrl+alt+o',
+                    'start-menu': 'ctrl+Escape', 
                     'snap-left': 'super+Left',
                     'snap-right': 'super+Right',
                     'snap-up': 'super+Up',
@@ -289,9 +293,9 @@ class KeybindDaemon:
         # ============================================
         if self.ctrl_pressed and self.alt_pressed and not self.super_pressed:
             
-            # Ctrl+Alt+Tab: Workspace overview toggle
+            # Ctrl+Alt+Tab: NOW CYCLES WORKSPACE (Next)
             if keycode == KEY_TAB and not self.shift_pressed:
-                self.emit('workspace-overview')
+                self.emit('workspace-next')
                 return True
             
             # Ctrl+Alt+Left: Previous workspace
@@ -380,8 +384,20 @@ class KeybindDaemon:
         elif code in (KEY_LEFTSHIFT, KEY_RIGHTSHIFT):
             self.shift_pressed = (value != KEY_RELEASED)
         elif code in (KEY_LEFTMETA, KEY_RIGHTMETA):
-            self.super_pressed = (value != KEY_RELEASED)
+            # Super Key Logic for Start Menu
+            if value == KEY_PRESSED:
+                self.super_pressed = True
+                self.super_used = False  # Reset used flag on press
+            elif value == KEY_RELEASED:
+                self.super_pressed = False
+                # If Super was pressed and released without being used in a combo -> Start Menu
+                if not self.super_used:
+                    self.emit('start-menu')
         elif value == KEY_PRESSED:
+            # If any other key is pressed while Super is held, mark Super as used
+            if self.super_pressed:
+                self.super_used = True
+                
             # Only check hotkeys on key press (not repeat or release)
             self._check_hotkey(code)
     

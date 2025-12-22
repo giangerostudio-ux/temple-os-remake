@@ -10065,6 +10065,14 @@ class TempleOS {
 
       // Global Keyboard Event Handler
       window.addEventListener('keydown', (e: KeyboardEvent) => {
+        // Toggle Start Menu: Ctrl+Esc (sent by daemon or physical)
+        if (e.ctrlKey && e.key === 'Escape') {
+          e.preventDefault();
+          this.showStartMenu = !this.showStartMenu;
+          this.render();
+          return;
+        }
+
         // Workspace Overview: Ctrl+Alt+Tab (avoid Win key to prevent OS Start Menu)
         if (e.ctrlKey && e.altKey && !e.metaKey && e.key === 'Tab') {
           e.preventDefault();
@@ -10409,6 +10417,12 @@ class TempleOS {
         }
 
         switch (action) {
+          // ========== START MENU ==========
+          case 'start-menu':
+            this.showStartMenu = !this.showStartMenu;
+            this.render();
+            break;
+
           // ========== WORKSPACE SWITCHING ==========
           case 'workspace-overview':
             this.showWorkspaceOverview = !this.showWorkspaceOverview;

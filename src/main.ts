@@ -2661,7 +2661,7 @@ class TempleOS {
 
     // Available width for columns
     const desktopEl = document.getElementById('desktop');
-    const width = desktopEl ? desktopEl.clientWidth : window.innerWidth;
+    const width = (desktopEl && desktopEl.clientWidth > 0) ? desktopEl.clientWidth : window.innerWidth;
     const cols = Math.max(1, Math.floor((width - PADDING * 2) / (CELL_W + GAP)));
 
     return allIcons.map((icon, index) => {
@@ -2684,7 +2684,7 @@ class TempleOS {
 
           // Full bounds check (prevent off-screen in ALL directions)
           const maxX = width - CELL_W - PADDING;
-          const maxY = (desktopEl ? desktopEl.clientHeight : window.innerHeight) - CELL_H - PADDING - 60; // 60 for taskbar
+          const maxY = ((desktopEl && desktopEl.clientHeight > 0) ? desktopEl.clientHeight : window.innerHeight) - CELL_H - PADDING - 60; // 60 for taskbar
           if (x < 0) x = PADDING;
           if (y < 0) y = PADDING;
           // Also check right/bottom bounds - if icon is off-screen, reset to grid position

@@ -6435,64 +6435,86 @@ function startKeybindDaemon() {
         return;
     }
 
-    const daemonPath = path.join(__dirname, '..', 'scripts', 'keybind-daemon.py');
+    // Try multiple paths - handles both dev and production
+    const possiblePaths = [
+        path.join(__dirname, '..', 'scripts', 'keybind-daemon.py'),
+        '/opt/templeos/scripts/keybind-daemon.py',
+        path.join(process.cwd(), 'scripts', 'keybind-daemon.py'),
+    ];
 
-    if (!fs.existsSync(daemonPath)) {
-        console.warn('[KeybindDaemon] Daemon script not found:', daemonPath);
+    let daemonPath = null;
+    for (const p of possiblePaths) {
+        console.log('[KeybindDaemon] Checking path:', p);
+        if (fs.existsSync(p)) {
+            daemonPath = p;
+            console.log('[KeybindDaemon] Found daemon at:', p);
+            break;
+        }
+    }
+
+    if (!daemonPath) {
+        console.warn('[KeybindDaemon] Daemon script not found in any path:', possiblePaths);
         return;
     }
 
-    console.log('[KeybindDaemon] Starting evdev keybind daemon...');
+    console.log('[KeybindDaemon] Starting evdev keybind daemon from:', daemonPath);
 
-    // Spawn the Python daemon
-    keybindDaemon = spawn('python3', [daemonPath], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false,
-    });
+    try {
+        // Spawn the Python daemon
+        keybindDaemon = spawn('python3', [daemonPath], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            detached: false,
+        });
 
-    // Parse JSON output from daemon
-    let buffer = '';
-    keybindDaemon.stdout.on('data', (data) => {
-        buffer += data.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Keep incomplete line in buffer
+        console.log('[KeybindDaemon] Spawn called, PID:', keybindDaemon.pid);
 
-        for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-                const msg = JSON.parse(line);
-                if (msg.action && mainWindow && !mainWindow.isDestroyed()) {
-                    console.log('[KeybindDaemon] Action:', msg.action);
-                    mainWindow.webContents.send('global-shortcut', msg.action);
+
+        // Parse JSON output from daemon
+        let buffer = '';
+        keybindDaemon.stdout.on('data', (data) => {
+            buffer += data.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const msg = JSON.parse(line);
+                    if (msg.action && mainWindow && !mainWindow.isDestroyed()) {
+                        console.log('[KeybindDaemon] Action:', msg.action);
+                        mainWindow.webContents.send('global-shortcut', msg.action);
+                    }
+                } catch (e) {
+                    // Not JSON, ignore
                 }
-            } catch (e) {
-                // Not JSON, ignore
             }
-        }
-    });
+        });
 
-    // Log daemon stderr
-    keybindDaemon.stderr.on('data', (data) => {
-        console.log('[KeybindDaemon]', data.toString().trim());
-    });
+        // Log daemon stderr
+        keybindDaemon.stderr.on('data', (data) => {
+            console.log('[KeybindDaemon]', data.toString().trim());
+        });
 
-    // Handle daemon exit
-    keybindDaemon.on('exit', (code, signal) => {
-        console.log(`[KeybindDaemon] Daemon exited with code ${code}, signal ${signal}`);
-        keybindDaemon = null;
+        // Handle daemon exit
+        keybindDaemon.on('exit', (code, signal) => {
+            console.log(`[KeybindDaemon] Daemon exited with code ${code}, signal ${signal}`);
+            keybindDaemon = null;
 
-        // Respawn if it crashed unexpectedly (not during shutdown)
-        if (!app.isQuitting && keybindDaemonRespawnAttempts < MAX_DAEMON_RESPAWN_ATTEMPTS) {
-            keybindDaemonRespawnAttempts++;
-            console.log(`[KeybindDaemon] Attempting respawn (${keybindDaemonRespawnAttempts}/${MAX_DAEMON_RESPAWN_ATTEMPTS})...`);
-            setTimeout(() => startKeybindDaemon(), 1000);
-        }
-    });
+            // Respawn if it crashed unexpectedly (not during shutdown)
+            if (!app.isQuitting && keybindDaemonRespawnAttempts < MAX_DAEMON_RESPAWN_ATTEMPTS) {
+                keybindDaemonRespawnAttempts++;
+                console.log(`[KeybindDaemon] Attempting respawn (${keybindDaemonRespawnAttempts}/${MAX_DAEMON_RESPAWN_ATTEMPTS})...`);
+                setTimeout(() => startKeybindDaemon(), 1000);
+            }
+        });
 
-    keybindDaemon.on('error', (err) => {
-        console.error('[KeybindDaemon] Failed to start daemon:', err.message);
-        keybindDaemon = null;
-    });
+        keybindDaemon.on('error', (err) => {
+            console.error('[KeybindDaemon] Failed to start daemon:', err.message);
+            keybindDaemon = null;
+        });
+    } catch (spawnErr) {
+        console.error('[KeybindDaemon] Spawn exception:', spawnErr.message);
+    }
 }
 
 /**

@@ -200,6 +200,8 @@ declare global {
       hideStartMenuPopup?: () => Promise<{ success: boolean }>;
       onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string; x?: number; y?: number }) => void) => () => void;
       onStartMenuClosed?: (callback: (payload: any) => void) => () => void;
+      // Global Shortcuts (system-wide keybinds from main process)
+      onGlobalShortcut?: (callback: (action: string) => void) => () => void;
       // Security
       triggerLockdown?: () => Promise<{ success: boolean; actions: string[] }>;
       setDns?: (iface: string, primary: string, secondary?: string) => Promise<{ success: boolean; error?: string }>;
@@ -2680,10 +2682,21 @@ class TempleOS {
           x = stored.x;
           y = stored.y;
 
-          // Basic bounds check (prevent off-screen)
+          // Full bounds check (prevent off-screen in ALL directions)
+          const maxX = width - CELL_W - PADDING;
+          const maxY = (desktopEl ? desktopEl.clientHeight : window.innerHeight) - CELL_H - PADDING - 60; // 60 for taskbar
           if (x < 0) x = PADDING;
           if (y < 0) y = PADDING;
-          // Note: we allow them to go off bottom/right infinite canvas essentially
+          // Also check right/bottom bounds - if icon is off-screen, reset to grid position
+          if (x > maxX || y > maxY) {
+            const r = Math.floor(index / cols);
+            const c = index % cols;
+            x = PADDING + c * (CELL_W + GAP);
+            y = PADDING + r * (CELL_H + GAP);
+            // Update stored position so it persists
+            this.desktopIconPositions[key] = { x, y };
+            localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
+          }
         } else {
           // Find first empty grid slot
           let slotI = 0;
@@ -3698,6 +3711,7 @@ class TempleOS {
       { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '🎨', category: 'Development', builtinId: 'sprite-editor' },
       { key: 'builtin:system-monitor', name: 'Task Manager', icon: '📊', category: 'System', builtinId: 'system-monitor' },
       { key: 'builtin:settings', name: 'Settings', icon: '⚙️', category: 'System', builtinId: 'settings' },
+      { key: 'builtin:trash', name: 'Trash', icon: '🗑️', category: 'System', builtinId: 'trash' },
     ];
 
     const searchFilteredBuiltin = () =>
@@ -3840,6 +3854,7 @@ class TempleOS {
             <div class="start-quick-link" data-path="Music">🎵 Music</div>
             <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
             <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
+            <div class="start-quick-link" data-path="trash">🗑️ Trash</div>
           </div>
           
           <div class="start-power-section">
@@ -5348,7 +5363,14 @@ class TempleOS {
     this.lastLaunchByKeyAt[raw] = now;
 
     if (raw.startsWith('builtin:')) {
-      this.openApp(raw.slice('builtin:'.length), toggle);
+      const appId = raw.slice('builtin:'.length);
+      // Special handling for trash - open files app to trash folder
+      if (appId === 'trash') {
+        this.openApp('files');
+        setTimeout(() => { void this.loadFiles('trash:'); }, 150);
+        return;
+      }
+      this.openApp(appId, toggle);
       return;
     }
     const installed = this.findInstalledAppByKey(raw);
@@ -7575,6 +7597,12 @@ class TempleOS {
                 this.loadFiles(`${appPath}${sep}music`);
               });
             }
+          } else if (path === 'trash') {
+            this.openApp('files');
+            setTimeout(() => { void this.loadFiles('trash:'); }, 150);
+            this.showStartMenu = false;
+            this.render();
+            return;
           } else {
             // For Docs/Downloads/Pictures, we assume they are in User Home
             // This requires async, but we are in a sync handler.
@@ -10363,6 +10391,45 @@ class TempleOS {
         }
       });
     });
+    // ============================================
+    // GLOBAL SHORTCUT HANDLER (system-wide from main process)
+    // This handles keybinds even when X11 windows have focus
+    // ============================================
+    if (window.electronAPI?.onGlobalShortcut) {
+      window.electronAPI.onGlobalShortcut((action: string) => {
+        const now = Date.now();
+        if (now - this.lastWorkspaceSwitchMs < 150) return; // Debounce 150ms
+        this.lastWorkspaceSwitchMs = now;
+
+        switch (action) {
+          case 'workspace-overview':
+            this.showWorkspaceOverview = !this.showWorkspaceOverview;
+            this.render();
+            break;
+          case 'workspace-prev':
+            this.workspaceManager.previousWorkspace();
+            this.applyX11WorkspaceVisibility(this.workspaceManager.getActiveWorkspaceId());
+            this.render();
+            break;
+          case 'workspace-next':
+            this.workspaceManager.nextWorkspace();
+            this.applyX11WorkspaceVisibility(this.workspaceManager.getActiveWorkspaceId());
+            this.render();
+            break;
+          case 'workspace-1':
+          case 'workspace-2':
+          case 'workspace-3':
+          case 'workspace-4':
+            const wsId = parseInt(action.split('-')[1], 10);
+            if (wsId <= this.workspaceManager.getTotalWorkspaces()) {
+              this.workspaceManager.switchToWorkspace(wsId);
+              this.applyX11WorkspaceVisibility(wsId);
+              this.render();
+            }
+            break;
+        }
+      });
+    }
     // ============================================
     // THEME SYSTEM EVENTS (Tier 9.4)
     // ============================================

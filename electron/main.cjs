@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
@@ -6413,4 +6413,51 @@ app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
     }
+});
+
+// ============================================
+// GLOBAL SHORTCUTS FOR WORKSPACE KEYBINDS
+// These work even when X11 windows have focus
+// ============================================
+app.whenReady().then(() => {
+    createWindow(); // Initial window creation
+    // Register global shortcuts for workspace controls
+    // These bypass X11 focus issues - work system-wide
+
+    // Ctrl+Alt+Tab: Toggle workspace overview
+    globalShortcut.register('Control+Alt+Tab', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'workspace-overview');
+        }
+    });
+
+    // Ctrl+Alt+Left: Previous workspace
+    globalShortcut.register('Control+Alt+Left', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'workspace-prev');
+        }
+    });
+
+    // Ctrl+Alt+Right: Next workspace
+    globalShortcut.register('Control+Alt+Right', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'workspace-next');
+        }
+    });
+
+    // Ctrl+Alt+1-4: Direct workspace switch
+    for (let i = 1; i <= 4; i++) {
+        globalShortcut.register(`Control+Alt+${i}`, () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('global-shortcut', `workspace-${i}`);
+            }
+        });
+    }
+
+    console.log('[GlobalShortcut] Workspace keybinds registered');
+});
+
+// Unregister all shortcuts when quitting
+app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
 });

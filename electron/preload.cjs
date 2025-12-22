@@ -256,4 +256,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('startmenu:closed', handler);
         return () => ipcRenderer.removeListener('startmenu:closed', handler);
     },
+
+    // ============================================
+    // GLOBAL SHORTCUTS (system-wide keybinds from main process)
+    // ============================================
+    onGlobalShortcut: (callback) => {
+        const handler = (event, action) => callback(action);
+        ipcRenderer.on('global-shortcut', handler);
+        return () => ipcRenderer.removeListener('global-shortcut', handler);
+    },
 });

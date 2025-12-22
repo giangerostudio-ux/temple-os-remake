@@ -212,6 +212,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setOccupiedSlot: (xidHex, slot) => ipcRenderer.invoke('x11:setOccupiedSlot', xidHex, slot),
     getNextSlot: () => ipcRenderer.invoke('x11:getNextSlot'),
 
+    // X11 Virtual Desktops (Workspaces)
+    switchX11Desktop: (desktopIndex) => ipcRenderer.invoke('x11:switchDesktop', desktopIndex),
+    getCurrentX11Desktop: () => ipcRenderer.invoke('x11:getCurrentDesktop'),
+    getX11DesktopCount: () => ipcRenderer.invoke('x11:getDesktopCount'),
+    moveX11WindowToDesktop: (xidHex, desktopIndex) => ipcRenderer.invoke('x11:moveWindowToDesktop', xidHex, desktopIndex),
+
     getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),
     setGamingMode: (enabled) => ipcRenderer.invoke('shell:setGamingMode', enabled),

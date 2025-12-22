@@ -231,8 +231,74 @@ async function createEwmhBridge(options = {}) {
   };
 }
 
+// ============================================
+// X11 VIRTUAL DESKTOP (WORKSPACE) FUNCTIONS
+// ============================================
+
+/**
+ * Switch to a specific X11 desktop (0-indexed)
+ * @param {number} desktopIndex - The desktop index (0 = first desktop)
+ */
+async function switchToDesktop(desktopIndex) {
+  const idx = Math.max(0, Math.trunc(desktopIndex));
+  await execFileAsync('wmctrl', ['-s', String(idx)]);
+}
+
+/**
+ * Get the current X11 desktop number (0-indexed)
+ * @returns {Promise<number>}
+ */
+async function getCurrentDesktop() {
+  try {
+    const { stdout } = await execFileAsync('xprop', ['-root', '_NET_CURRENT_DESKTOP']);
+    const match = stdout.match(/_NET_CURRENT_DESKTOP\(CARDINAL\)\s*=\s*(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Get total number of X11 desktops
+ * @returns {Promise<number>}
+ */
+async function getDesktopCount() {
+  try {
+    const { stdout } = await execFileAsync('xprop', ['-root', '_NET_NUMBER_OF_DESKTOPS']);
+    const match = stdout.match(/_NET_NUMBER_OF_DESKTOPS\(CARDINAL\)\s*=\s*(\d+)/);
+    return match ? parseInt(match[1], 10) : 4;
+  } catch {
+    return 4;
+  }
+}
+
+/**
+ * Move a window to a specific desktop
+ * @param {string} xidHex - Window ID in hex format (e.g., "0x12345")
+ * @param {number} desktopIndex - Desktop index (0-indexed), use -1 for "all desktops" (sticky)
+ */
+async function moveWindowToDesktop(xidHex, desktopIndex) {
+  const idx = Math.trunc(desktopIndex);
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-t', String(idx)]);
+}
+
+/**
+ * Make a window appear on all desktops (sticky/omnipresent)
+ * @param {string} xidHex - Window ID in hex format
+ */
+async function makeWindowSticky(xidHex) {
+  // -1 means "all desktops" in wmctrl
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-t', '-1']);
+}
+
 module.exports = {
   createEwmhBridge,
   parseHexWindowId,
   getActiveWindowXidHex,
+  // Virtual desktop functions
+  switchToDesktop,
+  getCurrentDesktop,
+  getDesktopCount,
+  moveWindowToDesktop,
+  makeWindowSticky,
 };

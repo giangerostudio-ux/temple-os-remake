@@ -172,6 +172,11 @@ declare global {
       getTilingState?: () => Promise<{ success: boolean; tilingModeActive: boolean; occupiedSlots: Record<string, string>; mainWindowXid: string | null }>;
       setOccupiedSlot?: (xidHex: string, slot: string) => Promise<{ success: boolean; error?: string }>;
       getNextSlot?: () => Promise<{ success: boolean; slot: string }>;
+      // X11 Virtual Desktops (Workspaces)
+      switchX11Desktop?: (desktopIndex: number) => Promise<{ success: boolean; desktop?: number; error?: string }>;
+      getCurrentX11Desktop?: () => Promise<{ success: boolean; desktop: number; unsupported?: boolean; error?: string }>;
+      getX11DesktopCount?: () => Promise<{ success: boolean; count: number; unsupported?: boolean; error?: string }>;
+      moveX11WindowToDesktop?: (xidHex: string, desktopIndex: number) => Promise<{ success: boolean; error?: string }>;
       // Panel/gaming policy (Linux X11 only)
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -2656,10 +2661,11 @@ class TempleOS {
     let x = e.clientX - desktopRect.left - this.draggingIcon.offsetX;
     let y = e.clientY - desktopRect.top - this.draggingIcon.offsetY;
 
-    // Boundaries
+    // Boundaries - constrain to desktop area
     x = Math.max(0, x);
     y = Math.max(0, y);
-    // x = Math.min(x, desktopRect.width - iconEl.offsetWidth); // Allow overflow right/bottom
+    x = Math.min(x, desktopRect.width - iconEl.offsetWidth);
+    y = Math.min(y, desktopRect.height - iconEl.offsetHeight);
 
     iconEl.style.left = `${x}px`;
     iconEl.style.top = `${y}px`;
@@ -9834,6 +9840,10 @@ class TempleOS {
           const wsId = parseInt(workspaceIndicator.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
+            // CRITICAL: Also switch the actual X11 desktop (workspaces are 1-indexed, X11 is 0-indexed)
+            if (window.electronAPI?.switchX11Desktop) {
+              void window.electronAPI.switchX11Desktop(wsId - 1);
+            }
             this.render();
           }
         }
@@ -9844,6 +9854,10 @@ class TempleOS {
           const wsId = parseInt(workspacePreview.dataset.workspaceId, 10);
           if (!Number.isNaN(wsId)) {
             this.workspaceManager.switchToWorkspace(wsId);
+            // CRITICAL: Also switch the actual X11 desktop (workspaces are 1-indexed, X11 is 0-indexed)
+            if (window.electronAPI?.switchX11Desktop) {
+              void window.electronAPI.switchX11Desktop(wsId - 1);
+            }
             this.showWorkspaceOverview = false;
             this.render();
           }

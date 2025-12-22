@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, screen, protocol } = require('electr
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
-const { createEwmhBridge, getActiveWindowXidHex } = require('./x11/ewmh.cjs');
+const { createEwmhBridge, getActiveWindowXidHex, switchToDesktop, getCurrentDesktop, getDesktopCount, moveWindowToDesktop, makeWindowSticky } = require('./x11/ewmh.cjs');
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
@@ -920,6 +920,16 @@ async function applyDesktopHintsToMainWindow() {
     // preventing it from obscuring other windows when clicked/focused.
     // Use wmctrl to request EWMH state changes (more reliable than directly setting _NET_WM_STATE).
     await wmctrlSetState(xid, 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
+
+    // CRITICAL: Make the Electron shell appear on ALL X11 desktops (sticky/omnipresent)
+    // This ensures the desktop UI is always visible when switching virtual desktops.
+    // wmctrl -ir <xid> -t -1 moves window to "all desktops" (-1 = sticky)
+    try {
+        await makeWindowSticky(xid);
+        console.log('[X11 Workspaces] Main window set to sticky (visible on all desktops)');
+    } catch (e) {
+        console.warn('[X11 Workspaces] Failed to make main window sticky:', e.message);
+    }
 }
 
 function createPanelWindow() {
@@ -1319,6 +1329,71 @@ ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
 });
+
+// ============================================
+// X11 VIRTUAL DESKTOP (WORKSPACE) IPC
+// ============================================
+
+/**
+ * Switch to a specific X11 desktop (0-indexed)
+ * This actually changes the visible X11 virtual desktop
+ */
+ipcMain.handle('x11:switchDesktop', async (event, desktopIndex) => {
+    if (!isX11Session()) return { success: false, error: 'Not an X11 session' };
+    try {
+        const idx = Math.max(0, Math.trunc(Number(desktopIndex) || 0));
+        await switchToDesktop(idx);
+        console.log(`[X11 Workspaces] Switched to desktop ${idx}`);
+        return { success: true, desktop: idx };
+    } catch (e) {
+        console.warn('[X11 Workspaces] Desktop switch failed:', e.message);
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+/**
+ * Get the current X11 desktop number (0-indexed)
+ */
+ipcMain.handle('x11:getCurrentDesktop', async () => {
+    if (!isX11Session()) return { success: true, desktop: 0, unsupported: true };
+    try {
+        const desktop = await getCurrentDesktop();
+        return { success: true, desktop };
+    } catch (e) {
+        return { success: false, desktop: 0, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+/**
+ * Get the total number of X11 desktops configured
+ */
+ipcMain.handle('x11:getDesktopCount', async () => {
+    if (!isX11Session()) return { success: true, count: 4, unsupported: true };
+    try {
+        const count = await getDesktopCount();
+        return { success: true, count };
+    } catch (e) {
+        return { success: false, count: 4, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+/**
+ * Move an X11 window to a specific desktop
+ * @param desktopIndex - 0-indexed desktop number, or -1 for all desktops (sticky)
+ */
+ipcMain.handle('x11:moveWindowToDesktop', async (event, xidHex, desktopIndex) => {
+    if (!isX11Session()) return { success: false, error: 'Not an X11 session' };
+    if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
+    try {
+        const idx = Math.trunc(Number(desktopIndex) || 0);
+        await moveWindowToDesktop(xidHex, idx);
+        console.log(`[X11 Workspaces] Moved window ${xidHex} to desktop ${idx}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
 
 // Core snap logic - shared between IPC handler and popup
 async function snapX11WindowCore(xidHex, mode, taskbarConfig) {

@@ -1546,6 +1546,7 @@ ipcMain.handle('x11:getTilingState', async () => {
 
 // IPC: Manually set slot (called when user snaps via right-click or drag)
 ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
+    console.log(`[X11 Snap Layouts] setOccupiedSlot called: xid=${xidHex}, slot=${slot}`);
     if (!xidHex) return { success: false, error: 'No XID provided' };
     const normalizedXid = String(xidHex).toLowerCase();
 
@@ -1557,13 +1558,12 @@ ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
     // Update slot tracking
     if (slot === 'maximize' || !slot) {
         occupiedSlots.delete(normalizedXid);
+        console.log(`[X11 Snap Layouts] Removed ${normalizedXid} from slots (was maximize or empty)`);
     } else {
         occupiedSlots.set(normalizedXid, slot);
-        // Activate tiling mode when user manually snaps left/right
-        if (slot === 'left' || slot === 'right') {
-            tilingModeActive = true;
-            console.log('[X11 Snap Layouts] Tiling mode activated by user snap:', slot);
-        }
+        // Activate tiling mode when user manually snaps to ANY non-maximize slot
+        tilingModeActive = true;
+        console.log(`[X11 Snap Layouts] Tiling mode activated by user snap: ${slot}, occupiedSlots:`, Object.fromEntries(occupiedSlots));
     }
 
     return { success: true };
@@ -2145,6 +2145,9 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             recentlySnappedXids.delete(xid);
         }
     }
+
+    // Debug: Log current state
+    console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
 
     // Detect NEW windows (not seen in previous snapshot)
     if (x11SnapLayoutsEnabled && tilingModeActive) {

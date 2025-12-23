@@ -3571,10 +3571,11 @@ class TempleOS {
         this.startMenuSearchQuery = '';
         window.electronAPI.hideStartMenuPopup?.();
       } else {
-        // Open floating popup (don't set showStartMenu so inline doesn't render)
+        // Open floating popup - ensure inline menu is NOT shown
         this.startMenuPopupOpen = true;
+        this.showStartMenu = false; // Explicitly close inline menu if open
 
-        // Gather pinned apps
+        // Gather pinned apps (sync, fast)
         const legacyPinnedApps = [
           { id: 'terminal', icon: '💻', name: 'Terminal' },
           { id: 'files', icon: '📁', name: 'Files' },
@@ -3591,7 +3592,7 @@ class TempleOS {
           })
           .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
 
-        // Gather installed apps
+        // Gather installed apps (sync, fast)
         const installedApps = this.installedApps.slice(0, 100).map(app => ({
           key: this.keyForInstalledApp(app),
           name: app.name,
@@ -3601,27 +3602,15 @@ class TempleOS {
           category: this.canonicalCategoryForInstalledApp(app),
         }));
 
-        // Convert logo to base64 for main process
-        let logoBase64 = templeLogo;
-        try {
-          const response = await fetch(templeLogo);
-          const blob = await response.blob();
-          logoBase64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-        } catch (e) {
-          console.error('Failed to convert logo to base64:', e);
-        }
-
+        // Use cached logo or skip conversion for speed - just use the import path
+        // The main process will handle it or use a fallback
         window.electronAPI.showStartMenuPopup({
           taskbarHeight: 58,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
           pinnedTaskbar: this.pinnedTaskbar,
           installedApps,
-          logoUrl: logoBase64,
+          logoUrl: templeLogo, // Just pass the URL, don't convert to base64
         });
       }
       return;
@@ -8976,9 +8965,8 @@ class TempleOS {
           const tag = target?.tagName;
           if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
             e.preventDefault();
-            this.showStartMenu = !this.showStartMenu;
-            if (!this.showStartMenu) this.startMenuSearchQuery = '';
-            this.render();
+            // Use toggleStartMenu() to properly handle X11 popup vs inline menu
+            void this.toggleStartMenu();
           }
         }
 
@@ -10127,8 +10115,7 @@ class TempleOS {
         // Toggle Start Menu: Ctrl+Esc (sent by daemon or physical)
         if (e.ctrlKey && e.key === 'Escape') {
           e.preventDefault();
-          this.showStartMenu = !this.showStartMenu;
-          this.render();
+          void this.toggleStartMenu();
           return;
         }
 
@@ -10478,8 +10465,7 @@ class TempleOS {
         switch (action) {
           // ========== START MENU ==========
           case 'start-menu':
-            this.showStartMenu = !this.showStartMenu;
-            this.render();
+            void this.toggleStartMenu();
             break;
 
           // ========== WORKSPACE SWITCHING ==========

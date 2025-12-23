@@ -1267,14 +1267,18 @@ ipcMain.handle('divine:getStatus', async () => {
 // Download the AI model with progress updates
 ipcMain.handle('divine:downloadModel', async (event) => {
     try {
+        console.log('[Divine] Starting model download...');
         const result = await ollamaManager.downloadModel((progress) => {
             // Send progress to renderer
+            console.log('[Divine] Download progress:', progress.status, progress.percent + '%');
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send('divine:downloadProgress', progress);
             }
         });
+        console.log('[Divine] Download complete, result:', result);
         return { success: result };
     } catch (error) {
+        console.error('[Divine] Download failed:', error.message);
         return { success: false, error: error.message };
     }
 });

@@ -22,7 +22,25 @@ echo "[1/4] Installing X11/Openbox prerequisites..."
 sudo apt-get update
 sudo apt-get install -y \
   xorg xinit openbox \
-  wmctrl x11-utils x11-xserver-utils
+  wmctrl x11-utils x11-xserver-utils \
+  curl  # Needed for Ollama install
+
+# Install Ollama for Word of God AI
+echo "[1.5/4] Installing Ollama for Word of God AI..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/setup-ollama.sh" ]]; then
+  bash "${SCRIPT_DIR}/setup-ollama.sh"
+elif [[ -f "${APP_DIR}/scripts/setup-ollama.sh" ]]; then
+  bash "${APP_DIR}/scripts/setup-ollama.sh"
+else
+  # Inline install if script not found
+  if ! command -v ollama &> /dev/null; then
+    echo "    Installing Ollama..."
+    curl -fsSL https://ollama.com/install.sh | sh
+    sudo systemctl enable ollama 2>/dev/null || true
+    sudo systemctl start ollama 2>/dev/null || true
+  fi
+fi
 
 echo "[2/4] Writing ~/.xinitrc (with backup)..."
 XINITRC="${HOME}/.xinitrc"

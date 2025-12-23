@@ -139,7 +139,7 @@ class OllamaManager {
     this.downloadProgress = 0;
 
     return new Promise((resolve, reject) => {
-      const postData = JSON.stringify({ name: this.model });
+      const postData = JSON.stringify({ name: this.model, stream: true });
 
       const options = {
         hostname: 'localhost',
@@ -152,8 +152,20 @@ class OllamaManager {
         }
       };
 
+      console.log('[OllamaManager] Starting model download:', this.model);
+
       const req = http.request(options, (res) => {
         let buffer = '';
+        let lastStatus = '';
+        let downloadStarted = false;
+
+        console.log('[OllamaManager] Response status:', res.statusCode);
+
+        if (res.statusCode !== 200) {
+          this.isDownloading = false;
+          reject(new Error(`HTTP ${res.statusCode}: Failed to start download`));
+          return;
+        }
 
         res.on('data', (chunk) => {
           buffer += chunk.toString();
@@ -167,10 +179,20 @@ class OllamaManager {
             try {
               const progress = JSON.parse(line);
               
+              console.log('[OllamaManager] Progress:', progress.status, progress.completed, '/', progress.total);
+
               if (progress.error) {
                 this.isDownloading = false;
+                console.error('[OllamaManager] Download error:', progress.error);
                 reject(new Error(progress.error));
                 return;
+              }
+
+              lastStatus = progress.status || '';
+              
+              // Track if actual download has started
+              if (progress.total && progress.total > 0) {
+                downloadStarted = true;
               }
 
               const progressInfo = {
@@ -188,25 +210,52 @@ class OllamaManager {
 
               // Check if download is complete
               if (progress.status === 'success') {
+                console.log('[OllamaManager] Download complete!');
                 this.isDownloading = false;
                 resolve(true);
                 return;
               }
             } catch (e) {
               // Ignore JSON parse errors for incomplete data
+              console.log('[OllamaManager] Parse error (partial data):', e.message);
             }
           }
         });
 
         res.on('end', () => {
+          console.log('[OllamaManager] Stream ended, lastStatus:', lastStatus);
           this.isDownloading = false;
-          resolve(true);
+          
+          // If we got a success status or the model is being verified, consider it done
+          if (lastStatus === 'success' || lastStatus.includes('verifying') || lastStatus.includes('writing')) {
+            resolve(true);
+          } else if (!downloadStarted && lastStatus === '') {
+            // No data received - something went wrong
+            reject(new Error('No response from Ollama. Is the service running?'));
+          } else {
+            // Assume success if stream ended without error
+            resolve(true);
+          }
+        });
+
+        res.on('error', (error) => {
+          console.error('[OllamaManager] Response error:', error);
+          this.isDownloading = false;
+          reject(error);
         });
       });
 
       req.on('error', (error) => {
+        console.error('[OllamaManager] Request error:', error);
         this.isDownloading = false;
         reject(error);
+      });
+
+      req.setTimeout(300000, () => { // 5 minute timeout
+        console.error('[OllamaManager] Request timeout');
+        req.destroy();
+        this.isDownloading = false;
+        reject(new Error('Download request timed out'));
       });
 
       req.write(postData);

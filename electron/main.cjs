@@ -692,8 +692,18 @@ function createWindow() {
         && !process.env.WAYLAND_DISPLAY
         && process.env.XDG_SESSION_TYPE !== 'wayland';
 
-    // Get screen dimensions for X11 mode
-    let initialBounds = { width: 1280, height: 720, x: undefined, y: undefined };
+    // FORCE 1024x768 resolution on X11 (VirtualBox stability fix)
+    // This prevents VirtualBox from randomly choosing 800x600 on restarts
+    if (x11Mode) {
+        const exec = require('child_process').exec;
+        exec('xrandr --output $(xrandr | grep " connected" | cut -d " " -f1 | head -n 1) --mode 1024x768 2>/dev/null', (err) => {
+            if (err) console.warn('[Display] xrandr force-set failed (not critical):', err.message);
+            else console.log('[Display] Forced 1024x768 via xrandr');
+        });
+    }
+
+    // Get screen dimensions for X11 mode (defaulting to 1024x768 instead of 1280x720)
+    let initialBounds = { width: 1024, height: 768, x: undefined, y: undefined };
     if (x11Mode) {
         const primary = screen.getPrimaryDisplay();
         if (primary?.bounds) {

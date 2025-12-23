@@ -41,6 +41,20 @@ wmctrl -n 1 2>/dev/null || true
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true
 
+# CRITICAL: Force 1024x768 resolution (VirtualBox stability fix)
+# VirtualBox sometimes boots at 800x600 depending on Guest Additions state
+RESOLUTION_SCRIPT="/opt/templeos/scripts/set-boot-resolution.sh"
+if [ -f "${RESOLUTION_SCRIPT}" ]; then
+  bash "${RESOLUTION_SCRIPT}" 2>/dev/null || true
+else
+  # Fallback inline enforcement
+  DISPLAY_OUTPUT=$(xrandr | grep " connected" | cut -d " " -f1 | head -n 1)
+  if [ -n "${DISPLAY_OUTPUT}" ]; then
+    xrandr --output "${DISPLAY_OUTPUT}" --mode 1024x768 2>/dev/null || true
+    echo "[TempleOS Boot] Forced 1024x768 resolution on ${DISPLAY_OUTPUT}"
+  fi
+fi
+
 # Start keybind daemon (evdev-based global hotkeys that bypass X11 grabs)
 # This MUST run before Electron so the daemon can capture keypresses
 KEYBIND_DAEMON="/opt/templeos/scripts/keybind-daemon.py"

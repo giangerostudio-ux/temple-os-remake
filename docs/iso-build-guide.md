@@ -183,6 +183,28 @@ sudo apt update
 sudo apt install -y gamemode
 ```
 
+#### Flatpak Setup + Steam Installation (Recommended)
+
+**Why Flatpak for Steam?** The Flatpak version has better context menu and click detection compared to Snap, especially for the Steam client UI on X11.
+
+Add these commands to your ISO post-install scripts:
+
+```bash
+# Install Flatpak
+sudo apt install -y flatpak
+
+# Add Flathub repository
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# Install Steam via Flatpak (recommended for best Linux compatibility)
+flatpak install -y flathub com.valvesoftware.Steam
+```
+
+**Alternative (Snap)**: If you prefer Snap (works out-of-box on Ubuntu but may have UI click issues):
+```bash
+sudo snap install steam
+```
+
 **CRITICAL**: The `node_modules/node-pty/build/Release/pty.node` file MUST be included!
 
 ## ISO Build Steps

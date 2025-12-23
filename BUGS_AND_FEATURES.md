@@ -44,6 +44,37 @@ User confirmed this is already functioning correctly. No changes required.
 
 ---
 
+### Bug #4: VirtualBox Random Resolution on Restart
+**Priority:** High  
+**Status:** ✅ Fixed  
+**Description:**  
+In VirtualBox, the OS randomly boots at different resolutions (800x600, 1280x720) instead of the intended 1024x768. This happens despite the resolution being set correctly in the Settings panel.
+
+**Root Cause:**  
+- Hardcoded fallback resolution was 1280x720 instead of 1024x768
+- VirtualBox Guest Additions doesn't always persist display mode across restarts
+- No resolution enforcement on boot sequence
+
+**Resolution:**  
+Implemented multi-layered resolution enforcement:
+1. **Changed default fallback** from 1280x720 to 1024x768 in `electron/main.cjs`
+2. **Added xrandr enforcement** in `createWindow()` to force 1024x768 on X11 systems
+3. **Created boot script** `scripts/set-boot-resolution.sh` to set resolution before Electron starts
+4. **Updated startup script** `start-templeos.sh` to run resolution enforcement early in boot sequence
+
+**Files Modified:**
+- `electron/main.cjs` - Changed default resolution and added xrandr enforcement
+- `start-templeos.sh` - Added resolution check before launching Electron
+- `scripts/set-boot-resolution.sh` - New dedicated resolution enforcement script
+
+**VirtualBox Recommendation:**  
+For best results, install VirtualBox Guest Additions:
+```bash
+sudo apt install virtualbox-guest-utils virtualbox-guest-x11
+```
+
+---
+
 ## ✨ Features to Implement
 
 ### Feature #5: Desktop Icon Sorting (Context Menu)

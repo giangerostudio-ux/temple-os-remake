@@ -2708,7 +2708,7 @@ class TempleOS {
       { id: 'files', icon: '📁', label: 'Files' },
       { id: 'editor', icon: '📝', label: 'HolyC Editor' },
       { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
-      { id: 'updater', icon: '⬇️', label: 'Holy Updater' },
+      { id: 'updater', icon: '🕊️', label: 'Holy Updater' },
       { id: 'help', icon: '❓', label: 'Help' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
       { id: 'trash', icon: '🗑️', label: 'Trash' },
@@ -2959,7 +2959,7 @@ class TempleOS {
       { id: 'files', icon: '📁', label: 'Files', type: 'builtin' },
       { id: 'editor', icon: '📝', label: 'HolyC Editor', type: 'builtin' },
       { id: 'hymns', icon: '🎵', label: 'Hymn Player', type: 'builtin' },
-      { id: 'updater', icon: '⬇️', label: 'Holy Updater', type: 'builtin' },
+      { id: 'updater', icon: '🕊️', label: 'Holy Updater', type: 'builtin' },
       { id: 'help', icon: '❓', label: 'Help', type: 'builtin' },
       { id: 'godly-notes', icon: '📋', label: 'Godly Notes', type: 'builtin' },
       { id: 'trash', icon: '🗑️', label: 'Trash', type: 'builtin' },
@@ -3814,7 +3814,7 @@ class TempleOS {
       { key: 'builtin:files', name: 'Files', icon: '📁', category: 'System', builtinId: 'files' },
       { key: 'builtin:editor', name: 'HolyC Editor', icon: '📝', category: 'Development', builtinId: 'editor' },
       { key: 'builtin:hymns', name: 'Hymn Player', icon: '🎵', category: 'Multimedia', builtinId: 'hymns' },
-      { key: 'builtin:updater', name: 'Holy Updater', icon: '⬇️', category: 'System', builtinId: 'updater' },
+      { key: 'builtin:updater', name: 'Holy Updater', icon: '🕊️', category: 'System', builtinId: 'updater' },
       { key: 'builtin:help', name: 'Help & Docs', icon: '❓', category: 'System', builtinId: 'help' },
       { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '📋', category: 'Office', builtinId: 'godly-notes' },
       { key: 'builtin:calculator', name: 'Calculator', icon: '🧮', category: 'Utilities', builtinId: 'calculator' },
@@ -4191,7 +4191,7 @@ class TempleOS {
       { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '🎬', iconKind: 'emoji' },
       { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '🖼️', iconKind: 'emoji' },
       { key: 'builtin:hymns', label: 'Hymn Player', kind: 'builtin', category: 'Multimedia', iconText: '🎵', iconKind: 'emoji' },
-      { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '⬇️', iconKind: 'emoji' },
+      { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '🕊️', iconKind: 'emoji' },
       { key: 'builtin:system-monitor', label: 'Task Manager', kind: 'builtin', category: 'System', iconText: '📊', iconKind: 'emoji' },
       { key: 'builtin:settings', label: 'Settings', kind: 'builtin', category: 'System', iconText: '⚙️', iconKind: 'emoji' },
     ];
@@ -5426,7 +5426,7 @@ class TempleOS {
       case 'editor': return { label: 'HolyC Editor', icon: '📝' };
       case 'hymns': return { label: 'Hymn Player', icon: '🎵' };
       case 'settings': return { label: 'Settings', icon: '⚙️' };
-      case 'updater': return { label: 'Holy Updater', icon: '⬇️' };
+      case 'updater': return { label: 'Holy Updater', icon: '🕊️' };
       case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
       case 'help': return { label: 'Help & Docs', icon: '❓' };
       case 'godly-notes': return { label: 'Godly Notes', icon: '📋' };

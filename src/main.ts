@@ -9737,6 +9737,14 @@ class TempleOS {
         // Command card actions
         const cmdBtn = target.closest('.divine-cmd-btn') as HTMLElement;
         if (cmdBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Guard against multiple rapid clicks (debounce)
+          if ((cmdBtn as any).__executing) return;
+          (cmdBtn as any).__executing = true;
+          setTimeout(() => { (cmdBtn as any).__executing = false; }, 1000);
+
           const action = cmdBtn.dataset.action;
           const card = cmdBtn.closest('.divine-command-card, .divine-url-card') as HTMLElement;
 

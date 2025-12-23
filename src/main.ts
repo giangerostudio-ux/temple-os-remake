@@ -11131,7 +11131,7 @@ class TempleOS {
         case 'updater':
           windowConfig = {
             title: 'Holy Updater',
-            icon: '⬇️',
+            icon: '🕊️',
             width: 500,
             height: 350,
             content: this.getUpdaterContent()

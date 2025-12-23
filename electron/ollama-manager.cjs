@@ -101,12 +101,21 @@ class OllamaManager {
   async checkModel() {
     try {
       const models = await this._listModels();
-      const model = models.find(m => m.name === this.model || m.name.startsWith(this.model.split(':')[0]));
+      // Check for exact match or partial match (model name without tag)
+      const modelBase = this.model.split(':')[0]; // e.g., 'dolphin-phi'
+      const model = models.find(m => 
+        m.name === this.model || 
+        m.name.startsWith(modelBase + ':') ||
+        m.name === modelBase
+      );
       if (model) {
+        console.log('[Ollama] Model found:', model.name);
         return { downloaded: true, size: this._formatBytes(model.size) };
       }
+      console.log('[Ollama] Model not found. Available:', models.map(m => m.name));
       return { downloaded: false };
     } catch (error) {
+      console.log('[Ollama] Error checking model:', error.message);
       return { downloaded: false, error: error.message };
     }
   }

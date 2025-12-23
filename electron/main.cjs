@@ -1304,6 +1304,13 @@ ipcMain.handle('divine:downloadModel', async (event) => {
             }
         });
         console.log('[Divine] Download complete, result:', result);
+        
+        // Double-check model is actually available
+        if (result) {
+            const modelCheck = await ollamaManager.checkModel();
+            console.log('[Divine] Post-download model check:', modelCheck);
+            return { success: modelCheck.downloaded };
+        }
         return { success: result };
     } catch (error) {
         console.error('[Divine] Download failed:', error.message);

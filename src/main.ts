@@ -12919,12 +12919,12 @@ class TempleOS {
 
     try {
       const result = await window.electronAPI.divineDownloadModel();
+      this.divineDownloadProgress = 0; // Reset progress
       if (result?.success) {
-        // Refresh status
+        // Refresh status to show the chat interface
         await this.initDivineAssistant();
       } else {
-        this.divineStatus.error = result?.error || 'Download failed';
-        this.divineDownloadProgress = 0;
+        this.divineStatus.error = result?.error || 'Download failed. Click to try again.';
       }
     } catch (e: any) {
       this.divineStatus.error = e.message;

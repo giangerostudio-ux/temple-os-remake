@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     restart: () => ipcRenderer.invoke('system:restart'),
     lock: () => ipcRenderer.invoke('system:lock'),
     getSystemInfo: () => ipcRenderer.invoke('system:info'),
+    isCommandAvailable: (cmd) => ipcRenderer.invoke('system:isCommandAvailable', cmd),
     getMonitorStats: () => ipcRenderer.invoke('monitor:getStats'),
     getBatteryStatus: () => ipcRenderer.invoke('system:getBattery'),
     listProcesses: () => ipcRenderer.invoke('process:list'),

@@ -3926,6 +3926,15 @@ ipcMain.handle('config:save', async (event, config) => {
     }
 });
 
+ipcMain.handle('system:isCommandAvailable', (event, cmd) => {
+    // Check if a command exists in PATH (used for gamemoderun check, etc.)
+    const command = String(cmd || '').trim();
+    if (!command) return { success: true, available: false };
+
+    const available = commandExistsSync(command);
+    return { success: true, available };
+});
+
 ipcMain.handle('system:setVolume', (event, level) => {
     // Clamp level between 0 and 100
     const safeLevel = Math.max(0, Math.min(100, parseInt(level)));

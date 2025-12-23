@@ -68,6 +68,7 @@ declare global {
       restart: () => Promise<void>;
       lock: () => Promise<void>;
       getSystemInfo: () => Promise<SystemInfo>;
+      isCommandAvailable?: (cmd: string) => Promise<{ success: boolean; available: boolean }>;
       getMonitorStats?: () => Promise<{ success: boolean; stats?: MonitorStats; error?: string }>;
       getBatteryStatus?: () => Promise<{ success: boolean; supported: boolean; status?: BatteryStatus; error?: string }>;
       listProcesses?: () => Promise<{ success: boolean; processes?: ProcessInfo[]; unsupported?: boolean; error?: string }>;
@@ -681,6 +682,7 @@ class TempleOS {
 
   // Tier 10 & 11 State
   private gamingModeActive = false;
+  private gamemoderunAvailable: boolean | undefined = undefined; // Cached check for gamemoderun availability
   private hideBarOnFullscreen = localStorage.getItem('temple_hide_bar_on_fullscreen') !== 'false'; // Default true
   private setupComplete = localStorage.getItem('temple_setup_complete') === 'true';
   private isShuttingDown = false;
@@ -5503,9 +5505,23 @@ class TempleOS {
           setTimeout(() => this.refreshSettingsWindow(), 100);
         }
 
-        // Inject gamemoderun if applicable (Linux)
+        // Inject gamemoderun if applicable (Linux) - only if gamemoderun is installed
         if (installed.exec && !installed.exec.includes('gamemoderun') && !installed.name.toLowerCase().includes('steam')) {
-          appToLaunch = { ...installed, exec: `gamemoderun ${installed.exec}` };
+          // Check if gamemoderun is installed before using it (cached for performance)
+          if (this.gamemoderunAvailable === undefined) {
+            // First check - query the system
+            if (window.electronAPI?.isCommandAvailable) {
+              window.electronAPI.isCommandAvailable('gamemoderun').then(res => {
+                this.gamemoderunAvailable = res?.available ?? false;
+              }).catch(() => { this.gamemoderunAvailable = false; });
+            } else {
+              this.gamemoderunAvailable = false;
+            }
+          }
+          // Only inject gamemoderun if it's available
+          if (this.gamemoderunAvailable) {
+            appToLaunch = { ...installed, exec: `gamemoderun ${installed.exec}` };
+          }
         }
       }
 

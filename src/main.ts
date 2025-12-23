@@ -8649,7 +8649,13 @@ class TempleOS {
           const key = this.draggingIcon.key;
           if (key.startsWith('builtin:')) {
             const appId = key.replace('builtin:', '');
-            this.openApp(appId);
+            // Special handling for trash - open files app to trash
+            if (appId === 'trash') {
+              this.openApp('files');
+              setTimeout(() => { void this.loadFiles('trash:'); }, 150);
+            } else {
+              this.openApp(appId);
+            }
           } else {
             this.launchByKey(key);
           }

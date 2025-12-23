@@ -2232,8 +2232,10 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
         }
     }
 
-    // Detect NEW windows (not seen in previous snapshot)
-    if (x11SnapLayoutsEnabled && tilingModeActive) {
+    // Detect NEW windows (not seen in previous snapshot) and auto-snap them
+    // By default, new windows maximize. Only use tiling slots if user has manually
+    // snapped a window to a half/quarter position (indicating they want tiling).
+    if (x11SnapLayoutsEnabled) {
         for (const w of snapshot.windows) {
             const xid = String(w.xidHex).toLowerCase();
             if (!xid) continue;
@@ -2253,15 +2255,26 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Skip minimized windows
             if (w.minimized) continue;
 
-            // This is a NEW window - auto-snap it!
-            const slot = getNextAvailableSlot();
-            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), auto-snapping to: ${slot}`);
+            // This is a NEW window - determine what slot to use
+            // Only use tiling slots if user has manually initiated tiling (non-maximize slots exist)
+            const existingSlots = Array.from(occupiedSlots.values());
+            const hasTilingSlots = existingSlots.some(s => s !== 'maximize');
+            
+            let slot;
+            if (tilingModeActive && hasTilingSlots) {
+                // User has manually tiled - find next available slot
+                slot = getNextAvailableSlot();
+            } else {
+                // Default: maximize new windows
+                slot = 'maximize';
+            }
+            
+            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} (tilingActive=${tilingModeActive}, hasTilingSlots=${hasTilingSlots})`);
 
             // Mark as recently snapped to avoid re-snapping
             recentlySnappedXids.set(xid, now);
 
             // Delay the snap slightly to let the window fully appear and settle
-            // This helps avoid issues where the WM hasn't finished placing the window
             const xidToSnap = w.xidHex;
             setTimeout(() => {
                 // Snap the window with proper taskbar config

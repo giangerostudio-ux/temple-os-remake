@@ -199,6 +199,14 @@ export class SettingsManager {
     this.host.taskbarPosition = position;
     localStorage.setItem('temple_taskbar_position', position);
     this.applyTaskbarPosition();
+
+    // Sync with Electron backend for X11 window snapping
+    if (window.electronAPI?.setTaskbarPosition) {
+      window.electronAPI.setTaskbarPosition(position).catch((err: any) => {
+        console.warn('[TaskbarSync] Failed to sync position to Electron:', err);
+      });
+    }
+
     this.host.render();
     this.host.showNotification('Taskbar', `Taskbar moved to ${position}`, 'info');
   }

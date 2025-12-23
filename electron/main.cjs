@@ -54,6 +54,10 @@ let lastCpuTotals = null; // { idle: number, total: number }
 let lastNetTotals = null; // { rx: number, tx: number }
 let lastNetAt = 0;
 
+// Taskbar Configuration (synced from renderer)
+let currentTaskbarPosition = 'bottom'; // 'top' | 'bottom' - Synced from renderer
+const TASKBAR_HEIGHT = 50;
+
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)
 let snapDetectorProcess = null;
 let snapPreviewWindow = null; // Visual preview for edge snaps
@@ -1754,6 +1758,16 @@ ipcMain.handle('x11:setSnapLayoutsEnabled', async (event, enabled) => {
     return { success: true };
 });
 
+// IPC: Set taskbar position (synced from renderer)
+ipcMain.handle('settings:setTaskbarPosition', async (event, position) => {
+    if (position === 'top' || position === 'bottom') {
+        currentTaskbarPosition = position;
+        console.log('[TaskbarSync] Position updated to:', position);
+        return { success: true };
+    }
+    return { success: false, error: 'Invalid position' };
+});
+
 // IPC: Get tiling state for debugging
 ipcMain.handle('x11:getTilingState', async () => {
     return {
@@ -1979,7 +1993,7 @@ function showSnapLayoutsPopup(xidHex) {
             const data = JSON.parse(msg);
             if (data.type === 'snap-select' && snapPopupXid) {
                 // Perform the snap
-                void snapX11WindowCore(snapPopupXid, data.mode, { height: 50, position: 'bottom' }).then(() => {
+                void snapX11WindowCore(snapPopupXid, data.mode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition }).then(() => {
                     // Track slot
                     if (data.mode !== 'maximize') {
                         tilingModeActive = true;
@@ -2172,7 +2186,7 @@ function handleSnapDetectorEvent(event) {
                             closeSnapLayoutsPopup();
 
                             if (event.xid) {
-                                snapX11WindowCore(event.xid, selectedMode, { height: 50, position: 'bottom' })
+                                snapX11WindowCore(event.xid, selectedMode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
                                     .then(() => {
                                         if (selectedMode !== 'maximize') {
                                             tilingModeActive = true;
@@ -2211,7 +2225,7 @@ function handleSnapDetectorEvent(event) {
             if (event.xid) {
                 console.log(`[SnapDetector] About to snap ${event.xid} to mode ${mode}`);
                 // Apply the snap
-                snapX11WindowCore(event.xid, mode, { height: 50, position: 'bottom' })
+                snapX11WindowCore(event.xid, mode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
                     .then(() => {
                         // Track slot for tiling - ALWAYS set tilingModeActive for non-maximize
                         if (mode !== 'maximize') {
@@ -2445,7 +2459,7 @@ function getAdjustedWorkArea() {
 
     // Same taskbar config as used in snapX11WindowCore
     const taskbarHeight = 50;
-    const taskbarPosition = 'bottom';
+    const taskbarPosition = currentTaskbarPosition;
 
     // Use same logic as snapX11WindowCore for consistency
     let wa;
@@ -2613,7 +2627,7 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             const xidToSnap = w.xidHex;
             setTimeout(() => {
                 // Snap the window with proper taskbar config
-                snapX11WindowCore(xidToSnap, slot, { height: 50, position: 'bottom' })
+                snapX11WindowCore(xidToSnap, slot, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
                     .then((result) => {
                         if (result.success) {
                             // Track the slot

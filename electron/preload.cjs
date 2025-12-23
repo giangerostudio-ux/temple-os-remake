@@ -253,6 +253,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),
     setGamingMode: (enabled) => ipcRenderer.invoke('shell:setGamingMode', enabled),
+    setTaskbarPosition: (position) => ipcRenderer.invoke('settings:setTaskbarPosition', position),
     hasExternalPanel: () => ipcRenderer.invoke('shell:hasExternalPanel'),
 
     panelToggleStartMenu: () => ipcRenderer.invoke('panel:toggleStartMenu'),

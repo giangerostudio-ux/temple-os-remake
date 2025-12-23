@@ -182,6 +182,7 @@ declare global {
       getPanelPolicy?: () => Promise<{ success: boolean; policy?: { hideOnFullscreen: boolean; forceHidden: boolean }; error?: string }>;
       setHideBarOnFullscreen?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       setGamingMode?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+      setTaskbarPosition?: (position: 'top' | 'bottom') => Promise<{ success: boolean; error?: string }>;
       hasExternalPanel?: () => Promise<{ success: boolean; enabled: boolean }>;
       panelToggleStartMenu?: () => Promise<{ success: boolean; error?: string }>;
       onShellToggleStartMenu?: (callback: (payload: any) => void) => () => void;
@@ -1349,6 +1350,13 @@ class TempleOS {
 
     // Setup Tiling Manager
     this.tilingManager.setTaskbarPosition(this.taskbarPosition);
+
+    // Sync initial taskbar position with Electron backend (for X11 window snapping)
+    if (window.electronAPI?.setTaskbarPosition) {
+      window.electronAPI.setTaskbarPosition(this.taskbarPosition).catch(err => {
+        console.warn('[TaskbarSync] Failed to sync initial position:', err);
+      });
+    }
 
     // Setup Notification Manager callbacks
     // NOTE: Only update toast container, NOT full render - prevents window flickering

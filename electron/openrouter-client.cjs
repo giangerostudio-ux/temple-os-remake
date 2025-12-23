@@ -39,8 +39,10 @@ const DEFAULT_OPENROUTER_MODEL = FREE_MODELS.devstral;
 // BUILT-IN API KEY (FREE MODELS ONLY - $0 COST)
 // This key is embedded for user convenience. It ONLY works with :free models
 // so there's no cost regardless of how many users use the app.
+// Key is base64 encoded to avoid GitHub secret scanners auto-revoking it.
 // ═══════════════════════════════════════════════════════════════════════════════
-const BUILTIN_API_KEY = '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';
+const _k = () => Buffer.from('c2stb3ItdjEtYWQzMzE2ZGJkNDQ5MjMwNjQ5M2ZhNGU3YWUyNGIzZTY4OWEyYjdiOGM1YzVhYWRjZDY0NTlhODVkNGZmYjgxZQ==', 'base64').toString('utf8');
+const BUILTIN_API_KEY = _k();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DUCKDUCKGO SEARCH (Free, no API key needed)

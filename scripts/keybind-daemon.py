@@ -196,8 +196,8 @@ class KeybindDaemon:
         """
         # Actions that should ONLY focus window and rely on file watcher
         # (no synthetic keypress needed - Electron handles via IPC)
-        # start-menu uses file watcher because sending keys causes double-toggle issues
-        focus_only_actions = {'start-menu'}
+        # Empty - we send synthetic keys for instant response
+        focus_only_actions = set()
         
         try:
             # Find the Electron window (templeos)
@@ -230,6 +230,7 @@ class KeybindDaemon:
                 
                 # Map action to key combination
                 key_map = {
+                    'start-menu': 'ctrl+Escape',  # Toggle start menu
                     'workspace-next': 'ctrl+alt+Right',
                     'workspace-prev': 'ctrl+alt+Left',
                     'workspace-1': 'ctrl+alt+1',

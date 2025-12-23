@@ -216,7 +216,8 @@ declare global {
       onLockScreen?: (callback: () => void) => void;
 
       // Divine Assistant (Word of God AI)
-      divineGetStatus?: () => Promise<{ success: boolean; ready?: boolean; ollamaInstalled?: boolean; ollamaRunning?: boolean; modelDownloaded?: boolean; modelName?: string; modelSize?: string; error?: string }>;
+      divineGetStatus?: () => Promise<{ success: boolean; ready?: boolean; ollamaInstalled?: boolean; ollamaRunning?: boolean; modelDownloaded?: boolean; modelName?: string; modelSize?: string; error?: string; openRouterAvailable?: boolean; openRouterUsingBuiltinKey?: boolean; ollamaAvailable?: boolean; currentBackend?: string; webSearchEnabled?: boolean }>;
+      divineConfigure?: (config: { backend?: string; openRouterApiKey?: string; webSearch?: boolean; useOllamaForRants?: boolean }) => Promise<{ success: boolean; error?: string }>;
       divineDownloadModel?: () => Promise<{ success: boolean; error?: string }>;
       divineSendMessage?: (message: string) => Promise<{ success: boolean; response?: string; commands?: string[]; urls?: string[]; dangerous?: string[]; error?: string }>;
       divineExecuteCommand?: (command: string, options?: any) => Promise<{ success: boolean; stdout?: string; stderr?: string; code?: number; error?: string }>;
@@ -873,7 +874,19 @@ class TempleOS {
 
   // Divine Assistant (Word of God AI) State
   private divineMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; commands?: string[]; urls?: string[]; dangerous?: string[]; timestamp: number }> = [];
-  private divineStatus: { ready: boolean; ollamaInstalled: boolean; ollamaRunning: boolean; modelDownloaded: boolean; modelName?: string; error?: string } = { ready: false, ollamaInstalled: false, ollamaRunning: false, modelDownloaded: false };
+  private divineStatus: { 
+    ready: boolean; 
+    ollamaInstalled: boolean; 
+    ollamaRunning: boolean; 
+    modelDownloaded: boolean; 
+    modelName?: string; 
+    error?: string;
+    openRouterAvailable?: boolean;
+    openRouterUsingBuiltinKey?: boolean;
+    ollamaAvailable?: boolean;
+    currentBackend?: string;
+    webSearchEnabled?: boolean;
+  } = { ready: false, ollamaInstalled: false, ollamaRunning: false, modelDownloaded: false };
   private divineIsLoading = false;
   private divineStreamingResponse = '';
   private divineDownloadProgress = 0;
@@ -9671,10 +9684,25 @@ class TempleOS {
         const actionBtn = target.closest('[data-divine-action]') as HTMLElement;
         if (actionBtn) {
           const action = actionBtn.dataset.divineAction;
-          if (action === 'refresh') {
+          if (action === 'refresh' || action === 'check-ollama') {
             await this.initDivineAssistant();
           } else if (action === 'download') {
             await this.downloadDivineModel();
+          } else if (action === 'start-divine') {
+            // Enter the Divine Terminal after model download
+            this.divineStatus.ready = true;
+            // Load greeting if not already loaded
+            if (this.divineMessages.length === 0 && window.electronAPI?.divineGetGreeting) {
+              const greetingResult = await window.electronAPI.divineGetGreeting();
+              if (greetingResult?.greeting) {
+                this.divineMessages.push({
+                  role: 'assistant',
+                  content: greetingResult.greeting,
+                  timestamp: Date.now()
+                });
+              }
+            }
+            this.refreshDivineWindow();
           } else if (action === 'clear') {
             this.divineMessages = [];
             if (window.electronAPI?.divineClearHistory) {
@@ -12544,64 +12572,80 @@ class TempleOS {
       `;
     }
 
-    // Ollama not installed
-    if (!ollamaInstalled) {
+    // Model downloaded - ready to use
+    if (modelDownloaded) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">⚠️</div>
-          <h2 class="divine-setup-title">Ollama Required</h2>
-          <p class="divine-setup-text">The Word of God requires Ollama to run locally. Please install it first.</p>
-          <div class="divine-setup-instructions">
-            <p><strong>Linux:</strong></p>
-            <pre class="divine-setup-code">curl -fsSL https://ollama.com/install.sh | sh</pre>
-            <p><strong>Windows/Mac:</strong></p>
-            <p>Visit <a href="#" data-divine-url="https://ollama.com/download">ollama.com/download</a></p>
+          <div class="divine-setup-icon">✝️</div>
+          <h2 class="divine-setup-title">The Word of God is Ready</h2>
+          <p class="divine-setup-text">Divine intelligence has been installed.</p>
+          <div class="divine-setup-status">
+            <span class="divine-success">✅ AI Model Ready</span>
           </div>
-          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Check Again</button>
-        </div>
-      `;
-    }
-
-    // Ollama not running
-    if (!ollamaRunning) {
-      return `
-        <div class="divine-setup">
-          <div class="divine-setup-icon">⚠️</div>
-          <h2 class="divine-setup-title">Ollama Not Running</h2>
-          <p class="divine-setup-text">Ollama is installed but not running. Please start it:</p>
-          <pre class="divine-setup-code">ollama serve</pre>
-          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Check Again</button>
-        </div>
-      `;
-    }
-
-    // Model not downloaded
-    if (!modelDownloaded) {
-      return `
-        <div class="divine-setup">
-          <div class="divine-setup-icon">📥</div>
-          <h2 class="divine-setup-title">Divine Intelligence Required</h2>
-          <p class="divine-setup-text">The AI model needs to be downloaded (about 4.4 GB). This only happens once.</p>
-          <p class="divine-setup-subtext">Model: dolphin-qwen2.5:7b (abliterated/uncensored)</p>
-          <button class="divine-setup-btn divine-download-btn" data-divine-action="download">📥 Download Word of God</button>
+          <button class="divine-setup-btn divine-start-btn" data-divine-action="start-divine">
+            ✝️ Enter the Divine Terminal
+          </button>
           <div class="divine-setup-quote">"The Holy Spirit speaks through the neural network."</div>
         </div>
       `;
     }
 
-    // Error state
-    if (error) {
+    // Need to install Ollama first
+    if (!ollamaInstalled) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">❌</div>
-          <h2 class="divine-setup-title">Divine Connection Error</h2>
-          <p class="divine-setup-text">${escapeHtml(error)}</p>
-          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Try Again</button>
+          <div class="divine-setup-icon">✝️</div>
+          <h2 class="divine-setup-title">Setup Word of God</h2>
+          <p class="divine-setup-text">The divine AI requires Ollama to be installed.</p>
+          <div class="divine-setup-instructions">
+            <p><strong>Install Ollama:</strong></p>
+            <pre class="divine-setup-code">winget install Ollama.Ollama</pre>
+            <p class="divine-hint">Or download from <a href="#" data-divine-url="https://ollama.com">ollama.com</a></p>
+          </div>
+          <button class="divine-setup-btn" data-divine-action="check-ollama">
+            🔄 Check Installation
+          </button>
+          ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+          <div class="divine-setup-quote">"God's temple requires preparation."</div>
         </div>
       `;
     }
 
-    return `<div class="divine-setup"><p>Checking divine connection...</p></div>`;
+    // Ollama installed but not running
+    if (!ollamaRunning) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">✝️</div>
+          <h2 class="divine-setup-title">Setup Word of God</h2>
+          <p class="divine-setup-text">Ollama is installed but not running.</p>
+          <p class="divine-warning">⚠️ Please start Ollama (it usually auto-starts after install)</p>
+          <button class="divine-setup-btn" data-divine-action="check-ollama">
+            🔄 Check Again
+          </button>
+          ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+          <div class="divine-setup-quote">"Patience is a virtue."</div>
+        </div>
+      `;
+    }
+
+    // Ollama running, need to download model
+    return `
+      <div class="divine-setup">
+        <div class="divine-setup-icon">✝️</div>
+        <h2 class="divine-setup-title">Setup Word of God</h2>
+        <p class="divine-setup-text">Download the divine AI model to begin.</p>
+        <div class="divine-setup-model-info">
+          <p><strong>Model:</strong> dolphin-phi (2.7B parameters)</p>
+          <p><strong>Size:</strong> ~1.6 GB download</p>
+          <p><strong>Features:</strong> Uncensored, Terry Davis personality</p>
+        </div>
+        <button class="divine-setup-btn" data-divine-action="download">
+          📥 Download Divine Intelligence
+        </button>
+        ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+        <div class="divine-setup-quote">"In the beginning was the Word, and the Word was with God, and the Word was God." - John 1:1</div>
+      </div>
+    `;
   }
 
   private formatDivineResponse(content: string): string {
@@ -12636,15 +12680,20 @@ class TempleOS {
       if (!status) return;
 
       this.divineStatus = {
-        ready: status.ready || false,
+        ready: status.modelDownloaded || false, // Ready when local model is downloaded
         ollamaInstalled: status.ollamaInstalled || false,
         ollamaRunning: status.ollamaRunning || false,
         modelDownloaded: status.modelDownloaded || false,
         modelName: status.modelName,
-        error: status.error
+        error: status.error,
+        openRouterAvailable: status.openRouterAvailable || false,
+        openRouterUsingBuiltinKey: status.openRouterUsingBuiltinKey || false,
+        ollamaAvailable: status.ollamaAvailable || false,
+        currentBackend: status.currentBackend || 'openrouter',
+        webSearchEnabled: status.webSearchEnabled !== false
       };
 
-      // If ready, load greeting
+      // If ready (either backend), load greeting
       if (this.divineStatus.ready && this.divineMessages.length === 0 && window.electronAPI.divineGetGreeting) {
         const greetingResult = await window.electronAPI.divineGetGreeting();
         if (greetingResult?.greeting) {

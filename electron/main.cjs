@@ -1254,17 +1254,45 @@ ipcMain.handle('input-wake-up', async () => {
 // DIVINE ASSISTANT (WORD OF GOD) IPC
 // ============================================
 
-// Get the full status of the Divine Assistant (Ollama + Model)
+// Get the full status of the Divine Assistant (Ollama + Model + OpenRouter)
 ipcMain.handle('divine:getStatus', async () => {
     try {
-        const status = await ollamaManager.getFullStatus();
-        return { success: true, ...status };
+        const ollamaStatus = await ollamaManager.getFullStatus();
+        const backendStatus = await divineAssistant.checkBackendStatus();
+        return { 
+            success: true, 
+            ...ollamaStatus,
+            openRouterAvailable: backendStatus.openrouter,
+            openRouterUsingBuiltinKey: backendStatus.openrouterUsingBuiltinKey,
+            ollamaAvailable: backendStatus.ollama,
+            currentBackend: divineAssistant.backend,
+            webSearchEnabled: divineAssistant.useWebSearch
+        };
     } catch (error) {
         return { success: false, error: error.message };
     }
 });
 
-// Download the AI model with progress updates
+// Configure Divine Assistant backend
+ipcMain.handle('divine:configure', async (event, config) => {
+    try {
+        if (config.backend) {
+            divineAssistant.setBackend(config.backend);
+        }
+        if (config.openRouterApiKey) {
+            divineAssistant.setOpenRouterApiKey(config.openRouterApiKey);
+        }
+        if (config.webSearch !== undefined) {
+            divineAssistant.setWebSearch(config.webSearch);
+        }
+        // Note: useOllamaForRants is now MANDATORY - always enabled
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Download the AI model with progress updates (Ollama only)
 ipcMain.handle('divine:downloadModel', async (event) => {
     try {
         console.log('[Divine] Starting model download...');

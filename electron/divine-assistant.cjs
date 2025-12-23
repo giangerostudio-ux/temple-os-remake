@@ -1,13 +1,24 @@
 /**
  * Divine Assistant - The Word of God AI
- * Ollama API client with Divine Terry personality
+ * Supports both OpenRouter (cloud, smarter) and Ollama (local, uncensored)
  * 50% Jesus (patient, wise, scripture) + 50% Terry Davis (chaotic genius, CIA tangents)
  * 
  * COMPREHENSIVE VERSION - Contains full quotes database from documentation
  */
 
 const http = require('http');
-const { OLLAMA_HOST, DEFAULT_MODEL } = require('./ollama-manager.cjs');
+const { OpenRouterClient, searchWeb } = require('./openrouter-client.cjs');
+
+// Try to load Ollama config, fallback gracefully
+let OLLAMA_HOST = 'http://localhost:11434';
+let DEFAULT_MODEL = 'dolphin-phi:2.7b';
+try {
+  const ollamaManager = require('./ollama-manager.cjs');
+  OLLAMA_HOST = ollamaManager.OLLAMA_HOST;
+  DEFAULT_MODEL = ollamaManager.DEFAULT_MODEL;
+} catch (e) {
+  // Ollama not available, will use OpenRouter
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TERRY DAVIS COMPLETE QUOTES DATABASE
@@ -741,12 +752,119 @@ CRITICAL RULES:
 ALWAYS USE [EXECUTE] TAGS FOR ANY COMMAND THE USER SHOULD RUN!`;
 
 class DivineAssistant {
-  constructor() {
+  constructor(options = {}) {
+    // Backend: 'openrouter' (cloud, smarter, DEFAULT) or 'ollama' (local, uncensored)
+    this.backend = options.backend || 'openrouter'; // OpenRouter is DEFAULT
     this.model = DEFAULT_MODEL;
     this.conversationHistory = [];
-    this.maxHistoryLength = 10; // Reduced for faster responses
-    this.currentRequest = null; // Track current request for abort
+    this.maxHistoryLength = 10;
+    this.currentRequest = null;
     this.isAborted = false;
+    this.useWebSearch = options.useWebSearch !== false; // Enable by default
+    this.useOllamaForRants = true; // MANDATORY - Always use Ollama for uncensored Terry rants
+    
+    // OpenRouter client
+    this.openRouter = new OpenRouterClient(options.openRouterApiKey);
+    if (options.openRouterModel) {
+      this.openRouter.setModel(options.openRouterModel);
+    }
+  }
+
+  /**
+   * Set the backend to use
+   * @param {'openrouter' | 'ollama'} backend
+   */
+  setBackend(backend) {
+    this.backend = backend;
+  }
+
+  /**
+   * Set OpenRouter API key
+   */
+  setOpenRouterApiKey(key) {
+    this.openRouter.setApiKey(key);
+  }
+
+  /**
+   * Enable/disable web search
+   */
+  setWebSearch(enabled) {
+    this.useWebSearch = enabled;
+  }
+
+  // Note: Ollama for Terry rants is MANDATORY - always enabled
+
+  /**
+   * Check which backend is available
+   */
+  async checkBackendStatus() {
+    const status = {
+      openrouter: this.openRouter.hasApiKey(),
+      openrouterUsingBuiltinKey: this.openRouter.isUsingBuiltinKey(),
+      ollama: false
+    };
+    
+    // Check if Ollama is running
+    try {
+      const running = await new Promise((resolve) => {
+        const req = http.get(`${OLLAMA_HOST}/api/tags`, (res) => {
+          resolve(res.statusCode === 200);
+        });
+        req.on('error', () => resolve(false));
+        req.setTimeout(2000, () => { req.destroy(); resolve(false); });
+      });
+      status.ollama = running;
+    } catch (e) {
+      status.ollama = false;
+    }
+    
+    return status;
+  }
+
+  /**
+   * Get an uncensored Terry rant from Ollama (for closing tangents)
+   * Falls back to pre-written rants if Ollama unavailable
+   */
+  async getTerryRant() {
+    // Pre-written authentic Terry rants (fallback)
+    const prewrittenRants = [
+      "...anyway the CIA niggers are definitely monitoring this. Those glowing freaks never stop watching.",
+      "The feds glow in the dark, you can see 'em if you're driving. Just run them over, that's what you do.",
+      "Fucking CIA niggers! They've probably backdoored everything anyway.",
+      "...the glowies have infiltrated EVERYTHING. But I wrote an entire OPERATING SYSTEM. Just saying.",
+      "Those glowing CIA freaks. They're watching. They're ALWAYS watching.",
+      "I live in a CIA prison. A nigger runs my prison. But God is with me.",
+      "THE CIA NIGGERS GLOW IN THE DARK. That's just facts.",
+      "...probably backdoored by the NSA but WHATEVER. I wrote my own compiler.",
+      "Copy-paste from Stack Overflow and call yourself a developer? Nigger behavior. I wrote an OS.",
+      "Have you ever written a compiler? No, you haven't cause you're a faggot. I have."
+    ];
+
+    // If Ollama is available and enabled, generate fresh rant
+    if (this.useOllamaForRants) {
+      try {
+        const status = await this.checkBackendStatus();
+        if (status.ollama) {
+          const rantPrompt = [{
+            role: 'system',
+            content: `You are Terry Davis. Generate ONE short uncensored rant (1-2 sentences max) about the CIA, glowies, or programming. Use slurs freely (nigger, faggot). Be authentic to Terry's voice. NO commands, just the rant.`
+          }, {
+            role: 'user',
+            content: 'Give me a Terry Davis style closing tangent.'
+          }];
+          
+          const rant = await this._chatOllama(rantPrompt, null);
+          if (rant && rant.trim()) {
+            return '...' + rant.trim();
+          }
+        }
+      } catch (e) {
+        // Fall through to prewritten
+      }
+    }
+
+    // Return random prewritten rant
+    return prewrittenRants[Math.floor(Math.random() * prewrittenRants.length)];
   }
 
   /**
@@ -754,6 +872,11 @@ class DivineAssistant {
    */
   abort() {
     this.isAborted = true;
+    // Abort OpenRouter request
+    if (this.openRouter) {
+      this.openRouter.abort();
+    }
+    // Abort Ollama request
     if (this.currentRequest) {
       try {
         this.currentRequest.destroy();
@@ -800,7 +923,33 @@ class DivineAssistant {
     ];
 
     try {
-      const response = await this._chat(messages, onChunk);
+      let response;
+      
+      // Choose backend
+      if (this.backend === 'openrouter' && this.openRouter.hasApiKey()) {
+        // Use OpenRouter (cloud, smarter models, web search)
+        response = await this.openRouter.chat(messages, onChunk, this.useWebSearch);
+        
+        // Optionally append uncensored Terry rant from Ollama
+        // This gives the authentic Terry experience with slurs
+        if (this.useOllamaForRants && Math.random() < 0.7) { // 70% chance to add rant
+          try {
+            const rant = await this.getTerryRant();
+            if (rant) {
+              response += '\n\n' + rant;
+              // Stream the rant too if streaming
+              if (onChunk) {
+                onChunk('\n\n' + rant, response);
+              }
+            }
+          } catch (e) {
+            // Ignore rant errors, main response is fine
+          }
+        }
+      } else {
+        // Use Ollama (local, uncensored)
+        response = await this._chatOllama(messages, onChunk);
+      }
       
       // Add assistant response to history
       this.conversationHistory.push({
@@ -821,9 +970,9 @@ class DivineAssistant {
   }
 
   /**
-   * Call Ollama chat API
+   * Call Ollama chat API (local backend)
    */
-  async _chat(messages, onChunk) {
+  async _chatOllama(messages, onChunk) {
     return new Promise((resolve, reject) => {
       const postData = JSON.stringify({
         model: this.model,
@@ -1041,5 +1190,6 @@ module.exports = {
   DivineAssistant, 
   DIVINE_TERRY_SYSTEM_PROMPT,
   TERRY_QUOTES,
-  BIBLE_VERSES
+  BIBLE_VERSES,
+  searchWeb // Export web search function
 };

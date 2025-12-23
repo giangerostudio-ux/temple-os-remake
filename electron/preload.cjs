@@ -169,6 +169,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // DIVINE ASSISTANT (Word of God AI)
     // ============================================
     divineGetStatus: () => ipcRenderer.invoke('divine:getStatus'),
+    divineConfigure: (config) => ipcRenderer.invoke('divine:configure', config),
     divineDownloadModel: () => ipcRenderer.invoke('divine:downloadModel'),
     divineSendMessage: (message) => ipcRenderer.invoke('divine:sendMessage', message),
     divineExecuteCommand: (command, options) => ipcRenderer.invoke('divine:executeCommand', command, options),

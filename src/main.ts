@@ -1077,6 +1077,8 @@ class TempleOS {
 
         // If a window was active and becomes minimized (e.g. user clicked the app's own minimize button),
         // treat it as a user-intent minimize so we don't auto-restore it.
+        // Skip this logic when start menu popup is open to avoid spurious state changes
+        if (!this.startMenuPopupOpen) {
         for (const w of this.x11Windows) {
           const xid = String(w?.xidHex || '').toLowerCase();
           if (!xid || !w?.minimized) continue;
@@ -1084,6 +1086,7 @@ class TempleOS {
           if (prev && !prev.minimized && prev.active) {
             this.x11UserMinimized.add(xid);
           }
+        }
         }
 
         // Auto-restore any external window that gets minimized unexpectedly.
@@ -1095,6 +1098,11 @@ class TempleOS {
           const now = Date.now();
           const currentWs = this.workspaceManager.getActiveWorkspaceId();
 
+          // Skip auto-restore entirely when the start menu popup is open.
+          // Opening the popup steals focus from X11 apps, which can cause minimize/unminimize cycles.
+          if (this.startMenuPopupOpen) {
+            // Do nothing - don't auto-restore while start menu is open
+          } else {
           for (const w of this.x11Windows) {
             const xid = String(w?.xidHex || '').toLowerCase();
             if (!xid || !w?.minimized) continue;
@@ -1117,6 +1125,7 @@ class TempleOS {
             // Fire-and-forget: the bridge will refresh snapshot and update taskbar
             void api.unminimizeX11Window(w.xidHex);
           }
+          } // end else (not startMenuPopupOpen)
         }
 
         // Update taskbar without full re-render to avoid flickering

@@ -2684,11 +2684,17 @@ ipcMain.handle('contextmenu:action', async (event, actionId) => {
 // ============================================
 let startMenuPopup = null;
 let startMenuPollInterval = null;
+let startMenuPopupXid = null; // Track popup XID for cleanup
 
 function closeStartMenuPopupSync() {
     if (startMenuPollInterval) {
         clearInterval(startMenuPollInterval);
         startMenuPollInterval = null;
+    }
+    // Remove popup XID from ignore list
+    if (startMenuPopupXid) {
+        x11IgnoreXids.delete(String(startMenuPopupXid).toLowerCase());
+        startMenuPopupXid = null;
     }
     if (startMenuPopup && !startMenuPopup.isDestroyed()) {
         try {
@@ -3024,6 +3030,14 @@ ipcMain.handle('startmenu:show', async (event, config) => {
                 contextIsolation: true,
             }
         });
+
+        // Add popup XID to ignore list so it doesn't appear in X11 windows list
+        // and doesn't cause focus/minimize issues with other X11 apps
+        const popupXid = xidHexFromBrowserWindow(startMenuPopup);
+        if (popupXid) {
+            startMenuPopupXid = popupXid; // Store for cleanup
+            x11IgnoreXids.add(String(popupXid).toLowerCase());
+        }
 
         const html = buildStartMenuHtml(config);
         startMenuPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);

@@ -6843,17 +6843,18 @@ function startKeybindWatcher() {
     };
 
     // Use fs.watchFile for polling (more reliable than fs.watch for temp files)
-    fs.watchFile(KEYBIND_ACTIONS_FILE, { interval: 50 }, (curr, prev) => {
+    // Using very fast polling (16ms) for responsive start menu
+    fs.watchFile(KEYBIND_ACTIONS_FILE, { interval: 16 }, (curr, prev) => {
         if (curr.mtime > prev.mtime || curr.size !== prev.size) {
             processActions();
         }
     });
 
-    // Also check periodically in case watchFile misses events
-    keybindFileWatcher = setInterval(processActions, 100);
+    // Also check periodically in case watchFile misses events - faster polling
+    keybindFileWatcher = setInterval(processActions, 20);
 
-    keybindDebug('Watcher started with 50ms watchFile + 100ms interval');
-    console.log('[KeybindWatcher] Watcher started, polling every 50-100ms');
+    keybindDebug('Watcher started with 16ms watchFile + 20ms interval');
+    console.log('[KeybindWatcher] Watcher started, polling every 16-20ms');
 }
 
 /**

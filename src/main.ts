@@ -1615,7 +1615,14 @@ class TempleOS {
     // Unified global key listener
     window.addEventListener('keydown', (e) => {
       // 1. Windows Key (Meta) -> Toggle Start Menu
+      // Skip if X11 windows exist - the keybind daemon handles this globally
+      // to avoid double-toggle when focus switches from X11 to Electron
       if (e.key === 'Meta') {
+        if (this.x11Windows.length > 0) {
+          // Let keybind daemon handle it via global shortcut IPC
+          e.preventDefault();
+          return;
+        }
         e.preventDefault();
         // Emulate click on start button to ensure consistent behavior with UI
         const btn = document.querySelector('.start-btn') as HTMLElement;

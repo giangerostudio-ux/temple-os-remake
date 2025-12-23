@@ -939,22 +939,9 @@ class DivineAssistant {
         // Use OpenRouter (cloud, smarter models, web search)
         response = await this.openRouter.chat(messages, onChunk, this.useWebSearch);
 
-        // Optionally append uncensored Terry rant from Ollama
-        // This gives the authentic Terry experience with slurs
-        if (this.useOllamaForRants && Math.random() < 0.7) { // 70% chance to add rant
-          try {
-            const rant = await this.getTerryRant();
-            if (rant) {
-              response += '\n\n' + rant;
-              // Stream the rant too if streaming
-              if (onChunk) {
-                onChunk('\n\n' + rant, response);
-              }
-            }
-          } catch (e) {
-            // Ignore rant errors, main response is fine
-          }
-        }
+        // NOTE: Terry rant generation via local Ollama disabled for performance.
+        // The OpenRouter response already includes the Terry personality naturally.
+        // Local Ollama generation was taking ~2 minutes on VMs and causing poor UX.
       } else {
         // Use Ollama (local, uncensored)
         response = await this._chatOllama(messages, onChunk);

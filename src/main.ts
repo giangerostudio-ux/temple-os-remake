@@ -12677,7 +12677,7 @@ class TempleOS {
       if (!status) return;
 
       this.divineStatus = {
-        ready: status.modelDownloaded || false, // Ready when local model is downloaded
+        ready: status.openRouterAvailable || status.modelDownloaded || false, // Ready with OpenRouter (cloud) or Ollama (local)
         ollamaInstalled: status.ollamaInstalled || false,
         ollamaRunning: status.ollamaRunning || false,
         modelDownloaded: status.modelDownloaded || false,

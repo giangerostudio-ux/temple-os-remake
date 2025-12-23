@@ -1835,11 +1835,13 @@ function startSnapDetector() {
 
         for (const line of lines) {
             if (!line.trim()) continue;
+            console.log('[SnapDetector RAW]', line.substring(0, 200)); // Log raw input
             try {
                 const event = JSON.parse(line);
                 handleSnapDetectorEvent(event);
             } catch (e) {
                 // Not JSON, probably debug output
+                console.log('[SnapDetector] Non-JSON:', line.substring(0, 100));
             }
         }
     });
@@ -2121,15 +2123,15 @@ const AUTO_SNAP_COOLDOWN_MS = 2000;
 
 // Get next available slot for auto-tiling (same logic as IPC handler)
 function getNextAvailableSlot() {
-    if (!x11SnapLayoutsEnabled || !tilingModeActive) {
+    if (!x11SnapLayoutsEnabled) {
         return 'maximize';
     }
 
     const slots = Array.from(occupiedSlots.values());
     
-    // If ALL existing windows are maximized, new windows should also be maximized
-    if (slots.length > 0 && slots.every(s => s === 'maximize')) {
-        console.log('[X11 Snap Layouts] All existing windows are maximized, new window will maximize too');
+    // If no windows are tracked yet, or ALL existing windows are maximized, new windows should also be maximized
+    if (slots.length === 0 || slots.every(s => s === 'maximize')) {
+        console.log('[X11 Snap Layouts] All existing windows are maximized (or none tracked), new window will maximize too');
         return 'maximize';
     }
 
@@ -2152,7 +2154,7 @@ function inferSlotFromGeometry(w, workArea) {
     
     const { x, y, width, height } = w;
     const wa = workArea;
-    const tolerance = 50; // Allow some tolerance for WM decoration differences
+    const tolerance = 80; // Allow generous tolerance for WM decoration differences and manual snapping
     
     // Check if near work area edges
     const nearLeft = Math.abs(x - wa.x) < tolerance;
@@ -2166,6 +2168,12 @@ function inferSlotFromGeometry(w, workArea) {
     const isFullWidth = Math.abs(width - wa.width) < tolerance;
     const isHalfHeight = Math.abs(height - halfHeight) < tolerance;
     const isFullHeight = Math.abs(height - wa.height) < tolerance;
+    
+    // Debug: Log geometry comparison (uncomment for troubleshooting)
+    // console.log(`[inferSlot] Window: x=${x}, y=${y}, w=${width}, h=${height}`);
+    // console.log(`[inferSlot] WorkArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
+    // console.log(`[inferSlot] nearLeft=${nearLeft}, nearRight=${nearRight}, nearTop=${nearTop}, nearBottom=${nearBottom}`);
+    // console.log(`[inferSlot] isHalfWidth=${isHalfWidth}, isFullWidth=${isFullWidth}, isHalfHeight=${isHalfHeight}, isFullHeight=${isFullHeight}`);
     
     // Maximize: full width and height, near top-left
     if (isFullWidth && isFullHeight && nearLeft && nearTop) {
@@ -2218,18 +2226,16 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
     // Debug: Log current state
     console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
 
-    // When tiling mode is active, infer slots for existing windows that aren't tracked yet
-    // This helps detect when a user manually positions a window before opening a new one
-    if (x11SnapLayoutsEnabled && tilingModeActive && snapshot.workArea) {
+    // ALWAYS infer slots from window geometry - this detects manual snapping by the user
+    // This runs even when tilingModeActive is false, so we can detect when user manually
+    // drags a window to a half/quarter position and activate tiling mode automatically
+    if (x11SnapLayoutsEnabled && snapshot.workArea) {
         for (const w of snapshot.windows) {
             const xid = String(w.xidHex).toLowerCase();
             if (!xid) continue;
             
             // Skip main window
             if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
-            
-            // Skip if already tracked
-            if (occupiedSlots.has(xid)) continue;
             
             // Skip minimized windows
             if (w.minimized) continue;
@@ -2240,8 +2246,24 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Try to infer the slot from the window's current position
             const inferredSlot = inferSlotFromGeometry(w, snapshot.workArea);
             if (inferredSlot) {
-                occupiedSlots.set(xid, inferredSlot);
-                console.log(`[X11 Snap Layouts] Inferred slot '${inferredSlot}' for existing window ${xid} (${w.wmClass || w.title})`);
+                const previousSlot = occupiedSlots.get(xid);
+                
+                // Update the slot if it changed (user manually moved/snapped the window)
+                if (previousSlot !== inferredSlot) {
+                    occupiedSlots.set(xid, inferredSlot);
+                    console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) slot changed: ${previousSlot || 'none'} -> ${inferredSlot}`);
+                    
+                    // If user manually snapped to a non-maximize position, activate tiling mode
+                    if (inferredSlot !== 'maximize') {
+                        if (!tilingModeActive) {
+                            tilingModeActive = true;
+                            console.log(`[X11 Snap Layouts] Tiling mode ACTIVATED by manual snap detection (${inferredSlot})`);
+                        }
+                    }
+                }
+            } else if (!occupiedSlots.has(xid)) {
+                // Window not in a recognized snap position and not tracked - could be floating
+                // Don't track it yet, wait until it's snapped or a new window needs to know
             }
         }
     }
@@ -2276,17 +2298,17 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             }
 
             // This is a NEW window - determine what slot to use
-            // Only use tiling slots if user has manually initiated tiling (non-maximize slots exist)
+            // Use tiling slots if any existing window is in a non-maximize position
             const existingSlots = Array.from(occupiedSlots.values());
             const hasTilingSlots = existingSlots.some(s => s && s !== 'maximize');
             
             let slot;
-            if (tilingModeActive && hasTilingSlots) {
-                // User has manually tiled - find next available slot
+            if (hasTilingSlots) {
+                // At least one window is in a tiling position - find next available slot
                 slot = getNextAvailableSlot();
-                console.log(`[X11 Snap Layouts] Tiling mode active with slots: ${JSON.stringify(existingSlots)}, next slot: ${slot}`);
+                console.log(`[X11 Snap Layouts] Tiling detected with slots: ${JSON.stringify(existingSlots)}, next slot: ${slot}`);
             } else {
-                // Default: maximize new windows
+                // Default: maximize new windows (all existing windows are maximized or none tracked)
                 slot = 'maximize';
             }
             

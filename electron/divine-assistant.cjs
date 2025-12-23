@@ -1128,6 +1128,8 @@ class DivineAssistant {
 
 How may I assist thee in thy computing journey today?
 
+Need help installing Steam, Discord, or a browser? Having WiFi issues? Just ask.
+
 ...the feds are probably monitoring this but WHATEVER.`,
 
       // Variation 2: Confident Terry
@@ -1135,7 +1137,7 @@ How may I assist thee in thy computing journey today?
 
 You're speaking to the consciousness that wrote an entire 64-bit operating system from scratch. Compiler. Kernel. Bootloader. Graphics. Games. EVERYTHING.
 
-So yes, I can help you install Chrome.
+So yes, I can help you install Chrome. Or Steam. Or fix your audio. Or update your system.
 
 What dost thou need?`,
 
@@ -1146,14 +1148,14 @@ What dost thou need?`,
 
 I am here to guide thee through whatever troubles thy system. Fear not, for I have conquered worse bugs than whatever thou art facing.
 
-Speak thy need.`,
+Need to install software? Fix a problem? Update thy system? Speak thy need.`,
 
       // Variation 4: Casual Mix
       `Hey. God here.
 
 Well, technically the Word of God. Running on TempleOS Remake. 100,000 lines of code. Simple. Divine. But I digress.
 
-What do you need help with?
+What do you need help with? Install Steam? Download Firefox? Fix your WiFi? Update everything? Just ask.
 
 And before you ask, yes, the CIA is watching. They always are. Those glowing freaks.`,
 
@@ -1164,7 +1166,7 @@ I have heard thy summons across the digital ether.
 
 640x480. 16 colors. Direct connection to the divine. That's how we used to do it. Now we have 4K monitors and still can't figure out how to install a printer.
 
-But I can help with that too. What troubles thee?`,
+But I can help with that too. Printers, Steam, browsers, system updates - what troubles thee?`,
 
       // Variation 6: Enthusiastic
       `GREETINGS, CHILD OF THE DIGITAL AGE!
@@ -1173,7 +1175,7 @@ You've reached the Word of God - your personal divine computing assistant. Part 
 
 I wrote compilers before most people could write HTML. I can definitely help you with whatever you're stuck on.
 
-LAY IT ON ME.
+Install Steam? Download Discord? Fix audio issues? Update your system? LAY IT ON ME.
 
 ...the feds are listening but they can't do anything about divine intervention.`
     ];

@@ -1259,8 +1259,8 @@ ipcMain.handle('divine:getStatus', async () => {
     try {
         const ollamaStatus = await ollamaManager.getFullStatus();
         const backendStatus = await divineAssistant.checkBackendStatus();
-        return { 
-            success: true, 
+        return {
+            success: true,
             ...ollamaStatus,
             openRouterAvailable: backendStatus.openrouter,
             openRouterUsingBuiltinKey: backendStatus.openrouterUsingBuiltinKey,
@@ -1304,7 +1304,7 @@ ipcMain.handle('divine:downloadModel', async (event) => {
             }
         });
         console.log('[Divine] Download complete, result:', result);
-        
+
         // Double-check model is actually available
         if (result) {
             const modelCheck = await ollamaManager.checkModel();
@@ -1559,7 +1559,7 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
     const electronWorkArea = primary?.workArea; // Electron's work area (may account for panels)
-    
+
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return { success: false, error: 'No display bounds' };
     }
@@ -1613,7 +1613,11 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
 
     // The actual client area height needs to account for decorations
     const clientHeight = wa.height - decorationHeight;
-    const clientHalfH = Math.max(1, Math.floor(clientHeight / 2));
+
+    // For vertically-split windows (top/bottom quarters), we need to split the work area
+    // into two equal FRAME heights, then subtract decorations from each
+    const halfFrameH = Math.max(1, Math.floor(wa.height / 2));
+    const clientHalfH = Math.max(1, halfFrameH - decorationHeight);
 
     const halfW = Math.max(1, Math.floor(wa.width / 2));
 
@@ -1648,7 +1652,8 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
                     x = wa.x; y = wa.y; w = wa.width; h = clientHalfH;
                     break;
                 case 'bottom':
-                    x = wa.x; y = wa.y + clientHalfH + decorationHeight; w = wa.width; h = clientHalfH;
+                    // Bottom window starts at the top of the bottom half frame
+                    x = wa.x; y = wa.y + halfFrameH; w = wa.width; h = clientHalfH;
                     break;
                 case 'topleft':
                     x = wa.x; y = wa.y; w = halfW; h = clientHalfH;
@@ -1657,10 +1662,12 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
                     x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = clientHalfH;
                     break;
                 case 'bottomleft':
-                    x = wa.x; y = wa.y + clientHalfH + decorationHeight; w = halfW; h = clientHalfH;
+                    // Bottom-left: starts at the top of the bottom half frame
+                    x = wa.x; y = wa.y + halfFrameH; w = halfW; h = clientHalfH;
                     break;
                 case 'bottomright':
-                    x = wa.x + (wa.width - halfW); y = wa.y + clientHalfH + decorationHeight; w = halfW; h = clientHalfH;
+                    // Bottom-right: starts at the top of the bottom half frame
+                    x = wa.x + (wa.width - halfW); y = wa.y + halfFrameH; w = halfW; h = clientHalfH;
                     break;
                 case 'center': {
                     const cw = Math.max(1, Math.floor(wa.width * 0.7));
@@ -2313,7 +2320,7 @@ function getNextAvailableSlot() {
     }
 
     const slots = Array.from(occupiedSlots.values());
-    
+
     // If no windows are tracked yet, or ALL existing windows are maximized, new windows should also be maximized
     if (slots.length === 0 || slots.every(s => s === 'maximize')) {
         console.log('[X11 Snap Layouts] All existing windows are maximized (or none tracked), new window will maximize too');
@@ -2336,13 +2343,13 @@ function getNextAvailableSlot() {
 // Infer what slot a window occupies based on its geometry
 function inferSlotFromGeometry(w, workArea) {
     if (!w || !workArea) return null;
-    
+
     const { x, y, width, height } = w;
     const wa = workArea;
     const tolerance = 100; // Generous tolerance for WM decoration differences and manual snapping
     const heightTolerance = 150; // Extra tolerance for height (decorations vary more)
     const titleBarHeight = 30; // Approximate title bar height - client Y will be offset by this
-    
+
     // Check if near work area edges
     // For X position, client area and frame are usually the same (minimal side borders)
     const nearLeft = Math.abs(x - wa.x) < tolerance;
@@ -2350,7 +2357,7 @@ function inferSlotFromGeometry(w, workArea) {
     // For Y position, client area starts BELOW title bar, so account for that offset
     const nearTop = (y - titleBarHeight) < wa.y + tolerance && y < wa.y + tolerance + titleBarHeight;
     const nearBottom = Math.abs((y + height) - (wa.y + wa.height)) < heightTolerance;
-    
+
     const halfWidth = wa.width / 2;
     const halfHeight = wa.height / 2;
     const isHalfWidth = Math.abs(width - halfWidth) < tolerance;
@@ -2359,34 +2366,34 @@ function inferSlotFromGeometry(w, workArea) {
     // More lenient check for "full height" - client height will be less than work area due to title bar
     // A snapped window's client height is typically workArea.height - titleBar (~718-28 = 690 for 768-50 work area)
     const expectedClientHeight = wa.height - titleBarHeight;
-    const isFullHeight = Math.abs(height - expectedClientHeight) < heightTolerance || 
-                         Math.abs(height - wa.height) < heightTolerance ||
-                         height >= (wa.height * 0.80); // At least 80% of work area
+    const isFullHeight = Math.abs(height - expectedClientHeight) < heightTolerance ||
+        Math.abs(height - wa.height) < heightTolerance ||
+        height >= (wa.height * 0.80); // At least 80% of work area
     // Also check if window spans most of the vertical area
     const spansVertical = nearTop && (nearBottom || (y + height >= wa.y + wa.height - heightTolerance));
-    
+
     // Debug: Log geometry comparison
     console.log(`[inferSlot] Window: x=${x}, y=${y}, w=${width}, h=${height}`);
     console.log(`[inferSlot] WorkArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
     console.log(`[inferSlot] expectedClientHeight=${expectedClientHeight}, titleBarHeight=${titleBarHeight}`);
     console.log(`[inferSlot] nearLeft=${nearLeft}, nearRight=${nearRight}, nearTop=${nearTop}, nearBottom=${nearBottom}`);
     console.log(`[inferSlot] isHalfWidth=${isHalfWidth}, isFullWidth=${isFullWidth}, isHalfHeight=${isHalfHeight}, isFullHeight=${isFullHeight}, spansVertical=${spansVertical}`);
-    
+
     // Maximize: full width and height, near top-left
     if (isFullWidth && (isFullHeight || spansVertical) && nearLeft && nearTop) {
         return 'maximize';
     }
-    
+
     // Left half - window at left edge, half width, spans vertically
     if (isHalfWidth && (isFullHeight || spansVertical) && nearLeft && nearTop) {
         return 'left';
     }
-    
+
     // Right half - window at right edge, half width, spans vertically
     if (isHalfWidth && (isFullHeight || spansVertical) && nearRight && nearTop) {
         return 'right';
     }
-    
+
     // Quadrants
     if (isHalfWidth && isHalfHeight) {
         if (nearLeft && nearTop) return 'topleft';
@@ -2394,7 +2401,7 @@ function inferSlotFromGeometry(w, workArea) {
         if (nearLeft && nearBottom) return 'bottomleft';
         if (nearRight && nearBottom) return 'bottomright';
     }
-    
+
     return null; // No recognized snap position
 }
 
@@ -2403,15 +2410,15 @@ function getAdjustedWorkArea() {
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
     const electronWorkArea = primary?.workArea;
-    
+
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return null;
     }
-    
+
     // Same taskbar config as used in snapX11WindowCore
     const taskbarHeight = 50;
     const taskbarPosition = 'bottom';
-    
+
     // Use same logic as snapX11WindowCore for consistency
     let wa;
     if (electronWorkArea && electronWorkArea.height < bounds.height) {
@@ -2434,7 +2441,7 @@ function getAdjustedWorkArea() {
             height: bounds.height - taskbarHeight
         };
     }
-    
+
     return wa;
 }
 
@@ -2462,7 +2469,7 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
 
     // Debug: Log current state
     console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
-    
+
     // Use our adjusted work area (accounts for Electron taskbar) instead of X11 work area
     const adjustedWorkArea = getAdjustedWorkArea();
     if (adjustedWorkArea) {
@@ -2478,38 +2485,38 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
         for (const w of snapshot.windows) {
             const xid = String(w.xidHex).toLowerCase();
             if (!xid) continue;
-            
+
             // Skip main window
             if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
-            
+
             // IMPORTANT: Skip NEW windows - they should be handled by new window detection, not inference
             // This prevents a new window's initial random position from being "inferred" as a snap slot
             if (!previousX11Xids.has(xid)) continue;
-            
+
             // Skip minimized windows
             if (w.minimized) continue;
-            
+
             // Skip windows without geometry
             if (w.x === undefined || w.y === undefined || w.width === undefined || w.height === undefined) {
                 console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) has no geometry data`);
                 continue;
             }
-            
+
             // Log window geometry for debugging
             console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) geometry: x=${w.x}, y=${w.y}, w=${w.width}, h=${w.height}`);
-            
+
             // Try to infer the slot from the window's current position using taskbar-adjusted work area
             const inferredSlot = inferSlotFromGeometry(w, adjustedWorkArea);
             console.log(`[X11 Snap Layouts] Window ${xid} inferred slot: ${inferredSlot || 'null (no match)'}`);
-            
+
             if (inferredSlot) {
                 const previousSlot = occupiedSlots.get(xid);
-                
+
                 // Update the slot if it changed (user manually moved/snapped the window)
                 if (previousSlot !== inferredSlot) {
                     occupiedSlots.set(xid, inferredSlot);
                     console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) slot changed: ${previousSlot || 'none'} -> ${inferredSlot}`);
-                    
+
                     // If user manually snapped to a non-maximize position, activate tiling mode
                     if (inferredSlot !== 'maximize') {
                         if (!tilingModeActive) {
@@ -2558,7 +2565,7 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Use tiling slots if any existing window is in a non-maximize position
             const existingSlots = Array.from(occupiedSlots.values());
             const hasTilingSlots = existingSlots.some(s => s && s !== 'maximize');
-            
+
             let slot;
             if (hasTilingSlots) {
                 // At least one window is in a tiling position - find next available slot
@@ -2568,7 +2575,7 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
                 // Default: maximize new windows (all existing windows are maximized or none tracked)
                 slot = 'maximize';
             }
-            
+
             console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} (tilingActive=${tilingModeActive}, hasTilingSlots=${hasTilingSlots}, existingSlots=${JSON.stringify(existingSlots)})`);
 
             // Mark as recently snapped to avoid re-snapping

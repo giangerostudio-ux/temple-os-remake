@@ -8645,18 +8645,23 @@ class TempleOS {
           let snapRect = null;
           let snapType = '';
 
+          // Usable height accounting for taskbar
+          const usableH = h - 50;
+          const halfH = usableH / 2;
+          const halfW = w / 2;
+
           // Corners & Edges
           if (y < SNAP_MARGIN) {
-            if (x < SNAP_MARGIN) { snapType = 'top-left'; snapRect = { x: 0, y: 0, width: w / 2, height: h / 2 }; }
-            else if (x > w - SNAP_MARGIN) { snapType = 'top-right'; snapRect = { x: w / 2, y: 0, width: w / 2, height: h / 2 }; }
-            else { snapType = 'maximize'; snapRect = { x: 0, y: 0, width: w, height: h - 50 }; } // Subtract taskbar
+            if (x < SNAP_MARGIN) { snapType = 'top-left'; snapRect = { x: 0, y: 0, width: halfW, height: halfH }; }
+            else if (x > w - SNAP_MARGIN) { snapType = 'top-right'; snapRect = { x: halfW, y: 0, width: halfW, height: halfH }; }
+            else { snapType = 'maximize'; snapRect = { x: 0, y: 0, width: w, height: usableH }; }
           } else if (y > h - SNAP_MARGIN) {
-            if (x < SNAP_MARGIN) { snapType = 'bottom-left'; snapRect = { x: 0, y: h / 2, width: w / 2, height: (h / 2) - 50 }; }
-            else if (x > w - SNAP_MARGIN) { snapType = 'bottom-right'; snapRect = { x: w / 2, y: h / 2, width: w / 2, height: (h / 2) - 50 }; }
+            if (x < SNAP_MARGIN) { snapType = 'bottom-left'; snapRect = { x: 0, y: halfH, width: halfW, height: halfH }; }
+            else if (x > w - SNAP_MARGIN) { snapType = 'bottom-right'; snapRect = { x: halfW, y: halfH, width: halfW, height: halfH }; }
           } else if (x < SNAP_MARGIN) {
-            snapType = 'left'; snapRect = { x: 0, y: 0, width: w / 2, height: h - 50 };
+            snapType = 'left'; snapRect = { x: 0, y: 0, width: halfW, height: usableH };
           } else if (x > w - SNAP_MARGIN) {
-            snapType = 'right'; snapRect = { x: w / 2, y: 0, width: w / 2, height: h - 50 };
+            snapType = 'right'; snapRect = { x: halfW, y: 0, width: halfW, height: usableH };
           }
 
           const preview = document.getElementById('snap-preview');

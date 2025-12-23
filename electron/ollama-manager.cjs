@@ -8,9 +8,13 @@ const http = require('http');
 const https = require('https');
 
 const OLLAMA_HOST = 'http://localhost:11434';
-// Use llama3.2:3b for testing - smaller and definitely available
-// Production should use: 'dolphin-qwen2.5:7b' (abliterated/uncensored)
-const DEFAULT_MODEL = 'llama3.2:3b';
+// Model options for uncensored Terry roleplay:
+// - 'dolphin-phi:2.7b' - RECOMMENDED: Small + uncensored (~1.6GB)
+// - 'dolphin-mistral:7b' - Full uncensored, slower (~4.1GB)
+// - 'dolphin-llama3:8b' - Best quality uncensored (~4.7GB)
+// 
+// To change: run "ollama pull <model-name>" in terminal, then update this line
+const DEFAULT_MODEL = 'dolphin-phi:2.7b';
 
 class OllamaManager {
   constructor() {

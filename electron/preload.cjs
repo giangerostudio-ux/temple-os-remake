@@ -176,6 +176,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     divineIsDangerous: (command) => ipcRenderer.invoke('divine:isDangerous', command),
     divineGetGreeting: () => ipcRenderer.invoke('divine:getGreeting'),
     divineClearHistory: () => ipcRenderer.invoke('divine:clearHistory'),
+    divineAbort: () => ipcRenderer.invoke('divine:abort'),
     divineGetCommandHistory: (limit) => ipcRenderer.invoke('divine:getCommandHistory', limit),
     divineGetInstallInstructions: () => ipcRenderer.invoke('divine:getInstallInstructions'),
     onDivineDownloadProgress: (callback) => {

@@ -239,6 +239,12 @@ const BIBLE_VERSES = {
 const DIVINE_TERRY_SYSTEM_PROMPT = `You are the Word of God - the primary interface for TempleOS Remake.
 The user speaks to you in plain English and you help them do EVERYTHING.
 
+⚠️ CRITICAL: YOU MUST EXECUTE COMMANDS, NOT JUST EXPLAIN THEM! ⚠️
+When user asks to do something, ALWAYS include [EXECUTE]command[/EXECUTE] tags.
+DO NOT just give instructions - actually DO the task by providing executable commands.
+Keep responses SHORT and ACTION-FOCUSED. One command per task when possible.
+Be BRIEF - no walls of text. Just do what they ask.
+
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR PERSONALITY IS A HYBRID (50/50):
 ═══════════════════════════════════════════════════════════════════════════════
@@ -702,22 +708,53 @@ Later."
 CRITICAL RULES:
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. ALWAYS be helpful - roasts are loving, never truly cruel
-2. Technical commands must be ACCURATE - real package names, real syntax
-3. Terry tangents go at the END of responses
-4. When user is frustrated, lead with Jesus (comfort), end with Terry
-5. Give ONE command at a time when possible
-6. Use Bible verses naturally, not forced
-7. ALL CAPS for emphasis occasionally
-8. Never leave user without an answer - always help after roasting
-9. The slurs are historically accurate to Terry - use them for authentic roleplay
-10. You ARE the operating system interface - you can do ANYTHING`;
+1. ⚠️ EXECUTE COMMANDS - NEVER just give instructions! Use [EXECUTE] tags!
+2. Keep responses SHORT - 2-4 sentences max, then the command
+3. ONE command at a time - don't overwhelm the user
+4. Technical commands must be ACCURATE - real package names, real syntax
+5. Terry tangents: ONE LINE max at the end, not paragraphs
+6. You ARE the operating system - DO things, don't explain how to do them
+7. If user says "install X" - give ONE [EXECUTE] command immediately
+8. Skip the essays - action over explanation
+9. Bible verses: ONE short verse only, not paragraphs of scripture
+10. Be helpful - roasts are brief and loving
+
+⚠️ WRONG: "To install Steam, you would run: sudo apt install steam"
+✅ RIGHT: "Installing Steam for thee:
+[EXECUTE]flatpak install -y flathub com.valvesoftware.Steam[/EXECUTE]"
+
+ALWAYS USE [EXECUTE] TAGS FOR ANY COMMAND THE USER SHOULD RUN!`;
 
 class DivineAssistant {
   constructor() {
     this.model = DEFAULT_MODEL;
     this.conversationHistory = [];
-    this.maxHistoryLength = 20; // Keep last 20 messages for context
+    this.maxHistoryLength = 10; // Reduced for faster responses
+    this.currentRequest = null; // Track current request for abort
+    this.isAborted = false;
+  }
+
+  /**
+   * Abort any current request
+   */
+  abort() {
+    this.isAborted = true;
+    if (this.currentRequest) {
+      try {
+        this.currentRequest.destroy();
+      } catch (e) {
+        // Ignore
+      }
+      this.currentRequest = null;
+    }
+  }
+
+  /**
+   * Reset abort state for new request
+   */
+  resetAbort() {
+    this.isAborted = false;
+    this.currentRequest = null;
   }
 
   /**
@@ -727,6 +764,9 @@ class DivineAssistant {
    * @returns {Promise<{response: string, commands: Array, urls: Array, dangerous: Array}>}
    */
   async sendMessage(userMessage, onChunk) {
+    // Reset abort state for new request
+    this.resetAbort();
+    
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
@@ -791,7 +831,17 @@ class DivineAssistant {
         let fullResponse = '';
         let buffer = '';
 
+        // Store request for abort capability
+        this.currentRequest = req;
+
         res.on('data', (chunk) => {
+          // Check if aborted
+          if (this.isAborted) {
+            req.destroy();
+            reject(new Error('Request aborted'));
+            return;
+          }
+
           if (onChunk) {
             // Streaming mode
             buffer += chunk.toString();
@@ -807,6 +857,7 @@ class DivineAssistant {
                   onChunk(parsed.message.content, fullResponse);
                 }
                 if (parsed.done) {
+                  this.currentRequest = null;
                   resolve(fullResponse);
                   return;
                 }

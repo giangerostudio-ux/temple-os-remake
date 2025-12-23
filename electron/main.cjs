@@ -1344,6 +1344,12 @@ ipcMain.handle('divine:clearHistory', async () => {
     return { success: true };
 });
 
+// Abort current Divine Assistant request
+ipcMain.handle('divine:abort', async () => {
+    divineAssistant.abort();
+    return { success: true };
+});
+
 // Get command history
 ipcMain.handle('divine:getCommandHistory', async (event, limit = 50) => {
     return { history: commandExecutor.getHistory(limit) };

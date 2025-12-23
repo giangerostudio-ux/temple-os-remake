@@ -224,6 +224,7 @@ declare global {
       divineIsDangerous?: (command: string) => Promise<{ isDangerous: boolean }>;
       divineGetGreeting?: () => Promise<{ greeting: string }>;
       divineClearHistory?: () => Promise<{ success: boolean }>;
+      divineAbort?: () => Promise<{ success: boolean }>;
       divineGetCommandHistory?: (limit?: number) => Promise<{ history: string[] }>;
       divineGetInstallInstructions?: () => Promise<{ command?: string; manual: string; platform: string }>;
       onDivineDownloadProgress?: (callback: (progress: { status: string; completed: number; total: number; percent: number }) => void) => () => void;
@@ -12477,7 +12478,7 @@ class TempleOS {
             <span></span><span></span><span></span>
           </span>
         </div>
-        <div class="divine-message-content">${this.divineStreamingResponse ? this.formatDivineResponse(this.divineStreamingResponse) : '<span class="divine-thinking">Receiving divine wisdom...</span>'}</div>
+        <div class="divine-message-content" id="divine-streaming-content">${this.divineStreamingResponse ? this.formatDivineResponse(this.divineStreamingResponse) : '<span class="divine-thinking">Receiving divine wisdom...</span>'}</div>
       </div>
     ` : '';
 
@@ -12655,19 +12656,39 @@ class TempleOS {
         }
       }
 
-      // Set up streaming listener
+      // Set up streaming listener - only update the streaming element, not the whole window
       if (window.electronAPI.onDivineStreamChunk) {
         window.electronAPI.onDivineStreamChunk((data: { chunk: string; fullResponse: string }) => {
           this.divineStreamingResponse = data.fullResponse;
-          this.refreshDivineWindow();
+          // Only update the streaming content element, not the entire window
+          const streamingEl = document.getElementById('divine-streaming-content');
+          if (streamingEl) {
+            streamingEl.innerHTML = this.formatDivineResponse(data.fullResponse);
+            // Auto-scroll to bottom
+            const container = document.getElementById('divine-messages');
+            if (container) container.scrollTop = container.scrollHeight;
+          } else {
+            // Fallback: full refresh only if streaming element doesn't exist yet
+            this.refreshDivineWindow();
+          }
         });
       }
 
       // Set up download progress listener
       if (window.electronAPI.onDivineDownloadProgress) {
-        window.electronAPI.onDivineDownloadProgress((progress: { percent: number; status: string }) => {
+        window.electronAPI.onDivineDownloadProgress(async (progress: { percent: number; status: string }) => {
           this.divineDownloadProgress = progress.percent;
           this.refreshDivineWindow();
+          
+          // Auto-refresh status when download completes
+          if (progress.percent >= 100 || progress.status === 'success') {
+            console.log('[Divine] Download complete, refreshing status...');
+            setTimeout(async () => {
+              this.divineDownloadProgress = 0; // Reset progress
+              await this.initDivineAssistant(); // Refresh status to show ready state
+              this.refreshDivineWindow();
+            }, 500); // Small delay to ensure model is ready
+          }
         });
       }
 
@@ -16755,6 +16776,15 @@ class TempleOS {
     const wasSystemMonitor = windowId.startsWith('system-monitor');
     const wasTerminal = windowId.startsWith('terminal');
     const wasEditor = windowId.startsWith('editor');
+    const wasDivine = windowId.startsWith('word-of-god');
+    
+    // Abort Divine AI request when closing the window
+    if (wasDivine && window.electronAPI?.divineAbort) {
+      window.electronAPI.divineAbort();
+      this.divineIsLoading = false;
+      this.divineStreamingResponse = '';
+    }
+    
     if (wasTerminal) {
       for (const tab of this.terminalTabs) {
         if (tab?.ptyId && window.electronAPI?.destroyPty) {

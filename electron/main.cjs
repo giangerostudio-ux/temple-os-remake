@@ -1987,6 +1987,7 @@ function handleSnapDetectorEvent(event) {
             const mode = zoneToMode[event.zone] || 'maximize';
 
             if (event.xid) {
+                console.log(`[SnapDetector] About to snap ${event.xid} to mode ${mode}`);
                 // Apply the snap
                 snapX11WindowCore(event.xid, mode, { height: 50, position: 'bottom' })
                     .then(() => {
@@ -1995,10 +1996,17 @@ function handleSnapDetectorEvent(event) {
                             tilingModeActive = true;
                             console.log(`[SnapDetector] Activated tiling mode for mode: ${mode}`);
                         }
-                        occupiedSlots.set(event.xid.toLowerCase(), mode);
-                        console.log(`[SnapDetector] Snapped ${event.xid} to ${mode}, occupiedSlots now:`, Object.fromEntries(occupiedSlots), `tilingModeActive: ${tilingModeActive}`);
+                        const normalizedXid = String(event.xid).toLowerCase();
+                        occupiedSlots.set(normalizedXid, mode);
+                        console.log(`[SnapDetector] SUCCESS: Snapped ${event.xid} (normalized: ${normalizedXid}) to ${mode}`);
+                        console.log(`[SnapDetector] occupiedSlots now:`, Object.fromEntries(occupiedSlots));
+                        console.log(`[SnapDetector] tilingModeActive: ${tilingModeActive}`);
                     })
-                    .catch(err => console.error('[SnapDetector] Snap error:', err));
+                    .catch(err => {
+                        console.error('[SnapDetector] Snap FAILED:', err);
+                    });
+            } else {
+                console.log(`[SnapDetector] No XID in event, cannot snap`);
             }
             break;
 

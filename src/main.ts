@@ -3567,9 +3567,9 @@ class TempleOS {
   private lastStartMenuToggleMs = 0;
 
   private async toggleStartMenu(): Promise<void> {
-    // Debounce rapid toggles (300ms) to prevent double-toggle from keybind daemon + keydown race
+    // Debounce rapid toggles (200ms) to prevent double-toggle from keybind daemon + keydown race
     const now = Date.now();
-    if (now - this.lastStartMenuToggleMs < 300) {
+    if (now - this.lastStartMenuToggleMs < 200) {
       console.log('[StartMenu] Debounced toggle (too fast)');
       return;
     }

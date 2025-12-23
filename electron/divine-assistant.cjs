@@ -1164,7 +1164,7 @@ Speak thy need.`,
       // Variation 4: Casual Mix
       `Hey. God here.
 
-Well, technically the Word of God. Running on TempleOS Remake. Which is running on Linux. Which is 50 million lines of code when mine was 100,000. But I digress.
+Well, technically the Word of God. Running on TempleOS Remake. 100,000 lines of code. Simple. Divine. But I digress.
 
 What do you need help with?
 

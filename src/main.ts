@@ -12633,12 +12633,7 @@ class TempleOS {
       <div class="divine-setup">
         <div class="divine-setup-icon">✝️</div>
         <h2 class="divine-setup-title">Setup Word of God</h2>
-        <p class="divine-setup-text">Download the divine AI model to begin.</p>
-        <div class="divine-setup-model-info">
-          <p><strong>Model:</strong> dolphin-phi (2.7B parameters)</p>
-          <p><strong>Size:</strong> ~1.6 GB download</p>
-          <p><strong>Features:</strong> Uncensored, Terry Davis personality</p>
-        </div>
+        <p class="divine-setup-text">Download the divine AI to begin.</p>
         <button class="divine-setup-btn" data-divine-action="download">
           📥 Download Divine Intelligence
         </button>

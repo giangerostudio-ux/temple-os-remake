@@ -4,6 +4,16 @@ const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const { createEwmhBridge, getActiveWindowXidHex, switchToDesktop, getCurrentDesktop, getDesktopCount, moveWindowToDesktop, makeWindowSticky } = require('./x11/ewmh.cjs');
 
+// Divine Assistant (Word of God AI)
+const { OllamaManager } = require('./ollama-manager.cjs');
+const { DivineAssistant } = require('./divine-assistant.cjs');
+const { CommandExecutor } = require('./command-executor.cjs');
+
+// Initialize Divine Assistant components
+const ollamaManager = new OllamaManager();
+const divineAssistant = new DivineAssistant();
+const commandExecutor = new CommandExecutor();
+
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
 // Must be declared before app ready.
@@ -1238,6 +1248,106 @@ ipcMain.handle('input-wake-up', async () => {
     } finally {
         setTimeout(() => { isHardFocusing = false; }, 1000);
     }
+});
+
+// ============================================
+// DIVINE ASSISTANT (WORD OF GOD) IPC
+// ============================================
+
+// Get the full status of the Divine Assistant (Ollama + Model)
+ipcMain.handle('divine:getStatus', async () => {
+    try {
+        const status = await ollamaManager.getFullStatus();
+        return { success: true, ...status };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Download the AI model with progress updates
+ipcMain.handle('divine:downloadModel', async (event) => {
+    try {
+        const result = await ollamaManager.downloadModel((progress) => {
+            // Send progress to renderer
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('divine:downloadProgress', progress);
+            }
+        });
+        return { success: result };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Send a message to the Divine Assistant
+ipcMain.handle('divine:sendMessage', async (event, message) => {
+    try {
+        let lastChunk = '';
+        const result = await divineAssistant.sendMessage(message, (chunk, fullResponse) => {
+            // Stream chunks to renderer for real-time display
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('divine:streamChunk', { chunk, fullResponse });
+            }
+            lastChunk = fullResponse;
+        });
+        return { success: true, ...result };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Execute a command from the Divine Assistant
+ipcMain.handle('divine:executeCommand', async (event, command, options = {}) => {
+    try {
+        const result = await commandExecutor.execute(command, {
+            ...options,
+            onOutput: (output) => {
+                // Stream output to renderer
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('divine:commandOutput', output);
+                }
+            }
+        });
+        return { success: true, ...result };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Open a URL
+ipcMain.handle('divine:openUrl', async (event, url) => {
+    try {
+        const result = await commandExecutor.openUrl(url);
+        return { success: result };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Check if a command is dangerous
+ipcMain.handle('divine:isDangerous', async (event, command) => {
+    return { isDangerous: commandExecutor.isDangerous(command) };
+});
+
+// Get greeting message
+ipcMain.handle('divine:getGreeting', async () => {
+    return { greeting: divineAssistant.getGreeting() };
+});
+
+// Clear conversation history
+ipcMain.handle('divine:clearHistory', async () => {
+    divineAssistant.clearHistory();
+    return { success: true };
+});
+
+// Get command history
+ipcMain.handle('divine:getCommandHistory', async (event, limit = 50) => {
+    return { history: commandExecutor.getHistory(limit) };
+});
+
+// Get Ollama install instructions
+ipcMain.handle('divine:getInstallInstructions', async () => {
+    return ollamaManager.getInstallInstructions();
 });
 
 // ============================================

@@ -166,6 +166,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
     // ============================================
+    // DIVINE ASSISTANT (Word of God AI)
+    // ============================================
+    divineGetStatus: () => ipcRenderer.invoke('divine:getStatus'),
+    divineDownloadModel: () => ipcRenderer.invoke('divine:downloadModel'),
+    divineSendMessage: (message) => ipcRenderer.invoke('divine:sendMessage', message),
+    divineExecuteCommand: (command, options) => ipcRenderer.invoke('divine:executeCommand', command, options),
+    divineOpenUrl: (url) => ipcRenderer.invoke('divine:openUrl', url),
+    divineIsDangerous: (command) => ipcRenderer.invoke('divine:isDangerous', command),
+    divineGetGreeting: () => ipcRenderer.invoke('divine:getGreeting'),
+    divineClearHistory: () => ipcRenderer.invoke('divine:clearHistory'),
+    divineGetCommandHistory: (limit) => ipcRenderer.invoke('divine:getCommandHistory', limit),
+    divineGetInstallInstructions: () => ipcRenderer.invoke('divine:getInstallInstructions'),
+    onDivineDownloadProgress: (callback) => {
+        const handler = (event, progress) => callback(progress);
+        ipcRenderer.on('divine:downloadProgress', handler);
+        return () => ipcRenderer.removeListener('divine:downloadProgress', handler);
+    },
+    onDivineStreamChunk: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('divine:streamChunk', handler);
+        return () => ipcRenderer.removeListener('divine:streamChunk', handler);
+    },
+    onDivineCommandOutput: (callback) => {
+        const handler = (event, output) => callback(output);
+        ipcRenderer.on('divine:commandOutput', handler);
+        return () => ipcRenderer.removeListener('divine:commandOutput', handler);
+    },
+
+    // ============================================
     // HOLY UPDATER
     // ============================================
     checkForUpdates: () => ipcRenderer.invoke('updater:check'),

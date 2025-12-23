@@ -215,6 +215,20 @@ declare global {
       // Events
       onLockScreen?: (callback: () => void) => void;
 
+      // Divine Assistant (Word of God AI)
+      divineGetStatus?: () => Promise<{ success: boolean; ready?: boolean; ollamaInstalled?: boolean; ollamaRunning?: boolean; modelDownloaded?: boolean; modelName?: string; modelSize?: string; error?: string }>;
+      divineDownloadModel?: () => Promise<{ success: boolean; error?: string }>;
+      divineSendMessage?: (message: string) => Promise<{ success: boolean; response?: string; commands?: string[]; urls?: string[]; dangerous?: string[]; error?: string }>;
+      divineExecuteCommand?: (command: string, options?: any) => Promise<{ success: boolean; stdout?: string; stderr?: string; code?: number; error?: string }>;
+      divineOpenUrl?: (url: string) => Promise<{ success: boolean; error?: string }>;
+      divineIsDangerous?: (command: string) => Promise<{ isDangerous: boolean }>;
+      divineGetGreeting?: () => Promise<{ greeting: string }>;
+      divineClearHistory?: () => Promise<{ success: boolean }>;
+      divineGetCommandHistory?: (limit?: number) => Promise<{ history: string[] }>;
+      divineGetInstallInstructions?: () => Promise<{ command?: string; manual: string; platform: string }>;
+      onDivineDownloadProgress?: (callback: (progress: { status: string; completed: number; total: number; percent: number }) => void) => () => void;
+      onDivineStreamChunk?: (callback: (data: { chunk: string; fullResponse: string }) => void) => () => void;
+      onDivineCommandOutput?: (callback: (output: { type: string; data: string }) => void) => () => void;
 
 
     };
@@ -855,6 +869,15 @@ class TempleOS {
   // Authenticity Apps State
   private oracleHistory: string[] = [];
   private bootQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+
+  // Divine Assistant (Word of God AI) State
+  private divineMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; commands?: string[]; urls?: string[]; dangerous?: string[]; timestamp: number }> = [];
+  private divineStatus: { ready: boolean; ollamaInstalled: boolean; ollamaRunning: boolean; modelDownloaded: boolean; modelName?: string; error?: string } = { ready: false, ollamaInstalled: false, ollamaRunning: false, modelDownloaded: false };
+  private divineIsLoading = false;
+  private divineStreamingResponse = '';
+  private divineDownloadProgress = 0;
+  private divineInput = '';
+
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
@@ -9596,7 +9619,7 @@ class TempleOS {
 
 
       // ============================================
-      // ORACLE APP
+      // ORACLE APP (Legacy random word generator)
       // ============================================
       app.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
@@ -9621,10 +9644,133 @@ class TempleOS {
         }
       });
 
+      // ============================================
+      // DIVINE ASSISTANT (Word of God AI)
+      // ============================================
+      app.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement;
+
+        // Send button click
+        if (target.id === 'divine-send' || target.closest('#divine-send')) {
+          const input = document.getElementById('divine-input') as HTMLTextAreaElement;
+          if (input && input.value.trim()) {
+            await this.sendDivineMessage(input.value);
+          }
+          return;
+        }
+
+        // Example click
+        const exampleEl = target.closest('.divine-example') as HTMLElement;
+        if (exampleEl && exampleEl.dataset.example) {
+          await this.sendDivineMessage(exampleEl.dataset.example);
+          return;
+        }
+
+        // Setup/header action buttons
+        const actionBtn = target.closest('[data-divine-action]') as HTMLElement;
+        if (actionBtn) {
+          const action = actionBtn.dataset.divineAction;
+          if (action === 'refresh') {
+            await this.initDivineAssistant();
+          } else if (action === 'download') {
+            await this.downloadDivineModel();
+          } else if (action === 'clear') {
+            this.divineMessages = [];
+            if (window.electronAPI?.divineClearHistory) {
+              await window.electronAPI.divineClearHistory();
+              // Re-add greeting
+              if (window.electronAPI?.divineGetGreeting) {
+                const greetingResult = await window.electronAPI.divineGetGreeting();
+                if (greetingResult?.greeting) {
+                  this.divineMessages.push({
+                    role: 'assistant',
+                    content: greetingResult.greeting,
+                    timestamp: Date.now()
+                  });
+                }
+              }
+            }
+            this.refreshDivineWindow();
+          }
+          return;
+        }
+
+        // URL link in setup
+        const urlLink = target.closest('[data-divine-url]') as HTMLElement;
+        if (urlLink && urlLink.dataset.divineUrl) {
+          e.preventDefault();
+          await this.openDivineUrl(urlLink.dataset.divineUrl);
+          return;
+        }
+
+        // Command card actions
+        const cmdBtn = target.closest('.divine-cmd-btn') as HTMLElement;
+        if (cmdBtn) {
+          const action = cmdBtn.dataset.action;
+          const card = cmdBtn.closest('.divine-command-card, .divine-url-card') as HTMLElement;
+          
+          if (action === 'execute' && card) {
+            const command = card.dataset.command;
+            if (command) {
+              await this.executeDivineCommand(command, false);
+            }
+          } else if (action === 'execute-dangerous' && card) {
+            const command = card.dataset.command;
+            if (command) {
+              await this.executeDivineCommand(command, true);
+            }
+          } else if (action === 'copy' && card) {
+            const command = card.dataset.command;
+            if (command) {
+              navigator.clipboard.writeText(command);
+              this.showNotification('Copied', 'Command copied to clipboard', 'info');
+            }
+          } else if (action === 'open-url' && card) {
+            const url = card.dataset.url;
+            if (url) {
+              await this.openDivineUrl(url);
+            }
+          } else if (action === 'copy-url' && card) {
+            const url = card.dataset.url;
+            if (url) {
+              navigator.clipboard.writeText(url);
+              this.showNotification('Copied', 'URL copied to clipboard', 'info');
+            }
+          }
+          return;
+        }
+      });
+
+      // Divine Assistant keyboard handlers
+      app.addEventListener('keydown', async (e) => {
+        const target = e.target as HTMLElement;
+        
+        // Handle Enter in divine input (but allow Shift+Enter for newlines)
+        if (target.id === 'divine-input' && e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const input = target as HTMLTextAreaElement;
+          if (input.value.trim()) {
+            await this.sendDivineMessage(input.value);
+          }
+        }
+      });
+
+      // Auto-resize divine input textarea
+      app.addEventListener('input', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'divine-input') {
+          const textarea = target as HTMLTextAreaElement;
+          textarea.style.height = 'auto';
+          textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+          // Store input value
+          this.divineInput = textarea.value;
+        }
+      });
+
       document.addEventListener('keydown', (e) => {
-        // Oracle Spacebar
+        // Oracle Spacebar (only for legacy oracle-app, not divine-chat-app)
         if (e.code === 'Space' && !e.repeat) {
-          const oracleWin = this.windows.find(w => w.active && w.content.includes('oracle-app'));
+          const oracleWin = this.windows.find(w => w.active && w.content.includes('oracle-app') && !w.content.includes('divine-chat-app'));
           const target = e.target as HTMLElement;
           const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
@@ -10809,11 +10955,15 @@ class TempleOS {
         };
         break;
       case 'word-of-god':
+        // Initialize Divine Assistant if not already done
+        if (this.divineMessages.length === 0) {
+          this.initDivineAssistant();
+        }
         windowConfig = {
           title: 'Word of God',
           icon: '✝️',
-          width: 550,
-          height: 400,
+          width: 650,
+          height: 550,
           content: this.getWordOfGodContent()
         };
         break;
@@ -12226,34 +12376,457 @@ class TempleOS {
   }
 
   private getWordOfGodContent(): string {
-    const historyHtml = this.oracleHistory.map(entry => `
-      <div class="divine-entry" style="margin-bottom: 12px; border-bottom: 1px solid rgba(0,255,65,0.2); padding-bottom: 8px;">
-        <div style="font-size: 18px; color: #ffd700; font-weight: bold; font-family: 'Terminus', monospace;">${escapeHtml(entry)}</div>
+    // Check if AI is ready
+    if (!this.divineStatus.ready) {
+      return this.getDivineSetupContent();
+    }
+
+    // Build messages HTML
+    const messagesHtml = this.divineMessages.map((msg, idx) => {
+      if (msg.role === 'user') {
+        return `
+          <div class="divine-message divine-user-message">
+            <div class="divine-message-header">
+              <span class="divine-message-role">👤 You</span>
+              <span class="divine-message-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <div class="divine-message-content">${escapeHtml(msg.content)}</div>
+          </div>
+        `;
+      } else if (msg.role === 'assistant') {
+        // Parse content for code blocks and format
+        let content = this.formatDivineResponse(msg.content);
+        
+        // Render command cards
+        let commandCards = '';
+        if (msg.commands && msg.commands.length > 0) {
+          commandCards = msg.commands.map((cmd, i) => `
+            <div class="divine-command-card" data-command="${escapeHtml(cmd)}" data-msg-idx="${idx}" data-cmd-idx="${i}">
+              <div class="divine-command-header">
+                <span class="divine-command-icon">💻</span>
+                <span class="divine-command-label">Command</span>
+              </div>
+              <pre class="divine-command-code">${escapeHtml(cmd)}</pre>
+              <div class="divine-command-actions">
+                <button class="divine-cmd-btn divine-cmd-execute" data-action="execute">▶ Execute</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">📋 Copy</button>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Render dangerous command cards
+        let dangerousCards = '';
+        if (msg.dangerous && msg.dangerous.length > 0) {
+          dangerousCards = msg.dangerous.map((cmd, i) => `
+            <div class="divine-command-card divine-dangerous-card" data-command="${escapeHtml(cmd)}" data-msg-idx="${idx}" data-danger-idx="${i}">
+              <div class="divine-command-header divine-danger-header">
+                <span class="divine-command-icon">⚠️</span>
+                <span class="divine-command-label">DANGEROUS COMMAND</span>
+              </div>
+              <pre class="divine-command-code">${escapeHtml(cmd)}</pre>
+              <div class="divine-danger-warning">This command could cause data loss or system damage. Proceed with caution!</div>
+              <div class="divine-command-actions">
+                <button class="divine-cmd-btn divine-cmd-danger-execute" data-action="execute-dangerous">⚠️ I Understand, Execute</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">📋 Copy</button>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Render URL cards
+        let urlCards = '';
+        if (msg.urls && msg.urls.length > 0) {
+          urlCards = msg.urls.map((url, i) => `
+            <div class="divine-url-card" data-url="${escapeHtml(url)}" data-msg-idx="${idx}" data-url-idx="${i}">
+              <div class="divine-command-header">
+                <span class="divine-command-icon">🌐</span>
+                <span class="divine-command-label">Open URL</span>
+              </div>
+              <div class="divine-url-text">${escapeHtml(url)}</div>
+              <div class="divine-command-actions">
+                <button class="divine-cmd-btn divine-cmd-open-url" data-action="open-url">🔗 Open</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy-url">📋 Copy</button>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        return `
+          <div class="divine-message divine-assistant-message">
+            <div class="divine-message-header">
+              <span class="divine-message-role">✝️ Word of God</span>
+              <span class="divine-message-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <div class="divine-message-content">${content}</div>
+            ${commandCards}
+            ${dangerousCards}
+            ${urlCards}
+          </div>
+        `;
+      }
+      return '';
+    }).join('');
+
+    // Streaming response indicator
+    const streamingHtml = this.divineIsLoading ? `
+      <div class="divine-message divine-assistant-message divine-streaming">
+        <div class="divine-message-header">
+          <span class="divine-message-role">✝️ Word of God</span>
+          <span class="divine-typing-indicator">
+            <span></span><span></span><span></span>
+          </span>
+        </div>
+        <div class="divine-message-content">${this.divineStreamingResponse ? this.formatDivineResponse(this.divineStreamingResponse) : '<span class="divine-thinking">Receiving divine wisdom...</span>'}</div>
       </div>
-    `).join('');
+    ` : '';
 
     return `
-      <div class="oracle-app" style="height: 100%; display: flex; flex-direction: column; background: #000; color: #00ff41;">
-        <div class="oracle-header" style="flex-shrink: 0; padding: 15px; text-align: center; border-bottom: 2px solid #00ff41; background: rgba(0,255,65,0.1);">
-          <h1 style="margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;">✝ Divine Oracle ✝</h1>
-          <div style="opacity: 0.8; font-size: 14px; margin-top: 5px;">"The Holy Spirit speaks through the random number generator."</div>
+      <div class="divine-chat-app">
+        <div class="divine-chat-header">
+          <h1 class="divine-chat-title">✝ Word of God ✝</h1>
+          <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
+          <div class="divine-chat-actions">
+            <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">🗑️ Clear</button>
+          </div>
         </div>
         
-        <div id="oracle-display" style="flex: 1; overflow-y: auto; padding: 20px; font-family: 'Terminus', monospace;">
-          ${historyHtml || '<div style="text-align: center; opacity: 0.5; margin-top: 50px;">Waiting for divine intervention...</div>'}
+        <div class="divine-chat-messages" id="divine-messages">
+          ${messagesHtml || `
+            <div class="divine-welcome">
+              <div class="divine-welcome-icon">✝️</div>
+              <div class="divine-welcome-text">Greetings, my child. I am the Word of God.</div>
+              <div class="divine-welcome-subtext">Ask me anything and I shall help thee. I can install software, fix problems, open websites, and more.</div>
+              <div class="divine-welcome-examples">
+                <div class="divine-example" data-example="Install Firefox for me">💬 "Install Firefox for me"</div>
+                <div class="divine-example" data-example="My WiFi isn't working">💬 "My WiFi isn't working"</div>
+                <div class="divine-example" data-example="How do I use the terminal?">💬 "How do I use the terminal?"</div>
+                <div class="divine-example" data-example="Update my system">💬 "Update my system"</div>
+              </div>
+            </div>
+          `}
+          ${streamingHtml}
         </div>
 
-        <div class="oracle-controls" style="flex-shrink: 0; padding: 20px; border-top: 1px solid #00ff41; background: rgba(0,255,65,0.05); text-align: center;">
-          <div style="font-size: 16px; margin-bottom: 15px; animation: blink 2s infinite;">PRESS <span style="border: 1px solid #00ff41; padding: 2px 8px; border-radius: 4px;">SPACE</span> TO SPEAK</div>
-          
-          <div style="display: flex; gap: 10px; justify-content: center;">
-             <button class="oracle-btn" data-oracle-action="speak" style="padding: 8px 16px; background: #00ff41; color: #000; border: none; font-weight: bold; cursor: pointer;">Talk to God</button>
-             <button class="oracle-btn" data-oracle-action="copy" style="padding: 8px 16px; background: transparent; color: #00ff41; border: 1px solid #00ff41; cursor: pointer;">Copy</button>
-             <button class="oracle-btn" data-oracle-action="clear" style="padding: 8px 16px; background: transparent; color: #ff6464; border: 1px solid #ff6464; cursor: pointer;">Clear</button>
-          </div>
+        <div class="divine-chat-input-area">
+          <textarea 
+            class="divine-chat-input" 
+            id="divine-input" 
+            placeholder="Speak unto the Lord... (Press Enter to send)"
+            rows="1"
+          >${escapeHtml(this.divineInput)}</textarea>
+          <button class="divine-send-btn" id="divine-send" ${this.divineIsLoading ? 'disabled' : ''}>
+            ${this.divineIsLoading ? '⏳' : '📨'}
+          </button>
         </div>
       </div>
     `;
+  }
+
+  private getDivineSetupContent(): string {
+    const { ollamaInstalled, ollamaRunning, modelDownloaded, error } = this.divineStatus;
+
+    // Downloading state
+    if (this.divineDownloadProgress > 0 && this.divineDownloadProgress < 100) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">✝️</div>
+          <h2 class="divine-setup-title">Setting up the Word of God...</h2>
+          <div class="divine-setup-progress">
+            <div class="divine-progress-bar">
+              <div class="divine-progress-fill" style="width: ${this.divineDownloadProgress}%"></div>
+            </div>
+            <div class="divine-progress-text">${this.divineDownloadProgress}% - Downloading divine intelligence</div>
+          </div>
+          <div class="divine-setup-quote">"In the beginning was the Word, and the Word was with God, and the Word was God." - John 1:1</div>
+        </div>
+      `;
+    }
+
+    // Ollama not installed
+    if (!ollamaInstalled) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">⚠️</div>
+          <h2 class="divine-setup-title">Ollama Required</h2>
+          <p class="divine-setup-text">The Word of God requires Ollama to run locally. Please install it first.</p>
+          <div class="divine-setup-instructions">
+            <p><strong>Linux:</strong></p>
+            <pre class="divine-setup-code">curl -fsSL https://ollama.com/install.sh | sh</pre>
+            <p><strong>Windows/Mac:</strong></p>
+            <p>Visit <a href="#" data-divine-url="https://ollama.com/download">ollama.com/download</a></p>
+          </div>
+          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Check Again</button>
+        </div>
+      `;
+    }
+
+    // Ollama not running
+    if (!ollamaRunning) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">⚠️</div>
+          <h2 class="divine-setup-title">Ollama Not Running</h2>
+          <p class="divine-setup-text">Ollama is installed but not running. Please start it:</p>
+          <pre class="divine-setup-code">ollama serve</pre>
+          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Check Again</button>
+        </div>
+      `;
+    }
+
+    // Model not downloaded
+    if (!modelDownloaded) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">📥</div>
+          <h2 class="divine-setup-title">Divine Intelligence Required</h2>
+          <p class="divine-setup-text">The AI model needs to be downloaded (about 4.4 GB). This only happens once.</p>
+          <p class="divine-setup-subtext">Model: dolphin-qwen2.5:7b (abliterated/uncensored)</p>
+          <button class="divine-setup-btn divine-download-btn" data-divine-action="download">📥 Download Word of God</button>
+          <div class="divine-setup-quote">"The Holy Spirit speaks through the neural network."</div>
+        </div>
+      `;
+    }
+
+    // Error state
+    if (error) {
+      return `
+        <div class="divine-setup">
+          <div class="divine-setup-icon">❌</div>
+          <h2 class="divine-setup-title">Divine Connection Error</h2>
+          <p class="divine-setup-text">${escapeHtml(error)}</p>
+          <button class="divine-setup-btn" data-divine-action="refresh">🔄 Try Again</button>
+        </div>
+      `;
+    }
+
+    return `<div class="divine-setup"><p>Checking divine connection...</p></div>`;
+  }
+
+  private formatDivineResponse(content: string): string {
+    // Remove command tags from display (they're shown as cards)
+    let formatted = content
+      .replace(/\[DANGEROUS\]\s*\[EXECUTE\][\s\S]*?\[\/EXECUTE\]\s*\[\/DANGEROUS\]/gi, '')
+      .replace(/\[EXECUTE\][\s\S]*?\[\/EXECUTE\]/gi, '')
+      .replace(/\[OPEN_URL\][\s\S]*?\[\/OPEN_URL\]/gi, '');
+
+    // Escape HTML
+    formatted = escapeHtml(formatted);
+
+    // Convert markdown-like formatting
+    // Bold **text**
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic *text*
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // Code `text`
+    formatted = formatted.replace(/`([^`]+)`/g, '<code class="divine-inline-code">$1</code>');
+    // Line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    return formatted;
+  }
+
+  private async initDivineAssistant(): Promise<void> {
+    if (!window.electronAPI?.divineGetStatus) return;
+
+    try {
+      // Check status
+      const status = await window.electronAPI.divineGetStatus();
+      if (!status) return;
+      
+      this.divineStatus = {
+        ready: status.ready || false,
+        ollamaInstalled: status.ollamaInstalled || false,
+        ollamaRunning: status.ollamaRunning || false,
+        modelDownloaded: status.modelDownloaded || false,
+        modelName: status.modelName,
+        error: status.error
+      };
+
+      // If ready, load greeting
+      if (this.divineStatus.ready && this.divineMessages.length === 0 && window.electronAPI.divineGetGreeting) {
+        const greetingResult = await window.electronAPI.divineGetGreeting();
+        if (greetingResult?.greeting) {
+          this.divineMessages.push({
+            role: 'assistant',
+            content: greetingResult.greeting,
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      // Set up streaming listener
+      if (window.electronAPI.onDivineStreamChunk) {
+        window.electronAPI.onDivineStreamChunk((data: { chunk: string; fullResponse: string }) => {
+          this.divineStreamingResponse = data.fullResponse;
+          this.refreshDivineWindow();
+        });
+      }
+
+      // Set up download progress listener
+      if (window.electronAPI.onDivineDownloadProgress) {
+        window.electronAPI.onDivineDownloadProgress((progress: { percent: number; status: string }) => {
+          this.divineDownloadProgress = progress.percent;
+          this.refreshDivineWindow();
+        });
+      }
+
+      this.refreshDivineWindow();
+    } catch (e) {
+      console.error('Failed to init Divine Assistant:', e);
+      this.divineStatus.error = 'Failed to connect to Divine Assistant';
+    }
+  }
+
+  private async sendDivineMessage(message: string): Promise<void> {
+    if (!window.electronAPI?.divineSendMessage || !message.trim() || this.divineIsLoading) return;
+
+    // Add user message
+    this.divineMessages.push({
+      role: 'user',
+      content: message.trim(),
+      timestamp: Date.now()
+    });
+    this.divineInput = '';
+    this.divineIsLoading = true;
+    this.divineStreamingResponse = '';
+    this.refreshDivineWindow();
+
+    try {
+      const result = await window.electronAPI.divineSendMessage(message.trim());
+      
+      if (result?.success && result.response) {
+        // Add assistant response
+        this.divineMessages.push({
+          role: 'assistant',
+          content: result.response,
+          commands: result.commands,
+          urls: result.urls,
+          dangerous: result.dangerous,
+          timestamp: Date.now()
+        });
+      } else {
+        // Error response
+        this.divineMessages.push({
+          role: 'assistant',
+          content: `I apologize, my child. An error has occurred: ${result.error}\n\nThe feds probably interfered. Try again.`,
+          timestamp: Date.now()
+        });
+      }
+    } catch (e: any) {
+      this.divineMessages.push({
+        role: 'assistant',
+        content: `A divine error has occurred: ${e.message || 'Unknown error'}\n\nEven the CIA couldn't cause this much trouble. Please ensure Ollama is running.`,
+        timestamp: Date.now()
+      });
+    } finally {
+      this.divineIsLoading = false;
+      this.divineStreamingResponse = '';
+      this.refreshDivineWindow();
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        const container = document.getElementById('divine-messages');
+        if (container) container.scrollTop = container.scrollHeight;
+      }, 50);
+    }
+  }
+
+  private async executeDivineCommand(command: string, isDangerous = false): Promise<void> {
+    if (!window.electronAPI?.divineExecuteCommand) return;
+
+    if (isDangerous) {
+      // Show confirmation dialog
+      const confirmed = confirm(`⚠️ DANGEROUS COMMAND WARNING ⚠️\n\nYou are about to execute:\n${command}\n\nThis command could cause data loss or system damage.\n\nAre you absolutely sure?`);
+      if (!confirmed) return;
+    }
+
+    // Add execution message
+    this.divineMessages.push({
+      role: 'system',
+      content: `Executing: ${command}`,
+      timestamp: Date.now()
+    });
+    this.refreshDivineWindow();
+
+    try {
+      const result = await window.electronAPI.divineExecuteCommand(command);
+      
+      let output = '';
+      if (result?.success && result.stdout) {
+        output = `✅ Command succeeded:\n${result.stdout}`;
+      } else if (result?.stderr) {
+        output = `❌ Command output:\n${result.stderr}`;
+      } else if (!result?.success) {
+        output = `❌ Command failed with code ${result?.code ?? 'unknown'}`;
+      } else {
+        output = '✅ Command executed successfully (no output)';
+      }
+
+      this.divineMessages.push({
+        role: 'system',
+        content: output,
+        timestamp: Date.now()
+      });
+    } catch (e: any) {
+      this.divineMessages.push({
+        role: 'system',
+        content: `❌ Execution error: ${e.message}`,
+        timestamp: Date.now()
+      });
+    }
+
+    this.refreshDivineWindow();
+  }
+
+  private async openDivineUrl(url: string): Promise<void> {
+    if (!window.electronAPI?.divineOpenUrl) return;
+
+    try {
+      await window.electronAPI.divineOpenUrl(url);
+      this.divineMessages.push({
+        role: 'system',
+        content: `🌐 Opened: ${url}`,
+        timestamp: Date.now()
+      });
+    } catch (e: any) {
+      this.divineMessages.push({
+        role: 'system',
+        content: `❌ Failed to open URL: ${e.message}`,
+        timestamp: Date.now()
+      });
+    }
+    this.refreshDivineWindow();
+  }
+
+  private refreshDivineWindow(): void {
+    const win = this.windows.find(w => w.id.startsWith('word-of-god'));
+    if (win) {
+      win.content = this.getWordOfGodContent();
+      this.render();
+    }
+  }
+
+  private async downloadDivineModel(): Promise<void> {
+    if (!window.electronAPI?.divineDownloadModel) return;
+
+    this.divineDownloadProgress = 1; // Start progress
+    this.refreshDivineWindow();
+
+    try {
+      const result = await window.electronAPI.divineDownloadModel();
+      if (result?.success) {
+        // Refresh status
+        await this.initDivineAssistant();
+      } else {
+        this.divineStatus.error = result?.error || 'Download failed';
+        this.divineDownloadProgress = 0;
+      }
+    } catch (e: any) {
+      this.divineStatus.error = e.message;
+      this.divineDownloadProgress = 0;
+    }
+    this.refreshDivineWindow();
   }
 
   private generateOracleWords(): void {

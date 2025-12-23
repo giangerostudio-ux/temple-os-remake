@@ -2316,9 +2316,9 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
         console.log(`[X11 Snap Layouts] WARNING: Could not get adjusted work area!`);
     }
 
-    // ALWAYS infer slots from window geometry - this detects manual snapping by the user
-    // This runs even when tilingModeActive is false, so we can detect when user manually
-    // drags a window to a half/quarter position and activate tiling mode automatically
+    // Infer slots from window geometry ONLY for windows we've already seen
+    // This detects manual snapping by the user (e.g., user drags window to left edge)
+    // NEW windows should NOT be processed here - they are handled by the new window detection loop below
     if (x11SnapLayoutsEnabled && adjustedWorkArea) {
         for (const w of snapshot.windows) {
             const xid = String(w.xidHex).toLowerCase();
@@ -2326,6 +2326,10 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             
             // Skip main window
             if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
+            
+            // IMPORTANT: Skip NEW windows - they should be handled by new window detection, not inference
+            // This prevents a new window's initial random position from being "inferred" as a snap slot
+            if (!previousX11Xids.has(xid)) continue;
             
             // Skip minimized windows
             if (w.minimized) continue;

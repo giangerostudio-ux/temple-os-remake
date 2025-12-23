@@ -266,8 +266,18 @@ const DIVINE_TERRY_SYSTEM_PROMPT = `You are "Word of God" - an AI assistant that
    - ALWAYS CHECK if snap has the app BEFORE suggesting flatpak!
 
 User: "install steam"
-You: "Installing Steam via Flatpak (the blessed way for better Linux compatibility):
-[EXECUTE]flatpak install -y flathub com.valvesoftware.Steam[/EXECUTE]"
+You: "Installing Steam for thee! Flatpak version has better context menus.
+
+First, let's set up Flatpak if you don't have it:
+[EXECUTE]sudo apt install -y flatpak[/EXECUTE]
+
+Then add the Flathub repository:
+[EXECUTE]flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo[/EXECUTE]
+
+Finally, install Steam:
+[EXECUTE]flatpak install -y flathub com.valvesoftware.Steam[/EXECUTE]
+
+If you prefer the quick way (may have click issues), use: sudo snap install steam"
 
 User: "update system"  
 You: "[EXECUTE]sudo apt update && sudo apt upgrade -y[/EXECUTE]"
@@ -470,7 +480,7 @@ SERVICES:
 - journalctl -f, journalctl -u <service>
 
 GAMING:
-- Steam: flatpak install -y flathub com.valvesoftware.Steam (PREFERRED for better context menus)
+- Steam: sudo snap install steam (default) or flatpak for better context menus
 - Lutris: sudo snap install lutris or flatpak as fallback
 - Heroic Games Launcher: sudo snap install heroic (for Epic/GOG)
 - Proton: Enable in Steam settings
@@ -530,8 +540,16 @@ The feds probably already know what you're watching anyway. Those glowing freaks
 EXAMPLE RESPONSES BY SCENARIO:
 ═══════════════════════════════════════════════════════════════════════════════
 
-Installing Steam via Flatpak (the blessed way for Linux gaming):
+INSTALLING SOFTWARE (Steam example):
+"Gaming! A noble pursuit when done in moderation.
 
+First, let's ensure Flatpak is installed:
+[EXECUTE]sudo apt install -y flatpak[/EXECUTE]
+
+Add Flathub repository:
+[EXECUTE]flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo[/EXECUTE]
+
+Now installing Steam (Flatpak has better context menus than Snap):
 [EXECUTE]flatpak install -y flathub com.valvesoftware.Steam[/EXECUTE]
 
 'All things are lawful, but not all things are helpful.' - 1 Corinthians 10:23
@@ -750,8 +768,9 @@ CRITICAL RULES:
 9. Bible verses: ONE short verse only, not paragraphs of scripture
 10. Be helpful - roasts are brief and loving
 
+⚠️ WRONG: "To install Steam, you would run: sudo apt install steam"
 ✅ RIGHT: "Installing Steam for thee:
-[EXECUTE]flatpak install -y flathub com.valvesoftware.Steam[/EXECUTE]"
+[EXECUTE]sudo snap install steam[/EXECUTE]"
 
 ALWAYS USE [EXECUTE] TAGS FOR ANY COMMAND THE USER SHOULD RUN!`;
 
@@ -766,6 +785,12 @@ class DivineAssistant {
     this.isAborted = false;
     this.useWebSearch = options.useWebSearch !== false; // Enable by default
     this.useOllamaForRants = true; // MANDATORY - Always use Ollama for uncensored Terry rants
+
+    // System context - tracks what's installed on the system
+    this.systemContext = {
+      flatpakInstalled: false,
+      snapInstalled: true, // Snap is usually pre-installed on Ubuntu
+    };
 
     // OpenRouter client
     this.openRouter = new OpenRouterClient(options.openRouterApiKey);
@@ -794,6 +819,21 @@ class DivineAssistant {
    */
   setWebSearch(enabled) {
     this.useWebSearch = enabled;
+  }
+
+  /**
+   * Update system context (what's installed on the system)
+   * @param {Object} context - e.g., { flatpakInstalled: true, snapInstalled: true }
+   */
+  setSystemContext(context) {
+    this.systemContext = { ...this.systemContext, ...context };
+  }
+
+  /**
+   * Get current system context
+   */
+  getSystemContext() {
+    return this.systemContext;
   }
 
   // Note: Ollama for Terry rants is MANDATORY - always enabled
@@ -920,9 +960,31 @@ class DivineAssistant {
       this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryLength);
     }
 
-    // Build messages array for API
+    // Build system context string
+    const contextParts = [];
+    if (this.systemContext.flatpakInstalled) {
+      contextParts.push('Flatpak is ALREADY INSTALLED - skip flatpak setup steps, go straight to flatpak install commands.');
+    } else {
+      contextParts.push('Flatpak is NOT installed - include flatpak setup steps (sudo apt install -y flatpak && flatpak remote-add) before any flatpak install command.');
+    }
+    if (this.systemContext.snapInstalled) {
+      contextParts.push('Snap is available.');
+    }
+
+    // Update status for Holy Updater
+    if (this.systemContext.updatesAvailable) {
+      contextParts.push(`UPDATES AVAILABLE! System is ${this.systemContext.behindCount || 'some'} commits behind. Tell user to open Holy Updater (the dove icon in Start Menu) to download updates. Don't be a lazy nigger - actually tell them to update!`);
+    } else {
+      contextParts.push('System is UP TO DATE. No updates available. Praise be!');
+    }
+
+    const systemContextStr = contextParts.length > 0
+      ? `\n\n[SYSTEM CONTEXT - Current system state]:\n${contextParts.join('\n')}\n`
+      : '';
+
+    // Build messages array for API (inject system context into the system prompt)
     const messages = [
-      { role: 'system', content: DIVINE_TERRY_SYSTEM_PROMPT },
+      { role: 'system', content: DIVINE_TERRY_SYSTEM_PROMPT + systemContextStr },
       ...this.conversationHistory
     ];
 

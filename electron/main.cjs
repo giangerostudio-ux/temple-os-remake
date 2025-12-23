@@ -1321,6 +1321,34 @@ ipcMain.handle('divine:downloadModel', async (event) => {
 // Send a message to the Divine Assistant
 ipcMain.handle('divine:sendMessage', async (event, message) => {
     try {
+        // Update system context before sending (check what's installed)
+        const flatpakInstalled = commandExistsSync('flatpak');
+        const snapInstalled = commandExistsSync('snap');
+
+        // Check for updates (Holy Updater status)
+        let updatesAvailable = false;
+        let behindCount = 0;
+        try {
+            const gitStatus = await execAsync('git fetch origin main && git rev-list HEAD..origin/main --count', {
+                cwd: __dirname + '/..',
+                timeout: 5000
+            });
+            if (!gitStatus.error && gitStatus.stdout) {
+                behindCount = parseInt(gitStatus.stdout.trim(), 10) || 0;
+                updatesAvailable = behindCount > 0;
+            }
+        } catch (e) {
+            // Ignore git errors
+        }
+
+        // Set the context in Divine Assistant
+        divineAssistant.setSystemContext({
+            flatpakInstalled,
+            snapInstalled,
+            updatesAvailable,
+            behindCount
+        });
+
         let lastChunk = '';
         const result = await divineAssistant.sendMessage(message, (chunk, fullResponse) => {
             // Stream chunks to renderer for real-time display

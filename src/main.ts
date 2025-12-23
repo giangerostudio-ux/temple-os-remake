@@ -978,6 +978,17 @@ class TempleOS {
     this.applyTaskbarPosition();
     this.renderInitial();
     this.setupEventListeners();
+    
+    // Pre-cache logo for start menu popup (async, non-blocking)
+    fetch(templeLogo)
+      .then(r => r.blob())
+      .then(blob => new Promise<string>(resolve => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      }))
+      .then(base64 => { this.cachedLogoBase64 = base64; })
+      .catch(() => {});
 
     // Sync panel policies (Linux X11 only; no-ops elsewhere)
     if (window.electronAPI?.onX11SnapLayoutsSuggest) {
@@ -3602,15 +3613,29 @@ class TempleOS {
           category: this.canonicalCategoryForInstalledApp(app),
         }));
 
-        // Use cached logo or skip conversion for speed - just use the import path
-        // The main process will handle it or use a fallback
+        // Use cached logo or convert (fast if cached)
+        let logoBase64 = this.cachedLogoBase64 || '';
+        
+        // If not cached, start caching in background
+        if (!this.cachedLogoBase64) {
+          fetch(templeLogo)
+            .then(r => r.blob())
+            .then(blob => new Promise<string>(resolve => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            }))
+            .then(base64 => { this.cachedLogoBase64 = base64; })
+            .catch(() => {});
+        }
+
         window.electronAPI.showStartMenuPopup({
           taskbarHeight: 58,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
           pinnedTaskbar: this.pinnedTaskbar,
           installedApps,
-          logoUrl: templeLogo, // Just pass the URL, don't convert to base64
+          logoUrl: logoBase64, // Use cached or fallback
         });
       }
       return;
@@ -3627,6 +3652,9 @@ class TempleOS {
 
   // Track if popup is open (separate from inline showStartMenu)
   private startMenuPopupOpen = false;
+  
+  // Cached base64 logo for start menu popup
+  private cachedLogoBase64: string | null = null;
 
   private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
     const battery = this.batteryStatus;
@@ -8959,16 +8987,8 @@ class TempleOS {
           this.stepAltTab(e.shiftKey ? -1 : 1);
         }
 
-        // Super/Meta opens Start Menu (Windows-like)
-        if (!this.showAppLauncher && (e.key === 'Meta' || e.key === 'OS') && !e.repeat) {
-          const target = e.target as HTMLElement;
-          const tag = target?.tagName;
-          if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
-            e.preventDefault();
-            // Use toggleStartMenu() to properly handle X11 popup vs inline menu
-            void this.toggleStartMenu();
-          }
-        }
+        // Super/Meta opens Start Menu - handled in setupGlobalInputListeners()
+        // Do NOT handle here to avoid double-toggle
 
         // Escape - Close active window (optional, like some apps)
         // Only if not in an input field

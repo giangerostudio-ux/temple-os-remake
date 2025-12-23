@@ -2255,21 +2255,28 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Skip minimized windows
             if (w.minimized) continue;
 
+            // Skip alwaysOnTop windows (popups, menus, dialogs, etc.)
+            if (w.alwaysOnTop) {
+                console.log(`[X11 Snap Layouts] Skipping alwaysOnTop window: ${xid} (${w.wmClass || w.title})`);
+                continue;
+            }
+
             // This is a NEW window - determine what slot to use
             // Only use tiling slots if user has manually initiated tiling (non-maximize slots exist)
             const existingSlots = Array.from(occupiedSlots.values());
-            const hasTilingSlots = existingSlots.some(s => s !== 'maximize');
+            const hasTilingSlots = existingSlots.some(s => s && s !== 'maximize');
             
             let slot;
             if (tilingModeActive && hasTilingSlots) {
                 // User has manually tiled - find next available slot
                 slot = getNextAvailableSlot();
+                console.log(`[X11 Snap Layouts] Tiling mode active with slots: ${JSON.stringify(existingSlots)}, next slot: ${slot}`);
             } else {
                 // Default: maximize new windows
                 slot = 'maximize';
             }
             
-            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} (tilingActive=${tilingModeActive}, hasTilingSlots=${hasTilingSlots})`);
+            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} (tilingActive=${tilingModeActive}, hasTilingSlots=${hasTilingSlots}, existingSlots=${JSON.stringify(existingSlots)})`);
 
             // Mark as recently snapped to avoid re-snapping
             recentlySnappedXids.set(xid, now);

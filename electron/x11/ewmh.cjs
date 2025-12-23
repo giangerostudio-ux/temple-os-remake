@@ -74,6 +74,61 @@ async function getWindowState(xidHex) {
   return { fullscreen, hidden, above, skipTaskbar, windowType };
 }
 
+/**
+ * Get window geometry (position and size) using xwininfo
+ * @param {string} xidHex - Window ID in hex format
+ * @returns {Promise<{x: number, y: number, width: number, height: number} | null>}
+ */
+async function getWindowGeometry(xidHex) {
+  if (!xidHex) return null;
+  try {
+    const { stdout } = await execFileAsync('xwininfo', ['-id', xidHex]);
+    const s = stdout || '';
+    
+    // Parse absolute position (where the window actually is on screen)
+    const absXMatch = s.match(/Absolute upper-left X:\s*(-?\d+)/);
+    const absYMatch = s.match(/Absolute upper-left Y:\s*(-?\d+)/);
+    const widthMatch = s.match(/Width:\s*(\d+)/);
+    const heightMatch = s.match(/Height:\s*(\d+)/);
+    
+    if (absXMatch && absYMatch && widthMatch && heightMatch) {
+      return {
+        x: parseInt(absXMatch[1], 10),
+        y: parseInt(absYMatch[1], 10),
+        width: parseInt(widthMatch[1], 10),
+        height: parseInt(heightMatch[1], 10),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the current desktop work area (screen minus panels/docks)
+ * @returns {Promise<{x: number, y: number, width: number, height: number} | null>}
+ */
+async function getWorkArea() {
+  try {
+    const { stdout } = await execFileAsync('xprop', ['-root', '_NET_WORKAREA']);
+    // Format: _NET_WORKAREA(CARDINAL) = 0, 0, 1920, 1030, 0, 0, 1920, 1030, ...
+    // Each set of 4 values is for a different desktop (x, y, width, height)
+    const match = stdout.match(/_NET_WORKAREA\(CARDINAL\)\s*=\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+      return {
+        x: parseInt(match[1], 10),
+        y: parseInt(match[2], 10),
+        width: parseInt(match[3], 10),
+        height: parseInt(match[4], 10),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function listClientWindows() {
   // -l list, -p pid, -x WM_CLASS
   const { stdout } = await execFileAsync('wmctrl', ['-lpx']);
@@ -128,7 +183,13 @@ async function setWindowGeometry(xidHex, x, y, width, height) {
 
 function fingerprintSnapshot(snap) {
   const ids = (snap?.windows || [])
-    .map(w => `${w.xidHex}:${w?.minimized ? '1' : '0'}:${w?.alwaysOnTop ? '1' : '0'}`)
+    .map(w => {
+      // Include geometry in fingerprint so position changes trigger updates
+      const geom = (w.x !== undefined && w.y !== undefined && w.width !== undefined && w.height !== undefined)
+        ? `:${w.x},${w.y},${w.width},${w.height}`
+        : '';
+      return `${w.xidHex}:${w?.minimized ? '1' : '0'}:${w?.alwaysOnTop ? '1' : '0'}${geom}`;
+    })
     .sort()
     .join(',');
   return `${ids}|active=${snap?.activeXidHex || ''}|fs=${snap?.activeFullscreen ? '1' : '0'}`;
@@ -157,10 +218,13 @@ async function createEwmhBridge(options = {}) {
   let lastSnapshot = { supported, windows: [], activeXidHex: null, activeFullscreen: false };
 
   async function readSnapshot() {
-    if (!supported) return { supported: false, windows: [], activeXidHex: null, activeFullscreen: false };
+    if (!supported) return { supported: false, windows: [], activeXidHex: null, activeFullscreen: false, workArea: null };
 
     const activeXidHex = await getActiveWindowXidHex().catch(() => null);
     const state = activeXidHex ? await getWindowState(activeXidHex).catch(() => ({ fullscreen: false })) : { fullscreen: false };
+
+    // Get the work area (screen minus panels)
+    const workArea = await getWorkArea().catch(() => null);
 
     const windowsRaw = await listClientWindows().catch(() => []);
     const windows = [];
@@ -179,10 +243,18 @@ async function createEwmhBridge(options = {}) {
           w.alwaysOnTop = true;
         }
       }
+      // Get window geometry for snap slot detection
+      const geom = await getWindowGeometry(w.xidHex).catch(() => null);
+      if (geom) {
+        w.x = geom.x;
+        w.y = geom.y;
+        w.width = geom.width;
+        w.height = geom.height;
+      }
       windows.push(w);
     }
 
-    return { supported: true, windows, activeXidHex, activeFullscreen: !!state.fullscreen };
+    return { supported: true, windows, activeXidHex, activeFullscreen: !!state.fullscreen, workArea };
   }
 
   async function tick() {

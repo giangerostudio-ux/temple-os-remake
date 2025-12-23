@@ -2154,39 +2154,43 @@ function inferSlotFromGeometry(w, workArea) {
     
     const { x, y, width, height } = w;
     const wa = workArea;
-    const tolerance = 80; // Allow generous tolerance for WM decoration differences and manual snapping
+    const tolerance = 100; // Generous tolerance for WM decoration differences and manual snapping
+    const heightTolerance = 150; // Extra tolerance for height (decorations vary more)
     
     // Check if near work area edges
     const nearLeft = Math.abs(x - wa.x) < tolerance;
     const nearRight = Math.abs((x + width) - (wa.x + wa.width)) < tolerance;
     const nearTop = Math.abs(y - wa.y) < tolerance;
-    const nearBottom = Math.abs((y + height) - (wa.y + wa.height)) < tolerance;
+    const nearBottom = Math.abs((y + height) - (wa.y + wa.height)) < heightTolerance;
     
     const halfWidth = wa.width / 2;
     const halfHeight = wa.height / 2;
     const isHalfWidth = Math.abs(width - halfWidth) < tolerance;
     const isFullWidth = Math.abs(width - wa.width) < tolerance;
-    const isHalfHeight = Math.abs(height - halfHeight) < tolerance;
-    const isFullHeight = Math.abs(height - wa.height) < tolerance;
+    const isHalfHeight = Math.abs(height - halfHeight) < heightTolerance;
+    // More lenient check for "full height" - window should be at least 85% of work area height
+    const isFullHeight = height >= (wa.height * 0.85) || Math.abs(height - wa.height) < heightTolerance;
+    // Also check if window spans most of the vertical area
+    const spansVertical = nearTop && (nearBottom || (y + height >= wa.y + wa.height - heightTolerance));
     
-    // Debug: Log geometry comparison (uncomment for troubleshooting)
-    // console.log(`[inferSlot] Window: x=${x}, y=${y}, w=${width}, h=${height}`);
-    // console.log(`[inferSlot] WorkArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
-    // console.log(`[inferSlot] nearLeft=${nearLeft}, nearRight=${nearRight}, nearTop=${nearTop}, nearBottom=${nearBottom}`);
-    // console.log(`[inferSlot] isHalfWidth=${isHalfWidth}, isFullWidth=${isFullWidth}, isHalfHeight=${isHalfHeight}, isFullHeight=${isFullHeight}`);
+    // Debug: Log geometry comparison
+    console.log(`[inferSlot] Window: x=${x}, y=${y}, w=${width}, h=${height}`);
+    console.log(`[inferSlot] WorkArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
+    console.log(`[inferSlot] nearLeft=${nearLeft}, nearRight=${nearRight}, nearTop=${nearTop}, nearBottom=${nearBottom}`);
+    console.log(`[inferSlot] isHalfWidth=${isHalfWidth}, isFullWidth=${isFullWidth}, isHalfHeight=${isHalfHeight}, isFullHeight=${isFullHeight}, spansVertical=${spansVertical}`);
     
     // Maximize: full width and height, near top-left
-    if (isFullWidth && isFullHeight && nearLeft && nearTop) {
+    if (isFullWidth && (isFullHeight || spansVertical) && nearLeft && nearTop) {
         return 'maximize';
     }
     
-    // Left half
-    if (isHalfWidth && isFullHeight && nearLeft && nearTop) {
+    // Left half - window at left edge, half width, spans vertically
+    if (isHalfWidth && (isFullHeight || spansVertical) && nearLeft && nearTop) {
         return 'left';
     }
     
-    // Right half
-    if (isHalfWidth && isFullHeight && nearRight && nearTop) {
+    // Right half - window at right edge, half width, spans vertically
+    if (isHalfWidth && (isFullHeight || spansVertical) && nearRight && nearTop) {
         return 'right';
     }
     
@@ -2225,6 +2229,11 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
 
     // Debug: Log current state
     console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
+    if (snapshot.workArea) {
+        console.log(`[X11 Snap Layouts] WorkArea: x=${snapshot.workArea.x}, y=${snapshot.workArea.y}, w=${snapshot.workArea.width}, h=${snapshot.workArea.height}`);
+    } else {
+        console.log(`[X11 Snap Layouts] WARNING: No workArea in snapshot!`);
+    };
 
     // ALWAYS infer slots from window geometry - this detects manual snapping by the user
     // This runs even when tilingModeActive is false, so we can detect when user manually
@@ -2241,10 +2250,18 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             if (w.minimized) continue;
             
             // Skip windows without geometry
-            if (w.x === undefined || w.y === undefined || w.width === undefined || w.height === undefined) continue;
+            if (w.x === undefined || w.y === undefined || w.width === undefined || w.height === undefined) {
+                console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) has no geometry data`);
+                continue;
+            }
+            
+            // Log window geometry for debugging
+            console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) geometry: x=${w.x}, y=${w.y}, w=${w.width}, h=${w.height}`);
             
             // Try to infer the slot from the window's current position
             const inferredSlot = inferSlotFromGeometry(w, snapshot.workArea);
+            console.log(`[X11 Snap Layouts] Window ${xid} inferred slot: ${inferredSlot || 'null (no match)'}`);
+            
             if (inferredSlot) {
                 const previousSlot = occupiedSlots.get(xid);
                 

@@ -12681,6 +12681,12 @@ class TempleOS {
       .replace(/\[EXECUTE\][\s\S]*?\[\/EXECUTE\]/gi, '')
       .replace(/\[OPEN_URL\][\s\S]*?\[\/OPEN_URL\]/gi, '');
 
+    // Collapse multiple newlines into max 2 (one blank line)
+    formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+    // Trim leading/trailing whitespace
+    formatted = formatted.trim();
+
     // Escape HTML
     formatted = escapeHtml(formatted);
 

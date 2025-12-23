@@ -806,7 +806,7 @@ class TempleOS {
 
   private _doApplyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
-    
+
     // Don't apply workspace visibility changes while start menu popup is open
     // to avoid minimize/unminimize cycles
     if (this.startMenuPopupOpen) {
@@ -827,8 +827,8 @@ class TempleOS {
         // Window belongs to this workspace - unminimize if minimized by workspace switching
         // BUT respect manual user minimize (x11UserMinimized)
         // We SHOULD unminimize if it was minimized by workspace switch (in x11WorkspaceMinimized)
-        if (x11Win.minimized && window.electronAPI.unminimizeX11Window && 
-            !this.x11UserMinimized.has(xidLower)) {
+        if (x11Win.minimized && window.electronAPI.unminimizeX11Window &&
+          !this.x11UserMinimized.has(xidLower)) {
           console.log(`[X11 Workspace] Unminimizing ${xidLower} (was workspace-minimized: ${this.x11WorkspaceMinimized.has(xidLower)})`);
           void window.electronAPI.unminimizeX11Window(x11Win.xidHex);
         }
@@ -1002,7 +1002,7 @@ class TempleOS {
     this.applyTaskbarPosition();
     this.renderInitial();
     this.setupEventListeners();
-    
+
     // Pre-cache logo for start menu popup (async, non-blocking)
     fetch(templeLogo)
       .then(r => r.blob())
@@ -1012,7 +1012,7 @@ class TempleOS {
         reader.readAsDataURL(blob);
       }))
       .then(base64 => { this.cachedLogoBase64 = base64; })
-      .catch(() => {});
+      .catch(() => { });
 
     // Sync panel policies (Linux X11 only; no-ops elsewhere)
     if (window.electronAPI?.onX11SnapLayoutsSuggest) {
@@ -1092,10 +1092,10 @@ class TempleOS {
 
         // Auto-assign new X11 windows to the workspace they were launched from (not current workspace)
         // If launched recently (within 10 seconds), use the launch workspace; otherwise use current workspace
-        const launchWorkspaceValid = this.x11PendingLaunchWorkspace !== null && 
-                                     (now - this.x11PendingLaunchTime) < 10000; // 10 second window
-        const assignWorkspace = launchWorkspaceValid 
-          ? this.x11PendingLaunchWorkspace! 
+        const launchWorkspaceValid = this.x11PendingLaunchWorkspace !== null &&
+          (now - this.x11PendingLaunchTime) < 10000; // 10 second window
+        const assignWorkspace = launchWorkspaceValid
+          ? this.x11PendingLaunchWorkspace!
           : this.workspaceManager.getActiveWorkspaceId();
 
         for (const w of this.x11Windows) {
@@ -1104,7 +1104,7 @@ class TempleOS {
             console.log(`[X11 Workspace] Assigning new window ${xid} to workspace ${assignWorkspace} (launch pending: ${launchWorkspaceValid})`);
             this.x11WindowWorkspaces.set(xid, assignWorkspace);
             workspacesChanged = true;
-            
+
             // Clear the pending launch after assigning (only for the first new window)
             if (launchWorkspaceValid) {
               this.x11PendingLaunchWorkspace = null;
@@ -1121,14 +1121,14 @@ class TempleOS {
         // treat it as a user-intent minimize so we don't auto-restore it.
         // Skip this logic when start menu popup is open to avoid spurious state changes
         if (!this.startMenuPopupOpen) {
-        for (const w of this.x11Windows) {
-          const xid = String(w?.xidHex || '').toLowerCase();
-          if (!xid || !w?.minimized) continue;
-          const prev = prevByXid.get(xid);
-          if (prev && !prev.minimized && prev.active) {
-            this.x11UserMinimized.add(xid);
+          for (const w of this.x11Windows) {
+            const xid = String(w?.xidHex || '').toLowerCase();
+            if (!xid || !w?.minimized) continue;
+            const prev = prevByXid.get(xid);
+            if (prev && !prev.minimized && prev.active) {
+              this.x11UserMinimized.add(xid);
+            }
           }
-        }
         }
 
         // Auto-restore any external window that gets minimized unexpectedly.
@@ -1145,28 +1145,28 @@ class TempleOS {
           if (this.startMenuPopupOpen) {
             // Do nothing - don't auto-restore while start menu is open
           } else {
-          for (const w of this.x11Windows) {
-            const xid = String(w?.xidHex || '').toLowerCase();
-            if (!xid || !w?.minimized) continue;
-            if (this.x11UserMinimized.has(xid)) continue;
-            if (this.x11WorkspaceMinimized.has(xid)) continue; // Don't auto-restore workspace-minimized windows
+            for (const w of this.x11Windows) {
+              const xid = String(w?.xidHex || '').toLowerCase();
+              if (!xid || !w?.minimized) continue;
+              if (this.x11UserMinimized.has(xid)) continue;
+              if (this.x11WorkspaceMinimized.has(xid)) continue; // Don't auto-restore workspace-minimized windows
 
-            // Don't auto-restore if the window belongs to a different workspace
-            const assignedWs = this.x11WindowWorkspaces.get(xid) || 1;
-            if (assignedWs !== currentWs) continue;
+              // Don't auto-restore if the window belongs to a different workspace
+              const assignedWs = this.x11WindowWorkspaces.get(xid) || 1;
+              if (assignedWs !== currentWs) continue;
 
-            // Only auto-restore if the minimize likely happened because the user interacted with the
-            // TempleOS shell (the original bug). If the user minimized inside the X11 app itself,
-            // we should respect it and not pop the window back.
-            if (now - this.lastShellPointerDownMs > 1200) continue;
+              // Only auto-restore if the minimize likely happened because the user interacted with the
+              // TempleOS shell (the original bug). If the user minimized inside the X11 app itself,
+              // we should respect it and not pop the window back.
+              if (now - this.lastShellPointerDownMs > 1200) continue;
 
-            const last = this.x11AutoRestoreCooldown.get(xid) || 0;
-            if (now - last < 800) continue; // avoid thrash if WM keeps toggling
-            this.x11AutoRestoreCooldown.set(xid, now);
+              const last = this.x11AutoRestoreCooldown.get(xid) || 0;
+              if (now - last < 800) continue; // avoid thrash if WM keeps toggling
+              this.x11AutoRestoreCooldown.set(xid, now);
 
-            // Fire-and-forget: the bridge will refresh snapshot and update taskbar
-            void api.unminimizeX11Window(w.xidHex);
-          }
+              // Fire-and-forget: the bridge will refresh snapshot and update taskbar
+              void api.unminimizeX11Window(w.xidHex);
+            }
           } // end else (not startMenuPopupOpen)
         }
 
@@ -3601,13 +3601,13 @@ class TempleOS {
 
     // On X11 with external windows, use floating popup that appears above Firefox etc.
     // BUT only if NOT triggered from Electron focus (useInlineStartMenu flag)
-    const shouldUsePopup = this.x11Windows.length > 0 && 
-                           window.electronAPI?.showStartMenuPopup && 
-                           !this.useInlineStartMenu;
-    
+    const shouldUsePopup = this.x11Windows.length > 0 &&
+      window.electronAPI?.showStartMenuPopup &&
+      !this.useInlineStartMenu;
+
     // Reset the flag for next time
     this.useInlineStartMenu = false;
-    
+
     if (shouldUsePopup) {
       if (this.startMenuPopupOpen) {
         // Already open, close it
@@ -3648,7 +3648,7 @@ class TempleOS {
 
         // Use cached logo or convert (fast if cached)
         let logoBase64 = this.cachedLogoBase64 || '';
-        
+
         // If not cached, start caching in background
         if (!this.cachedLogoBase64) {
           fetch(templeLogo)
@@ -3659,7 +3659,7 @@ class TempleOS {
               reader.readAsDataURL(blob);
             }))
             .then(base64 => { this.cachedLogoBase64 = base64; })
-            .catch(() => {});
+            .catch(() => { });
         }
 
         window.electronAPI!.showStartMenuPopup!({
@@ -3685,10 +3685,10 @@ class TempleOS {
 
   // Track if popup is open (separate from inline showStartMenu)
   private startMenuPopupOpen = false;
-  
+
   // Cached base64 logo for start menu popup
   private cachedLogoBase64: string | null = null;
-  
+
   // Flag to force inline start menu (when Electron already has focus)
   private useInlineStartMenu = false;
 
@@ -9709,7 +9709,7 @@ class TempleOS {
         if (cmdBtn) {
           const action = cmdBtn.dataset.action;
           const card = cmdBtn.closest('.divine-command-card, .divine-url-card') as HTMLElement;
-          
+
           if (action === 'execute' && card) {
             const command = card.dataset.command;
             if (command) {
@@ -9745,7 +9745,7 @@ class TempleOS {
       // Divine Assistant keyboard handlers
       app.addEventListener('keydown', async (e) => {
         const target = e.target as HTMLElement;
-        
+
         // Handle Enter in divine input (but allow Shift+Enter for newlines)
         if (target.id === 'divine-input' && e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -10948,279 +10948,279 @@ class TempleOS {
       switch (appId) {
         case 'terminal':
           windowConfig = {
-          title: 'Terminal',
-          icon: '💻',
-          width: 600,
-          height: 400,
-          content: this.getTerminalContent()
-        };
-        break;
-      case 'word-of-god':
-        // Initialize Divine Assistant if not already done
-        if (this.divineMessages.length === 0) {
-          this.initDivineAssistant();
-        }
-        windowConfig = {
-          title: 'Word of God',
-          icon: '✝️',
-          width: 650,
-          height: 550,
-          content: this.getWordOfGodContent()
-        };
-        break;
-      case 'sprite-editor':
-        windowConfig = {
-          title: 'Sprite Editor',
-          icon: '🎨',
-          width: 700,
-          height: 550,
-          content: this.getSpriteEditorContent()
-        };
-        break;
-      case 'calculator':
-        windowConfig = {
-          title: 'Calculator',
-          icon: '🧮',
-          width: 320,
-          height: 480,
-          content: this.getCalculatorContent()
-        };
-        break;
-      case 'notes':
-        windowConfig = {
-          title: 'Notes',
-          icon: '📝',
-          width: 500,
-          height: 400,
-          content: this.getNotesContent()
-        };
-        break;
-      case 'calendar':
-        windowConfig = {
-          title: 'Divine Calendar',
-          icon: '📅',
-          width: 600,
-          height: 500,
-          content: this.getCalendarContent()
-        };
-        break;
-      case 'image-viewer':
-        windowConfig = {
-          title: 'Image Viewer',
-          icon: '🖼️',
-          width: 800,
-          height: 600,
-          content: this.getImageViewerContent(typeof arg === 'object' && arg.file ? arg.file : undefined, nextId)
-        };
-        break;
-      case 'media-player':
-        windowConfig = {
-          title: 'Media Player',
-          icon: '💿',
-          width: 640,
-          height: 480,
-          content: this.getMediaPlayerContent(fileToPlay)
-        };
-        break;
-      case 'auto-harp':
-        windowConfig = {
-          title: 'God\'s AutoHarp',
-          icon: '🎹',
-          width: 600,
-          height: 350,
-          content: this.getAutoHarpContent()
-        };
-        break;
-      case 'doldoc-viewer':
-        windowConfig = {
-          title: 'DolDoc Viewer',
-          icon: '📄',
-          width: 600,
-          height: 600,
-          content: this.getDolDocViewerContent()
-        };
-        break;
-      case 'files':
-        windowConfig = {
-          title: 'File Browser',
-          icon: '📁',
-          width: 600,
-          height: 450,
-          content: this.getFileBrowserContentV2()
-        };
-        // Fetch home path first, then load files
-        setTimeout(async () => {
-          if (!this.homePath && window.electronAPI) {
-            try {
-              this.homePath = await window.electronAPI.getHome();
-            } catch (e) {
-              console.error('Failed to get home path:', e);
-            }
+            title: 'Terminal',
+            icon: '💻',
+            width: 600,
+            height: 400,
+            content: this.getTerminalContent()
+          };
+          break;
+        case 'word-of-god':
+          // Initialize Divine Assistant if not already done
+          if (this.divineMessages.length === 0) {
+            this.initDivineAssistant();
           }
-          await this.loadFiles();
-        }, 100);
-        break;
-      case 'editor':
-        windowConfig = {
-          title: 'HolyC Editor',
-          icon: '📝',
-          width: 600,
-          height: 450,
-          content: this.getEditorContent()
-        };
-        break;
-      case 'updater':
-        windowConfig = {
-          title: 'Holy Updater',
-          icon: '⬇️',
-          width: 500,
-          height: 350,
-          content: this.getUpdaterContent()
-        };
-        // Check for updates when window opens
-        setTimeout(() => this.checkForUpdates(), 100);
-        break;
-      case 'hymns':
-        windowConfig = {
-          title: 'Hymn Player',
-          icon: '🎵',
-          width: 450,
-          height: 500,
-          content: this.getHymnPlayerContent()
-        };
-        break;
-      case 'system-monitor':
-        windowConfig = {
-          title: 'Task Manager',
-          icon: '📊',
-          width: 900,
-          height: 600,
-          content: this.getSystemMonitorContent()
-        };
-        setTimeout(() => void this.ensureSystemMonitorPolling(true), 100);
-        break;
-      case 'settings':
-        windowConfig = {
-          title: 'Settings',
-          icon: '⚙️',
-          width: 800,
-          height: 600,
-          content: this.getSettingsContentV2()
-        };
-        break;
-      case 'help':
-        windowConfig = {
-          title: 'Help & Docs',
-          icon: '❓',
-          width: 800,
-          height: 600,
-          content: this.helpApp.render()
-        };
-        break;
-      case 'godly-notes':
-        windowConfig = {
-          title: 'Godly Notes',
-          icon: '📋',
-          width: 900,
-          height: 600,
-          content: this.godlyNotes.render()
-        };
-        break;
-    }
-
-    // Determine initial position - integrate with X11 tiling if active
-    let initialX = 100 + (this.windows.length * 30);
-    let initialY = 50 + (this.windows.length * 30);
-    let initialWidth = windowConfig.width || 400;
-    let initialHeight = windowConfig.height || 300;
-    let initialMaximized = false;
-
-    // Try to integrate with X11 tiling state
-    try {
-      if (window.electronAPI?.getTilingState) {
-        const tilingState = await window.electronAPI.getTilingState();
-        if (tilingState.success && tilingState.tilingModeActive) {
-          // X11 tiling is active - position this internal window in an available slot
-          const occupied = new Set(Object.values(tilingState.occupiedSlots));
-          let targetSlot: string | null = null;
-
-          // Find next available slot
-          if (!occupied.has('left')) targetSlot = 'left';
-          else if (!occupied.has('right')) targetSlot = 'right';
-          else if (!occupied.has('topleft')) targetSlot = 'topleft';
-          else if (!occupied.has('topright')) targetSlot = 'topright';
-          else if (!occupied.has('bottomleft')) targetSlot = 'bottomleft';
-          else if (!occupied.has('bottomright')) targetSlot = 'bottomright';
-
-          if (targetSlot) {
-            // Calculate bounds using TilingManager
-            const usableBounds = this.tilingManager.getUsableBounds();
-            const halfWidth = Math.floor(usableBounds.width / 2);
-            const halfHeight = Math.floor(usableBounds.height / 2);
-
-            switch (targetSlot) {
-              case 'left':
-                initialX = usableBounds.x;
-                initialY = usableBounds.y;
-                initialWidth = halfWidth;
-                initialHeight = usableBounds.height;
-                break;
-              case 'right':
-                initialX = usableBounds.x + halfWidth;
-                initialY = usableBounds.y;
-                initialWidth = halfWidth;
-                initialHeight = usableBounds.height;
-                break;
-              case 'topleft':
-                initialX = usableBounds.x;
-                initialY = usableBounds.y;
-                initialWidth = halfWidth;
-                initialHeight = halfHeight;
-                break;
-              case 'topright':
-                initialX = usableBounds.x + halfWidth;
-                initialY = usableBounds.y;
-                initialWidth = halfWidth;
-                initialHeight = halfHeight;
-                break;
-              case 'bottomleft':
-                initialX = usableBounds.x;
-                initialY = usableBounds.y + halfHeight;
-                initialWidth = halfWidth;
-                initialHeight = halfHeight;
-                break;
-              case 'bottomright':
-                initialX = usableBounds.x + halfWidth;
-                initialY = usableBounds.y + halfHeight;
-                initialWidth = halfWidth;
-                initialHeight = halfHeight;
-                break;
+          windowConfig = {
+            title: 'Word of God',
+            icon: '✝️',
+            width: 650,
+            height: 550,
+            content: this.getWordOfGodContent()
+          };
+          break;
+        case 'sprite-editor':
+          windowConfig = {
+            title: 'Sprite Editor',
+            icon: '🎨',
+            width: 700,
+            height: 550,
+            content: this.getSpriteEditorContent()
+          };
+          break;
+        case 'calculator':
+          windowConfig = {
+            title: 'Calculator',
+            icon: '🧮',
+            width: 320,
+            height: 480,
+            content: this.getCalculatorContent()
+          };
+          break;
+        case 'notes':
+          windowConfig = {
+            title: 'Notes',
+            icon: '📝',
+            width: 500,
+            height: 400,
+            content: this.getNotesContent()
+          };
+          break;
+        case 'calendar':
+          windowConfig = {
+            title: 'Divine Calendar',
+            icon: '📅',
+            width: 600,
+            height: 500,
+            content: this.getCalendarContent()
+          };
+          break;
+        case 'image-viewer':
+          windowConfig = {
+            title: 'Image Viewer',
+            icon: '🖼️',
+            width: 800,
+            height: 600,
+            content: this.getImageViewerContent(typeof arg === 'object' && arg.file ? arg.file : undefined, nextId)
+          };
+          break;
+        case 'media-player':
+          windowConfig = {
+            title: 'Media Player',
+            icon: '💿',
+            width: 640,
+            height: 480,
+            content: this.getMediaPlayerContent(fileToPlay)
+          };
+          break;
+        case 'auto-harp':
+          windowConfig = {
+            title: 'God\'s AutoHarp',
+            icon: '🎹',
+            width: 600,
+            height: 350,
+            content: this.getAutoHarpContent()
+          };
+          break;
+        case 'doldoc-viewer':
+          windowConfig = {
+            title: 'DolDoc Viewer',
+            icon: '📄',
+            width: 600,
+            height: 600,
+            content: this.getDolDocViewerContent()
+          };
+          break;
+        case 'files':
+          windowConfig = {
+            title: 'File Browser',
+            icon: '📁',
+            width: 600,
+            height: 450,
+            content: this.getFileBrowserContentV2()
+          };
+          // Fetch home path first, then load files
+          setTimeout(async () => {
+            if (!this.homePath && window.electronAPI) {
+              try {
+                this.homePath = await window.electronAPI.getHome();
+              } catch (e) {
+                console.error('Failed to get home path:', e);
+              }
             }
-            console.log(`[Tiling] Positioned internal window ${nextId} to slot: ${targetSlot}`);
-          } else {
-            // All slots taken - maximize or use default
-            initialMaximized = true;
-          }
-        }
+            await this.loadFiles();
+          }, 100);
+          break;
+        case 'editor':
+          windowConfig = {
+            title: 'HolyC Editor',
+            icon: '📝',
+            width: 600,
+            height: 450,
+            content: this.getEditorContent()
+          };
+          break;
+        case 'updater':
+          windowConfig = {
+            title: 'Holy Updater',
+            icon: '⬇️',
+            width: 500,
+            height: 350,
+            content: this.getUpdaterContent()
+          };
+          // Check for updates when window opens
+          setTimeout(() => this.checkForUpdates(), 100);
+          break;
+        case 'hymns':
+          windowConfig = {
+            title: 'Hymn Player',
+            icon: '🎵',
+            width: 450,
+            height: 500,
+            content: this.getHymnPlayerContent()
+          };
+          break;
+        case 'system-monitor':
+          windowConfig = {
+            title: 'Task Manager',
+            icon: '📊',
+            width: 900,
+            height: 600,
+            content: this.getSystemMonitorContent()
+          };
+          setTimeout(() => void this.ensureSystemMonitorPolling(true), 100);
+          break;
+        case 'settings':
+          windowConfig = {
+            title: 'Settings',
+            icon: '⚙️',
+            width: 800,
+            height: 600,
+            content: this.getSettingsContentV2()
+          };
+          break;
+        case 'help':
+          windowConfig = {
+            title: 'Help & Docs',
+            icon: '❓',
+            width: 800,
+            height: 600,
+            content: this.helpApp.render()
+          };
+          break;
+        case 'godly-notes':
+          windowConfig = {
+            title: 'Godly Notes',
+            icon: '📋',
+            width: 900,
+            height: 600,
+            content: this.godlyNotes.render()
+          };
+          break;
       }
-    } catch (e) {
-      // Ignore errors - use default positioning
-      console.warn('[Tiling] Failed to get X11 tiling state:', e);
-    }
 
-    const newWindow: WindowState = {
-      id: nextId,
-      title: windowConfig.title || 'Window',
-      icon: windowConfig.icon || '📄',
-      x: initialX,
-      y: initialY,
-      width: initialWidth,
-      height: initialHeight,
-      content: windowConfig.content || '',
-      active: true,
-      minimized: false,
-      maximized: initialMaximized
-    };
+      // Determine initial position - integrate with X11 tiling if active
+      let initialX = 100 + (this.windows.length * 30);
+      let initialY = 50 + (this.windows.length * 30);
+      let initialWidth = windowConfig.width || 400;
+      let initialHeight = windowConfig.height || 300;
+      let initialMaximized = false;
+
+      // Try to integrate with X11 tiling state
+      try {
+        if (window.electronAPI?.getTilingState) {
+          const tilingState = await window.electronAPI.getTilingState();
+          if (tilingState.success && tilingState.tilingModeActive) {
+            // X11 tiling is active - position this internal window in an available slot
+            const occupied = new Set(Object.values(tilingState.occupiedSlots));
+            let targetSlot: string | null = null;
+
+            // Find next available slot
+            if (!occupied.has('left')) targetSlot = 'left';
+            else if (!occupied.has('right')) targetSlot = 'right';
+            else if (!occupied.has('topleft')) targetSlot = 'topleft';
+            else if (!occupied.has('topright')) targetSlot = 'topright';
+            else if (!occupied.has('bottomleft')) targetSlot = 'bottomleft';
+            else if (!occupied.has('bottomright')) targetSlot = 'bottomright';
+
+            if (targetSlot) {
+              // Calculate bounds using TilingManager
+              const usableBounds = this.tilingManager.getUsableBounds();
+              const halfWidth = Math.floor(usableBounds.width / 2);
+              const halfHeight = Math.floor(usableBounds.height / 2);
+
+              switch (targetSlot) {
+                case 'left':
+                  initialX = usableBounds.x;
+                  initialY = usableBounds.y;
+                  initialWidth = halfWidth;
+                  initialHeight = usableBounds.height;
+                  break;
+                case 'right':
+                  initialX = usableBounds.x + halfWidth;
+                  initialY = usableBounds.y;
+                  initialWidth = halfWidth;
+                  initialHeight = usableBounds.height;
+                  break;
+                case 'topleft':
+                  initialX = usableBounds.x;
+                  initialY = usableBounds.y;
+                  initialWidth = halfWidth;
+                  initialHeight = halfHeight;
+                  break;
+                case 'topright':
+                  initialX = usableBounds.x + halfWidth;
+                  initialY = usableBounds.y;
+                  initialWidth = halfWidth;
+                  initialHeight = halfHeight;
+                  break;
+                case 'bottomleft':
+                  initialX = usableBounds.x;
+                  initialY = usableBounds.y + halfHeight;
+                  initialWidth = halfWidth;
+                  initialHeight = halfHeight;
+                  break;
+                case 'bottomright':
+                  initialX = usableBounds.x + halfWidth;
+                  initialY = usableBounds.y + halfHeight;
+                  initialWidth = halfWidth;
+                  initialHeight = halfHeight;
+                  break;
+              }
+              console.log(`[Tiling] Positioned internal window ${nextId} to slot: ${targetSlot}`);
+            } else {
+              // All slots taken - maximize or use default
+              initialMaximized = true;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore errors - use default positioning
+        console.warn('[Tiling] Failed to get X11 tiling state:', e);
+      }
+
+      const newWindow: WindowState = {
+        id: nextId,
+        title: windowConfig.title || 'Window',
+        icon: windowConfig.icon || '📄',
+        x: initialX,
+        y: initialY,
+        width: initialWidth,
+        height: initialHeight,
+        content: windowConfig.content || '',
+        active: true,
+        minimized: false,
+        maximized: initialMaximized
+      };
 
       this.windows.forEach(w => w.active = false);
       this.windows.push(newWindow);
@@ -12397,7 +12397,7 @@ class TempleOS {
       } else if (msg.role === 'assistant') {
         // Parse content for code blocks and format
         let content = this.formatDivineResponse(msg.content);
-        
+
         // Render command cards
         let commandCards = '';
         if (msg.commands && msg.commands.length > 0) {
@@ -12634,7 +12634,7 @@ class TempleOS {
       // Check status
       const status = await window.electronAPI.divineGetStatus();
       if (!status) return;
-      
+
       this.divineStatus = {
         ready: status.ready || false,
         ollamaInstalled: status.ollamaInstalled || false,
@@ -12679,7 +12679,7 @@ class TempleOS {
         window.electronAPI.onDivineDownloadProgress(async (progress: { percent: number; status: string }) => {
           this.divineDownloadProgress = progress.percent;
           this.refreshDivineWindow();
-          
+
           // Auto-refresh status when download completes
           if (progress.percent >= 100 || progress.status === 'success') {
             console.log('[Divine] Download complete, refreshing status...');
@@ -12715,7 +12715,7 @@ class TempleOS {
 
     try {
       const result = await window.electronAPI.divineSendMessage(message.trim());
-      
+
       if (result?.success && result.response) {
         // Add assistant response
         this.divineMessages.push({
@@ -12744,7 +12744,7 @@ class TempleOS {
       this.divineIsLoading = false;
       this.divineStreamingResponse = '';
       this.refreshDivineWindow();
-      
+
       // Scroll to bottom
       setTimeout(() => {
         const container = document.getElementById('divine-messages');
@@ -12754,8 +12754,6 @@ class TempleOS {
   }
 
   private async executeDivineCommand(command: string, isDangerous = false): Promise<void> {
-    if (!window.electronAPI?.divineExecuteCommand) return;
-
     if (isDangerous) {
       // Show confirmation dialog
       const confirmed = confirm(`⚠️ DANGEROUS COMMAND WARNING ⚠️\n\nYou are about to execute:\n${command}\n\nThis command could cause data loss or system damage.\n\nAre you absolutely sure?`);
@@ -12765,39 +12763,80 @@ class TempleOS {
     // Add execution message
     this.divineMessages.push({
       role: 'system',
-      content: `Executing: ${command}`,
+      content: `🖥️ Running in Terminal: ${command}`,
       timestamp: Date.now()
     });
     this.refreshDivineWindow();
 
-    try {
-      const result = await window.electronAPI.divineExecuteCommand(command);
-      
-      let output = '';
-      if (result?.success && result.stdout) {
-        output = `✅ Command succeeded:\n${result.stdout}`;
-      } else if (result?.stderr) {
-        output = `❌ Command output:\n${result.stderr}`;
-      } else if (!result?.success) {
-        output = `❌ Command failed with code ${result?.code ?? 'unknown'}`;
-      } else {
-        output = '✅ Command executed successfully (no output)';
-      }
+    // Run command in the actual Terminal app (like VS Code / Cursor)
+    await this.runCommandInTerminal(command);
+  }
 
+  /**
+   * Run a command in the Terminal app - like an IDE
+   * Opens terminal if needed, then sends the command
+   */
+  private async runCommandInTerminal(command: string): Promise<void> {
+    // Check if terminal window exists
+    let terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+
+    // If no terminal window, open one
+    if (!terminalWin) {
+      this.openApp('terminal');
+      // Wait for terminal to initialize
+      await new Promise(resolve => setTimeout(resolve, 500));
+      terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+    }
+
+    // Focus terminal (brings to front, unminimizes)
+    if (terminalWin) {
+      this.focusWindow(terminalWin.id);
+    }
+
+    // Get the active terminal tab's ptyId
+    const activeTab = this.terminalTabs[this.activeTerminalTab];
+    if (activeTab?.ptyId && window.electronAPI?.writePty) {
+      // Send the command to the terminal (with newline to execute)
+      await window.electronAPI.writePty(activeTab.ptyId, command + '\n');
+
+      // Add success message
       this.divineMessages.push({
         role: 'system',
-        content: output,
+        content: `✅ Command sent to Terminal. Check the Terminal window for output.`,
         timestamp: Date.now()
       });
-    } catch (e: any) {
-      this.divineMessages.push({
-        role: 'system',
-        content: `❌ Execution error: ${e.message}`,
-        timestamp: Date.now()
-      });
+    } else {
+      // Fallback to background execution if no PTY
+      if (window.electronAPI?.divineExecuteCommand) {
+        try {
+          const result = await window.electronAPI.divineExecuteCommand(command);
+          let output = '';
+          if (result?.success && result.stdout) {
+            output = `✅ Command succeeded:\n${result.stdout}`;
+          } else if (result?.stderr) {
+            output = `⚠️ Command output:\n${result.stderr}`;
+          } else if (!result?.success) {
+            output = `❌ Command failed with code ${result?.code ?? 'unknown'}`;
+          } else {
+            output = '✅ Command executed successfully (no output)';
+          }
+          this.divineMessages.push({
+            role: 'system',
+            content: output,
+            timestamp: Date.now()
+          });
+        } catch (e: any) {
+          this.divineMessages.push({
+            role: 'system',
+            content: `❌ Execution error: ${e.message}`,
+            timestamp: Date.now()
+          });
+        }
+      }
     }
 
     this.refreshDivineWindow();
+    this.render();
   }
 
   private async openDivineUrl(url: string): Promise<void> {
@@ -16777,14 +16816,14 @@ class TempleOS {
     const wasTerminal = windowId.startsWith('terminal');
     const wasEditor = windowId.startsWith('editor');
     const wasDivine = windowId.startsWith('word-of-god');
-    
+
     // Abort Divine AI request when closing the window
     if (wasDivine && window.electronAPI?.divineAbort) {
       window.electronAPI.divineAbort();
       this.divineIsLoading = false;
       this.divineStreamingResponse = '';
     }
-    
+
     if (wasTerminal) {
       for (const tab of this.terminalTabs) {
         if (tab?.ptyId && window.electronAPI?.destroyPty) {

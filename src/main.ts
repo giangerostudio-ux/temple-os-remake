@@ -9293,6 +9293,14 @@ class TempleOS {
           }
         }
 
+        // Check if we clicked on the taskbar itself (empty area, not on specific app/button)
+        const taskbarEl = target.closest('.taskbar') as HTMLElement;
+        if (taskbarEl && !target.closest('.taskbar-app') && !target.closest('.taskbar-start-btn') && !target.closest('.clock')) {
+          // Show general taskbar context menu with Task Manager option
+          this.showTaskbarContextMenu(e);
+          return;
+        }
+
         if (desktopIcon) {
           const key = desktopIcon.dataset.launchKey || (desktopIcon.dataset.app ? `builtin:${desktopIcon.dataset.app}` : '');
           if (key) {

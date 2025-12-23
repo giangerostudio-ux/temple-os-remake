@@ -791,6 +791,13 @@ class TempleOS {
 
   private _doApplyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (!window.electronAPI) return;
+    
+    // Don't apply workspace visibility changes while start menu popup is open
+    // to avoid minimize/unminimize cycles
+    if (this.startMenuPopupOpen) {
+      console.log(`[X11 Workspace] Skipping visibility changes - start menu popup is open`);
+      return;
+    }
 
     console.log(`[X11 Workspace] Applying visibility for workspace ${targetWorkspace}`);
     console.log(`[X11 Workspace] x11WindowWorkspaces:`, Object.fromEntries(this.x11WindowWorkspaces));

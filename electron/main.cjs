@@ -2684,17 +2684,11 @@ ipcMain.handle('contextmenu:action', async (event, actionId) => {
 // ============================================
 let startMenuPopup = null;
 let startMenuPollInterval = null;
-let startMenuPopupXid = null; // Track popup XID for cleanup
 
 function closeStartMenuPopupSync() {
     if (startMenuPollInterval) {
         clearInterval(startMenuPollInterval);
         startMenuPollInterval = null;
-    }
-    // Remove popup XID from ignore list
-    if (startMenuPopupXid) {
-        x11IgnoreXids.delete(String(startMenuPopupXid).toLowerCase());
-        startMenuPopupXid = null;
     }
     if (startMenuPopup && !startMenuPopup.isDestroyed()) {
         try {
@@ -3021,7 +3015,7 @@ ipcMain.handle('startmenu:show', async (event, config) => {
             movable: false,
             alwaysOnTop: true,
             skipTaskbar: true,
-            focusable: true,
+            focusable: true, // Needs to be focusable for clicks to work
             show: false,
             transparent: true,
             hasShadow: true,
@@ -3031,21 +3025,13 @@ ipcMain.handle('startmenu:show', async (event, config) => {
             }
         });
 
-        // Add popup XID to ignore list so it doesn't appear in X11 windows list
-        // and doesn't cause focus/minimize issues with other X11 apps
-        const popupXid = xidHexFromBrowserWindow(startMenuPopup);
-        if (popupXid) {
-            startMenuPopupXid = popupXid; // Store for cleanup
-            x11IgnoreXids.add(String(popupXid).toLowerCase());
-        }
-
         const html = buildStartMenuHtml(config);
         startMenuPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
         startMenuPopup.once('ready-to-show', () => {
             if (startMenuPopup && !startMenuPopup.isDestroyed()) {
                 startMenuPopup.show();
-                startMenuPopup.focus();
+                // Don't call focus() to avoid stealing focus from X11 apps
             }
         });
 
@@ -3073,14 +3059,22 @@ ipcMain.handle('startmenu:show', async (event, config) => {
             }
         }, 32);
 
-        // Close on blur
+        // Close on blur (but with a longer delay to avoid premature closing on X11)
+        // Also check if the popup still exists and wasn't closed by another action
+        let blurCloseScheduled = false;
         startMenuPopup.on('blur', () => {
+            if (blurCloseScheduled) return;
+            blurCloseScheduled = true;
             setTimeout(() => {
-                closeStartMenuPopupSync();
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('startmenu:closed', {});
+                blurCloseScheduled = false;
+                // Only close if still open and not destroyed
+                if (startMenuPopup && !startMenuPopup.isDestroyed()) {
+                    closeStartMenuPopupSync();
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('startmenu:closed', {});
+                    }
                 }
-            }, 100);
+            }, 300); // Increased delay for X11 focus settling
         });
 
         startMenuPopup.on('closed', () => {

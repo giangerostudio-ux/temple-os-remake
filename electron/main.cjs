@@ -1587,6 +1587,17 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     if (!ewmhBridge?.supported) return { success: false, unsupported: true, error: 'X11 bridge not available' };
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
 
+    // CRITICAL: Protect Electron shell window from being snapped
+    const normalizedXid = String(xidHex).toLowerCase();
+    if (mainWindowXid && normalizedXid === mainWindowXid.toLowerCase()) {
+        console.log('[snapX11WindowCore] BLOCKED: Cannot snap main Electron window');
+        return { success: false, error: 'Cannot snap main window' };
+    }
+    if (x11IgnoreXids.has(normalizedXid)) {
+        console.log('[snapX11WindowCore] BLOCKED: XID is in ignore list');
+        return { success: false, error: 'Window is in ignore list' };
+    }
+
     const m = String(mode || '').toLowerCase().trim();
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;

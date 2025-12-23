@@ -3575,7 +3575,18 @@ class TempleOS {
     `;
   }
 
+  // Debounce timestamp for start menu toggle
+  private lastStartMenuToggleMs = 0;
+
   private async toggleStartMenu(): Promise<void> {
+    // Debounce rapid toggles (300ms) to prevent double-toggle from keybind daemon + keydown race
+    const now = Date.now();
+    if (now - this.lastStartMenuToggleMs < 300) {
+      console.log('[StartMenu] Debounced toggle (too fast)');
+      return;
+    }
+    this.lastStartMenuToggleMs = now;
+
     // On X11 with external windows, use floating popup that appears above Firefox etc.
     if (this.x11Windows.length > 0 && window.electronAPI?.showStartMenuPopup) {
       if (this.startMenuPopupOpen) {

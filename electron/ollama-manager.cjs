@@ -8,7 +8,9 @@ const http = require('http');
 const https = require('https');
 
 const OLLAMA_HOST = 'http://localhost:11434';
-const DEFAULT_MODEL = 'dolphin-qwen2.5:7b';
+// Use llama3.2:3b for testing - smaller and definitely available
+// Production should use: 'dolphin-qwen2.5:7b' (abliterated/uncensored)
+const DEFAULT_MODEL = 'llama3.2:3b';
 
 class OllamaManager {
   constructor() {

@@ -187,7 +187,12 @@ sudo apt install -y gamemode
 
 **Why Flatpak for Steam?** The Flatpak version has better context menu and click detection compared to Snap, especially for the Steam client UI on X11.
 
-Add these commands to your ISO post-install scripts:
+**Quick Setup (Automated)**: Run the provided script:
+```bash
+sudo /opt/templeos/scripts/setup-gaming.sh
+```
+
+**Manual Setup**: Add these commands to your ISO post-install scripts:
 
 ```bash
 # Install Flatpak

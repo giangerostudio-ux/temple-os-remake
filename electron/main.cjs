@@ -1612,34 +1612,14 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     // subtract the decoration height from the client area height we request.
     const decorationHeight = 28; // Openbox title bar is typically ~24-28px
 
-    // Use Electron's work area as the base (it already accounts for any system panels)
-    // Then additionally account for our Electron taskbar if it's not already included
-    let wa;
-    if (electronWorkArea && electronWorkArea.height < bounds.height) {
-        // Electron already detected a smaller work area (e.g., from X11 struts)
-        // Check if we still need to account for our taskbar
-        const electronTaskbarOffset = bounds.height - electronWorkArea.height;
-        if (electronTaskbarOffset >= taskbarHeight) {
-            // Electron's work area already accounts for enough space
-            wa = { ...electronWorkArea };
-        } else {
-            // Need to add our taskbar space
-            wa = {
-                x: electronWorkArea.x,
-                y: taskbarPosition === 'top' ? electronWorkArea.y + (taskbarHeight - electronTaskbarOffset) : electronWorkArea.y,
-                width: electronWorkArea.width,
-                height: electronWorkArea.height - (taskbarHeight - electronTaskbarOffset)
-            };
-        }
-    } else {
-        // Electron work area is same as bounds, manually account for taskbar
-        wa = {
-            x: bounds.x,
-            y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
-            width: bounds.width,
-            height: bounds.height - taskbarHeight
-        };
-    }
+    // SIMPLIFIED: Always calculate work area from screen bounds since our TempleOS
+    // renderer-based taskbar does NOT set X11 struts. Ignore Electron's workArea.
+    const wa = {
+        x: bounds.x,
+        y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
+        width: bounds.width,
+        height: bounds.height - taskbarHeight
+    };
 
     console.log(`[snapX11WindowCore] final adjusted workArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
 
@@ -2263,7 +2243,8 @@ function showSnapPreview(zone) {
 
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
-    const taskbarHeight = 50;
+    const taskbarHeight = TASKBAR_HEIGHT;
+    const taskbarPosition = currentTaskbarPosition;
     // Decoration height - the preview shows where the TOTAL window (including decorations) will be
     const decorationHeight = 28;
     // Work area height (excluding taskbar)
@@ -2272,8 +2253,11 @@ function showSnapPreview(zone) {
     const visualHeight = workHeight;
     const halfVisualH = Math.floor(visualHeight / 2);
 
+    // Starting Y position depends on taskbar position
+    const workAreaY = taskbarPosition === 'top' ? taskbarHeight : 0;
+
     // Calculate preview bounds based on zone
-    let x = 0, y = 0, w = screenWidth, h = visualHeight;
+    let x = 0, y = workAreaY, w = screenWidth, h = visualHeight;
 
     switch (zone) {
         case 'left':
@@ -2294,16 +2278,17 @@ function showSnapPreview(zone) {
             break;
         case 'bottomleft':
             w = Math.floor(screenWidth / 2);
-            y = halfVisualH;
+            y = workAreaY + halfVisualH;
             h = halfVisualH;
             break;
         case 'bottomright':
             x = Math.floor(screenWidth / 2);
             w = Math.floor(screenWidth / 2);
-            y = halfVisualH;
+            y = workAreaY + halfVisualH;
             h = halfVisualH;
             break;
     }
+
 
     snapPreviewWindow = new BrowserWindow({
         x, y, width: w, height: h,
@@ -2451,40 +2436,21 @@ function inferSlotFromGeometry(w, workArea) {
 function getAdjustedWorkArea() {
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
-    const electronWorkArea = primary?.workArea;
 
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return null;
     }
 
-    // Same taskbar config as used in snapX11WindowCore
-    const taskbarHeight = 50;
+    // SIMPLIFIED: Always use screen bounds since our TempleOS taskbar doesn't set X11 struts
+    const taskbarHeight = TASKBAR_HEIGHT;
     const taskbarPosition = currentTaskbarPosition;
 
-    // Use same logic as snapX11WindowCore for consistency
-    let wa;
-    if (electronWorkArea && electronWorkArea.height < bounds.height) {
-        const electronTaskbarOffset = bounds.height - electronWorkArea.height;
-        if (electronTaskbarOffset >= taskbarHeight) {
-            wa = { ...electronWorkArea };
-        } else {
-            wa = {
-                x: electronWorkArea.x,
-                y: taskbarPosition === 'top' ? electronWorkArea.y + (taskbarHeight - electronTaskbarOffset) : electronWorkArea.y,
-                width: electronWorkArea.width,
-                height: electronWorkArea.height - (taskbarHeight - electronTaskbarOffset)
-            };
-        }
-    } else {
-        wa = {
-            x: bounds.x,
-            y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
-            width: bounds.width,
-            height: bounds.height - taskbarHeight
-        };
-    }
-
-    return wa;
+    return {
+        x: bounds.x,
+        y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
+        width: bounds.width,
+        height: bounds.height - taskbarHeight
+    };
 }
 
 // Track window closures AND detect new windows to auto-snap

@@ -874,12 +874,12 @@ class TempleOS {
 
   // Divine Assistant (Word of God AI) State
   private divineMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; commands?: string[]; urls?: string[]; dangerous?: string[]; timestamp: number }> = [];
-  private divineStatus: { 
-    ready: boolean; 
-    ollamaInstalled: boolean; 
-    ollamaRunning: boolean; 
-    modelDownloaded: boolean; 
-    modelName?: string; 
+  private divineStatus: {
+    ready: boolean;
+    ollamaInstalled: boolean;
+    ollamaRunning: boolean;
+    modelDownloaded: boolean;
+    modelName?: string;
     error?: string;
     openRouterAvailable?: boolean;
     openRouterUsingBuiltinKey?: boolean;
@@ -9705,18 +9705,20 @@ class TempleOS {
             this.refreshDivineWindow();
           } else if (action === 'clear') {
             this.divineMessages = [];
+            this.divineIsLoading = false; // Reset loading state
+            this.divineStreamingResponse = ''; // Clear any streaming
             if (window.electronAPI?.divineClearHistory) {
               await window.electronAPI.divineClearHistory();
-              // Re-add greeting
-              if (window.electronAPI?.divineGetGreeting) {
-                const greetingResult = await window.electronAPI.divineGetGreeting();
-                if (greetingResult?.greeting) {
-                  this.divineMessages.push({
-                    role: 'assistant',
-                    content: greetingResult.greeting,
-                    timestamp: Date.now()
-                  });
-                }
+            }
+            // Re-add a single greeting only if messages is still empty
+            if (this.divineMessages.length === 0 && window.electronAPI?.divineGetGreeting) {
+              const greetingResult = await window.electronAPI.divineGetGreeting();
+              if (greetingResult?.greeting && this.divineMessages.length === 0) {
+                this.divineMessages.push({
+                  role: 'assistant',
+                  content: greetingResult.greeting,
+                  timestamp: Date.now()
+                });
               }
             }
             this.refreshDivineWindow();

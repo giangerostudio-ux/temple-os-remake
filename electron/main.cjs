@@ -2205,6 +2205,26 @@ function inferSlotFromGeometry(w, workArea) {
     return null; // No recognized snap position
 }
 
+// Calculate the actual work area accounting for taskbar (which doesn't set X11 struts)
+function getAdjustedWorkArea() {
+    const primary = screen.getPrimaryDisplay();
+    const bounds = primary?.bounds;
+    if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
+        return null;
+    }
+    
+    // Same taskbar config as used in snapX11WindowCore
+    const taskbarHeight = 50;
+    const taskbarPosition = 'bottom';
+    
+    return {
+        x: bounds.x,
+        y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
+        width: bounds.width,
+        height: bounds.height - taskbarHeight
+    };
+}
+
 // Track window closures AND detect new windows to auto-snap
 function updateOccupiedSlotsFromSnapshot(snapshot) {
     if (!snapshot?.windows) return;
@@ -2229,16 +2249,19 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
 
     // Debug: Log current state
     console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
-    if (snapshot.workArea) {
-        console.log(`[X11 Snap Layouts] WorkArea: x=${snapshot.workArea.x}, y=${snapshot.workArea.y}, w=${snapshot.workArea.width}, h=${snapshot.workArea.height}`);
+    
+    // Use our adjusted work area (accounts for Electron taskbar) instead of X11 work area
+    const adjustedWorkArea = getAdjustedWorkArea();
+    if (adjustedWorkArea) {
+        console.log(`[X11 Snap Layouts] Adjusted WorkArea (taskbar-aware): x=${adjustedWorkArea.x}, y=${adjustedWorkArea.y}, w=${adjustedWorkArea.width}, h=${adjustedWorkArea.height}`);
     } else {
-        console.log(`[X11 Snap Layouts] WARNING: No workArea in snapshot!`);
-    };
+        console.log(`[X11 Snap Layouts] WARNING: Could not get adjusted work area!`);
+    }
 
     // ALWAYS infer slots from window geometry - this detects manual snapping by the user
     // This runs even when tilingModeActive is false, so we can detect when user manually
     // drags a window to a half/quarter position and activate tiling mode automatically
-    if (x11SnapLayoutsEnabled && snapshot.workArea) {
+    if (x11SnapLayoutsEnabled && adjustedWorkArea) {
         for (const w of snapshot.windows) {
             const xid = String(w.xidHex).toLowerCase();
             if (!xid) continue;
@@ -2258,8 +2281,8 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Log window geometry for debugging
             console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) geometry: x=${w.x}, y=${w.y}, w=${w.width}, h=${w.height}`);
             
-            // Try to infer the slot from the window's current position
-            const inferredSlot = inferSlotFromGeometry(w, snapshot.workArea);
+            // Try to infer the slot from the window's current position using taskbar-adjusted work area
+            const inferredSlot = inferSlotFromGeometry(w, adjustedWorkArea);
             console.log(`[X11 Snap Layouts] Window ${xid} inferred slot: ${inferredSlot || 'null (no match)'}`);
             
             if (inferredSlot) {

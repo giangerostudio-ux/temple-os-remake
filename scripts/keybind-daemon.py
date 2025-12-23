@@ -196,7 +196,8 @@ class KeybindDaemon:
         """
         # Actions that should ONLY focus window and rely on file watcher
         # (no synthetic keypress needed - Electron handles via IPC)
-        focus_only_actions = {'start-menu'}
+        # REMOVED start-menu from this list - we need to send Ctrl+Esc for instant response
+        focus_only_actions = set()  # Empty - all actions now send keys for faster response
         
         try:
             # Find the Electron window (templeos)
@@ -229,6 +230,7 @@ class KeybindDaemon:
                 
                 # Map action to key combination
                 key_map = {
+                    'start-menu': 'ctrl+Escape',  # Toggle start menu
                     'workspace-next': 'ctrl+alt+Right',
                     'workspace-prev': 'ctrl+alt+Left',
                     'workspace-1': 'ctrl+alt+1',

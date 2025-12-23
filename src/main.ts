@@ -1653,18 +1653,11 @@ class TempleOS {
 
     // Unified global key listener
     window.addEventListener('keydown', (e) => {
-      // 1. Windows Key (Meta) -> Toggle Start Menu
-      // When Electron has focus, use inline menu (even if X11 windows exist)
-      // The X11 popup is only used when keybind daemon sends Ctrl+Escape (from X11 focus)
-      if (e.key === 'Meta' && !e.ctrlKey) {
-        e.preventDefault();
-        // Use inline start menu when Electron is focused
-        this.useInlineStartMenu = true;
-        void this.toggleStartMenu();
-        return;
-      }
+      // NOTE: Windows/Meta key is handled by globalShortcut.register('Super') in main.cjs
+      // which sends 'start-menu' action via onGlobalShortcut. We don't handle Meta here
+      // to avoid double-toggle (globalShortcut fires first, then keydown would fire again).
 
-      // 2. Win + Arrow -> Snap Layouts
+      // 1. Win + Arrow -> Snap Layouts
       if ((e.metaKey || e.ctrlKey) && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         // Only if we have an active window
         const activeWin = this.windows.find(w => w.active && !w.minimized);
@@ -1675,7 +1668,7 @@ class TempleOS {
         return;
       }
 
-      // 3. Focus Rescue (Wake up from X11 limbo)
+      // 2. Focus Rescue (Wake up from X11 limbo)
       // If we receive a key, we are technically focused, but let's make sure the document knows it
       if (!document.hasFocus()) {
         window.focus();
@@ -10703,6 +10696,8 @@ class TempleOS {
         switch (action) {
           // ========== START MENU ==========
           case 'start-menu':
+            // globalShortcut only fires when Electron has focus, so use inline menu
+            this.useInlineStartMenu = true;
             void this.toggleStartMenu();
             break;
 

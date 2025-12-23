@@ -1950,9 +1950,12 @@ function handleSnapDetectorEvent(event) {
                             if (event.xid) {
                                 snapX11WindowCore(event.xid, selectedMode, { height: 50, position: 'bottom' })
                                     .then(() => {
-                                        if (selectedMode !== 'maximize') tilingModeActive = true;
+                                        if (selectedMode !== 'maximize') {
+                                            tilingModeActive = true;
+                                            console.log(`[SnapDetector Popup] Activated tiling mode for mode: ${selectedMode}`);
+                                        }
                                         occupiedSlots.set(event.xid.toLowerCase(), selectedMode);
-                                        console.log(`[SnapDetector] Snapped ${event.xid} to ${selectedMode}`);
+                                        console.log(`[SnapDetector Popup] Snapped ${event.xid} to ${selectedMode}, occupiedSlots now:`, Object.fromEntries(occupiedSlots), `tilingModeActive: ${tilingModeActive}`);
                                     })
                                     .catch(err => console.error('[SnapDetector] Snap error:', err));
                             }
@@ -1985,12 +1988,13 @@ function handleSnapDetectorEvent(event) {
                 // Apply the snap
                 snapX11WindowCore(event.xid, mode, { height: 50, position: 'bottom' })
                     .then(() => {
-                        // Track slot for tiling
+                        // Track slot for tiling - ALWAYS set tilingModeActive for non-maximize
                         if (mode !== 'maximize') {
                             tilingModeActive = true;
+                            console.log(`[SnapDetector] Activated tiling mode for mode: ${mode}`);
                         }
                         occupiedSlots.set(event.xid.toLowerCase(), mode);
-                        console.log(`[SnapDetector] Snapped ${event.xid} to ${mode}`);
+                        console.log(`[SnapDetector] Snapped ${event.xid} to ${mode}, occupiedSlots now:`, Object.fromEntries(occupiedSlots), `tilingModeActive: ${tilingModeActive}`);
                     })
                     .catch(err => console.error('[SnapDetector] Snap error:', err));
             }

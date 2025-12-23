@@ -2186,11 +2186,14 @@ function inferSlotFromGeometry(w, workArea) {
     const wa = workArea;
     const tolerance = 100; // Generous tolerance for WM decoration differences and manual snapping
     const heightTolerance = 150; // Extra tolerance for height (decorations vary more)
+    const titleBarHeight = 30; // Approximate title bar height - client Y will be offset by this
     
     // Check if near work area edges
+    // For X position, client area and frame are usually the same (minimal side borders)
     const nearLeft = Math.abs(x - wa.x) < tolerance;
     const nearRight = Math.abs((x + width) - (wa.x + wa.width)) < tolerance;
-    const nearTop = Math.abs(y - wa.y) < tolerance;
+    // For Y position, client area starts BELOW title bar, so account for that offset
+    const nearTop = (y - titleBarHeight) < wa.y + tolerance && y < wa.y + tolerance + titleBarHeight;
     const nearBottom = Math.abs((y + height) - (wa.y + wa.height)) < heightTolerance;
     
     const halfWidth = wa.width / 2;
@@ -2198,14 +2201,19 @@ function inferSlotFromGeometry(w, workArea) {
     const isHalfWidth = Math.abs(width - halfWidth) < tolerance;
     const isFullWidth = Math.abs(width - wa.width) < tolerance;
     const isHalfHeight = Math.abs(height - halfHeight) < heightTolerance;
-    // More lenient check for "full height" - window should be at least 85% of work area height
-    const isFullHeight = height >= (wa.height * 0.85) || Math.abs(height - wa.height) < heightTolerance;
+    // More lenient check for "full height" - client height will be less than work area due to title bar
+    // A snapped window's client height is typically workArea.height - titleBar (~718-28 = 690 for 768-50 work area)
+    const expectedClientHeight = wa.height - titleBarHeight;
+    const isFullHeight = Math.abs(height - expectedClientHeight) < heightTolerance || 
+                         Math.abs(height - wa.height) < heightTolerance ||
+                         height >= (wa.height * 0.80); // At least 80% of work area
     // Also check if window spans most of the vertical area
     const spansVertical = nearTop && (nearBottom || (y + height >= wa.y + wa.height - heightTolerance));
     
     // Debug: Log geometry comparison
     console.log(`[inferSlot] Window: x=${x}, y=${y}, w=${width}, h=${height}`);
     console.log(`[inferSlot] WorkArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
+    console.log(`[inferSlot] expectedClientHeight=${expectedClientHeight}, titleBarHeight=${titleBarHeight}`);
     console.log(`[inferSlot] nearLeft=${nearLeft}, nearRight=${nearRight}, nearTop=${nearTop}, nearBottom=${nearBottom}`);
     console.log(`[inferSlot] isHalfWidth=${isHalfWidth}, isFullWidth=${isFullWidth}, isHalfHeight=${isHalfHeight}, isFullHeight=${isFullHeight}, spansVertical=${spansVertical}`);
     

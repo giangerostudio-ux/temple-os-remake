@@ -1615,25 +1615,13 @@ class TempleOS {
     // Unified global key listener
     window.addEventListener('keydown', (e) => {
       // 1. Windows Key (Meta) -> Toggle Start Menu
-      // Only handle if Electron window already has focus (no X11 apps focused)
-      // When X11 apps are focused, the keybind daemon sends Ctrl+Escape instead
+      // When Electron has focus, use inline menu (even if X11 windows exist)
+      // The X11 popup is only used when keybind daemon sends Ctrl+Escape (from X11 focus)
       if (e.key === 'Meta' && !e.ctrlKey) {
         e.preventDefault();
-        // Emulate click on start button to ensure consistent behavior with UI
-        const btn = document.querySelector('.start-btn') as HTMLElement;
-        if (btn) {
-          btn.click();
-        } else {
-          // Fallback if button not found (e.g. strict mode)
-          if (this.startMenuPopupOpen) {
-            window.electronAPI?.hideStartMenuPopup?.();
-            this.startMenuPopupOpen = false;
-          } else {
-            // If we can't find the button, we can't easily open it without knowing the internal toggle method.
-            // But .start-btn should always be there if taskbar is rendered.
-            console.warn('[INPUT] Start button not found for Meta key trigger');
-          }
-        }
+        // Use inline start menu when Electron is focused
+        this.useInlineStartMenu = true;
+        void this.toggleStartMenu();
         return;
       }
 
@@ -3588,12 +3576,20 @@ class TempleOS {
     this.lastStartMenuToggleMs = now;
 
     // On X11 with external windows, use floating popup that appears above Firefox etc.
-    if (this.x11Windows.length > 0 && window.electronAPI?.showStartMenuPopup) {
+    // BUT only if NOT triggered from Electron focus (useInlineStartMenu flag)
+    const shouldUsePopup = this.x11Windows.length > 0 && 
+                           window.electronAPI?.showStartMenuPopup && 
+                           !this.useInlineStartMenu;
+    
+    // Reset the flag for next time
+    this.useInlineStartMenu = false;
+    
+    if (shouldUsePopup) {
       if (this.startMenuPopupOpen) {
         // Already open, close it
         this.startMenuPopupOpen = false;
         this.startMenuSearchQuery = '';
-        window.electronAPI.hideStartMenuPopup?.();
+        window.electronAPI?.hideStartMenuPopup?.();
       } else {
         // Open floating popup - ensure inline menu is NOT shown
         this.startMenuPopupOpen = true;
@@ -3642,7 +3638,7 @@ class TempleOS {
             .catch(() => {});
         }
 
-        window.electronAPI.showStartMenuPopup({
+        window.electronAPI!.showStartMenuPopup!({
           taskbarHeight: 58,
           taskbarPosition: this.taskbarPosition,
           pinnedApps,
@@ -3668,6 +3664,9 @@ class TempleOS {
   
   // Cached base64 logo for start menu popup
   private cachedLogoBase64: string | null = null;
+  
+  // Flag to force inline start menu (when Electron already has focus)
+  private useInlineStartMenu = false;
 
   private getBatteryTrayModel(): { present: boolean; fillPx: number; color: string; title: string } {
     const battery = this.batteryStatus;

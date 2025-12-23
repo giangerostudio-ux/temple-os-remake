@@ -1880,6 +1880,8 @@ function stopSnapDetector() {
 function handleSnapDetectorEvent(event) {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
+    console.log(`[SnapDetector] Event received: ${event.event}`, JSON.stringify(event));
+
     switch (event.event) {
         case 'zone_enter':
             console.log(`[SnapDetector] Zone enter: ${event.zone} (xid: ${event.xid})`);

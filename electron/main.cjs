@@ -1403,6 +1403,8 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     const m = String(mode || '').toLowerCase().trim();
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
+    const electronWorkArea = primary?.workArea; // Electron's work area (may account for panels)
+    
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return { success: false, error: 'No display bounds' };
     }
@@ -1413,19 +1415,46 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         ? taskbarConfig.position
         : 'bottom';
 
+    console.log(`[snapX11WindowCore] mode=${m}, taskbarHeight=${taskbarHeight}, taskbarPosition=${taskbarPosition}`);
+    console.log(`[snapX11WindowCore] screen bounds: x=${bounds.x}, y=${bounds.y}, w=${bounds.width}, h=${bounds.height}`);
+    console.log(`[snapX11WindowCore] electron workArea: x=${electronWorkArea?.x}, y=${electronWorkArea?.y}, w=${electronWorkArea?.width}, h=${electronWorkArea?.height}`);
+
     // Note: wmctrl with gravity 1 (NorthWest) sets the CLIENT AREA size, not the frame size.
     // The window manager adds decorations (title bar ~24px) ON TOP of the client area.
     // So if we want the total window (frame + content) to fit in our work area, we need to
     // subtract the decoration height from the client area height we request.
     const decorationHeight = 28; // Openbox title bar is typically ~24-28px
 
-    // Calculate adjusted work area excluding taskbar
-    const wa = {
-        x: bounds.x,
-        y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
-        width: bounds.width,
-        height: bounds.height - taskbarHeight
-    };
+    // Use Electron's work area as the base (it already accounts for any system panels)
+    // Then additionally account for our Electron taskbar if it's not already included
+    let wa;
+    if (electronWorkArea && electronWorkArea.height < bounds.height) {
+        // Electron already detected a smaller work area (e.g., from X11 struts)
+        // Check if we still need to account for our taskbar
+        const electronTaskbarOffset = bounds.height - electronWorkArea.height;
+        if (electronTaskbarOffset >= taskbarHeight) {
+            // Electron's work area already accounts for enough space
+            wa = { ...electronWorkArea };
+        } else {
+            // Need to add our taskbar space
+            wa = {
+                x: electronWorkArea.x,
+                y: taskbarPosition === 'top' ? electronWorkArea.y + (taskbarHeight - electronTaskbarOffset) : electronWorkArea.y,
+                width: electronWorkArea.width,
+                height: electronWorkArea.height - (taskbarHeight - electronTaskbarOffset)
+            };
+        }
+    } else {
+        // Electron work area is same as bounds, manually account for taskbar
+        wa = {
+            x: bounds.x,
+            y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
+            width: bounds.width,
+            height: bounds.height - taskbarHeight
+        };
+    }
+
+    console.log(`[snapX11WindowCore] final adjusted workArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
 
     // The actual client area height needs to account for decorations
     const clientHeight = wa.height - decorationHeight;
@@ -1491,6 +1520,7 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
                     return { success: false, error: 'Unknown snap mode' };
             }
 
+            console.log(`[snapX11WindowCore] Setting geometry for ${xidHex}: x=${x}, y=${y}, w=${w}, h=${h}`);
             if (ewmhBridge.setWindowGeometry) {
                 await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
             } else {
@@ -2209,6 +2239,8 @@ function inferSlotFromGeometry(w, workArea) {
 function getAdjustedWorkArea() {
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
+    const electronWorkArea = primary?.workArea;
+    
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return null;
     }
@@ -2217,12 +2249,30 @@ function getAdjustedWorkArea() {
     const taskbarHeight = 50;
     const taskbarPosition = 'bottom';
     
-    return {
-        x: bounds.x,
-        y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
-        width: bounds.width,
-        height: bounds.height - taskbarHeight
-    };
+    // Use same logic as snapX11WindowCore for consistency
+    let wa;
+    if (electronWorkArea && electronWorkArea.height < bounds.height) {
+        const electronTaskbarOffset = bounds.height - electronWorkArea.height;
+        if (electronTaskbarOffset >= taskbarHeight) {
+            wa = { ...electronWorkArea };
+        } else {
+            wa = {
+                x: electronWorkArea.x,
+                y: taskbarPosition === 'top' ? electronWorkArea.y + (taskbarHeight - electronTaskbarOffset) : electronWorkArea.y,
+                width: electronWorkArea.width,
+                height: electronWorkArea.height - (taskbarHeight - electronTaskbarOffset)
+            };
+        }
+    } else {
+        wa = {
+            x: bounds.x,
+            y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
+            width: bounds.width,
+            height: bounds.height - taskbarHeight
+        };
+    }
+    
+    return wa;
 }
 
 // Track window closures AND detect new windows to auto-snap

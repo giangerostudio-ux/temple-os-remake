@@ -4818,21 +4818,63 @@ svg.icon:hover,
   opacity: 1;
 }
 
-/* Danger Buttons (Shutdown/Restart) */
-.danger-btn,
-.power-btn:hover,
-.start-power-btn[data-power-action="shutdown"],
-.start-power-btn[data-power-action="restart"] {
-  background: rgba(50, 0, 0, 0.8) !important;
-  border-color: #ff3333 !important;
-  box-shadow: 0 0 10px rgba(255, 0, 0, 0.4) !important;
-  color: #ff6464 !important;
+/* ============================================
+   NEUTRALIZE DANGER BUTTONS - Green Default, Red on Hover
+   ============================================ */
+
+/* 1. RESET ALL FOOTER BUTTONS (Default State)
+   Force ALL buttons in any start menu footer container to look like 
+   the "Lock" button (Dark Green/Transparent) */
+[class*="start-menu"] button,
+[class*="footer"] button,
+[class*="power"] button,
+.launcher-footer button,
+.session-buttons button,
+.start-power-btn,
+.start-power-section button {
+  background: rgba(0, 20, 0, 0.6) !important;
+  /* Dark Green bg */
+  border: 1px solid rgba(0, 255, 65, 0.3) !important;
+  /* Thin Green border */
+  color: #E0F7E9 !important;
+  /* Soft Mint Text */
+  box-shadow: none !important;
+  text-shadow: none !important;
+  opacity: 0.9;
+  transition: all 0.2s ease-in-out;
 }
 
+/* 2. THE NORMAL HOVER EFFECT (Green Glow for all buttons) */
+[class*="start-menu"] button:hover,
+[class*="footer"] button:hover,
+[class*="power"] button:hover,
+.launcher-footer button:hover,
+.session-buttons button:hover,
+.start-power-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(0, 255, 65, 0.1) !important;
+  /* Green Glow */
+  border-color: #00FF41 !important;
+  color: #fff !important;
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2) !important;
+}
+
+/* 3. DANGER HOVER (Shutdown/Restart ONLY - Red on hover) */
 .start-power-btn[data-power-action="shutdown"]:hover,
-.start-power-btn[data-power-action="restart"]:hover {
-  background: rgba(255, 50, 50, 0.4) !important;
-  box-shadow: 0 0 20px rgba(255, 0, 0, 0.6) !important;
+.start-power-btn[data-power-action="restart"]:hover,
+button[name*="shutdown"]:hover,
+button[class*="shutdown"]:hover,
+button[name*="restart"]:hover,
+button[class*="restart"]:hover {
+  background: rgba(80, 0, 0, 0.9) !important;
+  /* Deep Red BG */
+  border-color: #FF0000 !important;
+  /* Bright Red Border */
+  color: #FFcccc !important;
+  /* Pale Red Text */
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.4) !important;
+  /* Red Danger Glow */
 }
 
 /* Also apply to installed app icons in start menu */

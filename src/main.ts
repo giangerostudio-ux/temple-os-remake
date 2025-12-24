@@ -11709,17 +11709,38 @@ class TempleOS {
 
 
   private getTerminalContent(): string {
-    // Ensure at least one tab exists
-    if (this.terminalTabs.length === 0) {
-      this.terminalTabs.push({
-        id: `tab-${Date.now()}`,
+    // CRITICAL FIX: Always clean up and recreate tabs to avoid stale xterm state
+    // This prevents the compressed font issue on window reopen
+    for (const tab of this.terminalTabs) {
+      if (tab.xterm) {
+        try {
+          if ((tab as any).resizeObserver) {
+            (tab as any).resizeObserver.disconnect();
+          }
+          if ((tab as any).windowResizeHandler) {
+            window.removeEventListener('resize', (tab as any).windowResizeHandler);
+          }
+          tab.xterm.dispose();
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Create fresh tabs with new unique IDs
+    const needsNewTab = this.terminalTabs.length === 0 ||
+      this.terminalTabs.every(t => t.xterm === null);
+
+    if (needsNewTab) {
+      // Clear old tabs and create fresh
+      this.terminalTabs = [{
+        id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         ptyId: null,
         title: 'Terminal 1',
         buffer: [] as string[],
         cwd: this.terminalCwd || '',
         xterm: null,
         fitAddon: null
-      });
+      }];
+      this.activeTerminalTab = 0;
     }
 
 

@@ -11991,63 +11991,12 @@ class TempleOS {
       setTimeout(performFit, 500);
     });
 
-    // Use ResizeObserver for robust layout tracking
-    // CRITICAL: Capture character cell dimensions after initial fit, then use them for manual resize
-    // This prevents xterm from re-measuring fonts incorrectly on window resize
-    let charWidth = 0;
-    let charHeight = 0;
-    let isStabilized = false;
-
-    // Capture correct character dimensions after initial stabilization
-    setTimeout(() => {
-      // Get the actual rendered character dimensions from xterm's internal renderer
-      const cellWidth = (xterm as any)._core?._renderService?.dimensions?.css?.cell?.width;
-      const cellHeight = (xterm as any)._core?._renderService?.dimensions?.css?.cell?.height;
-
-      if (cellWidth && cellHeight && cellWidth > 0 && cellHeight > 0) {
-        charWidth = cellWidth;
-        charHeight = cellHeight;
-      } else {
-        // Fallback: estimate based on font size for Consolas
-        // Consolas at 14px with weight 500 is approximately:
-        charWidth = this.terminalFontSize * 0.6; // ~8.4px for 14px font
-        charHeight = this.terminalFontSize * 1.4; // line height 1.4
-      }
-      isStabilized = true;
-    }, 600);
-
-    // Manual resize function that does NOT call fitAddon.fit()
-    const manualResize = () => {
-      if (!isStabilized || charWidth <= 0 || charHeight <= 0) return;
-
-      const padding = 16; // 8px padding on each side
-      const availableWidth = container.clientWidth - padding;
-      const availableHeight = container.clientHeight - padding;
-
-      if (availableWidth <= 0 || availableHeight <= 0) return;
-
-      const newCols = Math.max(2, Math.floor(availableWidth / charWidth));
-      const newRows = Math.max(1, Math.floor(availableHeight / charHeight));
-
-      // Only resize if dimensions actually changed
-      if (xterm.cols !== newCols || xterm.rows !== newRows) {
-        try {
-          xterm.resize(newCols, newRows);
-        } catch (e) {
-          console.warn('Manual xterm resize failed:', e);
-        }
-      }
-    };
-
-    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedResize = () => {
-      if (!isStabilized) return;
-      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
-      resizeDebounceTimer = setTimeout(manualResize, 100);
-    };
+    // SIMPLIFIED APPROACH: No dynamic resize after initial fit
+    // This prevents font metric corruption at the cost of not resizing when window changes
+    // The initial fit sequence above handles sizing correctly on open
 
     const resizeObserver = new ResizeObserver(() => {
-      debouncedResize();
+      // Intentionally empty - do NOT call fit() on resize as it corrupts fonts
     });
     resizeObserver.observe(container);
 
@@ -12073,7 +12022,7 @@ class TempleOS {
           }
         });
 
-        // Handle resize
+        // Handle resize - notify PTY of dimension changes
         xterm.onResize(({ cols, rows }) => {
           if (tab.ptyId && window.electronAPI?.resizePty) {
             void window.electronAPI.resizePty(tab.ptyId, cols, rows);
@@ -12086,9 +12035,9 @@ class TempleOS {
       }
     }
 
-    // Store resize handler reference for cleanup (avoid listener accumulation)
+    // Store resize handler reference for cleanup (no-op for now)
     const resizeHandler = () => {
-      debouncedResize();
+      // Intentionally empty - do NOT resize as it corrupts fonts
     };
     window.addEventListener('resize', resizeHandler);
     (tab as any).windowResizeHandler = resizeHandler;

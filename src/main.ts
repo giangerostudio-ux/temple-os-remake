@@ -15697,11 +15697,6 @@ class TempleOS {
             <button class="terminal-settings-btn" data-font-action="increase">+</button>
           </div>
         </div>
-        <div class="terminal-settings-row">
-          <span class="terminal-settings-label">Theme</span>
-          <span class="terminal-settings-value">${this.terminalUiTheme}</span>
-        </div>
-        <div class="terminal-settings-hint">Tip: Use 'theme green|cyan|amber|white' command to change theme</div>
       </div>
     `;
 
@@ -15725,6 +15720,8 @@ class TempleOS {
         for (const tab of this.terminalTabs) {
           if (tab.xterm) {
             tab.xterm.options.fontSize = this.terminalFontSize;
+            // Re-apply fontFamily to force fresh font metrics
+            tab.xterm.options.fontFamily = this.terminalFontFamily;
             tab.fitAddon?.fit();
             tab.xterm.refresh(0, tab.xterm.rows - 1);
           }

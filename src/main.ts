@@ -936,8 +936,8 @@ class TempleOS {
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
-  private terminalFontFamily = "'Fira Code', 'Cascadia Code', 'Consolas', monospace";
-  private terminalFontSize = 15;
+  private terminalFontFamily = "'Fira Code', Consolas, 'Courier New', monospace";
+  private terminalFontSize = 14;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
   private terminalSearchMatches: number[] = [];
@@ -11877,20 +11877,9 @@ class TempleOS {
     const container = document.getElementById(`xterm-container-${tab.id}`);
     if (!container) return;
 
-    // CRITICAL: Wait for font to load BEFORE creating xterm
-    // This ensures correct character width measurements
-    if ((document as any).fonts) {
-      try {
-        await Promise.all([
-          (document as any).fonts.load('15px "Fira Code"'),
-          (document as any).fonts.load('500 15px "Fira Code"'),
-        ]);
-        // Small delay to ensure font is fully applied
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (e) {
-        console.warn('Font preload failed, continuing anyway:', e);
-      }
-    }
+    // Wait for container to be properly mounted in DOM
+    // System fonts (Consolas, Courier) are always available - no web font loading needed
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 100)));
 
     const fg = this.getTerminalThemeForeground();
 

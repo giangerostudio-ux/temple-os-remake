@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Fira+Code:wght@400;500;600;700&display=swap');
+/* Local font imports - bundled in app, no network loading */
+@import '@fontsource/fira-code/400.css';
+@import '@fontsource/fira-code/500.css';
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
 
 :root {
   /* Divine Cyberpunk Palette */

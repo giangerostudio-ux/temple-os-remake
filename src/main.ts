@@ -4004,7 +4004,7 @@ class TempleOS {
             <div class="start-no-results">No apps found</div>
             ` : filteredApps.map(app => `
             <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(app))}" data-installed-app='${JSON.stringify({ name: app.name, exec: app.exec, desktopFile: app.desktopFile })}' data-icon-url="${escapeHtml(String(app.iconUrl || ''))}" tabindex="0" role="button" aria-label="${escapeHtml(app.name)}">
-              <span class="app-icon" aria-hidden="true">📦</span>
+              <span class="app-icon" aria-hidden="true"><i class="ph-fill ph-package"></i></span>
               <div class="app-info">
                 <span class="app-name">${escapeHtml(app.name)}</span>
                 <span class="app-comment">${app.comment ? escapeHtml(app.comment) : 'Application'}</span>
@@ -17600,7 +17600,7 @@ class TempleOS {
 
           <div class="lock-input-row">
             <input type="password" class="lock-password-input" placeholder="${this.lockInputMode === 'pin' ? 'PIN' : 'Password'}" inputmode="${this.lockInputMode === 'pin' ? 'numeric' : 'text'}" autocomplete="off">
-            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}>👁</button>
+            <button class="lock-reveal-btn" data-lock-action="reveal" title="Show/Hide" ${this.lockInputMode === 'pin' ? 'disabled' : ''}><i class="ph-fill ph-eye"></i></button>
           </div>
 
           <div class="lock-caps" id="lock-caps">Caps Lock is ON</div>

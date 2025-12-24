@@ -4785,14 +4785,15 @@ span[role="img"],
    ============================================ */
 
 /* BUG 1: Force Override for Sidebar and Desktop Icons */
-.desktop-icon svg path,
-.sidebar-icon svg path,
-.app-grid-item svg path {
+.desktop-icon svg *,
+.sidebar-icon svg *,
+.app-grid-item svg * {
   stroke: #FFFFFF !important;
   fill: none !important;
   /* Ensure no muddy fills */
   stroke-width: 2px;
 }
+
 
 /* Only change to green on hover */
 .desktop-icon-wrapper:hover svg path,
@@ -4816,4 +4817,23 @@ span[role="img"],
 .pinned-item img,
 .start-menu-grid img {
   filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.2) !important;
+}
+
+/* BUG 5: Start Menu Footer Overflow Fix */
+.start-power-section {
+  display: flex;
+  flex-wrap: wrap;
+  /* Allow wrapping */
+  gap: 8px;
+  justify-content: center;
+  /* Center buttons */
+  padding: 10px;
+}
+
+.start-power-btn {
+  flex: 1 1 auto;
+  /* Grow/shrink as needed */
+  min-width: 80px;
+  /* Minimum width for touch targets */
+  white-space: nowrap;
 }

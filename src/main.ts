@@ -11921,7 +11921,7 @@ class TempleOS {
     // Initial fit
     fitAddon.fit();
 
-    // Wait for Fira Code font to load for optimal rendering
+    // Explicitly preload Fira Code font before measuring
     const performFit = () => {
       try {
         if (container.clientWidth > 0 && container.clientHeight > 0) {
@@ -11933,19 +11933,25 @@ class TempleOS {
       }
     };
 
-    // Wait for fonts to be ready before measuring
-    // We specifically check for VT323 or any monospace font
+    // Explicitly load Fira Code font for xterm canvas rendering
     if ((document as any).fonts) {
-      // Check if VT323 is loaded, if not wait for all fonts
-      (document as any).fonts.ready.then(() => {
-        // Double delay: once for font, once for DOM animation frame
+      // Force load the specific font we need
+      const fontPromises = [
+        (document as any).fonts.load('15px "Fira Code"'),
+        (document as any).fonts.load('500 15px "Fira Code"'),
+      ];
+      Promise.all(fontPromises).then(() => {
+        // Font loaded - wait for DOM and perform fit
         requestAnimationFrame(() => {
           setTimeout(() => {
             performFit();
-            // Final safety fit after animation surely finished
-            setTimeout(performFit, 500);
-          }, 200);
+            // Additional fit after layout settles
+            setTimeout(performFit, 300);
+          }, 100);
         });
+      }).catch(() => {
+        // Font load failed, still try to fit
+        setTimeout(performFit, 500);
       });
     } else {
       setTimeout(performFit, 500);

@@ -178,6 +178,21 @@ div {
   justify-content: center;
 }
 
+/* Explicit Green Neon Icons */
+.icon-neon {
+  stroke: var(--tos-green);
+  stroke-width: 1.5px;
+  fill: none;
+  filter: drop-shadow(0 0 4px var(--tos-green));
+  transition: all 0.3s ease;
+}
+
+.desktop-icon:hover .icon-neon {
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 8px var(--tos-green)) drop-shadow(0 0 0px var(--tos-green));
+  transform: scale(1.1);
+}
+
 .desktop-icon .label {
   font-size: 14px;
   color: #FFFFFF;
@@ -415,7 +430,8 @@ div {
 .terminal {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.6;
+  letter-spacing: 0.5px;
   height: 100%;
   padding: 8px;
   background: rgba(0, 0, 0, 0.6);
@@ -435,6 +451,8 @@ div {
   text-shadow: none !important;
   font-weight: 500;
   color: #00FF41;
+  letter-spacing: 0.5px;
+  line-height: 1.6;
 }
 
 .terminal-output {
@@ -444,7 +462,8 @@ div {
 }
 
 .terminal-line {
-  line-height: 1.4;
+  line-height: 1.6;
+  margin-bottom: 2px;
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -2069,19 +2088,25 @@ input[type=range]::-webkit-slider-thumb {
 .start-power-btn {
   flex: 1;
   padding: 10px;
-  background: rgba(255, 100, 100, 0.1);
-  border: 1px solid rgba(255, 100, 100, 0.3);
-  color: #ff6464;
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .start-power-btn:hover {
-  background: rgba(255, 100, 100, 0.2);
-  border-color: #ff6464;
+  background: rgba(0, 255, 65, 0.2);
+  border-color: #00ff41;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+  color: #fff;
 }
 
 /* ============================================

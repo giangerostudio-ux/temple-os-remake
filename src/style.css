@@ -5185,3 +5185,81 @@ span[role="img"],
 .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 65, 0.6);
 }
+
+/* ============================================
+   TERMINAL SETTINGS PANEL
+   ============================================ */
+.terminal-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.terminal-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.15);
+  border-radius: 8px;
+}
+
+.terminal-settings-label {
+  color: rgba(0, 255, 65, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.terminal-settings-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-settings-btn {
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 255, 65, 0.12);
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  border-radius: 6px;
+  color: #00ff41;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.terminal-settings-btn:hover {
+  background: rgba(0, 255, 65, 0.25);
+  border-color: #00ff41;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.terminal-settings-btn:active {
+  transform: scale(0.95);
+}
+
+.terminal-settings-value {
+  min-width: 50px;
+  text-align: center;
+  font-size: 16px;
+  color: #00ff41;
+  font-weight: bold;
+}
+
+.terminal-settings-hint {
+  font-size: 12px;
+  color: rgba(0, 255, 65, 0.6);
+  font-style: italic;
+  padding: 4px 12px;
+}
+
+.modal-custom-content {
+  margin-bottom: 12px;
+}

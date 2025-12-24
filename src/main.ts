@@ -937,7 +937,7 @@ class TempleOS {
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
   private terminalFontFamily = "Consolas, 'Courier New', 'Liberation Mono', monospace";
-  private terminalFontSize = 14;
+  private terminalFontSize = 12;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
   private terminalSearchMatches: number[] = [];
@@ -1026,6 +1026,7 @@ class TempleOS {
       password?: boolean;
       confirmText?: string;
       cancelText?: string;
+      customContent?: string; // For custom HTML in alert modals
     }
     | null = null;
   private modalResolve: ((value: any) => void) | null = null;
@@ -2468,6 +2469,7 @@ class TempleOS {
             <div style="font-size: 12px; opacity: 0.65;">TempleOS</div>
           </div>
           ${this.modal.message ? `<div style="font-size: 14px; opacity: 0.9; margin-bottom: 10px; line-height: 1.2;">${escapeHtml(this.modal.message).replace(/\n/g, '<br>')}</div>` : ''}
+          ${this.modal.customContent ? `<div class="modal-custom-content">${this.modal.customContent}</div>` : ''}
           ${isPrompt ? `
             <div style="display:flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
               ${this.modal.inputLabel ? `<div style="font-size: 13px; opacity: 0.8;">${escapeHtml(this.modal.inputLabel)}</div>` : ''}
@@ -2534,7 +2536,7 @@ class TempleOS {
     });
   }
 
-  private openAlertModal(opts: { title: string; message?: string; confirmText?: string }): Promise<void> {
+  private openAlertModal(opts: { title: string; message?: string; confirmText?: string; customContent?: string }): Promise<void> {
     return new Promise((resolve) => {
       this.modalResolve?.(undefined);
       this.modalResolve = resolve;
@@ -2543,6 +2545,7 @@ class TempleOS {
         title: opts.title,
         message: opts.message,
         confirmText: opts.confirmText ?? 'OK',
+        customContent: opts.customContent,
       };
       this.render();
     });
@@ -7753,10 +7756,8 @@ class TempleOS {
         }
 
         if (action === 'settings') {
-          void this.openAlertModal({
-            title: 'Terminal Settings',
-            message: "Use built-ins:\n- theme <green|cyan|amber|white>\n- fontsize <number>\n- prompt <template>\n- alias name='command'\n- unalias name\n\nExample: theme cyan"
-          });
+          // Show terminal settings panel
+          this.showTerminalSettingsPanel();
           return;
         }
       }
@@ -15680,6 +15681,66 @@ class TempleOS {
       filesWindow.content = this.getFileBrowserContentV2();
       this.render();
     }
+  }
+
+  /**
+   * Show terminal settings panel with font size controls
+   */
+  private showTerminalSettingsPanel(): void {
+    const panelHtml = `
+      <div class="terminal-settings-panel">
+        <div class="terminal-settings-row">
+          <span class="terminal-settings-label">Font Size</span>
+          <div class="terminal-settings-control">
+            <button class="terminal-settings-btn" data-font-action="decrease">−</button>
+            <span class="terminal-settings-value" id="font-size-display">${this.terminalFontSize}px</span>
+            <button class="terminal-settings-btn" data-font-action="increase">+</button>
+          </div>
+        </div>
+        <div class="terminal-settings-row">
+          <span class="terminal-settings-label">Theme</span>
+          <span class="terminal-settings-value">${this.terminalUiTheme}</span>
+        </div>
+        <div class="terminal-settings-hint">Tip: Use 'theme green|cyan|amber|white' command to change theme</div>
+      </div>
+    `;
+
+    void this.openAlertModal({
+      title: '⚙️ Terminal Settings',
+      message: '',
+      customContent: panelHtml
+    });
+
+    // Add click handlers for font buttons after modal opens
+    setTimeout(() => {
+      const decreaseBtn = document.querySelector('[data-font-action="decrease"]');
+      const increaseBtn = document.querySelector('[data-font-action="increase"]');
+      const display = document.getElementById('font-size-display');
+
+      const updateFontSize = (newSize: number) => {
+        this.terminalFontSize = Math.max(8, Math.min(24, newSize));
+        if (display) display.textContent = `${this.terminalFontSize}px`;
+
+        // Update all open terminal tabs
+        for (const tab of this.terminalTabs) {
+          if (tab.xterm) {
+            tab.xterm.options.fontSize = this.terminalFontSize;
+            tab.fitAddon?.fit();
+            tab.xterm.refresh(0, tab.xterm.rows - 1);
+          }
+        }
+      };
+
+      decreaseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateFontSize(this.terminalFontSize - 1);
+      });
+
+      increaseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateFontSize(this.terminalFontSize + 1);
+      });
+    }, 100);
   }
 
   private refreshTerminalWindow(): void {

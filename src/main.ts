@@ -11269,8 +11269,8 @@ class TempleOS {
           windowConfig = {
             title: 'Holy Updater',
             icon: '🕊️',
-            width: 500,
-            height: 350,
+            width: 550,
+            height: 450,
             content: this.getUpdaterContent()
           };
           // Check for updates when window opens

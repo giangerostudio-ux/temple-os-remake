@@ -11794,6 +11794,10 @@ class TempleOS {
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
+
+    // Fix: Clear container to prevent double rendering/blur artifacts
+    container.innerHTML = '';
+
     xterm.open(container);
     fitAddon.fit();
 

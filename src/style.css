@@ -4837,3 +4837,34 @@ span[role="img"],
   /* Minimum width for touch targets */
   white-space: nowrap;
 }
+
+/* BUG 6: Lock Screen Eye Icon Styling */
+.lock-reveal-btn {
+  background: transparent;
+  border: none;
+  color: var(--tos-green);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lock-reveal-btn:hover {
+  filter: drop-shadow(0 0 5px var(--tos-green));
+  transform: scale(1.1);
+}
+
+.lock-reveal-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* BUG 2 Correction: Deep Terminal Reset */
+.terminal-xterm * {
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-font-smoothing: antialiased !important;
+}

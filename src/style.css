@@ -57,7 +57,7 @@
 }
 
 body {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', monospace;
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
@@ -77,11 +77,19 @@ textarea,
   cursor: text;
 }
 
-/* Emoji font support */
+/* Universal emoji font support - ensures ALL text can render emojis */
+* {
+  font-family: inherit;
+}
+
+/* Emoji font support for icons */
 .icon,
 .app-icon,
-.desktop-icon span.icon {
-  font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+.desktop-icon span.icon,
+button,
+span,
+div {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', 'Apple Color Emoji', ' UI Emoji', 'Segoe UI Symbol', sans-serif;
 }
 
 #app {
@@ -170,7 +178,13 @@ textarea,
 .desktop-icon .label {
   font-size: 14px;
   color: var(--text-highlight);
-  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+  /* Strong shadow for readability against wallpaper */
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 5, 0, 0.8),
+    0 0 5px rgba(0, 255, 65, 0.5);
+  font-weight: 500;
+  letter-spacing: 0.5px;
   /* Truncate long names */
   max-width: 100%;
   overflow: hidden;
@@ -186,10 +200,12 @@ textarea,
   background: var(--bg-window);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
+  /* Refined border: thinner with bloom */
+  border: 1px solid rgba(0, 255, 65, 0.5);
   border-radius: 8px;
   box-shadow:
-    0 0 20px rgba(0, 255, 65, 0.1),
+    0 0 15px rgba(0, 255, 65, 0.15),
+    inset 0 0 20px rgba(0, 20, 0, 0.9),
     0 20px 60px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
@@ -254,32 +270,56 @@ textarea,
 }
 
 .window-btn {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   pointer-events: auto;
   z-index: 1001;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  font-family: monospace;
 }
 
-.window-btn.close {
-  background: var(--tos-red);
+.window-btn.close::before {
+  content: '×';
+  font-size: 20px;
+  line-height: 1;
 }
 
-.window-btn.minimize {
-  background: var(--tos-yellow);
+.window-btn.minimize::before {
+  content: '−';
+  font-size: 16px;
+  line-height: 1;
 }
 
-.window-btn.maximize {
-  background: var(--tos-green);
+.window-btn.maximize::before {
+  content: '□';
+  font-size: 14px;
+  line-height: 1;
 }
 
-.window-btn:hover {
-  transform: scale(1.2);
-  filter: brightness(1.3);
+.window-btn.close:hover {
+  background: rgba(255, 100, 100, 0.2);
+  border-color: #ff6464;
+  color: #ff6464;
+  box-shadow: 0 0 10px rgba(255, 100, 100, 0.3);
+}
+
+.window-btn.minimize:hover,
+.window-btn.maximize:hover {
+  background: rgba(0, 255, 65, 0.1);
+  border-color: var(--accent-glow);
+  color: var(--accent-glow);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
 }
 
 .window-content {
@@ -4561,21 +4601,23 @@ body.heavenly-pulse-enabled .temple-gold-beam {
 
 .desktop-icon.size-large .label {
   font-size: 16px;
-}/* Divine Cyberpunk Input Styles */
+}
+
+/* Divine Cyberpunk Input Styles */
 input[type="text"],
 input[type="search"],
 input[type="password"],
 textarea,
 .search-bar,
 .terminal-input {
-    background: rgba(0, 0, 0, 0.5) !important;
-    border: none !important;
-    border-bottom: 1px solid var(--border-color) !important;
-    color: var(--text-primary) !important;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    transition: all 0.3s ease;
-    padding: 8px 12px;
-    border-radius: 4px 4px 0 0;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  transition: all 0.3s ease;
+  padding: 8px 12px;
+  border-radius: 4px 4px 0 0;
 }
 
 input[type="text"]:focus,
@@ -4584,39 +4626,101 @@ input[type="password"]:focus,
 textarea:focus,
 .search-bar:focus,
 .terminal-input:focus {
-    outline: none;
-    border-bottom-color: var(--accent-glow) !important;
-    background: rgba(0, 255, 65, 0.05) !important;
-    box-shadow: 0 4px 10px -2px rgba(0, 255, 65, 0.1);
+  outline: none;
+  border-bottom-color: var(--accent-glow) !important;
+  background: rgba(0, 255, 65, 0.05) !important;
+  box-shadow: 0 4px 10px -2px rgba(0, 255, 65, 0.1);
 }
 
 /* Monoline Neon Icon Utilities */
 .icon-neon {
-    fill: none;
-    stroke: var(--text-primary);
-    stroke-width: 2px;
-    filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.3));
-    transition: all 0.3s ease;
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 2px;
+  filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.3));
+  transition: all 0.3s ease;
 }
 
 .icon-neon:hover,
 .active .icon-neon,
 button:hover .icon-neon {
-    stroke: var(--accent-glow);
-    filter: drop-shadow(0 0 5px var(--accent-glow));
+  stroke: var(--accent-glow);
+  filter: drop-shadow(0 0 5px var(--accent-glow));
 }
 
 /* Force override for existing icons if they are SVGs */
 svg.icon,
 svg.feather,
 .panel-icon svg {
-    fill: none !important;
-    stroke: var(--text-primary) !important;
-    stroke-width: 2px;
+  fill: none !important;
+  stroke: var(--text-primary) !important;
+  stroke-width: 2px;
 }
 
 svg.icon:hover,
 .button:hover svg.icon {
-    stroke: var(--accent-glow) !important;
-    filter: drop-shadow(0 0 8px var(--accent-glow));
+  stroke: var(--accent-glow) !important;
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+/* ============================================
+   PHASE 2 VISUAL POLISH - HOLOGRAM FILTERS
+   ============================================ */
+
+/* Force colorful app icons to monochrome green "holograms" */
+.app-icon img,
+.launcher-icon img,
+.start-menu-app img,
+.app-grid-item img,
+.app-launcher-icon img {
+  /* Strip color and force neon green theme */
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(300%) brightness(1.1) contrast(1.2);
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.app-icon:hover img,
+.launcher-icon:hover img,
+.start-menu-app:hover img,
+.app-grid-item:hover img,
+.app-launcher-icon:hover img {
+  /* On hover, glow white-hot */
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(100%) brightness(2.0);
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+/* Also apply to installed app icons in start menu */
+.installed-app-icon img,
+.launcher-app-icon img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(300%) brightness(1.1) contrast(1.2);
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.installed-app-icon:hover img,
+.launcher-app-icon:hover img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(100%) brightness(2.0);
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+/* Text readability improvements for sidebars and status bars */
+.sidebar-item,
+.status-bar,
+.taskbar-app,
+.start-menu-item {
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 5, 0, 0.8);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* ASCII/HTML symbol styling for Holy symbols */
+.icon-cross,
+.icon-holy {
+  font-family: 'Cinzel', serif;
+  color: var(--accent-gold);
+  font-weight: bold;
+  font-size: 1.2em;
+  text-shadow: 0 0 10px rgba(240, 230, 140, 0.5);
 }

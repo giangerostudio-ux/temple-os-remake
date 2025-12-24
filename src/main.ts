@@ -6019,33 +6019,42 @@ class TempleOS {
         }
       }
 
-      // SLIDER CLICK-TO-SET: Click anywhere on track to jump to that position
-      // This makes all range sliders more user-friendly
+      // SLIDER CLICK-TO-SET: Click track (not handle) to jump to position
+      // Only triggers if click is far from current thumb position (not dragging)
       if (target.matches('input[type="range"]')) {
         const rect = target.getBoundingClientRect();
         const clickX = (e as MouseEvent).clientX - rect.left;
-        const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+        const clickPercentage = clickX / rect.width;
 
+        // Get current value position as percentage
         const min = parseFloat(target.getAttribute('min') || '0');
         const max = parseFloat(target.getAttribute('max') || '100');
-        const step = parseFloat(target.getAttribute('step') || '1');
+        const currentValue = parseFloat(target.value);
+        const currentPercentage = (currentValue - min) / (max - min);
 
-        let newValue = min + (max - min) * percentage;
+        // Only jump if click is far from current thumb (>5% away)
+        // This prevents interfering with drag operations
+        const distanceThreshold = 0.05;
+        if (Math.abs(clickPercentage - currentPercentage) > distanceThreshold) {
+          const step = parseFloat(target.getAttribute('step') || '1');
 
-        // Snap to step increments
-        if (step !== 1) {
-          newValue = Math.round(newValue / step) * step;
+          let newValue = min + (max - min) * Math.max(0, Math.min(1, clickPercentage));
+
+          // Snap to step increments
+          if (step !== 1) {
+            newValue = Math.round(newValue / step) * step;
+          }
+
+          // Clamp to valid range
+          newValue = Math.max(min, Math.min(max, newValue));
+
+          // Update value
+          target.value = String(newValue);
+
+          // Dispatch input event to trigger app state updates
+          const inputEvent = new Event('input', { bubbles: true });
+          target.dispatchEvent(inputEvent);
         }
-
-        // Clamp to valid range
-        newValue = Math.max(min, Math.min(max, newValue));
-
-        // Update value
-        target.value = String(newValue);
-
-        // Dispatch input event to trigger app state updates
-        const inputEvent = new Event('input', { bubbles: true });
-        target.dispatchEvent(inputEvent);
       }
 
       // App launcher search (update grid without losing focus)

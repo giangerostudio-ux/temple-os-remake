@@ -666,7 +666,7 @@ class TempleOS {
 
   // Desktop Settings (Tier 9.2)
   private desktopWidgetsEnabled = localStorage.getItem('temple_desktop_widgets') === 'true';
-  private desktopIconSize: 'small' | 'medium' | 'large' = (localStorage.getItem('temple_desktop_icon_size') as any) || 'medium';
+  private desktopIconSize: 'small' | 'large' = (localStorage.getItem('temple_desktop_icon_size') as any) || 'small';
   private desktopAutoArrange = localStorage.getItem('temple_desktop_auto_arrange') === 'true'; // Default false - icons can be dragged
 
   // Theme System (Tier 9.4)
@@ -2702,7 +2702,7 @@ class TempleOS {
     }
   }
 
-  public setDesktopIconSize(size: 'small' | 'medium' | 'large') {
+  public setDesktopIconSize(size: 'small' | 'large') {
     this.desktopIconSize = size;
     localStorage.setItem('temple_desktop_icon_size', size);
     this.render();
@@ -2715,7 +2715,7 @@ class TempleOS {
   }
 
   private renderDesktopIcons(): string {
-    const neon = (path: string) => `<svg viewBox="0 0 24 24" class="icon-neon" width="24" height="24">${path}</svg>`;
+    const neon = (path: string) => `<svg viewBox="0 0 24 24" class="icon-neon" width="40" height="40">${path}</svg>`;
     const icons = [
       { id: 'terminal', icon: neon('<rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8l4 4-4 4" /><path d="M14 16h4" />'), label: 'Terminal' },
       { id: 'word-of-god', icon: neon('<path d="M12 2v20M2 8h20" />'), label: 'Word of God' },
@@ -9307,9 +9307,8 @@ class TempleOS {
             {
               label: 'View',
               submenu: [
-                { label: this.desktopIconSize === 'large' ? '✓ Large Icons' : 'Large Icons', action: () => this.setDesktopIconSize('large') },
-                { label: this.desktopIconSize === 'medium' ? '✓ Medium Icons' : 'Medium Icons', action: () => this.setDesktopIconSize('medium') },
                 { label: this.desktopIconSize === 'small' ? '✓ Small Icons' : 'Small Icons', action: () => this.setDesktopIconSize('small') },
+                { label: this.desktopIconSize === 'large' ? '✓ Large Icons' : 'Large Icons', action: () => this.setDesktopIconSize('large') },
                 { divider: true },
                 { label: this.desktopAutoArrange ? '✓ Auto Arrange Icons' : 'Auto Arrange Icons', action: () => this.toggleDesktopAutoArrange() }
               ]
@@ -9586,10 +9585,8 @@ class TempleOS {
             {
               label: `Icon Size: ${this.desktopIconSize.toUpperCase()}`,
               action: () => {
-                // Cycle sizes
-                const sizes: ('small' | 'medium' | 'large')[] = ['small', 'medium', 'large'];
-                const currentIdx = sizes.indexOf(this.desktopIconSize);
-                this.desktopIconSize = sizes[(currentIdx + 1) % sizes.length];
+                // Toggle between small and large
+                this.desktopIconSize = this.desktopIconSize === 'small' ? 'large' : 'small';
                 localStorage.setItem('temple_desktop_icon_size', this.desktopIconSize);
                 this.render();
               }

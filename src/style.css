@@ -172,9 +172,9 @@ div {
 
 .desktop-icon .icon {
   font-size: 40px;
-  /* Force emojis to gold monochrome */
-  filter: grayscale(100%) brightness(1.3) sepia(100%) hue-rotate(30deg) saturate(400%);
-  filter: drop-shadow(0 0 10px rgba(240, 230, 140, 0.5));
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .desktop-icon .label {
@@ -4564,39 +4564,26 @@ body.heavenly-pulse-enabled .temple-gold-beam {
 }
 
 /* ============================================
-   DESKTOP ICON SIZES
+   DESKTOP ICON SIZES - SIMPLIFIED (SMALL & LARGE ONLY)
    ============================================ */
 
-/* Small Icons */
+/* Small Icons (formerly Medium) */
 .desktop-icon.size-small {
-  width: 60px;
-  height: 60px;
-  padding: 6px;
-}
-
-.desktop-icon.size-small .icon {
-  font-size: 28px;
-}
-
-.desktop-icon.size-small .label {
-  font-size: 11px;
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-/* Medium Icons (Default - already defined, but let's ensure consistency) */
-.desktop-icon.size-medium {
   width: 100px;
   height: 100px;
   padding: 10px;
 }
 
-.desktop-icon.size-medium .icon {
+.desktop-icon.size-small .icon {
   font-size: 40px;
 }
 
-.desktop-icon.size-medium .label {
+.desktop-icon.size-small .icon-neon {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+.desktop-icon.size-small .label {
   font-size: 14px;
 }
 
@@ -4609,6 +4596,11 @@ body.heavenly-pulse-enabled .temple-gold-beam {
 
 .desktop-icon.size-large .icon {
   font-size: 56px;
+}
+
+.desktop-icon.size-large .icon-neon {
+  width: 56px !important;
+  height: 56px !important;
 }
 
 .desktop-icon.size-large .label {
@@ -4647,9 +4639,11 @@ textarea:focus,
 /* Monoline Neon Icon Utilities */
 .icon-neon {
   fill: none;
-  stroke: var(--text-primary);
+  stroke: var(--accent-gold);
   stroke-width: 2px;
-  filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.3));
+  width: 40px !important;
+  height: 40px !important;
+  filter: drop-shadow(0 0 8px rgba(240, 230, 140, 0.5));
   transition: all 0.3s ease;
 }
 
@@ -4657,7 +4651,7 @@ textarea:focus,
 .active .icon-neon,
 button:hover .icon-neon {
   stroke: var(--accent-glow);
-  filter: drop-shadow(0 0 5px var(--accent-glow));
+  filter: drop-shadow(0 0 12px var(--accent-glow));
 }
 
 /* Force override for existing icons if they are SVGs */
@@ -4665,14 +4659,16 @@ svg.icon,
 svg.feather,
 .panel-icon svg {
   fill: none !important;
-  stroke: var(--text-primary) !important;
+  stroke: var(--accent-gold) !important;
   stroke-width: 2px;
+  width: 40px !important;
+  height: 40px !important;
 }
 
 svg.icon:hover,
 .button:hover svg.icon {
   stroke: var(--accent-glow) !important;
-  filter: drop-shadow(0 0 8px var(--accent-glow));
+  filter: drop-shadow(0 0 12px var(--accent-glow));
 }
 
 /* ============================================
@@ -4735,7 +4731,9 @@ svg.icon:hover,
   font-weight: bold;
   font-size: 1.2em;
   text-shadow: 0 0 10px rgba(240, 230, 140, 0.5);
-}/* ============================================
+}
+
+/* ============================================
    GLOBAL EMOJI STYLING - DIVINE CYBERPUNK
    ============================================ */
 

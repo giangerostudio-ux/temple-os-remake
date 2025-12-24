@@ -936,7 +936,7 @@ class TempleOS {
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
-  private terminalFontFamily = '"VT323", monospace';
+  private terminalFontFamily = "'JetBrains Mono', 'Fira Code', monospace";
   private terminalFontSize = 18;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
@@ -11902,8 +11902,10 @@ class TempleOS {
       },
       fontFamily: this.terminalFontFamily,
       fontSize: this.terminalFontSize,
+      fontWeight: '500',
       cursorBlink: true,
-      scrollback: 10000
+      scrollback: 10000,
+      allowProposedApi: true
     });
 
     const fitAddon = new FitAddon();
@@ -11917,17 +11919,28 @@ class TempleOS {
     // Initial fit
     fitAddon.fit();
 
-    // Delayed fit to ensure DOM stability and correct geometry
-    // This fixes the "squished" text issue during window open animations
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        try {
-          fitAddon.fit();
-        } catch (e) {
-          console.warn('Xterm initial fit failed:', e);
-        }
-      }, 100);
-    });
+    // Delayed fit to ensure DOM stability AND Font loading
+    // This fixes the "squished" text issue (incorrect char width measurement)
+    const performFit = () => {
+      try {
+        fitAddon.fit();
+      } catch (e) {
+        console.warn('Xterm fit failed:', e);
+      }
+    };
+
+    // Wait for fonts to be ready before measuring
+    if ((document as any).fonts) {
+      (document as any).fonts.ready.then(() => {
+        requestAnimationFrame(() => {
+          setTimeout(performFit, 150);
+        });
+      });
+    } else {
+      requestAnimationFrame(() => {
+        setTimeout(performFit, 250);
+      });
+    }
 
     // Use ResizeObserver for robust layout tracking
     const resizeObserver = new ResizeObserver(() => {

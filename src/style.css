@@ -473,9 +473,8 @@ div {
   text-shadow: none !important;
   font-weight: 500;
   color: #00FF41;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.4;
+  -webkit-font-smoothing: subpixel-antialiased;
 }
 
 .terminal-output {
@@ -5110,8 +5109,7 @@ span[role="img"],
 
 /* Force clean canvas rendering */
 .xterm-container canvas {
-  image-rendering: crisp-edges;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
 }
 
 /* Ensure xterm text rows don't have sub-pixel artifacts */

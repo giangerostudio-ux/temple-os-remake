@@ -5442,3 +5442,88 @@ button[id*="restart"]:hover,
   color: rgba(0, 255, 65, 0.7) !important;
   opacity: 1 !important;
 }
+
+/* ============================================
+   ULTIMATE WILDCARD OVERRIDES - FINAL PASS
+   ============================================ */
+
+/* 1. FORCE "HOLOGRAM" ICONS ON EVERYTHING
+   Target ANY <img> inside ANY container with these keywords */
+*[class*="menu"] img,
+*[class*="launcher"] img,
+*[class*="pinned"] img,
+*[class*="grid"] img,
+*[class*="apps"] img,
+*[class*="list"] img,
+*[class*="sidebar"] img,
+*[class*="quick"] img,
+*[class*="recent"] img,
+*[class*="favorite"] img,
+div[class*="menu"] img,
+div[class*="launcher"] img,
+section img,
+aside img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.1) !important;
+  opacity: 0.9 !important;
+  transition: all 0.25s ease !important;
+}
+
+/* Hologram Hover: Bright White/Green Glow */
+*[class*="menu"] img:hover,
+*[class*="launcher"] img:hover,
+*[class*="pinned"] img:hover,
+*[class*="grid"] img:hover,
+*[class*="apps"] img:hover,
+*[class*="list"] img:hover {
+  filter: grayscale(0%) brightness(2.5) drop-shadow(0 0 8px #00FF41) !important;
+  opacity: 1 !important;
+}
+
+/* 2. NEUTRALIZE ALL MENU/FOOTER BUTTONS - DEFAULT GREEN */
+*[class*="menu"] button,
+*[class*="footer"] button,
+*[class*="launcher"] button,
+*[class*="power"] button,
+*[class*="session"] button,
+*[class*="action"] button,
+div[class*="menu"] button,
+div[class*="footer"] button {
+  background: rgba(0, 20, 0, 0.85) !important;
+  border: 1px solid rgba(0, 255, 65, 0.35) !important;
+  color: #E0F7E9 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Normal Hover: Green Glow */
+*[class*="menu"] button:hover,
+*[class*="footer"] button:hover,
+*[class*="launcher"] button:hover {
+  background: rgba(0, 255, 65, 0.18) !important;
+  border-color: #00FF41 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.35) !important;
+}
+
+/* 3. DANGER BUTTONS - RED ONLY ON HOVER */
+*[class*="shutdown"]:hover,
+*[class*="restart"]:hover,
+*[class*="power-off"]:hover,
+*[class*="reboot"]:hover,
+button[class*="shutdown"]:hover,
+button[class*="restart"]:hover,
+button[name*="shutdown"]:hover,
+button[name*="restart"]:hover,
+button[id*="shutdown"]:hover,
+button[id*="restart"]:hover,
+[data-action*="shutdown"]:hover,
+[data-action*="restart"]:hover,
+[data-power*="shutdown"]:hover,
+[data-power*="restart"]:hover {
+  background: rgba(100, 0, 0, 0.95) !important;
+  border-color: #FF0000 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 0 18px rgba(255, 0, 0, 0.55) !important;
+}

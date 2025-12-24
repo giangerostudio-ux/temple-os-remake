@@ -11991,15 +11991,29 @@ class TempleOS {
       setTimeout(performFit, 500);
     });
 
-    // Use ResizeObserver for robust layout tracking
-    const resizeObserver = new ResizeObserver(() => {
-      if (container.offsetParent !== null) { // Only fit if visible
-        try {
-          fitAddon.fit();
-        } catch (e) {
-          console.warn('Xterm ResizeObserver fit failed:', e);
+    // Use ResizeObserver for robust layout tracking - with debounce to prevent font metric thrashing
+    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let isStabilized = false; // Lock to prevent resize during stabilization period
+
+    // Mark as stabilized after initial fits complete
+    setTimeout(() => { isStabilized = true; }, 1000);
+
+    const debouncedFit = () => {
+      if (!isStabilized) return; // Don't fit during stabilization period
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      resizeDebounceTimer = setTimeout(() => {
+        if (container.offsetParent !== null && container.clientWidth > 0 && container.clientHeight > 0) {
+          try {
+            fitAddon.fit();
+          } catch (e) {
+            console.warn('Xterm debounced fit failed:', e);
+          }
         }
-      }
+      }, 150); // Debounce by 150ms
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      debouncedFit();
     });
     resizeObserver.observe(container);
 
@@ -12040,9 +12054,7 @@ class TempleOS {
 
     // Store resize handler reference for cleanup (avoid listener accumulation)
     const resizeHandler = () => {
-      try {
-        fitAddon.fit();
-      } catch { /* ignore */ }
+      debouncedFit();
     };
     window.addEventListener('resize', resizeHandler);
     (tab as any).windowResizeHandler = resizeHandler;

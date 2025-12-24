@@ -1,6 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
 :root {
+  /* Divine Cyberpunk Palette */
+  --bg-root: #020502;
+  --bg-window: rgba(8, 20, 12, 0.85);
+  --text-primary: #E0F7E9;
+  --text-secondary: #8FB39D;
+  --accent-gold: #F0E68C;
+  --accent-glow: #00FF41;
+  --border-color: rgba(0, 255, 65, 0.3);
+
+  /* Compatibility Mappings */
+  --bg-primary: var(--bg-root);
+  --bg-secondary: rgba(8, 20, 12, 0.6);
+  /* Use glass window background */
+  /* --bg-window is already defined above, but we need to ensure usage matches */
+
+  --border-glow: var(--border-color);
+  --text-highlight: var(--accent-glow);
+  --temple-glow-color: var(--accent-gold);
+
   /* TempleOS 16-Color VGA Palette - Modern Enhancement */
-  --tos-black: #0a0a0f;
+  --tos-black: #020502;
   --tos-blue: #1e3a5f;
   --tos-green: #00ff41;
   --tos-cyan: #00d4ff;
@@ -16,22 +37,13 @@
   --tos-light-magenta: #ff88ff;
   --tos-yellow: #ffff00;
   --tos-white: #ffffff;
-
-  /* Modern TempleOS theme */
-  --bg-primary: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-window: #1c2128;
-  --border-glow: rgba(0, 255, 65, 0.3);
-  --text-primary: #c9d1d9;
-  --text-highlight: #00ff41;
-  --accent-gold: #ffd700;
-  --temple-glow-color: var(--accent-gold);
 }
 
 :root[data-theme-mode='light'] {
+  /* Invert/Adjust for light mode if needed, or keep dark for "Deep Void" */
   --bg-primary: #e9eef5;
   --bg-secondary: #f5f7fb;
-  --bg-window: #ffffff;
+  --bg-window: rgba(255, 255, 255, 0.85);
   --border-glow: rgba(0, 140, 40, 0.25);
   --text-primary: #0b1220;
   --text-highlight: #008c28;
@@ -45,7 +57,7 @@
 }
 
 body {
-  font-family: 'VT323', 'Noto Color Emoji', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', monospace;
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
@@ -172,11 +184,13 @@ textarea,
   min-width: 400px;
   min-height: 300px;
   background: var(--bg-window);
-  border: 1px solid rgba(0, 255, 65, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow:
-    0 0 30px rgba(0, 255, 65, 0.1),
-    0 20px 60px rgba(0, 0, 0, 0.5);
+    0 0 20px rgba(0, 255, 65, 0.1),
+    0 20px 60px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -220,10 +234,13 @@ textarea,
 }
 
 .window-title {
+  font-family: 'Cinzel', serif;
   font-size: 16px;
-  font-weight: bold;
-  color: var(--tos-green);
-  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent-gold);
+  text-shadow: 0 0 10px rgba(240, 230, 140, 0.3);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -348,9 +365,11 @@ textarea,
 
 /* Terminal */
 .terminal {
-  font-family: 'VT323', monospace;
-  font-size: 18px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px;
   height: 100%;
+  padding: 5px;
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   --term-fg: var(--text-primary);
@@ -552,6 +571,7 @@ textarea,
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -634,13 +654,29 @@ textarea,
   animation: typingBounce 1.4s infinite ease-in-out;
 }
 
-.divine-typing-indicator span:nth-child(1) { animation-delay: 0s; }
-.divine-typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.divine-typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+.divine-typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.divine-typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.divine-typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes typingBounce {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-8px); }
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+
+  30% {
+    transform: translateY(-8px);
+  }
 }
 
 .divine-thinking {
@@ -1212,7 +1248,7 @@ textarea,
   cursor: pointer;
 }
 
-.divine-checkbox:disabled + span {
+.divine-checkbox:disabled+span {
   opacity: 0.5;
 }
 
@@ -1251,13 +1287,23 @@ textarea,
 
 /* Taskbar */
 .taskbar {
-  height: 50px;
-  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  border-top: 1px solid rgba(0, 255, 65, 0.2);
+  height: 56px;
+  background: var(--bg-window);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
   display: flex;
   align-items: center;
   padding: 0 15px;
-  gap: 10px;
+  gap: 12px;
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  border-radius: 16px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  z-index: 9000;
 }
 
 .taskbar-transparent {
@@ -1277,22 +1323,30 @@ textarea,
 
 
 .start-btn {
-  padding: 8px 20px;
-  background: linear-gradient(180deg, rgba(0, 255, 65, 0.2) 0%, transparent 100%);
-  border: 1px solid var(--tos-green);
-  color: var(--tos-green);
-  font-family: 'Press Start 2P', cursive;
-  font-size: 10px;
+  padding: 8px 24px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  color: var(--accent-gold);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
 .start-btn:hover {
-  background: var(--tos-green);
-  color: var(--bg-primary);
-  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+  background: rgba(240, 230, 140, 0.1);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  box-shadow: 0 0 15px rgba(240, 230, 140, 0.2);
+  text-shadow: 0 0 8px rgba(240, 230, 140, 0.5);
 }
+
+
 
 .taskbar-apps {
   flex: 1;
@@ -4428,4 +4482,141 @@ body.heavenly-pulse-enabled .temple-gold-beam {
 .snap-layouts-close:hover {
   color: var(--tos-red);
   text-shadow: 0 0 10px rgba(255, 100, 100, 0.5);
+}
+
+/* ============================================
+   TASKBAR AUTOHIDE & TRANSPARENCY
+   ============================================ */
+
+/* Taskbar Transparency Effect */
+.taskbar-transparent {
+  background: rgba(13, 17, 23, 0.7) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Taskbar Autohide - hide by default, show on hover */
+.taskbar-autohide {
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.taskbar-autohide:hover {
+  transform: translateY(0);
+}
+
+/* When taskbar is at top */
+.taskbar-autohide[style*="top: 0"] {
+  transform: translateY(-100%);
+}
+
+.taskbar-autohide[style*="top: 0"]:hover {
+  transform: translateY(0);
+}
+
+/* ============================================
+   DESKTOP ICON SIZES
+   ============================================ */
+
+/* Small Icons */
+.desktop-icon.size-small {
+  width: 60px;
+  height: 60px;
+  padding: 6px;
+}
+
+.desktop-icon.size-small .icon {
+  font-size: 28px;
+}
+
+.desktop-icon.size-small .label {
+  font-size: 11px;
+}
+
+/* Medium Icons (Default - already defined, but let's ensure consistency) */
+.desktop-icon.size-medium {
+  width: 100px;
+  height: 100px;
+  padding: 10px;
+}
+
+.desktop-icon.size-medium .icon {
+  font-size: 40px;
+}
+
+.desktop-icon.size-medium .label {
+  font-size: 14px;
+}
+
+/* Large Icons */
+.desktop-icon.size-large {
+  width: 140px;
+  height: 140px;
+  padding: 14px;
+}
+
+.desktop-icon.size-large .icon {
+  font-size: 56px;
+}
+
+.desktop-icon.size-large .label {
+  font-size: 16px;
+}/* Divine Cyberpunk Input Styles */
+input[type="text"],
+input[type="search"],
+input[type="password"],
+textarea,
+.search-bar,
+.terminal-input {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    transition: all 0.3s ease;
+    padding: 8px 12px;
+    border-radius: 4px 4px 0 0;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+.search-bar:focus,
+.terminal-input:focus {
+    outline: none;
+    border-bottom-color: var(--accent-glow) !important;
+    background: rgba(0, 255, 65, 0.05) !important;
+    box-shadow: 0 4px 10px -2px rgba(0, 255, 65, 0.1);
+}
+
+/* Monoline Neon Icon Utilities */
+.icon-neon {
+    fill: none;
+    stroke: var(--text-primary);
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.3));
+    transition: all 0.3s ease;
+}
+
+.icon-neon:hover,
+.active .icon-neon,
+button:hover .icon-neon {
+    stroke: var(--accent-glow);
+    filter: drop-shadow(0 0 5px var(--accent-glow));
+}
+
+/* Force override for existing icons if they are SVGs */
+svg.icon,
+svg.feather,
+.panel-icon svg {
+    fill: none !important;
+    stroke: var(--text-primary) !important;
+    stroke-width: 2px;
+}
+
+svg.icon:hover,
+.button:hover svg.icon {
+    stroke: var(--accent-glow) !important;
+    filter: drop-shadow(0 0 8px var(--accent-glow));
 }

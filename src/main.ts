@@ -264,26 +264,34 @@ interface MouseSettings {
 // FILE ICON HELPER
 // ============================================
 function getFileIcon(name: string, isDirectory: boolean): string {
-  if (isDirectory) return '📁';
+  const neon = (path: string) => `<svg viewBox="0 0 24 24" class="icon-neon" width="24" height="24">${path}</svg>`;
+
+  if (isDirectory) return neon('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />');
 
   const ext = name.split('.').pop()?.toLowerCase() || '';
   const iconMap: Record<string, string> = {
     // Documents
-    'txt': '📄', 'md': '📄', 'doc': '📄', 'docx': '📄', 'pdf': '📕',
+    'txt': neon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>'),
+    'md': neon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><rect x="8" y="12" width="8" height="6"/>'), // Simple doc
     // Code
-    'ts': '📜', 'js': '📜', 'py': '🐍', 'hc': '✝️', 'c': '📜', 'cpp': '📜', 'h': '📜',
-    'html': '🌐', 'css': '🎨', 'json': '📋', 'xml': '📋',
+    'ts': neon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+    'js': neon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+    'hc': neon('<path d="M12 2v20M2 8h20"/>'), // Cross
+    'html': neon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+    'css': neon('<path d="M12 2.69l5.74 3.32a1 1 0 0 1 .5.86v6.63a1 1 0 0 1-.5.86l-5.74 3.32a1 1 0 0 1-1 0L5.26 14.34a1 1 0 0 1-.5-.86V6.87a1 1 0 0 1 .5-.86l5.74-3.32a1 1 0 0 1 1 0z"/>'),
     // Media
-    'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
-    'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'flac': '🎵',
-    'mp4': '🎬', 'mkv': '🎬', 'avi': '🎬', 'webm': '🎬',
+    'jpg': neon('<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>'),
+    'png': neon('<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>'),
+    'mp3': neon('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
+    'mp4': neon('<rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>'),
     // Archives
-    'zip': '📦', 'tar': '📦', 'gz': '📦', 'rar': '📦', '7z': '📦',
+    'zip': neon('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'),
     // Executables
-    'exe': '⚙️', 'sh': '⚙️', 'bin': '⚙️', 'AppImage': '⚙️',
+    'exe': neon('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8l4 4-4 4"/><path d="M14 16h4"/>'),
+    'sh': neon('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8l4 4-4 4"/><path d="M14 16h4"/>'),
   };
 
-  return iconMap[ext] || '📄';
+  return iconMap[ext] || neon('<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>');
 }
 
 function escapeHtml(text: string): string {
@@ -512,6 +520,7 @@ class TempleOS {
 
   private availableResolutions: string[] = ['1920x1080', '1280x720', '1024x768', '800x600'];
   private currentResolution = '1024x768';
+  private resolutionConfirmation: { previousResolution: string; countdown: number; timer: number | null } | null = null;
 
   // File browser state
   private currentPath = '';
@@ -2335,6 +2344,7 @@ class TempleOS {
     return `
       <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
       <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
+      <div id="resolution-confirmation-root" style="position: absolute; inset: 0; pointer-events: ${this.resolutionConfirmation ? 'auto' : 'none'}; z-index: 10002;">${this.renderResolutionConfirmation()}</div>
       <div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: ${this.setupComplete ? 'none' : 'auto'}; z-index: 10001; display: ${this.setupComplete ? 'none' : 'block'};">${this.renderFirstRunWizard()}</div>
       <div id="desktop-widgets-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 5;">${this.renderDesktopWidgets()}</div>
       <div id="desktop-icons" class="desktop-icons ${this.desktopIconSize} ${this.desktopAutoArrange ? 'auto-arrange' : ''}" style="display: contents;">
@@ -2705,16 +2715,17 @@ class TempleOS {
   }
 
   private renderDesktopIcons(): string {
+    const neon = (path: string) => `<svg viewBox="0 0 24 24" class="icon-neon" width="24" height="24">${path}</svg>`;
     const icons = [
-      { id: 'terminal', icon: '💻', label: 'Terminal' },
-      { id: 'word-of-god', icon: '✝️', label: 'Word of God' },
-      { id: 'files', icon: '📁', label: 'Files' },
-      { id: 'editor', icon: '📝', label: 'HolyC Editor' },
-      { id: 'hymns', icon: '🎵', label: 'Hymn Player' },
-      { id: 'updater', icon: '🕊️', label: 'Holy Updater' },
-      { id: 'help', icon: '❓', label: 'Help' },
-      { id: 'godly-notes', icon: '📋', label: 'Godly Notes' },
-      { id: 'trash', icon: '🗑️', label: 'Trash' },
+      { id: 'terminal', icon: neon('<rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8l4 4-4 4" /><path d="M14 16h4" />'), label: 'Terminal' },
+      { id: 'word-of-god', icon: neon('<path d="M12 2v20M2 8h20" />'), label: 'Word of God' },
+      { id: 'files', icon: neon('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />'), label: 'Files' },
+      { id: 'editor', icon: neon('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />'), label: 'HolyC Editor' },
+      { id: 'hymns', icon: neon('<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />'), label: 'Hymn Player' },
+      { id: 'updater', icon: neon('<polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />'), label: 'Holy Updater' },
+      { id: 'help', icon: neon('<circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />'), label: 'Help' },
+      { id: 'godly-notes', icon: neon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />'), label: 'Godly Notes' },
+      { id: 'trash', icon: neon('<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />'), label: 'Trash' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
@@ -2824,8 +2835,9 @@ class TempleOS {
       const style = `position: absolute; left: ${x}px; top: ${finalY}px;`;
       const appAttr = icon.isShortcut ? `data-launch-key="${escapeHtml(icon.key)}"` : `data-app="${escapeHtml(icon.id)}"`;
 
+      const sizeClass = `size-${this.desktopIconSize}`;
       return `
-      <div class="desktop-icon" ${appAttr} tabindex="0" role="button" aria-label="${escapeHtml(icon.label)}" style="${style}">
+      <div class="desktop-icon ${sizeClass}" ${appAttr} tabindex="0" role="button" aria-label="${escapeHtml(icon.label)}" style="${style}">
         <span class="icon" aria-hidden="true">${icon.icon}</span>
         <span class="label">${escapeHtml(icon.label)}</span>
       </div>
@@ -2919,12 +2931,79 @@ class TempleOS {
 
       // Only save position if icon was actually dragged
       if (hasMoved) {
-        const x = parseInt(iconEl.style.left || '0', 10);
+        let x = parseInt(iconEl.style.left || '0', 10);
         let y = parseInt(iconEl.style.top || '0', 10);
 
         // Remove taskbar offset before saving (positions are stored relative to desktop, not viewport)
         const taskbarOffset = this.taskbarPosition === 'top' ? 60 : 0;
         y -= taskbarOffset;
+
+        // COLLISION DETECTION: Check if this position overlaps with another icon
+        const CELL_W = 100;
+        const CELL_H = 100;
+        const OVERLAP_THRESHOLD = 50; // 50% overlap triggers collision
+
+        // Find if any other icon would overlap with this position
+        let hasCollision = false;
+        for (const [otherKey, otherPos] of Object.entries(this.desktopIconPositions)) {
+          if (otherKey === key) continue; // Skip self
+
+          const dx = Math.abs(x - otherPos.x);
+          const dy = Math.abs(y - otherPos.y);
+
+          // Check if icons overlap by more than threshold
+          if (dx < OVERLAP_THRESHOLD && dy < OVERLAP_THRESHOLD) {
+            hasCollision = true;
+            break;
+          }
+        }
+
+        // If collision detected, find nearest empty grid cell
+        if (hasCollision) {
+          const GAP = 10;
+
+          // Find nearest empty cell using spiral search
+          let found = false;
+          const maxSearchRadius = 10; // Search up to 10 cells away
+
+          for (let radius = 1; radius <= maxSearchRadius && !found; radius++) {
+            for (let dy = -radius; dy <= radius && !found; dy++) {
+              for (let dx = -radius; dx <= radius && !found; dx++) {
+                // Only check cells at current radius (border of spiral)
+                if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+
+                const testX = x + dx * (CELL_W + GAP);
+                const testY = y + dy * (CELL_H + GAP);
+
+                // Check bounds
+                if (testX < 0 || testY < 0) continue;
+
+                // Check if this position is free
+                let isFree = true;
+                for (const [otherKey, otherPos] of Object.entries(this.desktopIconPositions)) {
+                  if (otherKey === key) continue;
+
+                  const testDx = Math.abs(testX - otherPos.x);
+                  const testDy = Math.abs(testY - otherPos.y);
+
+                  if (testDx < OVERLAP_THRESHOLD && testDy < OVERLAP_THRESHOLD) {
+                    isFree = false;
+                    break;
+                  }
+                }
+
+                if (isFree) {
+                  x = testX;
+                  y = testY;
+                  found = true;
+                  // Update visual position
+                  iconEl.style.left = `${x}px`;
+                  iconEl.style.top = `${y + taskbarOffset}px`;
+                }
+              }
+            }
+          }
+        }
 
         this.desktopIconPositions[key] = { x, y };
         localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));
@@ -5811,6 +5890,15 @@ class TempleOS {
         this.render();
       }
 
+      // Resolution Confirmation Dialog
+      if (target.matches('.resolution-confirm-btn')) {
+        this.confirmResolution();
+      }
+
+      if (target.matches('.resolution-revert-btn')) {
+        void this.revertResolution();
+      }
+
       if (target.matches('.theme-color-btn')) {
         const color = target.dataset.color;
         if (color) {
@@ -5929,6 +6017,35 @@ class TempleOS {
             });
           }
         }
+      }
+
+      // SLIDER CLICK-TO-SET: Click anywhere on track to jump to that position
+      // This makes all range sliders more user-friendly
+      if (target.matches('input[type="range"]')) {
+        const rect = target.getBoundingClientRect();
+        const clickX = (e as MouseEvent).clientX - rect.left;
+        const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+
+        const min = parseFloat(target.getAttribute('min') || '0');
+        const max = parseFloat(target.getAttribute('max') || '100');
+        const step = parseFloat(target.getAttribute('step') || '1');
+
+        let newValue = min + (max - min) * percentage;
+
+        // Snap to step increments
+        if (step !== 1) {
+          newValue = Math.round(newValue / step) * step;
+        }
+
+        // Clamp to valid range
+        newValue = Math.max(min, Math.min(max, newValue));
+
+        // Update value
+        target.value = String(newValue);
+
+        // Dispatch input event to trigger app state updates
+        const inputEvent = new Event('input', { bubbles: true });
+        target.dispatchEvent(inputEvent);
       }
 
       // App launcher search (update grid without losing focus)
@@ -14883,7 +15000,7 @@ class TempleOS {
               ${!this.firewallEnabled ? '<div>• Enable firewall to block unauthorized access</div>' : ''}
               ${this.sshEnabled ? '<div>• Disable SSH if not needed for remote access</div>' : ''}
               ${!this.macRandomization ? '<div>• Enable MAC randomization for privacy</div>' : ''}
-              ${!(this.torEnabled && this.torDaemonRunning) ? '<div>• Consider Tor for anonymous browsing</div>' : ''}
+              ${!(this.torEnabled && this.torDaemonRunning) ? '<div>• Consider Tor for anonymous browsing<br><span style="font-size: 10px; opacity: 0.7; margin-left: 8px;">Note: Tor service only. Use <code>torsocks</code> to route apps through Tor</span></div>' : ''}
               ${percentage === 100 ? '<div style="color: #00ff41;">✨ Perfect! Your security is divine.</div>' : ''}
             </div>
           `;
@@ -14945,7 +15062,7 @@ class TempleOS {
         ${card('Physical Security', `
            <div style="margin-bottom: 15px;">
                <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">USB Device Whitelist</div>
-               <div style="font-size: 12px; opacity: 0.8; margin-bottom: 10px;">Only allowed USB HID devices can function (Mock).</div>
+               <div style="font-size: 12px; opacity: 0.8; margin-bottom: 10px;">Only allowed USB HID devices can function.</div>
                
                 <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; margin-bottom: 10px;">
                     ${this.usbDevices.map(d => `
@@ -15098,7 +15215,7 @@ class TempleOS {
            </div>
         `)}
 
-        ${card('Game Launchers (Tier 10)', `
+        ${card('Game Launchers', `
            <div style="display: flex; flex-direction: column; gap: 10px;">
              ${launchers.length > 0 ? launchers.map(l => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid rgba(0,255,65,0.1);">
@@ -16377,16 +16494,173 @@ class TempleOS {
   }
 
   private async changeResolution(res: string): Promise<void> {
+    const previousResolution = this.currentResolution;
+
+    // If already showing a confirmation, cancel it first
+    if (this.resolutionConfirmation?.timer) {
+      clearInterval(this.resolutionConfirmation.timer);
+      this.resolutionConfirmation = null;
+    }
+
     this.currentResolution = res;
-    this.queueSaveConfig();
+
     if (window.electronAPI?.setResolution) {
       try {
         const result = await window.electronAPI.setResolution(res);
-        if (result && result.success === false) this.showNotification('Display', result.error || 'Failed to change resolution', 'warning');
+        if (result && result.success === false) {
+          this.showNotification('Display', result.error || 'Failed to change resolution', 'warning');
+          this.currentResolution = previousResolution;
+          return;
+        }
+
+        // Start 15-second confirmation countdown
+        this.resolutionConfirmation = {
+          previousResolution,
+          countdown: 15,
+          timer: null
+        };
+
+        // Start countdown timer
+        this.resolutionConfirmation.timer = window.setInterval(() => {
+          if (!this.resolutionConfirmation) return;
+
+          this.resolutionConfirmation.countdown--;
+
+          if (this.resolutionConfirmation.countdown <= 0) {
+            // Time expired - revert
+            void this.revertResolution();
+          } else {
+            // Update UI
+            this.render();
+          }
+        }, 1000);
+
+        this.render();
       } catch (e) {
         this.showNotification('Display', String(e), 'warning');
+        this.currentResolution = previousResolution;
       }
     }
+  }
+
+  private confirmResolution(): void {
+    // User confirmed - keep new resolution
+    if (this.resolutionConfirmation?.timer) {
+      clearInterval(this.resolutionConfirmation.timer);
+    }
+    this.resolutionConfirmation = null;
+    this.queueSaveConfig();
+    this.showNotification('Display', 'Resolution saved successfully', 'divine');
+    this.render();
+  }
+
+  private async revertResolution(): Promise<void> {
+    if (!this.resolutionConfirmation) return;
+
+    const prevRes = this.resolutionConfirmation.previousResolution;
+
+    if (this.resolutionConfirmation.timer) {
+      clearInterval(this.resolutionConfirmation.timer);
+    }
+    this.resolutionConfirmation = null;
+
+    this.currentResolution = prevRes;
+    this.queueSaveConfig();
+
+    if (window.electronAPI?.setResolution) {
+      try {
+        await window.electronAPI.setResolution(prevRes);
+        this.showNotification('Display', `Reverted to ${prevRes}`, 'info');
+      } catch (e) {
+        this.showNotification('Display', 'Failed to revert resolution', 'error');
+      }
+    }
+
+    this.render();
+  }
+
+  private renderResolutionConfirmation(): string {
+    if (!this.resolutionConfirmation) return '';
+
+    return `
+      <div class="resolution-confirmation-overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'VT323', monospace;
+      ">
+        <div class="resolution-confirmation-dialog" style="
+          background: var(--bg-window);
+          border: 2px solid var(--tos-green);
+          border-radius: 12px;
+          padding: 30px;
+          max-width: 500px;
+          text-align: center;
+          box-shadow: 0 0 40px rgba(0, 255, 65, 0.3);
+        ">
+          <div style="font-size: 28px; color: var(--tos-yellow); margin-bottom: 20px;">⚠️ Display Settings</div>
+          
+          <div style="font-size: 20px; color: var(--text-primary); margin-bottom: 15px;">
+            Keep these display settings?
+          </div>
+          
+          <div style="font-size: 16px; color: var(--tos-cyan); margin-bottom: 25px;">
+            Resolution: ${this.currentResolution}
+          </div>
+          
+          <div style="
+            font-size: 48px;
+            color: ${this.resolutionConfirmation.countdown <= 5 ? 'var(--tos-red)' : 'var(--tos-green)'};
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 0 0 20px ${this.resolutionConfirmation.countdown <= 5 ? 'rgba(255, 100, 100, 0.5)' : 'rgba(0, 255, 65, 0.5)'};
+          ">
+            ${this.resolutionConfirmation.countdown}
+          </div>
+          
+          <div style="font-size: 14px; color: var(--tos-light-gray); margin-bottom: 25px; opacity: 0.8;">
+            Reverting in ${this.resolutionConfirmation.countdown} second${this.resolutionConfirmation.countdown !== 1 ? 's' : ''}...
+          </div>
+          
+          <div style="display: flex; gap: 15px; justify-content: center;">
+            <button class="resolution-confirm-btn" style="
+              padding: 12px 30px;
+              font-size: 18px;
+              background: linear-gradient(180deg, rgba(0, 255, 65, 0.3) 0%, rgba(0, 255, 65, 0.1) 100%);
+              border: 2px solid var(--tos-green);
+              border-radius: 8px;
+              color: var(--tos-green);
+              font-family: 'VT323', monospace;
+              cursor: pointer;
+              transition: all 0.2s;
+            ">
+              ✓ Keep Changes
+            </button>
+            
+            <button class="resolution-revert-btn" style="
+              padding: 12px 30px;
+              font-size: 18px;
+              background: linear-gradient(180deg, rgba(255, 100, 100, 0.3) 0%, rgba(255, 100, 100, 0.1) 100%);
+              border: 2px solid var(--tos-red);
+              border-radius: 8px;
+              color: var(--tos-red);
+              font-family: 'VT323', monospace;
+              cursor: pointer;
+              transition: all 0.2s;
+            ">
+              ✕ Revert
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   private async loadResolutions(): Promise<void> {

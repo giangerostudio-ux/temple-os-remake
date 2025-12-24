@@ -1,0 +1,286 @@
+/* ============================================
+   TEMPLEOS REMAKE - DIVINE CYBERPUNK GTK4 THEME
+   ============================================
+   This theme styles GTK4 applications to match the
+   TempleOS Remake "Divine Cyberpunk" aesthetic.
+   ============================================ */
+
+/* ============================================
+   WINDOW DECORATIONS (Title Bar / Header Bar)
+   ============================================ */
+
+headerbar {
+    background: linear-gradient(180deg, #1a1f26 0%, #0d1117 100%);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+    color: #00ff41;
+    min-height: 36px;
+    padding: 0 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+headerbar:backdrop {
+    background: #0d1117;
+    border-color: rgba(0, 255, 65, 0.15);
+}
+
+/* Title text */
+headerbar .title,
+headerbar windowtitle label.title {
+    color: #00ff41;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+    font-size: 14px;
+}
+
+headerbar windowtitle label.subtitle {
+    color: rgba(0, 255, 65, 0.7);
+    font-size: 11px;
+}
+
+/* ============================================
+   WINDOW CONTROL BUTTONS (via windowcontrols)
+   ============================================ */
+
+windowcontrols button {
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 4px;
+    margin: 0 2px;
+    color: #00ff41;
+    transition: all 150ms ease;
+}
+
+windowcontrols button:hover {
+    background: rgba(0, 255, 65, 0.15);
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+/* Close button - Red on hover */
+windowcontrols button.close {
+    color: #c9d1d9;
+}
+
+windowcontrols button.close:hover {
+    background: rgba(255, 100, 100, 0.3);
+    color: #ff6464;
+    box-shadow: 0 0 8px rgba(255, 100, 100, 0.4);
+}
+
+/* Minimize/Maximize - Green on hover */
+windowcontrols button.minimize:hover,
+windowcontrols button.maximize:hover {
+    background: rgba(0, 255, 65, 0.2);
+    color: #00ff41;
+}
+
+/* ============================================
+   GENERAL WINDOW STYLING
+   ============================================ */
+
+window {
+    background-color: #0d1117;
+    color: #c9d1d9;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+
+button {
+    background: linear-gradient(180deg, rgba(0, 255, 65, 0.08) 0%, rgba(0, 255, 65, 0.04) 100%);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 6px;
+    color: #c9d1d9;
+    padding: 6px 16px;
+    min-height: 28px;
+    transition: all 150ms ease;
+}
+
+button:hover {
+    background: linear-gradient(180deg, rgba(0, 255, 65, 0.15) 0%, rgba(0, 255, 65, 0.08) 100%);
+    border-color: #00ff41;
+    color: #00ff41;
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+button:active {
+    background: rgba(0, 255, 65, 0.2);
+}
+
+button.suggested-action {
+    background: linear-gradient(180deg, rgba(0, 255, 65, 0.2) 0%, rgba(0, 255, 65, 0.1) 100%);
+    border-color: #00ff41;
+    color: #00ff41;
+}
+
+button.destructive-action {
+    background: linear-gradient(180deg, rgba(255, 100, 100, 0.15) 0%, rgba(255, 100, 100, 0.08) 100%);
+    border-color: #ff6464;
+    color: #ff6464;
+}
+
+button.destructive-action:hover {
+    background: rgba(255, 100, 100, 0.25);
+    box-shadow: 0 0 10px rgba(255, 100, 100, 0.3);
+}
+
+/* ============================================
+   TEXT ENTRIES & INPUTS
+   ============================================ */
+
+entry,
+text {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 6px;
+    color: #c9d1d9;
+    padding: 6px 10px;
+    min-height: 28px;
+    caret-color: #00ff41;
+}
+
+entry:focus,
+text:focus {
+    border-color: #00ff41;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+    background: rgba(0, 255, 65, 0.05);
+}
+
+/* ============================================
+   SCROLLBARS
+   ============================================ */
+
+scrollbar slider {
+    background: rgba(0, 255, 65, 0.3);
+    border-radius: 8px;
+    min-width: 8px;
+    min-height: 8px;
+}
+
+scrollbar slider:hover {
+    background: rgba(0, 255, 65, 0.5);
+}
+
+scrollbar slider:active {
+    background: #00ff41;
+}
+
+/* ============================================
+   MENUS & POPOVERS
+   ============================================ */
+
+popover,
+popover.background {
+    background: #161b22;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+popover modelbutton {
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: #c9d1d9;
+}
+
+popover modelbutton:hover {
+    background: rgba(0, 255, 65, 0.15);
+    color: #00ff41;
+}
+
+/* ============================================
+   LISTS
+   ============================================ */
+
+listview,
+list {
+    background: #0d1117;
+    color: #c9d1d9;
+}
+
+listview row,
+list row {
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+
+listview row:hover,
+list row:hover {
+    background: rgba(0, 255, 65, 0.08);
+}
+
+listview row:selected,
+list row:selected {
+    background: rgba(0, 255, 65, 0.25);
+    color: #00ff41;
+}
+
+/* ============================================
+   CHECKBOXES & SWITCHES
+   ============================================ */
+
+checkbutton check {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 4px;
+}
+
+checkbutton check:checked {
+    background: #00ff41;
+    border-color: #00ff41;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+}
+
+switch {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 14px;
+}
+
+switch:checked {
+    background: rgba(0, 255, 65, 0.3);
+    border-color: #00ff41;
+}
+
+/* ============================================
+   PROGRESS BARS
+   ============================================ */
+
+progressbar trough {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+}
+
+progressbar progress {
+    background: linear-gradient(90deg, #00ff41, #33ff66);
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+/* ============================================
+   TOOLTIPS
+   ============================================ */
+
+tooltip {
+    background: #161b22;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 6px;
+    color: #c9d1d9;
+}
+
+/* ============================================
+   LINKS
+   ============================================ */
+
+link,
+label.link {
+    color: #00ff41;
+}
+
+link:hover,
+label.link:hover {
+    color: #33ff66;
+}

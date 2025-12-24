@@ -89,7 +89,64 @@ When packaging for ISO, include these folders:
 - package-lock.json
 - package-lock.json
 - scripts/           # Optional: setup scripts
+- themes/            # GTK theme files (NEW)
 - start-templeos.sh  # CRITICAL: Session startup script
+
+### GTK Theme for X11 Applications
+
+TempleOS Remake now includes a custom **Divine Cyberpunk GTK theme** that styles external X11 applications (Firefox, file managers, etc.) to match the OS aesthetic.
+
+**Theme Features:**
+- Dark backgrounds with green accents
+- Title bars with green borders and proper window control buttons
+- Minimize/Maximize buttons show green glow on hover
+- Close button shows red glow on hover
+- All inputs, scrollbars, buttons styled consistently
+
+**Files:**
+- `themes/gtk-3.0/gtk.css` - GTK3 theme (most current apps)
+- `themes/gtk-4.0/gtk.css` - GTK4 theme (newer GNOME apps)
+- `scripts/install-gtk-theme.sh` - Installation script
+
+**Installation for ISO:**
+
+Add to your first-boot/setup script:
+
+```bash
+# Install GTK theme system-wide (will apply to all users)
+sudo /opt/templeos/scripts/install-gtk-theme.sh system
+```
+
+Or for manual setup in `/etc/skel/` (recommended for ISO):
+
+```bash
+# Copy theme to skeleton directory (will be copied to all new user accounts)
+sudo mkdir -p /etc/skel/.config/gtk-3.0
+sudo mkdir -p /etc/skel/.config/gtk-4.0
+
+sudo cp /opt/templeos/themes/gtk-3.0/gtk.css /etc/skel/.config/gtk-3.0/gtk.css
+sudo cp /opt/templeos/themes/gtk-4.0/gtk.css /etc/skel/.config/gtk-4.0/gtk.css
+
+# Also create default GTK settings
+sudo tee /etc/skel/.config/gtk-3.0/settings.ini > /dev/null << 'EOF'
+[Settings]
+gtk-application-prefer-dark-theme=1
+gtk-theme-name=Adwaita-dark
+gtk-icon-theme-name=Papirus-Dark
+gtk-cursor-theme-name=Adwaita
+gtk-font-name=Sans 11
+gtk-decoration-layout=:minimize,maximize,close
+EOF
+```
+
+**Testing the Theme:**
+
+After installing the GTK theme, launch Firefox or any GTK app:
+```bash
+firefox &
+```
+
+You should see green-themed title bars and window controls instead of the default blue theme.
 
 ## X11 + Openbox (External Apps + Always-Visible Panel)
 
@@ -365,11 +422,14 @@ Before releasing ISO:
 - [ ] All apps launch correctly
 - [ ] Lock screen works
 - [ ] Settings persist after reboot
+- [ ] GTK theme installed (`~/.config/gtk-3.0/gtk.css` exists)
+- [ ] GTK theme applies to X11 apps (test with Firefox - should have green title bar)
 - [ ] Tested on clean VM
 
 ---
 
-**Last Updated**: December 19, 2025  
+**Last Updated**: December 25, 2025  
 **Electron Version**: 33.4.11  
 **Node.js (Electron)**: Check with `process.versions.node` in Electron console  
 **node-pty Version**: 1.0.0
+

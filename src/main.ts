@@ -936,8 +936,8 @@ class TempleOS {
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
-  private terminalFontFamily = "'JetBrains Mono', 'Fira Code', monospace";
-  private terminalFontSize = 18;
+  private terminalFontFamily = "'VT323', monospace";
+  private terminalFontSize = 22;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
   private terminalSearchMatches: number[] = [];
@@ -11902,7 +11902,9 @@ class TempleOS {
       },
       fontFamily: this.terminalFontFamily,
       fontSize: this.terminalFontSize,
-      fontWeight: '500',
+      fontWeight: '400',
+      letterSpacing: 0,
+      lineHeight: 1.1,
       cursorBlink: true,
       scrollback: 10000,
       allowProposedApi: true
@@ -11919,27 +11921,34 @@ class TempleOS {
     // Initial fit
     fitAddon.fit();
 
-    // Delayed fit to ensure DOM stability AND Font loading
-    // This fixes the "squished" text issue (incorrect char width measurement)
+    // Force VT323 for the retro TempleOS feel, but handle loading carefully
     const performFit = () => {
       try {
-        fitAddon.fit();
+        if (container.clientWidth > 0 && container.clientHeight > 0) {
+          fitAddon.fit();
+          xterm.refresh(0, xterm.rows - 1);
+        }
       } catch (e) {
         console.warn('Xterm fit failed:', e);
       }
     };
 
     // Wait for fonts to be ready before measuring
+    // We specifically check for VT323 or any monospace font
     if ((document as any).fonts) {
+      // Check if VT323 is loaded, if not wait for all fonts
       (document as any).fonts.ready.then(() => {
+        // Double delay: once for font, once for DOM animation frame
         requestAnimationFrame(() => {
-          setTimeout(performFit, 150);
+          setTimeout(() => {
+            performFit();
+            // Final safety fit after animation surely finished
+            setTimeout(performFit, 500);
+          }, 200);
         });
       });
     } else {
-      requestAnimationFrame(() => {
-        setTimeout(performFit, 250);
-      });
+      setTimeout(performFit, 500);
     }
 
     // Use ResizeObserver for robust layout tracking

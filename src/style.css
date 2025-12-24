@@ -448,33 +448,32 @@ div {
 
 /* Terminal */
 .terminal {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 14px;
-  line-height: 1.6;
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  line-height: 1.1;
   height: 100%;
   padding: 8px;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
-  --term-fg: var(--text-primary);
+  --term-fg: var(--tos-green);
   --term-prompt: var(--tos-green);
   --term-caret: var(--tos-green);
   text-shadow: none !important;
-  font-weight: 500;
+  font-weight: 400;
   color: #00FF41;
-  /* Prevent font blur/ghosting */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
 .terminal pre,
 .terminal code {
   text-shadow: none !important;
-  font-weight: 500;
+  font-weight: 400;
   color: #00FF41;
-  line-height: 1.4;
-  -webkit-font-smoothing: subpixel-antialiased;
+  font-family: 'VT323', monospace !important;
+  line-height: 1;
+  letter-spacing: 0 !important;
 }
 
 .terminal-output {

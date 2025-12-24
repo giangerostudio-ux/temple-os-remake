@@ -936,7 +936,7 @@ class TempleOS {
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
-  private terminalFontFamily = "'Fira Code', Consolas, 'Courier New', monospace";
+  private terminalFontFamily = "Consolas, 'Courier New', 'Liberation Mono', monospace";
   private terminalFontSize = 14;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
@@ -11966,31 +11966,30 @@ class TempleOS {
       }
     };
 
-    // Explicitly load Fira Code font for xterm canvas rendering
-    if ((document as any).fonts) {
-      // Force load the specific font we need
-      const fontPromises = [
-        (document as any).fonts.load('15px "Fira Code"'),
-        (document as any).fonts.load('500 15px "Fira Code"'),
-      ];
-      Promise.all(fontPromises).then(() => {
-        // Font loaded - wait for DOM and perform fit
+    // System fonts (Consolas, Courier New) are always available - no web font loading needed
+    // Perform multiple fit attempts with increasing delays to handle layout settling
+    // This prevents the "squished text" issue caused by stale font metric caching
+    requestAnimationFrame(() => {
+      // First fit - immediate after initial layout
+      performFit();
+
+      // Second fit - after a short delay for layout to settle
+      setTimeout(() => {
+        // Force font cache invalidation by toggling fontSize slightly
+        const originalSize = xterm.options.fontSize ?? this.terminalFontSize;
+        xterm.options.fontSize = originalSize + 1;
         requestAnimationFrame(() => {
-          setTimeout(() => {
-            // Force another font cache invalidation after fonts are guaranteed loaded
-            xterm.options.fontFamily = this.terminalFontFamily;
-            performFit();
-            // Additional fit after layout settles
-            setTimeout(performFit, 300);
-          }, 100);
+          xterm.options.fontSize = originalSize;
+          performFit();
         });
-      }).catch(() => {
-        // Font load failed, still try to fit
-        setTimeout(performFit, 500);
-      });
-    } else {
+      }, 50);
+
+      // Third fit - final fit after everything is settled
+      setTimeout(performFit, 200);
+
+      // Fourth fit - safety net for slow renders
       setTimeout(performFit, 500);
-    }
+    });
 
     // Use ResizeObserver for robust layout tracking
     const resizeObserver = new ResizeObserver(() => {

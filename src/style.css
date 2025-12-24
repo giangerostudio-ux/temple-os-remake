@@ -5115,7 +5115,7 @@ span[role="img"],
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+  font-family: Consolas, 'Courier New', 'Liberation Mono', monospace;
 }
 
 /* Force xterm to use proper sizing */
@@ -5124,11 +5124,24 @@ span[role="img"],
   height: 100%;
   padding: 8px;
   box-sizing: border-box;
+  /* Fade-in to hide font metric calculation phase */
+  opacity: 0;
+  animation: xterm-fade-in 0.15s ease-out 0.1s forwards;
+}
+
+@keyframes xterm-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* xterm viewport and screen */
 .xterm {
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-family: Consolas, 'Courier New', 'Liberation Mono', monospace !important;
   font-feature-settings: normal !important;
 }
 
@@ -5152,7 +5165,7 @@ span[role="img"],
   letter-spacing: 0 !important;
   text-shadow: none !important;
   -webkit-font-smoothing: antialiased !important;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-family: Consolas, 'Courier New', 'Liberation Mono', monospace !important;
 }
 
 /* Custom scrollbar for xterm */

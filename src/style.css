@@ -4773,10 +4773,47 @@ span[role="img"],
   transition: filter 0.3s ease;
 }
 
-/* Hover state - brighter gold glow */
 .taskbar-app:hover .app-icon,
 .start-menu-app:hover .app-icon,
 .app-grid-item:hover .icon {
   filter: grayscale(100%) brightness(1.8) sepia(100%) hue-rotate(30deg) saturate(500%);
   text-shadow: 0 0 12px rgba(240, 230, 140, 0.6);
+}
+
+/* ============================================
+   VISUAL REGRESSION FIXES
+   ============================================ */
+
+/* BUG 1: Force Override for Sidebar and Desktop Icons */
+.desktop-icon svg path,
+.sidebar-icon svg path,
+.app-grid-item svg path {
+  stroke: #FFFFFF !important;
+  fill: none !important;
+  /* Ensure no muddy fills */
+  stroke-width: 2px;
+}
+
+/* Only change to green on hover */
+.desktop-icon-wrapper:hover svg path,
+.sidebar-item:hover svg path {
+  stroke: var(--accent-glow) !important;
+}
+
+/* BUG 2: Terminal Text Blur & Double-Rendering */
+.terminal-content,
+.xterm-rows,
+.terminal-cursor {
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-font-smoothing: antialiased;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 600;
+  /* Make it slightly bolder to compensate for no shadow */
+}
+
+/* BUG 3: Apply the Green Matrix Filter to Pinned Apps too */
+.pinned-item img,
+.start-menu-grid img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.2) !important;
 }

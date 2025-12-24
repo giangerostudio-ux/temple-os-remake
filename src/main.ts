@@ -16864,7 +16864,7 @@ class TempleOS {
 
     return `
       <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
-        <h2 style="margin: 0 0 10px 0; color: #ffd700;"><i class="ph-fill ph-cross"></i> HOLY UPDATER <i class="ph-fill ph-cross"></i></h2>
+        <h2 style="margin: 0 0 10px 0; color: #ffd700;">HOLY UPDATER</h2>
         <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
         
         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">

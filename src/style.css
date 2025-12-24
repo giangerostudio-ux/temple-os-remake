@@ -7,7 +7,7 @@
   --text-primary: #E0F7E9;
   /* Soft Mint */
   --text-secondary: #8FB39D;
-  --accent-gold: #F0E68C;
+  --accent-gold: #00FF41;
   --accent-glow: #00FF41;
   --border-color: rgba(0, 255, 65, 0.3);
 
@@ -19,7 +19,7 @@
 
   --border-glow: var(--border-color);
   --text-highlight: var(--accent-glow);
-  --temple-glow-color: var(--accent-gold);
+  --temple-glow-color: #00FF41;
 
   /* TempleOS 16-Color VGA Palette - Modern Enhancement */
   --tos-black: #020502;
@@ -48,7 +48,7 @@
   --border-glow: rgba(0, 140, 40, 0.25);
   --text-primary: #0b1220;
   --text-highlight: #008c28;
-  --accent-gold: #b8860b;
+  --accent-gold: #00aa00;
 }
 
 * {
@@ -178,23 +178,22 @@ div {
   justify-content: center;
 }
 
-/* Explicit Green Neon Icons */
 .icon-neon {
-  stroke: var(--tos-green);
-  stroke-width: 1.5px;
-  fill: none;
-  filter: drop-shadow(0 0 5px rgba(0, 255, 65, 0.4));
+  stroke: var(--tos-green) !important;
+  stroke-width: 1.5px !important;
+  fill: none !important;
+  filter: drop-shadow(0 0 5px var(--tos-green)) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .icon-neon * {
-  stroke: inherit;
-  fill: inherit;
+  stroke: var(--tos-green) !important;
+  fill: none !important;
 }
 
 .desktop-icon:hover .icon-neon {
-  stroke: #ffffff;
-  filter: drop-shadow(0 0 8px var(--tos-green));
+  stroke: #ffffff !important;
+  filter: drop-shadow(0 0 10px var(--tos-green)) !important;
   transform: scale(1.1) translateY(-2px);
 }
 
@@ -1483,6 +1482,21 @@ div {
   gap: 8px;
 }
 
+.taskbar-icon {
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Aggressive neon green filter for Emojis */
+  filter: grayscale(100%) brightness(1.2) sepia(100%) hue-rotate(90deg) saturate(500%) drop-shadow(0 0 5px var(--tos-green));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.taskbar-app:hover .taskbar-icon {
+  transform: scale(1.2);
+  filter: grayscale(100%) brightness(1.5) sepia(100%) hue-rotate(90deg) saturate(800%) drop-shadow(0 0 8px var(--tos-green));
+}
+
 .taskbar-app.pinned .taskbar-title {
   font-size: 13px;
   opacity: 0.95;
@@ -2097,25 +2111,62 @@ input[type=range]::-webkit-slider-thumb {
 .start-power-btn {
   flex: 1;
   padding: 10px;
-  background: rgba(0, 255, 65, 0.1);
-  border: 1px solid rgba(0, 255, 65, 0.3);
-  color: #00ff41;
+  background: rgba(13, 17, 23, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Lock - Divine Green */
+.start-power-btn.lock {
+  border-color: rgba(0, 255, 65, 0.4);
+  color: #00ff41;
+}
+
+.start-power-btn.lock .emoji-icon {
+  filter: brightness(1.2) drop-shadow(0 0 5px #00ff41) !important;
+  color: #fff;
+}
+
+/* Restart - Warning Orange */
+.start-power-btn.restart {
+  border-color: rgba(255, 170, 0, 0.5);
+  color: #ffaa00;
+}
+
+.start-power-btn.restart .emoji-icon {
+  filter: brightness(1.2) drop-shadow(0 0 5px #ffaa00) !important;
+  color: #fff;
+}
+
+/* Shutdown - Cyber Red */
+.start-power-btn.shutdown {
+  border-color: rgba(255, 65, 65, 0.6);
+  color: #ff4141;
+}
+
+.start-power-btn.shutdown .emoji-icon {
+  filter: brightness(1.2) drop-shadow(0 0 5px #ff4141) !important;
+  color: #fff;
 }
 
 .start-power-btn:hover {
-  background: rgba(0, 255, 65, 0.2);
-  border-color: #00ff41;
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.start-power-btn:hover .emoji-icon {
+  transform: scale(1.2);
+  filter: brightness(1.5) drop-shadow(0 0 8px currentColor) !important;
 }
 
 /* ============================================
@@ -4153,7 +4204,7 @@ body[data-taskbar-position="top"] .taskbar-preview-popup {
   --tos-green: #00ff00 !important;
   --tos-cyan: #00ffff !important;
   --border-glow: #ffffff !important;
-  --accent-gold: #ffff00 !important;
+  --accent-gold: #00ff41 !important;
 }
 
 :root[data-high-contrast="true"] * {
@@ -4693,13 +4744,13 @@ textarea:focus,
 
 /* Monoline Neon Icon Utilities */
 .icon-neon {
-  fill: none;
-  stroke: var(--accent-gold);
-  stroke-width: 2px;
+  fill: none !important;
+  stroke: var(--tos-green) !important;
+  stroke-width: 2px !important;
   width: 40px !important;
   height: 40px !important;
-  filter: drop-shadow(0 0 8px rgba(240, 230, 140, 0.5));
-  transition: all 0.3s ease;
+  filter: drop-shadow(0 0 10px var(--tos-green)) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .icon-neon:hover,
@@ -4714,7 +4765,7 @@ svg.icon,
 svg.feather,
 .panel-icon svg {
   fill: none !important;
-  stroke: var(--accent-gold) !important;
+  stroke: var(--tos-green) !important;
   stroke-width: 2px;
   width: 40px !important;
   height: 40px !important;
@@ -4788,10 +4839,10 @@ svg.icon:hover,
 .icon-cross,
 .icon-holy {
   font-family: 'Cinzel', serif;
-  color: var(--accent-gold);
+  color: var(--tos-green);
   font-weight: bold;
   font-size: 1.2em;
-  text-shadow: 0 0 10px rgba(240, 230, 140, 0.5);
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
 }
 
 /* ============================================

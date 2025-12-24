@@ -3260,7 +3260,7 @@ class TempleOS {
         const w = windows[0];
         return `
           <div class="taskbar-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" data-taskbar-window="${w.id}" tabindex="0" role="button" aria-label="${w.title}">
-            ${w.icon} ${w.title}
+            <span class="taskbar-icon">${w.icon}</span> <span class="taskbar-title">${w.title}</span>
           </div>
         `;
       } else {
@@ -3273,7 +3273,7 @@ class TempleOS {
                data-app-group="${appType}"
                data-window-count="${windows.length}"
                tabindex="0" role="button" aria-label="${windows.length} ${appType} windows">
-            ${firstWindow.icon} ${firstWindow.title.split(' ')[0]}
+            <span class="taskbar-icon">${firstWindow.icon}</span> <span class="taskbar-title">${firstWindow.title.split(' ')[0]}</span>
             <span class="taskbar-count-badge" aria-hidden="true">${windows.length}</span>
           </div>
         `;
@@ -4054,9 +4054,9 @@ class TempleOS {
           </div>
           
           <div class="start-power-section">
-            <button class="start-power-btn" data-power-action="lock"><span class="emoji-icon">🔒</span> Lock</button>
-            <button class="start-power-btn" data-power-action="restart"><span class="emoji-icon">🔄</span> Restart</button>
-            <button class="start-power-btn" data-power-action="shutdown"><span class="emoji-icon">🛑</span> Shutdown</button>
+            <button class="start-power-btn lock" data-power-action="lock"><span class="emoji-icon">🔒</span> Lock</button>
+            <button class="start-power-btn restart" data-power-action="restart"><span class="emoji-icon">🔄</span> Restart</button>
+            <button class="start-power-btn shutdown" data-power-action="shutdown"><span class="emoji-icon">🛑</span> Shutdown</button>
           </div>
         </div>
       </div>

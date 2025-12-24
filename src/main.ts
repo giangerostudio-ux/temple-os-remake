@@ -2754,7 +2754,7 @@ class TempleOS {
       { id: 'files', icon: neon('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />'), label: 'Files' },
       { id: 'editor', icon: neon('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />'), label: 'HolyC Editor' },
       { id: 'hymns', icon: neon('<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />'), label: 'Hymn Player' },
-      { id: 'updater', icon: neon('<path d="M22 12c0-5-3-9-8-9s-8 4-8 9c0 1.5.5 3 1.5 4.5L4 20l3.5-3.5C9 17 10.5 17.5 12 17.5c5 0 9-4 10-5.5z M12 6c1.5 0 3 1.5 3 3s-1.5 3-3 3-3-1.5-3-3 1.5-3 3-3z"/>'), label: 'Holy Updater' },
+      { id: 'updater', icon: neon('<path d="M21.5 10.5c-.5-1-1.5-1.5-2.5-1.5-1.5 0-3 1-4.5 2.5C13.5 10 12 9 10 9c-2 0-3.5.5-4.5 1.5C4.5 9 3 8 2 8c-.5 0-1 .5-1 1s.5 1.5 2 2.5c-1 1-1.5 2-1.5 3 0 1.5 1 3 3 3.5.5 1 1.5 2 3 2 2 0 3-1 3.5-2l1.5 1c.5-.5 1-1.5 1-2.5 2 0 3.5-1 4-2.5 1.5-.5 2.5-1.5 3-3 .5-1 0-2-.5-2.5zM6 13c-.5 0-1-.5-1-1s.5-1 1-1 1 .5 1 1-.5 1-1 1z"/><path d="M14 16l4-2"/>'), label: 'Holy Updater' },
       { id: 'help', icon: neon('<circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />'), label: 'Help' },
       { id: 'godly-notes', icon: neon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />'), label: 'Godly Notes' },
       { id: 'trash', icon: neon('<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />'), label: 'Trash' },

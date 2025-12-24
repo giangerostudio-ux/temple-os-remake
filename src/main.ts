@@ -11864,6 +11864,10 @@ class TempleOS {
         if ((tab as any).resizeObserver) {
           (tab as any).resizeObserver.disconnect();
         }
+        // Remove window resize handler to prevent listener accumulation
+        if ((tab as any).windowResizeHandler) {
+          window.removeEventListener('resize', (tab as any).windowResizeHandler);
+        }
         tab.xterm.dispose();
       } catch { /* ignore */ }
       tab.xterm = null;
@@ -11928,12 +11932,16 @@ class TempleOS {
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
 
-    // Fix: Clear container to prevent double rendering/blur artifacts
+    // CRITICAL: Clear container BEFORE opening xterm to prevent stale DOM interference
     container.innerHTML = '';
 
     xterm.open(container);
 
-    // Initial fit
+    // Force xterm to recalculate font metrics by reassigning fontFamily
+    // This invalidates xterm's internal character width cache
+    xterm.options.fontFamily = this.terminalFontFamily;
+
+    // Initial fit after font cache is invalidated
     fitAddon.fit();
 
     // Explicitly preload Fira Code font before measuring
@@ -11959,6 +11967,8 @@ class TempleOS {
         // Font loaded - wait for DOM and perform fit
         requestAnimationFrame(() => {
           setTimeout(() => {
+            // Force another font cache invalidation after fonts are guaranteed loaded
+            xterm.options.fontFamily = this.terminalFontFamily;
             performFit();
             // Additional fit after layout settles
             setTimeout(performFit, 300);
@@ -12019,10 +12029,14 @@ class TempleOS {
       }
     }
 
-    // Resize on window resize
-    window.addEventListener('resize', () => {
-      fitAddon.fit();
-    });
+    // Store resize handler reference for cleanup (avoid listener accumulation)
+    const resizeHandler = () => {
+      try {
+        fitAddon.fit();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('resize', resizeHandler);
+    (tab as any).windowResizeHandler = resizeHandler;
   }
 
   private ensureVisibleTerminalXterms(): void {

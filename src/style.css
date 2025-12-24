@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Fira+Code:wght@400;500;600;700&display=swap');
 
 :root {
   /* Divine Cyberpunk Palette */
@@ -58,7 +58,7 @@
 }
 
 body {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', monospace;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', monospace;
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
@@ -90,7 +90,7 @@ textarea,
 button,
 span,
 div {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Noto Color Emoji', 'Apple Color Emoji', ' UI Emoji', 'Segoe UI Symbol', sans-serif;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
 }
 
 #app {
@@ -448,11 +448,11 @@ div {
 
 /* Terminal */
 .terminal {
-  font-family: 'VT323', monospace;
-  font-size: 22px;
-  line-height: 1.1;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 15px;
+  line-height: 1.5;
   height: 100%;
-  padding: 8px;
+  padding: 12px;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
@@ -460,20 +460,21 @@ div {
   --term-prompt: var(--tos-green);
   --term-caret: var(--tos-green);
   text-shadow: none !important;
-  font-weight: 400;
+  font-weight: 500;
   color: #00FF41;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.3px;
 }
 
 .terminal pre,
 .terminal code {
   text-shadow: none !important;
-  font-weight: 400;
+  font-weight: 500;
   color: #00FF41;
-  font-family: 'VT323', monospace !important;
-  line-height: 1;
-  letter-spacing: 0 !important;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  line-height: 1.5;
+  letter-spacing: 0.3px !important;
 }
 
 .terminal-output {
@@ -584,7 +585,7 @@ div {
   flex-direction: column;
   background: linear-gradient(180deg, #0a0a0a 0%, #000 100%);
   color: #00ff41;
-  font-family: 'VT323', 'Terminus', monospace;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
 }
 
 .divine-chat-header {
@@ -721,7 +722,8 @@ div {
   color: #ffd700;
   padding: 2px 6px;
   border-radius: 3px;
-  font-family: 'VT323', monospace;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 14px;
 }
 
 /* System Messages */
@@ -819,11 +821,13 @@ div {
   padding: 12px;
   background: rgba(0, 0, 0, 0.8);
   color: #ffd700;
-  font-family: 'VT323', 'Consolas', monospace;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   font-size: 14px;
+  font-weight: 500;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  letter-spacing: 0.2px;
 }
 
 .divine-url-text {
@@ -930,13 +934,15 @@ div {
   border-radius: 6px;
   padding: 12px;
   color: #00ff41;
-  font-family: 'VT323', monospace;
-  font-size: 16px;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 15px;
+  font-weight: 500;
   resize: none;
   min-height: 20px;
   max-height: 150px;
   outline: none;
   transition: border-color 0.2s;
+  letter-spacing: 0.2px;
 }
 
 .divine-chat-input:focus {
@@ -1082,10 +1088,12 @@ div {
   color: #ffd700;
   padding: 10px;
   border-radius: 4px;
-  font-family: 'VT323', monospace;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   font-size: 14px;
+  font-weight: 500;
   margin: 8px 0;
   overflow-x: auto;
+  letter-spacing: 0.2px;
 }
 
 .divine-setup-btn {

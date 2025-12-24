@@ -182,7 +182,7 @@ div {
   stroke: var(--tos-green) !important;
   stroke-width: 1.5px !important;
   fill: none !important;
-  filter: drop-shadow(0 0 5px var(--tos-green)) !important;
+  filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.8)) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -193,18 +193,16 @@ div {
 
 .desktop-icon:hover .icon-neon {
   stroke: #ffffff !important;
-  filter: drop-shadow(0 0 10px var(--tos-green)) !important;
+  filter: drop-shadow(0 0 5px var(--tos-green)) !important;
   transform: scale(1.1) translateY(-2px);
 }
 
 .desktop-icon .label {
   font-size: 14px;
   color: #FFFFFF;
-  /* Pure White text with intense NEON GREEN glow - removing any brownish/black muddiness */
   text-shadow:
-    0 0 5px var(--tos-green),
-    0 0 10px rgba(0, 255, 65, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.9);
+    0 0 3px rgba(0, 255, 65, 0.6),
+    0 1px 3px rgba(0, 0, 0, 0.9);
   font-weight: 500;
   letter-spacing: 0.5px;
   max-width: 100%;
@@ -225,9 +223,9 @@ div {
   border: 1px solid rgba(0, 255, 65, 0.5);
   border-radius: 8px;
   box-shadow:
-    0 0 15px rgba(0, 255, 65, 0.15),
-    inset 0 0 20px rgba(0, 20, 0, 0.9),
-    0 20px 60px rgba(0, 0, 0, 0.7);
+    0 0 10px rgba(0, 255, 65, 0.1),
+    inset 0 0 15px rgba(0, 15, 0, 0.8),
+    0 15px 40px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1408,8 +1406,8 @@ div {
   align-items: center;
   justify-content: center;
   padding: 8px 24px;
-  background: rgba(0, 255, 65, 0.05);
-  border: 1px solid rgba(0, 255, 65, 0.4);
+  background: rgba(0, 255, 65, 0.04);
+  border: 1px solid rgba(0, 255, 65, 0.45);
   color: #FFFFFF;
   font-family: 'Cinzel', serif;
   font-size: 14px;
@@ -1419,8 +1417,8 @@ div {
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.1);
-  text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.1);
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.4);
 }
 
 .start-btn:hover {
@@ -1432,9 +1430,11 @@ div {
 }
 
 .start-btn.active {
-  background: var(--tos-green);
-  color: #000;
+  background: rgba(0, 255, 65, 0.2);
+  color: #FFFFFF;
   border-color: #fff;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.3);
+  text-shadow: 0 0 6px #fff;
 }
 
 
@@ -4749,15 +4749,15 @@ textarea:focus,
   stroke-width: 2px !important;
   width: 40px !important;
   height: 40px !important;
-  filter: drop-shadow(0 0 10px var(--tos-green)) !important;
+  filter: drop-shadow(0 0 2px rgba(0, 255, 65, 0.8)) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .icon-neon:hover,
 .active .icon-neon,
 button:hover .icon-neon {
-  stroke: var(--accent-glow);
-  filter: drop-shadow(0 0 12px var(--accent-glow));
+  stroke: var(--accent-glow) !important;
+  filter: drop-shadow(0 0 5px var(--accent-glow)) !important;
 }
 
 /* Force override for existing icons if they are SVGs */
@@ -4781,15 +4781,18 @@ svg.icon:hover,
    PHASE 2 VISUAL POLISH - HOLOGRAM FILTERS
    ============================================ */
 
-/* Force colorful app icons to monochrome green "holograms" */
-.app-icon img,
-.launcher-grid img {
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.2);
+/* Force colorful app icons/emojis to monochrome green "holograms" */
+.app-icon,
+.launcher-grid .icon-wrapper {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.1);
   opacity: 0.9;
+  transition: all 0.2s ease;
 }
 
-.app-icon:hover img {
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(2.0) drop-shadow(0 0 8px var(--accent-glow));
+.app-icon:hover,
+.launcher-grid .icon-wrapper:hover {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.5) drop-shadow(0 0 5px var(--accent-glow));
+  opacity: 1;
 }
 
 /* Danger Buttons (Shutdown/Restart) */

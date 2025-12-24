@@ -936,8 +936,8 @@ class TempleOS {
   private terminalAliases: Record<string, string> = {};
   private terminalPromptTemplate = '{cwd}>';
   private terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white' = 'green';
-  private terminalFontFamily = "'VT323', monospace";
-  private terminalFontSize = 22;
+  private terminalFontFamily = "'Fira Code', 'Cascadia Code', 'Consolas', monospace";
+  private terminalFontSize = 15;
   private terminalSearchOpen = false;
   private terminalSearchQuery = '';
   private terminalSearchMatches: number[] = [];
@@ -11902,9 +11902,9 @@ class TempleOS {
       },
       fontFamily: this.terminalFontFamily,
       fontSize: this.terminalFontSize,
-      fontWeight: '400',
-      letterSpacing: 0,
-      lineHeight: 1.1,
+      fontWeight: '500',
+      letterSpacing: 0.3,
+      lineHeight: 1.4,
       cursorBlink: true,
       scrollback: 10000,
       allowProposedApi: true
@@ -11921,7 +11921,7 @@ class TempleOS {
     // Initial fit
     fitAddon.fit();
 
-    // Force VT323 for the retro TempleOS feel, but handle loading carefully
+    // Wait for Fira Code font to load for optimal rendering
     const performFit = () => {
       try {
         if (container.clientWidth > 0 && container.clientHeight > 0) {

@@ -283,7 +283,7 @@ div {
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -318,18 +318,16 @@ div {
 }
 
 .window-btn.close:hover {
-  background: rgba(255, 100, 100, 0.2);
-  border-color: #ff6464;
-  color: #ff6464;
-  box-shadow: 0 0 10px rgba(255, 100, 100, 0.3);
+  background: var(--tos-red);
+  color: #000000;
+  box-shadow: 0 0 10px var(--tos-red);
 }
 
 .window-btn.minimize:hover,
 .window-btn.maximize:hover {
-  background: rgba(0, 255, 65, 0.1);
-  border-color: var(--accent-glow);
-  color: var(--accent-glow);
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+  background: var(--tos-green);
+  color: #000000;
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .window-content {
@@ -1729,21 +1727,26 @@ div {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+::-webkit-scrollbar,
+.start-menu-list::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+::-webkit-scrollbar-track,
+.start-menu-list::-webkit-scrollbar-track {
+  background: rgba(0, 20, 0, 0.5);
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 255, 65, 0.3);
-  border-radius: 4px;
+::-webkit-scrollbar-thumb,
+.start-menu-list::-webkit-scrollbar-thumb {
+  background: #4a6b4a;
+  border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 255, 65, 0.5);
+::-webkit-scrollbar-thumb:hover,
+.start-menu-list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-glow);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 /* Settings Panel */
@@ -1905,7 +1908,8 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .start-search-input::placeholder {
-  color: rgba(0, 255, 65, 0.5);
+  color: rgba(0, 255, 65, 0.5) !important;
+  font-style: italic;
 }
 
 .start-section {

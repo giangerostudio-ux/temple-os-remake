@@ -2985,10 +2985,24 @@ html, body {
 
 .sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex; gap: 8px; }
 .sm-power-btn {
-    flex: 1; padding: 10px; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3);
-    color: #ff6464; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s ease;
+    flex: 1; padding: 10px; background: rgba(0, 20, 0, 0.8); border: 1px solid rgba(0, 255, 65, 0.35);
+    color: #E0F7E9; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s ease;
 }
-.sm-power-btn:hover { background: rgba(255, 100, 100, 0.2); border-color: #ff6464; }
+.sm-power-btn:hover { background: rgba(0, 255, 65, 0.18); border-color: #00ff41; color: #fff; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
+/* Danger buttons turn red ONLY on hover */
+.sm-power-btn[data-power="restart"]:hover,
+.sm-power-btn[data-power="shutdown"]:hover {
+    background: rgba(100, 0, 0, 0.95); border-color: #FF0000; color: #fff; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+}
+
+/* Green Matrix Filter for all images */
+.sm-icon img, .sm-app img, .sm-quick-link img {
+    filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.1);
+    opacity: 0.9; transition: all 0.2s ease;
+}
+.sm-app:hover img, .sm-quick-link:hover img {
+    filter: grayscale(0%) brightness(2.5) drop-shadow(0 0 5px #00FF41); opacity: 1;
+}
 
 .sm-context-menu {
     position: fixed; z-index: 1000; background: rgba(13, 17, 23, 0.98);

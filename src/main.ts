@@ -11991,12 +11991,37 @@ class TempleOS {
       setTimeout(performFit, 500);
     });
 
-    // SIMPLIFIED APPROACH: No dynamic resize after initial fit
-    // This prevents font metric corruption at the cost of not resizing when window changes
-    // The initial fit sequence above handles sizing correctly on open
+    // RESIZE WITH FONT REFRESH: Call fit() but immediately toggle font to force correct metrics
+    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const safeResize = () => {
+      if (container.offsetParent === null) return; // Not visible
+      if (container.clientWidth <= 0 || container.clientHeight <= 0) return;
+
+      try {
+        // Call fit to resize to container
+        fitAddon.fit();
+
+        // CRITICAL: Force font cache invalidation by toggling fontSize
+        // This makes xterm re-measure character dimensions correctly
+        const originalSize = xterm.options.fontSize ?? this.terminalFontSize;
+        xterm.options.fontSize = originalSize + 1;
+        requestAnimationFrame(() => {
+          xterm.options.fontSize = originalSize;
+          xterm.refresh(0, xterm.rows - 1);
+        });
+      } catch (e) {
+        console.warn('Safe resize failed:', e);
+      }
+    };
+
+    const debouncedResize = () => {
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      resizeDebounceTimer = setTimeout(safeResize, 100);
+    };
 
     const resizeObserver = new ResizeObserver(() => {
-      // Intentionally empty - do NOT call fit() on resize as it corrupts fonts
+      debouncedResize();
     });
     resizeObserver.observe(container);
 
@@ -12035,9 +12060,9 @@ class TempleOS {
       }
     }
 
-    // Store resize handler reference for cleanup (no-op for now)
+    // Store resize handler reference for cleanup
     const resizeHandler = () => {
-      // Intentionally empty - do NOT resize as it corrupts fonts
+      debouncedResize();
     };
     window.addEventListener('resize', resizeHandler);
     (tab as any).windowResizeHandler = resizeHandler;

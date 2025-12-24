@@ -2149,14 +2149,15 @@ input[type=range]::-webkit-slider-thumb {
 .start-power-btn {
   flex: 1;
   padding: 10px;
-  background: rgba(13, 17, 23, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
+  /* Neutral Default State - Calm & Clean */
+  background: rgba(0, 20, 0, 0.6);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #E0F7E9;
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2165,46 +2166,30 @@ input[type=range]::-webkit-slider-thumb {
   overflow: hidden;
 }
 
-/* Lock - Divine Green */
-.start-power-btn.lock {
-  border-color: rgba(0, 255, 65, 0.4);
+.start-power-btn .emoji-icon {
+  transition: all 0.2s ease;
+}
+
+/* Lock button - stays green on hover */
+.start-power-btn.lock:hover {
+  background: rgba(0, 40, 0, 0.9);
+  border-color: #00ff41;
   color: #00ff41;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
 }
 
-.start-power-btn.lock .emoji-icon {
-  filter: brightness(1.2) contrast(1.1) !important;
-  color: #fff;
-}
-
-/* Restart - Warning Orange */
-.start-power-btn.restart {
-  border-color: rgba(255, 170, 0, 0.5);
-  color: #ffaa00;
-}
-
-.start-power-btn.restart .emoji-icon {
-  filter: brightness(1.2) contrast(1.1) !important;
-  color: #fff;
-}
-
-/* Shutdown - Cyber Red */
-.start-power-btn.shutdown {
-  border-color: rgba(255, 65, 65, 0.6);
-  color: #ff4141;
-}
-
-.start-power-btn.shutdown .emoji-icon {
-  filter: brightness(1.2) contrast(1.1) !important;
-  color: #fff;
-}
-
-.start-power-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+/* Restart/Shutdown - RED GLOW on hover (Danger!) */
+.start-power-btn.restart:hover,
+.start-power-btn.shutdown:hover {
+  background: rgba(50, 0, 0, 0.9);
+  border-color: #FF4444;
+  color: #FF4444;
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
 }
 
 .start-power-btn:hover .emoji-icon {
-  transform: scale(1.2);
-  filter: brightness(1.5) drop-shadow(0 0 8px currentColor) !important;
+  transform: scale(1.15);
+  filter: brightness(1.4) drop-shadow(0 0 6px currentColor) !important;
 }
 
 /* ============================================
@@ -5268,4 +5253,46 @@ span[role="img"],
 
 .modal-custom-content {
   margin-bottom: 12px;
+}
+
+/* ============================================
+   STATUS BAR CLOCK - Soft Mint to match theme
+   ============================================ */
+.taskbar-clock,
+#clock-text {
+  color: #E0F7E9 !important;
+  /* Soft Mint */
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.4);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 500;
+}
+
+/* ============================================
+   START MENU SCROLLBAR - Thin & Green
+   ============================================ */
+.start-apps-list::-webkit-scrollbar,
+.start-section::-webkit-scrollbar,
+.start-quick-links::-webkit-scrollbar {
+  width: 4px;
+}
+
+.start-apps-list::-webkit-scrollbar-track,
+.start-section::-webkit-scrollbar-track,
+.start-quick-links::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.start-apps-list::-webkit-scrollbar-thumb,
+.start-section::-webkit-scrollbar-thumb,
+.start-quick-links::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+  /* Dark Green */
+  border-radius: 2px;
+}
+
+.start-apps-list::-webkit-scrollbar-thumb:hover,
+.start-section::-webkit-scrollbar-thumb:hover,
+.start-quick-links::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-glow);
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
 }

@@ -567,7 +567,32 @@ class TempleOS {
   private selectedFiles: Set<string> = new Set();
   private lastSelectedIndex = -1; // For Shift+Click range selection
   // Desktop icon positions (Priority 1)
-  private desktopIconPositions: Record<string, { x: number; y: number }> = JSON.parse(localStorage.getItem('temple_desktop_icon_positions') || '{}');
+  // Default positions for first-time install - matches the preferred layout:
+  // Left column: HolyC Editor, Hymn Player, Godly Notes, Files, Terminal, Holy Updater, Word of God
+  // Right side: Help (top-right), Trash (bottom-right)
+  private static readonly DEFAULT_ICON_POSITIONS: Record<string, { x: number; y: number }> = {
+    'builtin:editor': { x: 20, y: 20 },       // HolyC Editor - top left
+    'builtin:hymns': { x: 20, y: 130 },       // Hymn Player
+    'builtin:godly-notes': { x: 20, y: 240 }, // Godly Notes
+    'builtin:files': { x: 20, y: 350 },       // Files
+    'builtin:terminal': { x: 20, y: 460 },    // Terminal
+    'builtin:updater': { x: 20, y: 570 },     // Holy Updater
+    'builtin:word-of-god': { x: 20, y: 680 }, // Word of God - bottom left
+    'builtin:help': { x: 920, y: 20 },        // Help - top right (will be clamped to screen)
+    'builtin:trash': { x: 920, y: 580 },      // Trash - bottom right (will be clamped to screen)
+  };
+  private desktopIconPositions: Record<string, { x: number; y: number }> = (() => {
+    const stored = localStorage.getItem('temple_desktop_icon_positions');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // If stored data exists and has entries, use it
+        if (Object.keys(parsed).length > 0) return parsed;
+      } catch { /* ignore parse errors */ }
+    }
+    // First-time install: use default positions
+    return { ...TempleOS.DEFAULT_ICON_POSITIONS };
+  })();
   private draggingIcon: { key: string; offsetX: number; offsetY: number; startX: number; startY: number; hasMoved: boolean } | null = null;
 
   // Preview / Quick Look

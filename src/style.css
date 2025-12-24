@@ -5338,3 +5338,107 @@ span[role="img"],
   background: var(--accent-glow);
   box-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
 }
+
+/* ============================================
+   UNIVERSAL OVERRIDES - NUCLEAR "CATCH-ALL" FIXES
+   ============================================ */
+
+/* 1. THE "NUCLEAR" RED BUTTON FIX
+   Target ANY button inside ANY element with "menu", "footer", or "launcher" in its class name
+   Forces Neutral Green by default, Red ONLY on hover for danger buttons */
+[class*="menu"] button,
+[class*="footer"] button,
+[class*="launcher"] button,
+[class*="power"] button,
+[class*="session"] button,
+.session-buttons button {
+  background: rgba(0, 20, 0, 0.8) !important;
+  border: 1px solid rgba(0, 255, 65, 0.3) !important;
+  color: #E0F7E9 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  opacity: 0.9;
+  transition: all 0.2s ease;
+}
+
+/* Normal hover - Green glow for all buttons */
+[class*="menu"] button:hover,
+[class*="footer"] button:hover,
+[class*="launcher"] button:hover,
+[class*="power"] button:hover {
+  background: rgba(0, 255, 65, 0.15) !important;
+  border-color: #00FF41 !important;
+  color: #FFFFFF !important;
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.3) !important;
+}
+
+/* ONLY turn Red when the user HOVERS over a Shutdown/Restart button
+   Targets any button with "shutdown" or "restart" in its class, ID, or name attribute */
+button[class*="shutdown"]:hover,
+button[name*="shutdown"]:hover,
+button[id*="shutdown"]:hover,
+button[class*="restart"]:hover,
+button[name*="restart"]:hover,
+button[id*="restart"]:hover,
+[data-power-action="shutdown"]:hover,
+[data-power-action="restart"]:hover {
+  background: rgba(80, 0, 0, 1) !important;
+  border-color: #FF0000 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.5) !important;
+}
+
+/* 2. THE "GLOBAL" ICON FILTER
+   Apply the "Green Matrix" filter to ALL images inside any menu container */
+[class*="menu"] img,
+[class*="list"] img,
+[class*="grid"] img,
+[class*="launcher"] img,
+[class*="pinned"] img,
+[class*="recent"] img,
+[class*="apps"] img,
+.pinned-apps img,
+.recent-apps img,
+.app-list img,
+.start-menu img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.1) contrast(1.2) !important;
+}
+
+/* Hover Effect: Bright White/Green Glow */
+[class*="menu"] img:hover,
+[class*="launcher"] img:hover,
+[class*="pinned"] img:hover,
+.pinned-apps img:hover {
+  filter: grayscale(0%) brightness(2.0) drop-shadow(0 0 5px #00FF41) !important;
+}
+
+/* 3. SEARCH BAR VISIBILITY
+   Force high-contrast placeholders everywhere */
+[class*="menu"] input[type="text"],
+[class*="menu"] input[type="search"],
+[class*="search"] input {
+  background: rgba(0, 10, 0, 0.5) !important;
+  border: 1px solid rgba(0, 255, 65, 0.4) !important;
+  color: #FFFFFF !important;
+}
+
+::placeholder {
+  color: rgba(0, 255, 65, 0.7) !important;
+  opacity: 1 !important;
+}
+
+::-webkit-input-placeholder {
+  color: rgba(0, 255, 65, 0.7) !important;
+  opacity: 1 !important;
+}
+
+::-moz-placeholder {
+  color: rgba(0, 255, 65, 0.7) !important;
+  opacity: 1 !important;
+}
+
+:-ms-input-placeholder {
+  color: rgba(0, 255, 65, 0.7) !important;
+  opacity: 1 !important;
+}

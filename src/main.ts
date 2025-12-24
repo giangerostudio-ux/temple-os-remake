@@ -11991,29 +11991,63 @@ class TempleOS {
       setTimeout(performFit, 500);
     });
 
-    // Use ResizeObserver for robust layout tracking - with debounce to prevent font metric thrashing
-    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let isStabilized = false; // Lock to prevent resize during stabilization period
+    // Use ResizeObserver for robust layout tracking
+    // CRITICAL: Capture character cell dimensions after initial fit, then use them for manual resize
+    // This prevents xterm from re-measuring fonts incorrectly on window resize
+    let charWidth = 0;
+    let charHeight = 0;
+    let isStabilized = false;
 
-    // Mark as stabilized after initial fits complete
-    setTimeout(() => { isStabilized = true; }, 1000);
+    // Capture correct character dimensions after initial stabilization
+    setTimeout(() => {
+      // Get the actual rendered character dimensions from xterm's internal renderer
+      const cellWidth = (xterm as any)._core?._renderService?.dimensions?.css?.cell?.width;
+      const cellHeight = (xterm as any)._core?._renderService?.dimensions?.css?.cell?.height;
 
-    const debouncedFit = () => {
-      if (!isStabilized) return; // Don't fit during stabilization period
-      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
-      resizeDebounceTimer = setTimeout(() => {
-        if (container.offsetParent !== null && container.clientWidth > 0 && container.clientHeight > 0) {
-          try {
-            fitAddon.fit();
-          } catch (e) {
-            console.warn('Xterm debounced fit failed:', e);
-          }
+      if (cellWidth && cellHeight && cellWidth > 0 && cellHeight > 0) {
+        charWidth = cellWidth;
+        charHeight = cellHeight;
+      } else {
+        // Fallback: estimate based on font size for Consolas
+        // Consolas at 14px with weight 500 is approximately:
+        charWidth = this.terminalFontSize * 0.6; // ~8.4px for 14px font
+        charHeight = this.terminalFontSize * 1.4; // line height 1.4
+      }
+      isStabilized = true;
+    }, 600);
+
+    // Manual resize function that does NOT call fitAddon.fit()
+    const manualResize = () => {
+      if (!isStabilized || charWidth <= 0 || charHeight <= 0) return;
+
+      const padding = 16; // 8px padding on each side
+      const availableWidth = container.clientWidth - padding;
+      const availableHeight = container.clientHeight - padding;
+
+      if (availableWidth <= 0 || availableHeight <= 0) return;
+
+      const newCols = Math.max(2, Math.floor(availableWidth / charWidth));
+      const newRows = Math.max(1, Math.floor(availableHeight / charHeight));
+
+      // Only resize if dimensions actually changed
+      if (xterm.cols !== newCols || xterm.rows !== newRows) {
+        try {
+          xterm.resize(newCols, newRows);
+        } catch (e) {
+          console.warn('Manual xterm resize failed:', e);
         }
-      }, 150); // Debounce by 150ms
+      }
+    };
+
+    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedResize = () => {
+      if (!isStabilized) return;
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      resizeDebounceTimer = setTimeout(manualResize, 100);
     };
 
     const resizeObserver = new ResizeObserver(() => {
-      debouncedFit();
+      debouncedResize();
     });
     resizeObserver.observe(container);
 
@@ -12054,7 +12088,7 @@ class TempleOS {
 
     // Store resize handler reference for cleanup (avoid listener accumulation)
     const resizeHandler = () => {
-      debouncedFit();
+      debouncedResize();
     };
     window.addEventListener('resize', resizeHandler);
     (tab as any).windowResizeHandler = resizeHandler;
@@ -12073,18 +12107,8 @@ class TempleOS {
         void this.initXtermForTab(secondaryIdx);
       }
     }
-
-    // Fit visible panes after any DOM/layout changes
-    window.setTimeout(() => {
-      const primary = this.terminalTabs[primaryIdx];
-      primary?.fitAddon?.fit();
-      if (this.terminalSplitMode !== 'single' && this.terminalSplitSecondaryTabId) {
-        const secondaryIdx = this.terminalTabs.findIndex(t => t.id === this.terminalSplitSecondaryTabId);
-        if (secondaryIdx >= 0 && secondaryIdx !== primaryIdx) {
-          this.terminalTabs[secondaryIdx]?.fitAddon?.fit();
-        }
-      }
-    }, 0);
+    // Note: fitAddon.fit() calls removed intentionally - they cause font metric issues
+    // The initial fit sequence in initXtermForTab handles sizing correctly
   }
 
   // Handle PTY data events

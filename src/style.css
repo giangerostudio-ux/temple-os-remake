@@ -1487,8 +1487,8 @@ div {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Aggressive neon green filter for Emojis */
-  filter: grayscale(100%) brightness(1.2) sepia(100%) hue-rotate(90deg) saturate(500%) drop-shadow(0 0 5px var(--tos-green));
+  /* Reduced neon green filter for clearer icons */
+  filter: grayscale(100%) brightness(1.1) sepia(100%) hue-rotate(90deg) saturate(400%) drop-shadow(0 0 2px var(--tos-green));
   transition: transform 0.2s ease, filter 0.2s ease;
 }
 
@@ -2134,7 +2134,7 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .start-power-btn.lock .emoji-icon {
-  filter: brightness(1.2) drop-shadow(0 0 5px #00ff41) !important;
+  filter: brightness(1.1) drop-shadow(0 0 2px #00ff41) !important;
   color: #fff;
 }
 
@@ -2145,7 +2145,7 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .start-power-btn.restart .emoji-icon {
-  filter: brightness(1.2) drop-shadow(0 0 5px #ffaa00) !important;
+  filter: brightness(1.1) drop-shadow(0 0 2px #ffaa00) !important;
   color: #fff;
 }
 
@@ -2156,7 +2156,7 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .start-power-btn.shutdown .emoji-icon {
-  filter: brightness(1.2) drop-shadow(0 0 5px #ff4141) !important;
+  filter: brightness(1.1) drop-shadow(0 0 2px #ff4141) !important;
   color: #fff;
 }
 

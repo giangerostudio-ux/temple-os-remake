@@ -1,4 +1,4 @@
-﻿import './style.css';
+import './style.css';
 import templeLogo from './assets/temple-logo.jpg';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -307,6 +307,36 @@ function getBaseName(p: string): string {
   const parts = p.split(/[/\\]/).filter(Boolean);
   return parts[parts.length - 1] || '';
 }
+
+/**
+ * Renders a custom dropdown (replaces native <select>).
+ * @param id - unique identifier for this dropdown (e.g., 'audio-sink')
+ * @param options - array of {value, label, selected?}
+ * @param placeholder - optional placeholder text
+ */
+function renderCustomDropdown(
+  id: string,
+  options: Array<{ value: string; label: string; selected?: boolean }>,
+  placeholder = 'Select...'
+): string {
+  const selectedOption = options.find(o => o.selected);
+  const displayText = selectedOption ? escapeHtml(selectedOption.label) : placeholder;
+  const optionsHtml = options.map(o => `
+    <div class="custom-dropdown-option${o.selected ? ' selected' : ''}" data-value="${escapeHtml(o.value)}" title="${escapeHtml(o.label)}">
+      ${escapeHtml(o.label)}
+    </div>
+  `).join('');
+
+  return `
+    <div class="custom-dropdown" data-dropdown-id="${escapeHtml(id)}">
+      <div class="custom-dropdown-trigger" title="${escapeHtml(displayText)}">${displayText}</div>
+      <div class="custom-dropdown-options">
+        ${optionsHtml || '<div class="custom-dropdown-option" style="opacity:0.5;cursor:default;">(No options)</div>'}
+      </div>
+    </div>
+  `;
+}
+
 
 function ansiToHtml(line: string): string {
   // Minimal ANSI SGR support: 0 reset, 1 bold, 30-37/90-97 fg, 40-47/100-107 bg.
@@ -1264,18 +1294,18 @@ class TempleOS {
             );
 
             const menuItems: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }> = [
-              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { label: `?? Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
-              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              { label: pinnedStart ? '?? Unpin from Start' : '?? Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '?? Unpin from Taskbar' : '?? Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              { label: onDesktop ? '??? Remove from Desktop' : '? Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ];
 
             // Add uninstall option for user-installed apps
             if (canUninstall) {
               menuItems.push(
                 { divider: true },
-                { label: '❌ Uninstall', action: () => this.uninstallApp(installedApp) }
+                { label: '? Uninstall', action: () => this.uninstallApp(installedApp) }
               );
             }
 
@@ -1400,7 +1430,7 @@ class TempleOS {
         const networkIcon = document.getElementById('tray-network');
         if (networkIcon) {
           const connected = this.networkManager.status.connected;
-          networkIcon.innerHTML = connected ? '📶' : '📵';
+          networkIcon.innerHTML = connected ? '??' : '??';
         }
       },
       (t, m, type) => this.showNotification(t, m, type),
@@ -2360,7 +2390,7 @@ class TempleOS {
     return `
       <div class="boot-screen" role="status" aria-live="polite">
         <div class="boot-logo">TEMPLEOS REMAKE</div>
-        <div class="boot-text studio">Giangero Studio • Divine Intellect</div>
+        <div class="boot-text studio">Giangero Studio � Divine Intellect</div>
         <div class="boot-text">Initializing Temple Core...</div>
         <div class="boot-text">Loading 640x480 16-Color Covenant...</div>
         <div class="boot-text">Mounting Red Sea File System...</div>
@@ -2395,7 +2425,7 @@ class TempleOS {
         ">
             <div style="padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.3); display: flex; justify-content: space-between; align-items: center; background: rgba(0,255,65,0.05);">
                 <div style="font-weight: bold; font-size: 16px;">${escapeHtml(this.previewFile.name)}</div>
-                <button class="preview-close-btn" style="border: 1px solid #00ff41; background: none; color: #00ff41; cursor: pointer; padding: 4px 12px; font-family: inherit;">❌ Close</button>
+                <button class="preview-close-btn" style="border: 1px solid #00ff41; background: none; color: #00ff41; cursor: pointer; padding: 4px 12px; font-family: inherit;">? Close</button>
             </div>
             <div style="flex: 1; overflow: hidden; position: relative;">
                 ${content}
@@ -2607,7 +2637,7 @@ class TempleOS {
           Network Connections
         </div>
         <div style="display: flex; align-items: center; gap: 10px; padding: 5px; background: rgba(0,255,65,0.1); border-radius: 4px;">
-          <span>📶</span>
+          <span>??</span>
           <div style="display: flex; flex-direction: column;">
             <span style="font-weight: bold;">TempleNet_5G</span>
             <span style="font-size: 12px; color: #bbb;">Connected, Secure</span>
@@ -2630,7 +2660,7 @@ class TempleOS {
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
         <div style="min-width: 0; display: flex; flex-direction: column;">
           <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+          <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} � ${n.signal}%</div>
         </div>
         ${n.inUse ? `
           <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 8px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -2663,7 +2693,7 @@ class TempleOS {
 
         <div style="padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,255,65,0.08); margin-bottom: 10px;">
           <div style="font-weight: bold; color: #ffd700;">${connected ? (ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` � IP ${ip}` : ''}${ssid ? ` � ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto;">
@@ -2722,7 +2752,7 @@ class TempleOS {
       { id: 'files', icon: neon('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />'), label: 'Files' },
       { id: 'editor', icon: neon('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />'), label: 'HolyC Editor' },
       { id: 'hymns', icon: neon('<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />'), label: 'Hymn Player' },
-      { id: 'updater', icon: neon('<path d="M22 12c0-5-3-9-8-9s-8 4-8 9c0 1.5.5 3 1.5 4.5L4 20l3.5-3.5C9 17 10.5 17.5 12 17.5c5 0 9-4 10-5.5z M12 6c1.5 0 3 1.5 3 3s-1.5 3-3 3-3-1.5-3-3 1.5-3 3-3z"/>'), label: 'Holy Updater' },
+      { id: 'updater', icon: '<div class="icon-neon-glyph">???</div>', label: 'Holy Updater' },
       { id: 'help', icon: neon('<circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />'), label: 'Help' },
       { id: 'godly-notes', icon: neon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />'), label: 'Godly Notes' },
       { id: 'trash', icon: neon('<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />'), label: 'Trash' },
@@ -2737,7 +2767,7 @@ class TempleOS {
         return {
           id: s.key, // shortcut key is the ID
           key: s.key,
-          icon: display?.icon || '📄',
+          icon: display?.icon || '??',
           label: s.label,
           isShortcut: true
         };
@@ -3036,15 +3066,15 @@ class TempleOS {
 
   private sortDesktopIcons(criteria: 'name' | 'type'): void {
     const icons = [
-      { id: 'terminal', icon: '💻', label: 'Terminal', type: 'builtin' },
-      { id: 'word-of-god', icon: '✝️', label: 'Word of God', type: 'builtin' },
-      { id: 'files', icon: '📁', label: 'Files', type: 'builtin' },
-      { id: 'editor', icon: '📝', label: 'HolyC Editor', type: 'builtin' },
-      { id: 'hymns', icon: '🎵', label: 'Hymn Player', type: 'builtin' },
-      { id: 'updater', icon: '🕊️', label: 'Holy Updater', type: 'builtin' },
-      { id: 'help', icon: '❓', label: 'Help', type: 'builtin' },
-      { id: 'godly-notes', icon: '📋', label: 'Godly Notes', type: 'builtin' },
-      { id: 'trash', icon: '🗑️', label: 'Trash', type: 'builtin' },
+      { id: 'terminal', icon: '??', label: 'Terminal', type: 'builtin' },
+      { id: 'word-of-god', icon: '??', label: 'Word of God', type: 'builtin' },
+      { id: 'files', icon: '??', label: 'Files', type: 'builtin' },
+      { id: 'editor', icon: '??', label: 'HolyC Editor', type: 'builtin' },
+      { id: 'hymns', icon: '??', label: 'Hymn Player', type: 'builtin' },
+      { id: 'updater', icon: '???', label: 'Holy Updater', type: 'builtin' },
+      { id: 'help', icon: '?', label: 'Help', type: 'builtin' },
+      { id: 'godly-notes', icon: '??', label: 'Godly Notes', type: 'builtin' },
+      { id: 'trash', icon: '???', label: 'Trash', type: 'builtin' },
     ];
 
     const builtinKeys = new Set(icons.map(i => `builtin:${i.id} `));
@@ -3055,7 +3085,7 @@ class TempleOS {
         return {
           id: s.key,
           key: s.key,
-          icon: display?.icon || '📄',
+          icon: display?.icon || '??',
           label: s.label,
           isShortcut: true,
           type: 'shortcut'
@@ -3301,9 +3331,9 @@ class TempleOS {
       .map(w => {
         const icon = w.iconUrl
           ? `<img class="taskbar-x11-icon" src="${escapeHtml(w.iconUrl)}" alt="" onerror="this.style.display='none'">`
-          : `<span class="taskbar-icon-fallback">🖥️</span>`;
+          : `<span class="taskbar-icon-fallback">???</span>`;
         const title = w.appName || w.title || w.wmClass || 'App';
-        const shortTitle = title.length > 20 ? title.slice(0, 18) + '…' : title;
+        const shortTitle = title.length > 20 ? title.slice(0, 18) + '�' : title;
         return `
           <div class="taskbar-app taskbar-x11-app ${w.active ? 'active' : ''} ${w.minimized ? 'minimized' : ''}" 
                data-x11-xid="${escapeHtml(w.xidHex)}" 
@@ -3484,7 +3514,7 @@ class TempleOS {
     const content = tab.content.slice(0, 300);
     return `
       <div style="margin-bottom: 6px; color: #00ff41; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        📄 ${escapeHtml(tab.filename)}${tab.modified ? ' •' : ''}
+        ?? ${escapeHtml(tab.filename)}${tab.modified ? ' �' : ''}
       </div>
       <div style="color: #888; font-family: monospace; font-size: 10px; white-space: pre-wrap; word-break: break-word;">
         ${escapeHtml(content)}${content.length >= 300 ? '...' : ''}
@@ -3500,14 +3530,14 @@ class TempleOS {
 
     const items = entries.map(e => `
       <div style="display: flex; align-items: center; gap: 6px; padding: 2px 0;">
-        <span>${e.isDirectory ? '📁' : '📄'}</span>
+        <span>${e.isDirectory ? '??' : '??'}</span>
         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(e.name)}</span>
       </div>
     `).join('');
 
     return `
       <div style="margin-bottom: 6px; color: #00ff41; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        📂 ${escapeHtml(this.currentPath)}
+        ?? ${escapeHtml(this.currentPath)}
       </div>
       ${items}
       ${this.fileEntries.length > 6 ? `<div style="color: #666; margin-top: 4px;">+${this.fileEntries.length - 6} more items</div>` : ''}
@@ -3519,7 +3549,7 @@ class TempleOS {
     return `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
         <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.6;">${win.icon}</div>
-        <div style="color: #666; font-size: 10px;">${win.width} × ${win.height}px</div>
+        <div style="color: #666; font-size: 10px;">${win.width} � ${win.height}px</div>
       </div>
     `;
   }
@@ -3586,7 +3616,7 @@ class TempleOS {
            data-group-window="${w.id}">
         <span class="taskbar-group-icon">${w.icon}</span>
         <span class="taskbar-group-title">${escapeHtml(w.title)}</span>
-        <button class="taskbar-group-close" data-group-close="${w.id}" title="Close">×</button>
+        <button class="taskbar-group-close" data-group-close="${w.id}" title="Close">�</button>
       </div>
     `).join('');
 
@@ -3716,10 +3746,10 @@ class TempleOS {
 
         // Gather pinned apps (sync, fast)
         const legacyPinnedApps = [
-          { id: 'terminal', icon: '💻', name: 'Terminal' },
-          { id: 'files', icon: '📁', name: 'Files' },
-          { id: 'editor', icon: '📝', name: 'HolyC Editor' },
-          { id: 'settings', icon: '⚙️', name: 'Settings' },
+          { id: 'terminal', icon: '??', name: 'Terminal' },
+          { id: 'files', icon: '??', name: 'Files' },
+          { id: 'editor', icon: '??', name: 'HolyC Editor' },
+          { id: 'settings', icon: '??', name: 'Settings' },
         ];
 
         const pinnedApps = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
@@ -3853,14 +3883,14 @@ class TempleOS {
   private renderStartMenuResultsHtml(): string {
     // Built-in pinned apps
     const legacyPinnedApps = [
-      { id: 'terminal', icon: '💻', name: 'Terminal' },
-      { id: 'word-of-god', icon: '✝️', name: 'Word of God' },
-      { id: 'files', icon: '📁', name: 'Files' },
-      { id: 'editor', icon: '📝', name: 'HolyC Editor' },
-      { id: 'hymns', icon: '🎵', name: 'Hymn Player' },
-      { id: 'settings', icon: '⚙️', name: 'Settings' },
-      { id: 'help', icon: '❓', name: 'Help' },
-      { id: 'godly-notes', icon: '📋', name: 'Godly Notes' },
+      { id: 'terminal', icon: '??', name: 'Terminal' },
+      { id: 'word-of-god', icon: '??', name: 'Word of God' },
+      { id: 'files', icon: '??', name: 'Files' },
+      { id: 'editor', icon: '??', name: 'HolyC Editor' },
+      { id: 'hymns', icon: '??', name: 'Hymn Player' },
+      { id: 'settings', icon: '??', name: 'Settings' },
+      { id: 'help', icon: '?', name: 'Help' },
+      { id: 'godly-notes', icon: '??', name: 'Godly Notes' },
     ];
 
     const pinnedAppsView = (this.pinnedStart.length ? this.pinnedStart : legacyPinnedApps.map(a => `builtin:${a.id}`))
@@ -3891,24 +3921,24 @@ class TempleOS {
 
     // Built-in apps list for search (matches apps in openApp() switch statement)
     const builtinApps = [
-      { key: 'builtin:terminal', name: 'Terminal', icon: '💻', category: 'System', builtinId: 'terminal' },
-      { key: 'builtin:word-of-god', name: 'Word of God', icon: '✝️', category: 'Utilities', builtinId: 'word-of-god' },
-      { key: 'builtin:files', name: 'Files', icon: '📁', category: 'System', builtinId: 'files' },
-      { key: 'builtin:editor', name: 'HolyC Editor', icon: '📝', category: 'Development', builtinId: 'editor' },
-      { key: 'builtin:hymns', name: 'Hymn Player', icon: '🎵', category: 'Multimedia', builtinId: 'hymns' },
-      { key: 'builtin:updater', name: 'Holy Updater', icon: '🕊️', category: 'System', builtinId: 'updater' },
-      { key: 'builtin:help', name: 'Help & Docs', icon: '❓', category: 'System', builtinId: 'help' },
-      { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '📋', category: 'Office', builtinId: 'godly-notes' },
-      { key: 'builtin:calculator', name: 'Calculator', icon: '🧮', category: 'Utilities', builtinId: 'calculator' },
-      { key: 'builtin:calendar', name: 'Divine Calendar', icon: '📅', category: 'Office', builtinId: 'calendar' },
-      { key: 'builtin:image-viewer', name: 'Image Viewer', icon: '🖼️', category: 'Multimedia', builtinId: 'image-viewer' },
-      { key: 'builtin:media-player', name: 'Media Player', icon: '💿', category: 'Multimedia', builtinId: 'media-player' },
-      { key: 'builtin:auto-harp', name: "God's AutoHarp", icon: '🎹', category: 'Multimedia', builtinId: 'auto-harp' },
-      { key: 'builtin:notes', name: 'Notes', icon: '📝', category: 'Office', builtinId: 'notes' },
-      { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '🎨', category: 'Development', builtinId: 'sprite-editor' },
-      { key: 'builtin:system-monitor', name: 'Task Manager', icon: '📊', category: 'System', builtinId: 'system-monitor' },
-      { key: 'builtin:settings', name: 'Settings', icon: '⚙️', category: 'System', builtinId: 'settings' },
-      { key: 'builtin:trash', name: 'Trash', icon: '🗑️', category: 'System', builtinId: 'trash' },
+      { key: 'builtin:terminal', name: 'Terminal', icon: '??', category: 'System', builtinId: 'terminal' },
+      { key: 'builtin:word-of-god', name: 'Word of God', icon: '??', category: 'Utilities', builtinId: 'word-of-god' },
+      { key: 'builtin:files', name: 'Files', icon: '??', category: 'System', builtinId: 'files' },
+      { key: 'builtin:editor', name: 'HolyC Editor', icon: '??', category: 'Development', builtinId: 'editor' },
+      { key: 'builtin:hymns', name: 'Hymn Player', icon: '??', category: 'Multimedia', builtinId: 'hymns' },
+      { key: 'builtin:updater', name: 'Holy Updater', icon: '???', category: 'System', builtinId: 'updater' },
+      { key: 'builtin:help', name: 'Help & Docs', icon: '?', category: 'System', builtinId: 'help' },
+      { key: 'builtin:godly-notes', name: 'Godly Notes', icon: '??', category: 'Office', builtinId: 'godly-notes' },
+      { key: 'builtin:calculator', name: 'Calculator', icon: '??', category: 'Utilities', builtinId: 'calculator' },
+      { key: 'builtin:calendar', name: 'Divine Calendar', icon: '??', category: 'Office', builtinId: 'calendar' },
+      { key: 'builtin:image-viewer', name: 'Image Viewer', icon: '???', category: 'Multimedia', builtinId: 'image-viewer' },
+      { key: 'builtin:media-player', name: 'Media Player', icon: '??', category: 'Multimedia', builtinId: 'media-player' },
+      { key: 'builtin:auto-harp', name: "God's AutoHarp", icon: '??', category: 'Multimedia', builtinId: 'auto-harp' },
+      { key: 'builtin:notes', name: 'Notes', icon: '??', category: 'Office', builtinId: 'notes' },
+      { key: 'builtin:sprite-editor', name: 'Sprite Editor', icon: '??', category: 'Development', builtinId: 'sprite-editor' },
+      { key: 'builtin:system-monitor', name: 'Task Manager', icon: '??', category: 'System', builtinId: 'system-monitor' },
+      { key: 'builtin:settings', name: 'Settings', icon: '??', category: 'System', builtinId: 'settings' },
+      { key: 'builtin:trash', name: 'Trash', icon: '???', category: 'System', builtinId: 'trash' },
     ];
 
     const searchFilteredBuiltin = () =>
@@ -3992,7 +4022,7 @@ class TempleOS {
             </div>
             ` : `
             <div class="start-app-item installed" data-launch-key="${escapeHtml(keyForInstalled(result.installed))}" data-installed-app='${JSON.stringify({ name: result.installed.name, exec: result.installed.exec, desktopFile: result.installed.desktopFile })}' data-icon-url="${escapeHtml(String(result.installed.iconUrl || ''))}" tabindex="0" role="button" aria-label="${escapeHtml(result.installed.name)}">
-              <span class="app-icon" aria-hidden="true">📦</span>
+              <span class="app-icon" aria-hidden="true">??</span>
               <div class="app-info">
                 <span class="app-name">${escapeHtml(result.installed.name)}</span>
                 <span class="app-comment">${result.installed.comment ? escapeHtml(result.installed.comment) : 'Application'}</span>
@@ -4054,9 +4084,9 @@ class TempleOS {
           </div>
           
           <div class="start-power-section">
-            <button class="start-power-btn lock" data-power-action="lock"><span class="emoji-icon">🔒</span> Lock</button>
-            <button class="start-power-btn restart" data-power-action="restart"><span class="emoji-icon">🔄</span> Restart</button>
-            <button class="start-power-btn shutdown" data-power-action="shutdown"><span class="emoji-icon">🛑</span> Shutdown</button>
+            <button class="start-power-btn lock" data-power-action="lock"><span class="emoji-icon">??</span> Lock</button>
+            <button class="start-power-btn restart" data-power-action="restart"><span class="emoji-icon">??</span> Restart</button>
+            <button class="start-power-btn shutdown" data-power-action="shutdown"><span class="emoji-icon">??</span> Shutdown</button>
           </div>
         </div>
       </div>
@@ -4212,14 +4242,14 @@ class TempleOS {
         <div class="app-launcher-panel">
           <div class="app-launcher-top">
             <div class="app-launcher-brand">
-              <div class="app-launcher-title">🔰 APPLICATION LAUNCHER</div>
-              <div class="app-launcher-sub">Type to search • Right‑click for → Desktop/Pin • Esc to close</div>
+              <div class="app-launcher-title">?? APPLICATION LAUNCHER</div>
+              <div class="app-launcher-sub">Type to search � Right-click for ? Desktop/Pin � Esc to close</div>
             </div>
-            <button class="app-launcher-close-btn" data-launcher-action="close" title="Close (Esc)">×</button>
+            <button class="app-launcher-close-btn" data-launcher-action="close" title="Close (Esc)">�</button>
           </div>
 
           <div class="app-launcher-controls">
-            <input class="launcher-search-input" type="text" placeholder="Type to search…" value="${escapeHtml(this.launcherSearchQuery)}" />
+            <input class="launcher-search-input" type="text" placeholder="Type to search�" value="${escapeHtml(this.launcherSearchQuery)}" />
             <div class="app-launcher-filters">
               <div class="launcher-view-row" role="tablist" aria-label="Launcher view">
                 ${views.map(v => `
@@ -4240,7 +4270,7 @@ class TempleOS {
 
           <div class="app-launcher-footer">
             <span class="app-launcher-footer-left">Super+A: Apps</span>
-            <span class="app-launcher-footer-right">TempleOS Remake • God's Own Launcher</span>
+            <span class="app-launcher-footer-right">TempleOS Remake � God's Own Launcher</span>
           </div>
         </div>
       </div>
@@ -4261,21 +4291,21 @@ class TempleOS {
     };
 
     const builtin: Entry[] = [
-      { key: 'builtin:terminal', label: 'Terminal', kind: 'builtin', category: 'System', iconText: '💻', iconKind: 'emoji' },
-      { key: 'builtin:word-of-god', label: 'Word of God', kind: 'builtin', category: 'Utilities', iconText: '✝️', iconKind: 'emoji' },
-      { key: 'builtin:files', label: 'Files', kind: 'builtin', category: 'System', iconText: '📁', iconKind: 'emoji' },
-      { key: 'builtin:editor', label: 'HolyC Editor', kind: 'builtin', category: 'Development', iconText: '📝', iconKind: 'emoji' },
-      { key: 'builtin:help', label: 'Help & Docs', kind: 'builtin', category: 'System', iconText: '❓', iconKind: 'emoji' },
-      { key: 'builtin:notes', label: 'Notes', kind: 'builtin', category: 'Office', iconText: '🗒️', iconKind: 'emoji' },
-      { key: 'builtin:godly-notes', label: 'Godly Notes', kind: 'builtin', category: 'Office', iconText: '🗂️', iconKind: 'emoji' },
-      { key: 'builtin:calculator', label: 'Calculator', kind: 'builtin', category: 'Utilities', iconText: '🧮', iconKind: 'emoji' },
-      { key: 'builtin:calendar', label: 'Calendar', kind: 'builtin', category: 'Office', iconText: '📅', iconKind: 'emoji' },
-      { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '🎬', iconKind: 'emoji' },
-      { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '🖼️', iconKind: 'emoji' },
-      { key: 'builtin:hymns', label: 'Hymn Player', kind: 'builtin', category: 'Multimedia', iconText: '🎵', iconKind: 'emoji' },
-      { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '🕊️', iconKind: 'emoji' },
-      { key: 'builtin:system-monitor', label: 'Task Manager', kind: 'builtin', category: 'System', iconText: '📊', iconKind: 'emoji' },
-      { key: 'builtin:settings', label: 'Settings', kind: 'builtin', category: 'System', iconText: '⚙️', iconKind: 'emoji' },
+      { key: 'builtin:terminal', label: 'Terminal', kind: 'builtin', category: 'System', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:word-of-god', label: 'Word of God', kind: 'builtin', category: 'Utilities', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:files', label: 'Files', kind: 'builtin', category: 'System', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:editor', label: 'HolyC Editor', kind: 'builtin', category: 'Development', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:help', label: 'Help & Docs', kind: 'builtin', category: 'System', iconText: '?', iconKind: 'emoji' },
+      { key: 'builtin:notes', label: 'Notes', kind: 'builtin', category: 'Office', iconText: '???', iconKind: 'emoji' },
+      { key: 'builtin:godly-notes', label: 'Godly Notes', kind: 'builtin', category: 'Office', iconText: '???', iconKind: 'emoji' },
+      { key: 'builtin:calculator', label: 'Calculator', kind: 'builtin', category: 'Utilities', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:calendar', label: 'Calendar', kind: 'builtin', category: 'Office', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:media-player', label: 'Media Player', kind: 'builtin', category: 'Multimedia', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:image-viewer', label: 'Image Viewer', kind: 'builtin', category: 'Multimedia', iconText: '???', iconKind: 'emoji' },
+      { key: 'builtin:hymns', label: 'Hymn Player', kind: 'builtin', category: 'Multimedia', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:updater', label: 'Holy Updater', kind: 'builtin', category: 'System', iconText: '???', iconKind: 'emoji' },
+      { key: 'builtin:system-monitor', label: 'Task Manager', kind: 'builtin', category: 'System', iconText: '??', iconKind: 'emoji' },
+      { key: 'builtin:settings', label: 'Settings', kind: 'builtin', category: 'System', iconText: '??', iconKind: 'emoji' },
     ];
 
     const installed: Entry[] = this.installedApps.map(app => {
@@ -4288,7 +4318,7 @@ class TempleOS {
         ...(app.categories || []),
         ...((app.keywords as string[] | undefined) || []),
       ].filter(Boolean).join(' ').toLowerCase();
-      const first = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || label.slice(0, 1).toUpperCase() || '•';
+      const first = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || label.slice(0, 1).toUpperCase() || '�';
       return {
         key: this.keyForInstalledApp(app),
         label,
@@ -4603,12 +4633,12 @@ class TempleOS {
 
     return nodes.map((node, i) => {
       const isLast = i === nodes.length - 1;
-      let icon = '💻';
+      let icon = '??';
       let color = '#fff';
-      if (node.type === 'guard') { icon = '🛡️'; color = '#00ff41'; }
-      if (node.type === 'middle') { icon = '🔄'; color = '#00ff41'; }
-      if (node.type === 'exit') { icon = '🌐'; color = '#ffd700'; }
-      if (node.type === 'target') { icon = '🌍'; color = '#fff'; }
+      if (node.type === 'guard') { icon = '???'; color = '#00ff41'; }
+      if (node.type === 'middle') { icon = '??'; color = '#00ff41'; }
+      if (node.type === 'exit') { icon = '??'; color = '#ffd700'; }
+      if (node.type === 'target') { icon = '??'; color = '#fff'; }
 
       return `
             <div style="display: flex; flex-direction: column; align-items: center; z-index: 2;">
@@ -4683,7 +4713,7 @@ class TempleOS {
           return;
         }
       } else {
-        this.showNotification('Tor Network', 'Tor control not available — checking status only.', 'warning');
+        this.showNotification('Tor Network', 'Tor control not available � checking status only.', 'warning');
       }
 
       // Poll briefly to avoid false negatives while systemd is still "activating"
@@ -4755,7 +4785,7 @@ class TempleOS {
     // Easter egg: Handle the fake CIA surveillance network
     if (ssid === 'CIA_SURVEILLANCE_VAN_7') {
       const pw = await this.openPromptModal({
-        title: '🕵️ CLASSIFIED NETWORK',
+        title: '??? CLASSIFIED NETWORK',
         message: 'This network requires authorization. Enter access code:',
         inputLabel: 'Access Code',
         placeholder: 'Enter the year of divine creation...',
@@ -4767,15 +4797,15 @@ class TempleOS {
 
       if (pw === '1969') {
         // Terry Davis was born December 15, 1969 - the password unlocks the truth!
-        this.showNotification('✝️ DIVINE REVELATION',
-          'Nice try, glowies! God\'s temple cannot be surveilled. Terry knew the truth: the CIA glows in the dark. You can see them if you\'re driving. Just run them over. That\'s what you do. God\'s programmer lives forever in the 640x480 divine resolution. Keep building temples, not backdoors. 🙏',
+        this.showNotification('?? DIVINE REVELATION',
+          'Nice try, glowies! God\'s temple cannot be surveilled. Terry knew the truth: the CIA glows in the dark. You can see them if you\'re driving. Just run them over. That\'s what you do. God\'s programmer lives forever in the 640x480 divine resolution. Keep building temples, not backdoors. ??',
           'divine');
         // Also show a special window with the easter egg content
         this.windowIdCounter++;
         const easterEggWindow: WindowState = {
           id: `divine-revelation-${this.windowIdCounter}`,
-          title: '✝️ The Truth (Classified)',
-          icon: '🕵️',
+          title: '?? The Truth (Classified)',
+          icon: '???',
           x: Math.random() * 100 + 100,
           y: Math.random() * 100 + 50,
           width: 520,
@@ -4789,7 +4819,7 @@ class TempleOS {
         this.windows.push(easterEggWindow);
         this.render();
       } else {
-        this.showNotification('⚠️ ACCESS DENIED',
+        this.showNotification('?? ACCESS DENIED',
           'The agency does not recognize your clearance level. Perhaps try thinking about what year God\'s programmer was born...',
           'warning');
       }
@@ -5124,7 +5154,7 @@ class TempleOS {
 
   private async regenerateSSHKeys(): Promise<void> {
     const confirmed = await this.openConfirmModal({
-      title: '🔑 Regenerate SSH Keys',
+      title: '?? Regenerate SSH Keys',
       message: 'This will generate new SSH host keys. Existing authorized clients will need to accept the new host key. Continue?',
       confirmText: 'Regenerate',
       cancelText: 'Cancel'
@@ -5143,7 +5173,7 @@ class TempleOS {
       if (res.success) {
         this.showNotification(
           'SSH Keys',
-          '✅ SSH host keys regenerated successfully',
+          '? SSH host keys regenerated successfully',
           'info'
         );
       } else {
@@ -5173,7 +5203,7 @@ class TempleOS {
 
       if (res.success && res.pubkey) {
         await this.openAlertModal({
-          title: '🔑 SSH Public Key',
+          title: '?? SSH Public Key',
           message: `\`\`\`\n${res.pubkey}\n\`\`\`\n\nCopy this key to authorize this machine on remote servers.`,
           confirmText: 'Close'
         });
@@ -5205,7 +5235,7 @@ class TempleOS {
 
     // Show file picker using Electron dialog
     const filePath = await this.openPromptModal({
-      title: '📂 Select Image File',
+      title: '?? Select Image File',
       message: 'Enter the full path to an image file (JPG, PNG, etc.):',
       placeholder: '/home/user/Pictures/photo.jpg',
       confirmText: 'Select',
@@ -5234,8 +5264,8 @@ class TempleOS {
         'Make': 'Apple',
         'Model': 'iPhone 14 Pro',
         'DateTime': '2024:12:17 10:30:45',
-        'GPS Latitude': '37.7749° N',
-        'GPS Longitude': '122.4194° W',
+        'GPS Latitude': '37.7749� N',
+        'GPS Longitude': '122.4194� W',
         'Software': 'iOS 17.2'
       };
       this.refreshSettingsWindow();
@@ -5275,7 +5305,7 @@ class TempleOS {
     }
 
     const confirmed = await this.openConfirmModal({
-      title: '🧹 Strip EXIF Data',
+      title: '?? Strip EXIF Data',
       message: `Remove all metadata from:\n${this.exifSelectedFile}\n\nOriginal will be backed up with .original extension.`,
       confirmText: 'Strip Metadata',
       cancelText: 'Cancel'
@@ -5286,7 +5316,7 @@ class TempleOS {
     if (!window.electronAPI?.stripExif) {
       this.showNotification(
         'EXIF Stripper',
-        '✅ Metadata stripped! (Demo mode - backend not connected)',
+        '? Metadata stripped! (Demo mode - backend not connected)',
         'info'
       );
       this.exifMetadata = null;
@@ -5300,7 +5330,7 @@ class TempleOS {
       if (res.success) {
         this.showNotification(
           'EXIF Stripper',
-          `✅ Metadata removed successfully!\nSaved to: ${res.outputPath || this.exifSelectedFile}`,
+          `? Metadata removed successfully!\nSaved to: ${res.outputPath || this.exifSelectedFile}`,
           'info'
         );
         this.exifMetadata = null;
@@ -5502,21 +5532,21 @@ class TempleOS {
 
   private builtinLauncherMeta(appId: string): { label: string; icon: string } | null {
     switch (appId) {
-      case 'terminal': return { label: 'Terminal', icon: '💻' };
-      case 'word-of-god': return { label: 'Word of God', icon: '✝️' };
-      case 'files': return { label: 'Files', icon: '📁' };
-      case 'editor': return { label: 'HolyC Editor', icon: '📝' };
-      case 'hymns': return { label: 'Hymn Player', icon: '🎵' };
-      case 'settings': return { label: 'Settings', icon: '⚙️' };
-      case 'updater': return { label: 'Holy Updater', icon: '🕊️' };
-      case 'system-monitor': return { label: 'Task Manager', icon: '📊' };
-      case 'help': return { label: 'Help & Docs', icon: '❓' };
-      case 'godly-notes': return { label: 'Godly Notes', icon: '📋' };
-      case 'notes': return { label: 'Notes', icon: '🗒️' };
-      case 'calculator': return { label: 'Calculator', icon: '🧮' };
-      case 'calendar': return { label: 'Calendar', icon: '📅' };
-      case 'media-player': return { label: 'Media Player', icon: '🎬' };
-      case 'image-viewer': return { label: 'Image Viewer', icon: '🖼️' };
+      case 'terminal': return { label: 'Terminal', icon: '??' };
+      case 'word-of-god': return { label: 'Word of God', icon: '??' };
+      case 'files': return { label: 'Files', icon: '??' };
+      case 'editor': return { label: 'HolyC Editor', icon: '??' };
+      case 'hymns': return { label: 'Hymn Player', icon: '??' };
+      case 'settings': return { label: 'Settings', icon: '??' };
+      case 'updater': return { label: 'Holy Updater', icon: '???' };
+      case 'system-monitor': return { label: 'Task Manager', icon: '??' };
+      case 'help': return { label: 'Help & Docs', icon: '?' };
+      case 'godly-notes': return { label: 'Godly Notes', icon: '??' };
+      case 'notes': return { label: 'Notes', icon: '???' };
+      case 'calculator': return { label: 'Calculator', icon: '??' };
+      case 'calendar': return { label: 'Calendar', icon: '??' };
+      case 'media-player': return { label: 'Media Player', icon: '??' };
+      case 'image-viewer': return { label: 'Image Viewer', icon: '???' };
       default: return null;
     }
   }
@@ -5546,7 +5576,7 @@ class TempleOS {
       return this.builtinLauncherMeta(raw.slice('builtin:'.length));
     }
     const installed = this.findInstalledAppByKey(raw);
-    if (installed) return { label: installed.name, icon: '📦' };
+    if (installed) return { label: installed.name, icon: '??' };
     return null;
   }
 
@@ -5821,6 +5851,83 @@ class TempleOS {
         this.modal.inputValue = target.value;
       }
     });
+
+    // ============================================
+    // CUSTOM DROPDOWN HANDLERS (for .custom-dropdown)
+    // ============================================
+    // Toggle dropdown open/closed when trigger is clicked
+    app.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+
+      // Handle dropdown trigger click
+      const trigger = target.closest('.custom-dropdown-trigger');
+      if (trigger) {
+        const dropdown = trigger.closest('.custom-dropdown') as HTMLElement;
+        if (dropdown) {
+          // Close all other dropdowns first
+          document.querySelectorAll('.custom-dropdown.open').forEach(dd => {
+            if (dd !== dropdown) dd.classList.remove('open');
+          });
+          // Toggle this dropdown
+          dropdown.classList.toggle('open');
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // Handle option selection
+      const option = target.closest('.custom-dropdown-option') as HTMLElement;
+      if (option && option.dataset.value !== undefined) {
+        const dropdown = option.closest('.custom-dropdown') as HTMLElement;
+        if (dropdown) {
+          const dropdownId = dropdown.dataset.dropdownId;
+          const value = option.dataset.value;
+          const label = option.textContent?.trim() || value;
+
+          // Update trigger text
+          const triggerEl = dropdown.querySelector('.custom-dropdown-trigger');
+          if (triggerEl) {
+            triggerEl.textContent = label;
+            triggerEl.setAttribute('title', label);
+          }
+
+          // Update selected state
+          dropdown.querySelectorAll('.custom-dropdown-option').forEach(opt => opt.classList.remove('selected'));
+          option.classList.add('selected');
+
+          // Close dropdown
+          dropdown.classList.remove('open');
+
+          // Dispatch action based on dropdown ID
+          if (dropdownId === 'audio-sink' && value && window.electronAPI?.setDefaultSink) {
+            void window.electronAPI.setDefaultSink(value).then(() => {
+              this.audioDevices.defaultSink = value;
+              this.queueSaveConfig();
+              this.refreshSettingsWindow();
+            });
+          } else if (dropdownId === 'audio-source' && value && window.electronAPI?.setDefaultSource) {
+            void window.electronAPI.setDefaultSource(value).then(() => {
+              this.audioDevices.defaultSource = value;
+              this.queueSaveConfig();
+              this.refreshSettingsWindow();
+            });
+          } else if (dropdownId === 'timezone') {
+            this.timezone = value;
+            this.queueSaveConfig();
+            this.refreshSettingsWindow();
+          }
+
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // Close any open dropdown when clicking outside
+      if (!target.closest('.custom-dropdown')) {
+        document.querySelectorAll('.custom-dropdown.open').forEach(dd => dd.classList.remove('open'));
+      }
+    });
+
 
     // Handle Enter key in modal input
     document.addEventListener('keydown', (e) => {
@@ -6349,7 +6456,7 @@ class TempleOS {
         this.queueSaveConfig();
         if (window.electronAPI?.setWifiEnabled) {
           void window.electronAPI.setWifiEnabled(this.networkManager.wifiEnabled).then(res => {
-            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle Wi‑Fi', 'warning');
+            if (!res.success) this.showNotification('Network', res.error || 'Failed to toggle Wi-Fi', 'warning');
             void this.refreshNetworkStatus();
           });
         }
@@ -6440,7 +6547,7 @@ class TempleOS {
           this.trackerBlockingEnabled = checked;
           this.showNotification(
             'Tracker Blocking',
-            checked ? '🛡️ Tracker blocking enabled! Ads & trackers will be blocked.' : 'Tracker blocking disabled.',
+            checked ? '??? Tracker blocking enabled! Ads & trackers will be blocked.' : 'Tracker blocking disabled.',
             'info'
           );
           if (window.electronAPI?.setTrackerBlocking) {
@@ -9261,7 +9368,7 @@ class TempleOS {
         // The wizard overlay already prevents interaction during setup, so this guard was redundant
         // and was causing a ~1 minute delay where users couldn't right-click or use UI
 
-        console.log('⚡ CONTEXTMENU EVENT FIRED!');
+        console.log('? CONTEXTMENU EVENT FIRED!');
         const target = e.target as HTMLElement;
 
         // Determine context (Items only)
@@ -9279,23 +9386,23 @@ class TempleOS {
         const isBackground = clickedOnDesktopArea && !clickedOnIcon && !clickedOnWindow && !desktopIcon && !fileItem && !fileBrowserEl;
 
         // DEBUG: Comprehensive logging
-        console.group('🖱️ RIGHT-CLICK EVENT');
-        console.log('📍 Position:', { x: e.clientX, y: e.clientY });
-        console.log('🎯 Target:', target);
+        console.group('??? RIGHT-CLICK EVENT');
+        console.log('?? Position:', { x: e.clientX, y: e.clientY });
+        console.log('?? Target:', target);
         console.log('  - tagName:', target.tagName);
         console.log('  - className:', target.className);
         console.log('  - id:', target.id);
-        console.log('📦 Detected Context Items:');
+        console.log('?? Detected Context Items:');
         console.log('  - startAppItem:', !!startAppItem, startAppItem);
         console.log('  - taskbarItem:', !!taskbarItem, taskbarItem);
         console.log('  - desktopIcon:', !!desktopIcon, desktopIcon);
         console.log('  - fileItem:', !!fileItem, fileItem);
         console.log('  - fileBrowserEl:', !!fileBrowserEl, fileBrowserEl);
-        console.log('🖥️ Desktop Detection:');
+        console.log('??? Desktop Detection:');
         console.log('  - clickedOnDesktopArea:', clickedOnDesktopArea);
         console.log('  - clickedOnIcon:', clickedOnIcon);
         console.log('  - clickedOnWindow:', clickedOnWindow);
-        console.log('✅ Final Result:');
+        console.log('? Final Result:');
         console.log('  - isBackground:', isBackground);
         console.groupEnd();
 
@@ -9307,10 +9414,10 @@ class TempleOS {
             {
               label: 'View',
               submenu: [
-                { label: this.desktopIconSize === 'small' ? '✓ Small Icons' : 'Small Icons', action: () => this.setDesktopIconSize('small') },
-                { label: this.desktopIconSize === 'large' ? '✓ Large Icons' : 'Large Icons', action: () => this.setDesktopIconSize('large') },
+                { label: this.desktopIconSize === 'small' ? '? Small Icons' : 'Small Icons', action: () => this.setDesktopIconSize('small') },
+                { label: this.desktopIconSize === 'large' ? '? Large Icons' : 'Large Icons', action: () => this.setDesktopIconSize('large') },
                 { divider: true },
-                { label: this.desktopAutoArrange ? '✓ Auto Arrange Icons' : 'Auto Arrange Icons', action: () => this.toggleDesktopAutoArrange() }
+                { label: this.desktopAutoArrange ? '? Auto Arrange Icons' : 'Auto Arrange Icons', action: () => this.toggleDesktopAutoArrange() }
               ]
             },
             {
@@ -9371,18 +9478,18 @@ class TempleOS {
             );
 
             const menuItems = [
-              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { label: `?? Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
-              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              { label: pinnedStart ? '?? Unpin from Start' : '?? Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '?? Unpin from Taskbar' : '?? Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              { label: onDesktop ? '??? Remove from Desktop' : '? Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ];
 
             // Add uninstall option for user-installed apps (and APT apps eligible for an uninstall attempt)
             if (canUninstall) {
               menuItems.push(
                 { divider: true },
-                { label: '❌ Uninstall', action: () => this.uninstallApp(installedApp) }
+                { label: '? Uninstall', action: () => this.uninstallApp(installedApp) }
               );
             }
 
@@ -9404,11 +9511,11 @@ class TempleOS {
             const pinnedStart = this.pinnedStart.includes(key);
             const onDesktop = this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
+              { label: `?? Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
-              { label: '📌 Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
-              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              { label: '?? Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
+              { label: pinnedStart ? '?? Unpin from Start' : '?? Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: onDesktop ? '??? Remove from Desktop' : '? Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
             ]);
             return;
           }
@@ -9417,10 +9524,10 @@ class TempleOS {
             const appKey = `builtin:${appId}`;
             const pinnedTaskbar = this.pinnedTaskbar.includes(appKey);
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: '🔼 Restore/Focus', action: () => this.toggleWindow(windowId) },
-              { label: '❌ Close', action: () => this.closeWindow(windowId) },
+              { label: '?? Restore/Focus', action: () => this.toggleWindow(windowId) },
+              { label: '? Close', action: () => this.closeWindow(windowId) },
               { divider: true },
-              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
+              { label: pinnedTaskbar ? '?? Unpin from Taskbar' : '?? Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(appKey) : this.pinTaskbar(appKey); this.render(); } },
             ]);
             return;
           }
@@ -9441,11 +9548,11 @@ class TempleOS {
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
             const isBuiltInDesktop = !!desktopIcon.dataset.app;
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: `🚀 Open`, action: () => this.launchByKey(key) },
+              { label: `?? Open`, action: () => this.launchByKey(key) },
               { divider: true },
-              { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              ...(isBuiltInDesktop ? [] : [{ label: '🗑️ Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
+              { label: pinnedStart ? '?? Unpin from Start' : '?? Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
+              { label: pinnedTaskbar ? '?? Unpin from Taskbar' : '?? Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
+              ...(isBuiltInDesktop ? [] : [{ label: '??? Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
             ]);
             return;
           }
@@ -9467,13 +9574,13 @@ class TempleOS {
               this.loadFiles(parent);
             };
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: '📂 Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
+              { label: '?? Open', action: () => isDir ? this.loadFiles(actualTrashPath) : window.electronAPI?.openExternal(actualTrashPath) },
               { divider: true },
-              { label: '♻️ Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
-              { label: '❌ Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
+              { label: '?? Restore', action: () => void this.restoreTrashItem(actualTrashPath, originalPath) },
+              { label: '? Delete Permanently', action: () => void this.confirmDeleteTrashItem(actualTrashPath) },
               { divider: true },
-              ...(originalPath ? [{ label: '📋 Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
-              ...(originalPath ? [{ label: '📁 Open Original Folder', action: () => openOriginalFolder() }] : []),
+              ...(originalPath ? [{ label: '?? Copy Original Path', action: () => navigator.clipboard.writeText(originalPath) }] : []),
+              ...(originalPath ? [{ label: '?? Open Original Folder', action: () => openOriginalFolder() }] : []),
             ]);
             return;
           }
@@ -9482,19 +9589,19 @@ class TempleOS {
           const isBookmarked = this.fileBookmarks.includes(filePath);
 
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: isDir ? '📂 Open' : '📄 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
-            { label: '👀 Preview', action: () => this.previewFileItem(filePath, isDir) },
+            { label: isDir ? '?? Open' : '?? Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
+            { label: '?? Preview', action: () => this.previewFileItem(filePath, isDir) },
             { divider: true },
-            ...(isDir ? [{ label: isBookmarked ? '★ Remove Bookmark' : '★ Add Bookmark', action: () => { isBookmarked ? this.removeBookmark(filePath) : this.addBookmark(filePath); } }] : []),
-            ...(isZip ? [{ label: '📦 Extract Here', action: () => this.extractZipHere(filePath) }] : []),
-            { label: '🗜️ Compress to Zip', action: () => this.createZipFromItem(filePath) },
+            ...(isDir ? [{ label: isBookmarked ? '? Remove Bookmark' : '? Add Bookmark', action: () => { isBookmarked ? this.removeBookmark(filePath) : this.addBookmark(filePath); } }] : []),
+            ...(isZip ? [{ label: '?? Extract Here', action: () => this.extractZipHere(filePath) }] : []),
+            { label: '??? Compress to Zip', action: () => this.createZipFromItem(filePath) },
             { divider: true },
-            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
-            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
-            { label: '✏️ Rename', action: () => this.promptRename(filePath) },
-            { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
+            { label: '?? Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
+            { label: '?? Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
+            { label: '?? Rename', action: () => this.promptRename(filePath) },
+            { label: '??? Delete', action: () => this.confirmDelete(filePath) },
             { divider: true },
-            { label: '📋 Copy Path', action: () => navigator.clipboard.writeText(filePath) },
+            { label: '?? Copy Path', action: () => navigator.clipboard.writeText(filePath) },
           ]);
           return; // BUGFIX: Prevent fallthrough to fileBrowserEl handler
         }
@@ -9507,9 +9614,9 @@ class TempleOS {
           const path = sidebarLink.dataset.path || '';
           if (path) {
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: '📂 Open', action: () => this.loadFiles(path) },
+              { label: '?? Open', action: () => this.loadFiles(path) },
               { divider: true },
-              { label: '★ Remove Bookmark', action: () => this.removeBookmark(path) }
+              { label: '? Remove Bookmark', action: () => this.removeBookmark(path) }
             ]);
             return;
           }
@@ -9518,20 +9625,20 @@ class TempleOS {
         if (fileBrowserEl && !target.closest('.taskbar')) {
           if (this.currentPath === 'trash:') {
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: '🔄 Refresh', action: () => this.loadFiles('trash:') },
+              { label: '?? Refresh', action: () => this.loadFiles('trash:') },
               { divider: true },
-              { label: '❌ Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
+              { label: '? Empty Trash', action: () => (document.querySelector('.trash-empty-btn') as HTMLButtonElement | null)?.click() },
             ]);
             return;
           }
           const canPaste = !!this.fileClipboard && !!this.currentPath;
           this.showContextMenu(e.clientX, e.clientY, [
-            { label: '📁 New Folder', action: () => this.promptNewFolder() },
-            { label: '📄 New File', action: () => this.promptNewFile() },
+            { label: '?? New Folder', action: () => this.promptNewFolder() },
+            { label: '?? New File', action: () => this.promptNewFile() },
             { divider: true },
-            ...(canPaste ? [{ label: '📋 Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
+            ...(canPaste ? [{ label: '?? Paste', action: () => void this.pasteIntoCurrentFolder() }] : []),
             { divider: true },
-            { label: '🔄 Refresh', action: () => this.loadFiles(this.currentPath) },
+            { label: '?? Refresh', action: () => this.loadFiles(this.currentPath) },
           ]);
         }
 
@@ -9545,7 +9652,7 @@ class TempleOS {
 
           if (win) {
             this.showContextMenu(e.clientX, e.clientY, [
-              { label: win.minimized ? '🔼 Restore' : '🔽 Minimize', action: () => this.toggleWindow(winId) },
+              { label: win.minimized ? '?? Restore' : '?? Minimize', action: () => this.toggleWindow(winId) },
               { label: win.maximized ? 'Restore Down' : 'Maximize', action: () => this.maximizeWindow(winId) },
               { divider: true },
               {
@@ -9563,7 +9670,7 @@ class TempleOS {
                 }
               },
               { divider: true },
-              { label: '❌ Close', action: () => this.closeWindow(winId) }
+              { label: '? Close', action: () => this.closeWindow(winId) }
             ]);
             return;
           }
@@ -9600,7 +9707,7 @@ class TempleOS {
               }
             },
             { divider: true },
-            { label: '⚙️ Settings', action: () => this.openApp('settings') }
+            { label: '?? Settings', action: () => this.openApp('settings') }
           ]);
         }
       });
@@ -9669,7 +9776,7 @@ class TempleOS {
             if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
               const modSpan = document.createElement('span');
               modSpan.className = 'editor-tab-modified';
-              modSpan.textContent = 'ΓùÅ';
+              modSpan.textContent = 'G��';
               tabEl.insertBefore(modSpan, tabEl.firstChild);
             }
           }
@@ -10369,7 +10476,7 @@ class TempleOS {
           }
           else if (action === 'repeat') {
             const mode = this.mediaPlayer.toggleRepeat();
-            controlBtn.textContent = `🔁 Repeat: ${mode}`;
+            controlBtn.textContent = `?? Repeat: ${mode}`;
             controlBtn.classList.toggle('active', mode !== 'none');
             this.render();
           }
@@ -11142,7 +11249,7 @@ class TempleOS {
         case 'terminal':
           windowConfig = {
             title: 'Terminal',
-            icon: '💻',
+            icon: '??',
             width: 600,
             height: 400,
             content: this.getTerminalContent()
@@ -11155,7 +11262,7 @@ class TempleOS {
           }
           windowConfig = {
             title: 'Word of God',
-            icon: '✝️',
+            icon: '??',
             width: 650,
             height: 550,
             content: this.getWordOfGodContent()
@@ -11164,7 +11271,7 @@ class TempleOS {
         case 'sprite-editor':
           windowConfig = {
             title: 'Sprite Editor',
-            icon: '🎨',
+            icon: '??',
             width: 700,
             height: 550,
             content: this.getSpriteEditorContent()
@@ -11173,7 +11280,7 @@ class TempleOS {
         case 'calculator':
           windowConfig = {
             title: 'Calculator',
-            icon: '🧮',
+            icon: '??',
             width: 320,
             height: 480,
             content: this.getCalculatorContent()
@@ -11182,7 +11289,7 @@ class TempleOS {
         case 'notes':
           windowConfig = {
             title: 'Notes',
-            icon: '📝',
+            icon: '??',
             width: 500,
             height: 400,
             content: this.getNotesContent()
@@ -11191,7 +11298,7 @@ class TempleOS {
         case 'calendar':
           windowConfig = {
             title: 'Divine Calendar',
-            icon: '📅',
+            icon: '??',
             width: 600,
             height: 500,
             content: this.getCalendarContent()
@@ -11200,7 +11307,7 @@ class TempleOS {
         case 'image-viewer':
           windowConfig = {
             title: 'Image Viewer',
-            icon: '🖼️',
+            icon: '???',
             width: 800,
             height: 600,
             content: this.getImageViewerContent(typeof arg === 'object' && arg.file ? arg.file : undefined, nextId)
@@ -11209,7 +11316,7 @@ class TempleOS {
         case 'media-player':
           windowConfig = {
             title: 'Media Player',
-            icon: '💿',
+            icon: '??',
             width: 640,
             height: 480,
             content: this.getMediaPlayerContent(fileToPlay)
@@ -11218,7 +11325,7 @@ class TempleOS {
         case 'auto-harp':
           windowConfig = {
             title: 'God\'s AutoHarp',
-            icon: '🎹',
+            icon: '??',
             width: 600,
             height: 350,
             content: this.getAutoHarpContent()
@@ -11227,7 +11334,7 @@ class TempleOS {
         case 'doldoc-viewer':
           windowConfig = {
             title: 'DolDoc Viewer',
-            icon: '📄',
+            icon: '??',
             width: 600,
             height: 600,
             content: this.getDolDocViewerContent()
@@ -11236,7 +11343,7 @@ class TempleOS {
         case 'files':
           windowConfig = {
             title: 'File Browser',
-            icon: '📁',
+            icon: '??',
             width: 600,
             height: 450,
             content: this.getFileBrowserContentV2()
@@ -11256,7 +11363,7 @@ class TempleOS {
         case 'editor':
           windowConfig = {
             title: 'HolyC Editor',
-            icon: '📝',
+            icon: '??',
             width: 600,
             height: 450,
             content: this.getEditorContent()
@@ -11265,7 +11372,7 @@ class TempleOS {
         case 'updater':
           windowConfig = {
             title: 'Holy Updater',
-            icon: '🕊️',
+            icon: '???',
             width: 550,
             height: 450,
             content: this.getUpdaterContent()
@@ -11276,7 +11383,7 @@ class TempleOS {
         case 'hymns':
           windowConfig = {
             title: 'Hymn Player',
-            icon: '🎵',
+            icon: '??',
             width: 450,
             height: 500,
             content: this.getHymnPlayerContent()
@@ -11285,7 +11392,7 @@ class TempleOS {
         case 'system-monitor':
           windowConfig = {
             title: 'Task Manager',
-            icon: '📊',
+            icon: '??',
             width: 900,
             height: 600,
             content: this.getSystemMonitorContent()
@@ -11295,7 +11402,7 @@ class TempleOS {
         case 'settings':
           windowConfig = {
             title: 'Settings',
-            icon: '⚙️',
+            icon: '??',
             width: 800,
             height: 600,
             content: this.getSettingsContentV2()
@@ -11304,7 +11411,7 @@ class TempleOS {
         case 'help':
           windowConfig = {
             title: 'Help & Docs',
-            icon: '❓',
+            icon: '?',
             width: 800,
             height: 600,
             content: this.helpApp.render()
@@ -11313,7 +11420,7 @@ class TempleOS {
         case 'godly-notes':
           windowConfig = {
             title: 'Godly Notes',
-            icon: '📋',
+            icon: '??',
             width: 900,
             height: 600,
             content: this.godlyNotes.render()
@@ -11404,7 +11511,7 @@ class TempleOS {
       const newWindow: WindowState = {
         id: nextId,
         title: windowConfig.title || 'Window',
-        icon: windowConfig.icon || '📄',
+        icon: windowConfig.icon || '??',
         x: initialX,
         y: initialY,
         width: initialWidth,
@@ -11754,7 +11861,16 @@ class TempleOS {
   // Initialize xterm.js for the current terminal tab
   private async initXtermForTab(tabIndex: number): Promise<void> {
     const tab = this.terminalTabs[tabIndex];
-    if (!tab || tab.xterm) return; // Already initialized
+    if (!tab) return;
+
+    // If xterm already exists, dispose it first to prevent double-rendering
+    if (tab.xterm) {
+      try {
+        tab.xterm.dispose();
+      } catch { /* ignore disposal errors */ }
+      tab.xterm = null;
+      tab.fitAddon = null;
+    }
 
     const container = document.getElementById(`xterm-container-${tab.id}`);
     if (!container) return;
@@ -12510,7 +12626,7 @@ class TempleOS {
 
       // Color blocks
       let blocks = '';
-      for (let i = 30; i <= 37; i++) blocks += `\x1b[${i}m███`;
+      for (let i = 30; i <= 37; i++) blocks += `\x1b[${i}m���`;
       blocks += '\x1b[0m';
       print(blocks, '');
 
@@ -12585,7 +12701,7 @@ class TempleOS {
         return `
           <div class="divine-message divine-user-message">
             <div class="divine-message-header">
-              <span class="divine-message-role">👤 You</span>
+              <span class="divine-message-role">?? You</span>
               <span class="divine-message-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
             </div>
             <div class="divine-message-content">${escapeHtml(msg.content)}</div>
@@ -12601,13 +12717,13 @@ class TempleOS {
           commandCards = msg.commands.map((cmd, i) => `
             <div class="divine-command-card" data-command="${escapeHtml(cmd)}" data-msg-idx="${idx}" data-cmd-idx="${i}">
               <div class="divine-command-header">
-                <span class="divine-command-icon">💻</span>
+                <span class="divine-command-icon">??</span>
                 <span class="divine-command-label">Command</span>
               </div>
               <pre class="divine-command-code">${escapeHtml(cmd)}</pre>
               <div class="divine-command-actions">
-                <button class="divine-cmd-btn divine-cmd-execute" data-action="execute">▶ Execute</button>
-                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">📋 Copy</button>
+                <button class="divine-cmd-btn divine-cmd-execute" data-action="execute">? Execute</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">?? Copy</button>
               </div>
             </div>
           `).join('');
@@ -12619,14 +12735,14 @@ class TempleOS {
           dangerousCards = msg.dangerous.map((cmd, i) => `
             <div class="divine-command-card divine-dangerous-card" data-command="${escapeHtml(cmd)}" data-msg-idx="${idx}" data-danger-idx="${i}">
               <div class="divine-command-header divine-danger-header">
-                <span class="divine-command-icon">⚠️</span>
+                <span class="divine-command-icon">??</span>
                 <span class="divine-command-label">DANGEROUS COMMAND</span>
               </div>
               <pre class="divine-command-code">${escapeHtml(cmd)}</pre>
               <div class="divine-danger-warning">This command could cause data loss or system damage. Proceed with caution!</div>
               <div class="divine-command-actions">
-                <button class="divine-cmd-btn divine-cmd-danger-execute" data-action="execute-dangerous">⚠️ I Understand, Execute</button>
-                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">📋 Copy</button>
+                <button class="divine-cmd-btn divine-cmd-danger-execute" data-action="execute-dangerous">?? I Understand, Execute</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy">?? Copy</button>
               </div>
             </div>
           `).join('');
@@ -12638,13 +12754,13 @@ class TempleOS {
           urlCards = msg.urls.map((url, i) => `
             <div class="divine-url-card" data-url="${escapeHtml(url)}" data-msg-idx="${idx}" data-url-idx="${i}">
               <div class="divine-command-header">
-                <span class="divine-command-icon">🌐</span>
+                <span class="divine-command-icon">??</span>
                 <span class="divine-command-label">Open URL</span>
               </div>
               <div class="divine-url-text">${escapeHtml(url)}</div>
               <div class="divine-command-actions">
-                <button class="divine-cmd-btn divine-cmd-open-url" data-action="open-url">🔗 Open</button>
-                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy-url">📋 Copy</button>
+                <button class="divine-cmd-btn divine-cmd-open-url" data-action="open-url">?? Open</button>
+                <button class="divine-cmd-btn divine-cmd-copy" data-action="copy-url">?? Copy</button>
               </div>
             </div>
           `).join('');
@@ -12653,7 +12769,7 @@ class TempleOS {
         return `
           <div class="divine-message divine-assistant-message">
             <div class="divine-message-header">
-              <span class="divine-message-role">✝️ Word of God</span>
+              <span class="divine-message-role">?? Word of God</span>
               <span class="divine-message-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
             </div>
             <div class="divine-message-content">${content}</div>
@@ -12670,7 +12786,7 @@ class TempleOS {
     const streamingHtml = this.divineIsLoading ? `
       <div class="divine-message divine-assistant-message divine-streaming">
         <div class="divine-message-header">
-          <span class="divine-message-role">✝️ Word of God</span>
+          <span class="divine-message-role">?? Word of God</span>
           <span class="divine-typing-indicator">
             <span></span><span></span><span></span>
           </span>
@@ -12682,24 +12798,24 @@ class TempleOS {
     return `
       <div class="divine-chat-app">
         <div class="divine-chat-header">
-          <h1 class="divine-chat-title">✝ Word of God ✝</h1>
+          <h1 class="divine-chat-title">? Word of God ?</h1>
           <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
           <div class="divine-chat-actions">
-            <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">🗑️ Clear</button>
+            <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">??? Clear</button>
           </div>
         </div>
         
         <div class="divine-chat-messages" id="divine-messages">
           ${messagesHtml || `
             <div class="divine-welcome">
-              <div class="divine-welcome-icon">✝️</div>
+              <div class="divine-welcome-icon">??</div>
               <div class="divine-welcome-text">Greetings, my child. I am the Word of God.</div>
               <div class="divine-welcome-subtext">Ask me anything and I shall help thee. I can install software, fix problems, open websites, and more.</div>
               <div class="divine-welcome-examples">
-                <div class="divine-example" data-example="Install Firefox for me">💬 "Install Firefox for me"</div>
-                <div class="divine-example" data-example="My WiFi isn't working">💬 "My WiFi isn't working"</div>
-                <div class="divine-example" data-example="How do I use the terminal?">💬 "How do I use the terminal?"</div>
-                <div class="divine-example" data-example="Update my system">💬 "Update my system"</div>
+                <div class="divine-example" data-example="Install Firefox for me">?? "Install Firefox for me"</div>
+                <div class="divine-example" data-example="My WiFi isn't working">?? "My WiFi isn't working"</div>
+                <div class="divine-example" data-example="How do I use the terminal?">?? "How do I use the terminal?"</div>
+                <div class="divine-example" data-example="Update my system">?? "Update my system"</div>
               </div>
             </div>
           `}
@@ -12714,7 +12830,7 @@ class TempleOS {
             rows="1"
           >${escapeHtml(this.divineInput)}</textarea>
           <button class="divine-send-btn" id="divine-send" ${this.divineIsLoading ? 'disabled' : ''}>
-            ${this.divineIsLoading ? '⏳' : '📨'}
+            ${this.divineIsLoading ? '?' : '??'}
           </button>
         </div>
       </div>
@@ -12728,7 +12844,7 @@ class TempleOS {
     if (this.divineDownloadProgress > 0 && this.divineDownloadProgress < 100) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">✝️</div>
+          <div class="divine-setup-icon">??</div>
           <h2 class="divine-setup-title">Setting up the Word of God...</h2>
           <div class="divine-setup-progress">
             <div class="divine-progress-bar">
@@ -12745,14 +12861,14 @@ class TempleOS {
     if (modelDownloaded) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">✝️</div>
+          <div class="divine-setup-icon">??</div>
           <h2 class="divine-setup-title">The Word of God is Ready</h2>
           <p class="divine-setup-text">Divine intelligence has been installed.</p>
           <div class="divine-setup-status">
-            <span class="divine-success">✅ AI Model Ready</span>
+            <span class="divine-success">? AI Model Ready</span>
           </div>
           <button class="divine-setup-btn divine-start-btn" data-divine-action="start-divine">
-            ✝️ Enter the Divine Terminal
+            ?? Enter the Divine Terminal
           </button>
           <div class="divine-setup-quote">"The Holy Spirit speaks through the neural network."</div>
         </div>
@@ -12763,7 +12879,7 @@ class TempleOS {
     if (!ollamaInstalled) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">✝️</div>
+          <div class="divine-setup-icon">??</div>
           <h2 class="divine-setup-title">Setup Word of God</h2>
           <p class="divine-setup-text">The divine AI requires Ollama to be installed.</p>
           <div class="divine-setup-instructions">
@@ -12772,9 +12888,9 @@ class TempleOS {
             <p class="divine-hint">Or download from <a href="#" data-divine-url="https://ollama.com">ollama.com</a></p>
           </div>
           <button class="divine-setup-btn" data-divine-action="check-ollama">
-            🔄 Check Installation
+            ?? Check Installation
           </button>
-          ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+          ${error ? `<p class="divine-error">? ${escapeHtml(error)}</p>` : ''}
           <div class="divine-setup-quote">"God's temple requires preparation."</div>
         </div>
       `;
@@ -12784,14 +12900,14 @@ class TempleOS {
     if (!ollamaRunning) {
       return `
         <div class="divine-setup">
-          <div class="divine-setup-icon">✝️</div>
+          <div class="divine-setup-icon">??</div>
           <h2 class="divine-setup-title">Setup Word of God</h2>
           <p class="divine-setup-text">Ollama is installed but not running.</p>
-          <p class="divine-warning">⚠️ Please start Ollama (it usually auto-starts after install)</p>
+          <p class="divine-warning">?? Please start Ollama (it usually auto-starts after install)</p>
           <button class="divine-setup-btn" data-divine-action="check-ollama">
-            🔄 Check Again
+            ?? Check Again
           </button>
-          ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+          ${error ? `<p class="divine-error">? ${escapeHtml(error)}</p>` : ''}
           <div class="divine-setup-quote">"Patience is a virtue."</div>
         </div>
       `;
@@ -12800,13 +12916,13 @@ class TempleOS {
     // Ollama running, need to download model
     return `
       <div class="divine-setup">
-        <div class="divine-setup-icon">✝️</div>
+        <div class="divine-setup-icon">??</div>
         <h2 class="divine-setup-title">Setup Word of God</h2>
         <p class="divine-setup-text">Download the divine AI to begin.</p>
         <button class="divine-setup-btn" data-divine-action="download">
-          📥 Download Divine Intelligence
+          ?? Download Divine Intelligence
         </button>
-        ${error ? `<p class="divine-error">❌ ${escapeHtml(error)}</p>` : ''}
+        ${error ? `<p class="divine-error">? ${escapeHtml(error)}</p>` : ''}
         <div class="divine-setup-quote">"In the beginning was the Word, and the Word was with God, and the Word was God." - John 1:1</div>
       </div>
     `;
@@ -12975,14 +13091,14 @@ class TempleOS {
   private async executeDivineCommand(command: string, isDangerous = false): Promise<void> {
     if (isDangerous) {
       // Show confirmation dialog
-      const confirmed = confirm(`⚠️ DANGEROUS COMMAND WARNING ⚠️\n\nYou are about to execute:\n${command}\n\nThis command could cause data loss or system damage.\n\nAre you absolutely sure?`);
+      const confirmed = confirm(`?? DANGEROUS COMMAND WARNING ??\n\nYou are about to execute:\n${command}\n\nThis command could cause data loss or system damage.\n\nAre you absolutely sure?`);
       if (!confirmed) return;
     }
 
     // Add execution message
     this.divineMessages.push({
       role: 'system',
-      content: `🖥️ Running in Terminal: ${command}`,
+      content: `??? Running in Terminal: ${command}`,
       timestamp: Date.now()
     });
     this.refreshDivineWindow();
@@ -13021,7 +13137,7 @@ class TempleOS {
       // Add success message
       this.divineMessages.push({
         role: 'system',
-        content: `✅ Command sent to Terminal. Check the Terminal window for output.`,
+        content: `? Command sent to Terminal. Check the Terminal window for output.`,
         timestamp: Date.now()
       });
     } else {
@@ -13031,13 +13147,13 @@ class TempleOS {
           const result = await window.electronAPI.divineExecuteCommand(command);
           let output = '';
           if (result?.success && result.stdout) {
-            output = `✅ Command succeeded:\n${result.stdout}`;
+            output = `? Command succeeded:\n${result.stdout}`;
           } else if (result?.stderr) {
-            output = `⚠️ Command output:\n${result.stderr}`;
+            output = `?? Command output:\n${result.stderr}`;
           } else if (!result?.success) {
-            output = `❌ Command failed with code ${result?.code ?? 'unknown'}`;
+            output = `? Command failed with code ${result?.code ?? 'unknown'}`;
           } else {
-            output = '✅ Command executed successfully (no output)';
+            output = '? Command executed successfully (no output)';
           }
           this.divineMessages.push({
             role: 'system',
@@ -13047,7 +13163,7 @@ class TempleOS {
         } catch (e: any) {
           this.divineMessages.push({
             role: 'system',
-            content: `❌ Execution error: ${e.message}`,
+            content: `? Execution error: ${e.message}`,
             timestamp: Date.now()
           });
         }
@@ -13065,13 +13181,13 @@ class TempleOS {
       await window.electronAPI.divineOpenUrl(url);
       this.divineMessages.push({
         role: 'system',
-        content: `🌐 Opened: ${url}`,
+        content: `?? Opened: ${url}`,
         timestamp: Date.now()
       });
     } catch (e: any) {
       this.divineMessages.push({
         role: 'system',
-        content: `❌ Failed to open URL: ${e.message}`,
+        content: `? Failed to open URL: ${e.message}`,
         timestamp: Date.now()
       });
     }
@@ -13278,9 +13394,9 @@ class TempleOS {
           <div style="padding: 10px; background: #333; border-bottom: 1px solid #555; display: flex; gap: 10px; align-items: center;">
              <div style="font-weight: bold; margin-right: 10px; color: #ffd700;">Sprite Editor</div>
              <div style="display: flex; gap: 5px;">
-                 <button class="sprite-tool-btn" data-tool="pencil" title="Pencil (P)" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">✏️</button>
-                 <button class="sprite-tool-btn" data-tool="fill" title="Bucket Fill (F)" style="${this.getBtnStyle(this.spriteTool === 'fill')}">🪣</button>
-                 <button class="sprite-tool-btn" data-tool="eyedropper" title="Color Picker (I)" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">💉</button>
+                 <button class="sprite-tool-btn" data-tool="pencil" title="Pencil (P)" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">??</button>
+                 <button class="sprite-tool-btn" data-tool="fill" title="Bucket Fill (F)" style="${this.getBtnStyle(this.spriteTool === 'fill')}">??</button>
+                 <button class="sprite-tool-btn" data-tool="eyedropper" title="Color Picker (I)" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">??</button>
              </div>
              <div style="width: 1px; height: 20px; background: #555;"></div>
               <div style="display: flex; gap: 5px;">
@@ -13292,8 +13408,8 @@ class TempleOS {
               <!-- Animation Controls -->
               <div style="display: flex; gap: 5px; align-items: center;">
                   <span style="font-size: 11px; opacity: 0.7;">Animation:</span>
-                  <button class="sprite-anim-btn" data-anim-action="add-frame" style="${this.getBtnStyle(false)}" title="Add Frame">➕ Frame</button>
-                  <button class="sprite-anim-btn" data-anim-action="toggle-play" style="${this.getBtnStyle(this.spriteAnimationPlaying)}" title="Play/Pause">${this.spriteAnimationPlaying ? '⏸' : '▶'}</button>
+                  <button class="sprite-anim-btn" data-anim-action="add-frame" style="${this.getBtnStyle(false)}" title="Add Frame">? Frame</button>
+                  <button class="sprite-anim-btn" data-anim-action="toggle-play" style="${this.getBtnStyle(this.spriteAnimationPlaying)}" title="Play/Pause">${this.spriteAnimationPlaying ? '?' : '?'}</button>
                   <span style="font-size: 11px;">${this.spriteAnimationFrames.length > 0 ? `${this.spriteCurrentFrame + 1}/${this.spriteAnimationFrames.length}` : '0/0'}</span>
                   <input type="number" class="sprite-fps-input" value="${this.spriteAnimationFPS}" min="1" max="30" style="width: 50px; background: rgba(0,255,65,0.1); border: 1px solid #555; color: #00ff41; padding: 2px 4px; border-radius: 3px; font-size: 11px;" title="FPS">
               </div>
@@ -13304,9 +13420,9 @@ class TempleOS {
            </div>
           <div style="flex: 1; display: flex; overflow: hidden;">
              
-             <button class="sprite-tool ${this.spriteTool === 'pencil' ? 'active' : ''}" data-tool="pencil" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">✏️ Draw</button>
-             <button class="sprite-tool ${this.spriteTool === 'fill' ? 'active' : ''}" data-tool="fill" style="${this.getBtnStyle(this.spriteTool === 'fill')}">🪣 Fill</button>
-             <button class="sprite-tool ${this.spriteTool === 'eyedropper' ? 'active' : ''}" data-tool="eyedropper" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">💉 Pick</button>
+             <button class="sprite-tool ${this.spriteTool === 'pencil' ? 'active' : ''}" data-tool="pencil" style="${this.getBtnStyle(this.spriteTool === 'pencil')}">?? Draw</button>
+             <button class="sprite-tool ${this.spriteTool === 'fill' ? 'active' : ''}" data-tool="fill" style="${this.getBtnStyle(this.spriteTool === 'fill')}">?? Fill</button>
+             <button class="sprite-tool ${this.spriteTool === 'eyedropper' ? 'active' : ''}" data-tool="eyedropper" style="${this.getBtnStyle(this.spriteTool === 'eyedropper')}">?? Pick</button>
              
              <div style="width: 1px; height: 20px; background: #555; margin: 0 5px;"></div>
              
@@ -13314,7 +13430,7 @@ class TempleOS {
              <button class="sprite-action" data-action="clear" style="${this.getBtnStyle(false)}">Clear</button>
              
              <div style="flex: 1;"></div>
-             <button class="sprite-action" data-action="save" style="${this.getBtnStyle(false)}">💾 Save</button>
+             <button class="sprite-action" data-action="save" style="${this.getBtnStyle(false)}">?? Save</button>
           </div>
 
           <div style="flex: 1; display: flex; overflow: hidden;">
@@ -13464,11 +13580,11 @@ class TempleOS {
                  
                  <div style="width: 1px; height: 20px; background: #555; margin: 0 5px;"></div>
                  
-                 <button class="ah-action" data-action="record" style="${this.getBtnStyle(this.autoHarpRecording)}">🔴 Rec</button>
-                 <button class="ah-action" data-action="play" style="${this.getBtnStyle(false)}">▶ Play</button>
-                 <button class="ah-action" data-action="stop" style="${this.getBtnStyle(false)}">⏹ Stop</button>
-                 <button class="ah-action" data-action="save" style="${this.getBtnStyle(false)}">💾 Save</button>
-                 <button class="ah-action" data-action="clear" style="${this.getBtnStyle(false)}">🗑 Clear</button>
+                 <button class="ah-action" data-action="record" style="${this.getBtnStyle(this.autoHarpRecording)}">?? Rec</button>
+                 <button class="ah-action" data-action="play" style="${this.getBtnStyle(false)}">? Play</button>
+                 <button class="ah-action" data-action="stop" style="${this.getBtnStyle(false)}">? Stop</button>
+                 <button class="ah-action" data-action="save" style="${this.getBtnStyle(false)}">?? Save</button>
+                 <button class="ah-action" data-action="clear" style="${this.getBtnStyle(false)}">?? Clear</button>
                  
                  <div style="flex: 1;"></div>
                  <div style="font-size: 12px; opacity: 0.7;">${this.autoHarpSong.length} notes</div>
@@ -13643,12 +13759,12 @@ class TempleOS {
     const separator = isWindows ? '\\' : '/';
 
     // Build breadcrumb HTML
-    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">🏠 Root</span>`;
+    let breadcrumbHtml = `<span class="breadcrumb-item" data-path="${isWindows ? 'C:\\' : '/'}" style="cursor: pointer;">?? Root</span>`;
     let cumulativePath = isWindows ? '' : '';
 
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">�</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     // Build file list HTML
@@ -13664,7 +13780,7 @@ class TempleOS {
         const parentPath = this.currentPath.split(/[/\\]/).slice(0, -1).join(separator) || (isWindows ? 'C:\\' : '/');
         filesHtml += `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;">
-            <span class="icon">📁</span>
+            <span class="icon">??</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         `;
@@ -13685,9 +13801,9 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">← Back</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">⌂ Home</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">↻ Refresh</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">? Back</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">� Home</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; cursor: pointer;">? Refresh</button>
         </div>
         <div class="file-browser-breadcrumb" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.1); font-size: 13px;">
           ${breadcrumbHtml}
@@ -13859,7 +13975,7 @@ class TempleOS {
     let cumulativePath = isWindows ? '' : '';
     for (const part of pathParts) {
       cumulativePath += (isWindows ? (cumulativePath ? '\\' : '') : '/') + part;
-      breadcrumbHtml += ` <span style="opacity: 0.5;">›</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
+      breadcrumbHtml += ` <span style="opacity: 0.5;">�</span> <span class="breadcrumb-item" data-path="${cumulativePath}" style="cursor: pointer;">${part}</span>`;
     }
 
     const query = this.fileSearchQuery.trim().toLowerCase();
@@ -13932,7 +14048,7 @@ class TempleOS {
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
         ${parentPath ? `
           <div class="file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer;" title="Parent folder">
-            <span class="icon">📁</span>
+            <span class="icon">??</span>
             <span class="label" style="font-size: 12px;">..</span>
           </div>
         ` : ''}
@@ -13953,7 +14069,7 @@ class TempleOS {
 
     const sortArrow = (key: 'name' | 'size' | 'modified') => {
       if (this.fileSortMode !== key) return '';
-      return this.fileSortDir === 'asc' ? ' ▲' : ' ▼';
+      return this.fileSortDir === 'asc' ? ' ?' : ' ?';
     };
 
     const listHtml = `
@@ -13968,16 +14084,16 @@ class TempleOS {
         ${parentPath ? `
           <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; background: rgba(0,255,65,0.05);">
             ${hasSelection ? '<span></span>' : ''}
-            <span class="icon">📁</span>
+            <span class="icon">??</span>
             <span class="label">..</span>
-            <span style="opacity: 0.6;">—</span>
-            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">�</span>
+            <span style="opacity: 0.6;">�</span>
           </div>
         ` : ''}
         ${files.map(file => {
       const icon = getFileIcon(file.name, file.isDirectory);
-      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
-      const mod = file.modified ? new Date(file.modified).toLocaleString() : '—';
+      const sizeStr = file.isDirectory ? '�' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleString() : '�';
       const isSelected = this.selectedFiles.has(file.path);
       return `
             <div class="file-row file-item ${isSelected ? 'file-selected' : ''}" data-file-path="${file.path}" data-is-dir="${file.isDirectory}" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 1fr 110px 170px; gap: 10px; padding: 8px 10px; border: 1px solid ${isSelected ? '#00ff41' : 'rgba(0,255,65,0.2)'}; border-radius: 6px; background: ${isSelected ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.15)'};">
@@ -14006,17 +14122,17 @@ class TempleOS {
         ${parentPath ? `
           <div class="file-row file-item" data-file-path="${parentPath}" data-is-dir="true" style="cursor: pointer; display: grid; grid-template-columns: ${hasSelection ? '30px ' : ''}26px 2fr 100px 150px 80px; gap: 10px; padding: 6px 10px; border-radius: 4px; background: rgba(0,255,65,0.05);">
             ${hasSelection ? '<span></span>' : ''}
-            <span  class="icon">📁</span>
+            <span  class="icon">??</span>
             <span class="label">..</span>
-            <span style="opacity: 0.6;">—</span>
-            <span style="opacity: 0.6;">—</span>
+            <span style="opacity: 0.6;">�</span>
+            <span style="opacity: 0.6;">�</span>
             <span style="opacity: 0.6;">Folder</span>
           </div>
         ` : ''}
         ${files.map(file => {
       const icon = getFileIcon(file.name, file.isDirectory);
-      const sizeStr = file.isDirectory ? '—' : this.formatFileSize(file.size);
-      const mod = file.modified ? new Date(file.modified).toLocaleDateString() : '—';
+      const sizeStr = file.isDirectory ? '�' : this.formatFileSize(file.size);
+      const mod = file.modified ? new Date(file.modified).toLocaleDateString() : '�';
       const type = file.isDirectory ? 'Folder' : (file.name.split('.').pop()?.toUpperCase() || 'File');
       const isSelected = this.selectedFiles.has(file.path);
       return `
@@ -14036,13 +14152,13 @@ class TempleOS {
     return `
       <div class="file-browser" style="height: 100%; display: flex; flex-direction: column;">
         <div class="file-browser-toolbar" style="padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⟵</button>
-          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">⌂</button>
-          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">↻</button>
+          <button class="nav-btn" data-nav="back" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">?</button>
+          <button class="nav-btn" data-nav="home" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">�</button>
+          <button class="nav-btn" data-nav="refresh" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px;">?</button>
 
           ${hasSelection ? `
             <span style="padding: 4px 10px; background: rgba(0,255,65,0.2); border-radius: 6px; font-size: 12px; font-weight: bold;">${selCount} selected</span>
-            <button class="btn-delete-selected" style="background: rgba(255,65,65,0.2); border: 1px solid rgba(255,65,65,0.5); color: #ff4141; padding: 6px 12px; cursor: pointer; border-radius: 6px; font-size: 12px;">🗑️ Delete</button>
+            <button class="btn-delete-selected" style="background: rgba(255,65,65,0.2); border: 1px solid rgba(255,65,65,0.5); color: #ff4141; padding: 6px 12px; cursor: pointer; border-radius: 6px; font-size: 12px;">??? Delete</button>
             <button class="btn-deselect-all" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; cursor: pointer; border-radius: 6px; font-size: 12px;">Clear</button>
           ` : ''}
 
@@ -14149,8 +14265,17 @@ class TempleOS {
     `;
 
     const renderSystem = () => {
-      const sinkOptions = this.audioDevices.sinks.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSink ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
-      const sourceOptions = this.audioDevices.sources.map(s => `<option value="${s.name}" ${s.name === this.audioDevices.defaultSource ? 'selected' : ''}>${s.description || s.name}</option>`).join('');
+      // Build dropdown options for audio devices
+      const sinkDropdownOptions = this.audioDevices.sinks.map(s => ({
+        value: s.name,
+        label: s.description || s.name,
+        selected: s.name === this.audioDevices.defaultSink
+      }));
+      const sourceDropdownOptions = this.audioDevices.sources.map(s => ({
+        value: s.name,
+        label: s.description || s.name,
+        selected: s.name === this.audioDevices.defaultSource
+      }));
 
 
 
@@ -14164,19 +14289,15 @@ class TempleOS {
 
       return `
         ${card('Sound', `
-          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center;">
+          <div style="display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; align-items: center;">
             <div>Volume</div>
             <input type="range" class="volume-slider" min="0" max="100" value="${this.volumeLevel}" style="width: 100%; accent-color: #00ff41;">
 
             <div>Output</div>
-            <select class="audio-sink-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-              ${sinkOptions || '<option value=\"\">(No devices)</option>'}
-            </select>
+            ${renderCustomDropdown('audio-sink', sinkDropdownOptions, '(No devices)')}
 
             <div>Input</div>
-            <select class="audio-source-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-              ${sourceOptions || '<option value=\"\">(No devices)</option>'}
-            </select>
+            ${renderCustomDropdown('audio-source', sourceDropdownOptions, '(No devices)')}
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
             <button class="audio-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh devices</button>
@@ -14241,7 +14362,7 @@ class TempleOS {
 
             <div>Orientation</div>
             <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;" ${selectedOutput ? '' : 'disabled'}>
-              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}°`}</option>`).join('')}
+              ${(['normal', '90', '180', '270'] as const).map(t => `<option value="${t}" ${(selectedOutput?.transform || 'normal') === t ? 'selected' : ''}>${t === 'normal' ? 'Landscape' : `Rotate ${t}�`}</option>`).join('')}
             </select>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px;">
@@ -14269,7 +14390,7 @@ class TempleOS {
       if (this.settingsSubView === 'theme-editor') {
         return `
             <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-                <button class="theme-editor-back-btn" style="background: none; border: none; color: #00ff41; font-size: 18px; cursor: pointer;">←</button>
+                <button class="theme-editor-back-btn" style="background: none; border: none; color: #00ff41; font-size: 18px; cursor: pointer;">?</button>
                 <div style="font-size: 18px; font-weight: bold; color: #ffd700;">Theme Editor</div>
             </div>
             
@@ -14366,7 +14487,7 @@ class TempleOS {
                    ">
                        <div style="width: 12px; height: 12px; border-radius: 50%; background: ${t.mainColor}; border: 1px solid #fff;"></div>
                        <span style="font-size: 13px;">${escapeHtml(t.name)}</span>
-                       <button class="custom-theme-export-btn" data-theme-name="${escapeHtml(t.name)}" title="Export" style="background: none; border: none; color: #00ff41; cursor: pointer; font-size: 10px; margin-left: 6px;">⬇</button>
+                       <button class="custom-theme-export-btn" data-theme-name="${escapeHtml(t.name)}" title="Export" style="background: none; border: none; color: #00ff41; cursor: pointer; font-size: 10px; margin-left: 6px;">?</button>
                        <button class="custom-theme-delete-btn" data-theme-name="${escapeHtml(t.name)}" title="Delete" style="background: none; border: none; color: #ff6464; cursor: pointer; font-size: 14px; margin-left: 2px;">&times;</button>
                    </div>
                `).join('')}
@@ -14408,7 +14529,7 @@ class TempleOS {
             ${wallpapers.map(w => `
               <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: ${this.wallpaperImage === w.path ? '2px solid #00ff41' : '1px solid rgba(0,255,65,0.3)'}; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
             `).join('')}
-             <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">📂 Select File...</button>
+             <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">?? Select File...</button>
           </div>
           <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">Format: JPG, PNG, GIF, WEBP</div>
         `)}
@@ -14473,16 +14594,16 @@ class TempleOS {
       return `
         ${card('Status', `
           <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">${connected ? (ssid || this.networkManager.status.connection || 'Connected') : 'Disconnected'}</div>
-          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` • IP ${ip}` : ''}${ssid ? ` • ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
+          <div style="font-size: 12px; opacity: 0.85;">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` � IP ${ip}` : ''}${ssid ? ` � ${signal}%` : ''}` : (this.networkManager.lastError ? this.networkManager.lastError : 'Not connected')}</div>
           <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
              <div style="display: flex; gap: 20px;">
                 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
                   <input type="checkbox" class="flight-mode-toggle" ${this.flightMode ? 'checked' : ''} />
-                  <span style="opacity: 0.9;">✈️ Flight Mode</span>
+                  <span style="opacity: 0.9;">?? Flight Mode</span>
                 </label>
                 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
                   <input type="checkbox" class="wifi-enabled-toggle" ${this.networkManager.wifiEnabled ? 'checked' : ''} ${this.flightMode ? 'disabled' : ''} />
-                  <span style="opacity: 0.9;">Wi‑Fi</span>
+                  <span style="opacity: 0.9;">Wi-Fi</span>
                 </label>
             </div>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -14492,13 +14613,13 @@ class TempleOS {
           </div>
         `)}
 
-        ${card('Wi‑Fi Networks', `
+        ${card('Wi-Fi Networks', `
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${window.electronAPI?.listWifiNetworks ? (this.networkManager.wifiNetworks.slice(0, 10).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: ${n.inUse ? 'rgba(0,255,65,0.15)' : 'rgba(0,0,0,0.2)'};">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: ${n.inUse ? '#ffd700' : '#00ff41'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.ssid}</div>
-                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+                  <div style="font-size: 12px; opacity: 0.8;">${n.security ? 'Secured' : 'Open'} � ${n.signal}%</div>
                 </div>
                 ${n.inUse ? `
                   <button class="net-btn" data-net-action="disconnect" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>
@@ -14506,7 +14627,7 @@ class TempleOS {
                   <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
                 `}
               </div>
-            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires Electron/Linux.</div>'}
+            `).join('') || '<div style=\"opacity: 0.6;\">No Wi-Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi-Fi management requires Electron/Linux.</div>'}
           </div>
         `)}
 
@@ -14514,13 +14635,13 @@ class TempleOS {
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require Electron/Linux.</div>' : ''}
             ${window.electronAPI?.listSavedNetworks ? ([
-          ...savedWifi.map(n => ({ ...n, kind: 'Wi‑Fi' })),
+          ...savedWifi.map(n => ({ ...n, kind: 'Wi-Fi' })),
           ...savedOther.map(n => ({ ...n, kind: n.type || 'Connection' }))
         ].slice(0, 14).map(n => `
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
                 <div style="min-width: 0;">
                   <div style="font-weight: bold; color: #00ff41; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(n.name)}</div>
-                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` • ${escapeHtml(n.device)}` : ''}</div>
+                  <div style="font-size: 12px; opacity: 0.75;">${escapeHtml(n.kind)}${n.device ? ` � ${escapeHtml(n.device)}` : ''}</div>
                 </div>
                 <div style="display:flex; gap: 8px; flex-shrink: 0;">
                   <button class="saved-net-btn" data-action="connect" data-key="${escapeHtml(n.uuid)}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
@@ -14665,14 +14786,14 @@ class TempleOS {
                       <span style="font-size: 11px; opacity: 0.6;">${this.sshEnabled ? '(Stop SSH to change port)' : '(Default: 22)'}</span>
                   </div>
                   <div style="opacity: 0.7;">Status</div>
-                  <div style="color: ${this.sshEnabled ? '#00ff41' : '#888'}; font-size: 12px;">${this.sshStatus === 'running' ? '🟢 Active' : (this.sshStatus === 'stopped' ? '🔴 Inactive' : '⚪ Unknown')}</div>
+                  <div style="color: ${this.sshEnabled ? '#00ff41' : '#888'}; font-size: 12px;">${this.sshStatus === 'running' ? '?? Active' : (this.sshStatus === 'stopped' ? '?? Inactive' : '? Unknown')}</div>
               </div>
               <div style="display: flex; gap: 10px; margin-top: 10px;">
                   <button class="ssh-btn" data-ssh-action="regenerate-keys" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Regenerate Keys</button>
                   <button class="ssh-btn" data-ssh-action="view-pubkey" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">View Public Key</button>
               </div>
               <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
-                  ⚠️ Warning: Enabling SSH allows remote terminal access. Ensure your password is secure.
+                  ?? Warning: Enabling SSH allows remote terminal access. Ensure your password is secure.
               </div>
         `)}
       `;
@@ -14722,10 +14843,10 @@ class TempleOS {
                  ${this.bluetoothDevices.map(d => `
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="font-size: 20px;">${d.type === 'headphone' ? '🎧' : (d.type === 'mouse' ? '🖱️' : (d.type === 'phone' ? '📱' : '⌨️'))}</div>
+                            <div style="font-size: 20px;">${d.type === 'headphone' ? '??' : (d.type === 'mouse' ? '???' : (d.type === 'phone' ? '??' : '??'))}</div>
                             <div>
                                 <div style="font-weight: bold; color: #00ff41;">${escapeHtml(d.name)}</div>
-                                <div style="font-size: 12px; opacity: 0.7;">${d.connected ? 'Connected' : 'Not Connected'}${d.paired ? ' • Paired' : ''}</div>
+                                <div style="font-size: 12px; opacity: 0.7;">${d.connected ? 'Connected' : 'Not Connected'}${d.paired ? ' � Paired' : ''}</div>
                                 <div style="font-size: 11px; opacity: 0.5; font-family: monospace;">${escapeHtml(d.mac)}</div>
                             </div>
                         </div>
@@ -14745,7 +14866,7 @@ class TempleOS {
       const randomQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
       return `
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">?</div>
           <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
           <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>
@@ -14759,11 +14880,11 @@ class TempleOS {
           <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
             <div style="opacity: 0.7;">Platform</div><div>TempleOS Remake</div>
-            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '—'}</div>
-            <div style="opacity: 0.7;">User</div><div>${info?.user || '—'}</div>
-            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '—'}</div>
-            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : '—'}</div>
-            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : '—'}</div>
+            <div style="opacity: 0.7;">Hostname</div><div>${info?.hostname || '�'}</div>
+            <div style="opacity: 0.7;">User</div><div>${info?.user || '�'}</div>
+            <div style="opacity: 0.7;">CPU Cores</div><div>${info?.cpus ?? '�'}</div>
+            <div style="opacity: 0.7;">Uptime</div><div>${info ? Math.floor(info.uptime / 60) + ' min' : '�'}</div>
+            <div style="opacity: 0.7;">Memory</div><div>${info ? `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB` : '�'}</div>
           </div>
           <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
             <button class="about-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
@@ -14772,7 +14893,7 @@ class TempleOS {
         
         <div style="margin: 20px 0; padding: 15px; border-left: 3px solid #ffd700; background: rgba(255,215,0,0.05); font-style: italic; color: #ffd700;">
           "${escapeHtml(randomQuote)}"
-          <div style="text-align: right; font-size: 12px; margin-top: 5px; opacity: 0.8;">— Terry A. Davis</div>
+          <div style="text-align: right; font-size: 12px; margin-top: 5px; opacity: 0.8;">� Terry A. Davis</div>
         </div>
 
         ${card('Setup & Maintenance', `
@@ -14782,14 +14903,14 @@ class TempleOS {
                 <div style="font-weight: bold;">Run Setup Again</div>
                 <div style="font-size: 12px; opacity: 0.7;">Re-run the initial configuration wizard</div>
               </div>
-              <button class="setup-again-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">⚙️ Run Setup</button>
+              <button class="setup-again-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">?? Run Setup</button>
             </div>
           </div>
         `)}
 
         <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
-          Made with HolyC ❤️ by Giangero Studio<br>
-          © 2025 Giangero Studio
+          Made with HolyC ?? by Giangero Studio<br>
+          � 2025 Giangero Studio
         </div>
       `;
     };
@@ -14871,7 +14992,7 @@ class TempleOS {
 
            <div style="font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                <span>Active Rules</span>
-               <button class="fw-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 2px 6px; border-radius: 4px; font-size: 11px; cursor: pointer;">↻ Refresh</button>
+               <button class="fw-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 2px 6px; border-radius: 4px; font-size: 11px; cursor: pointer;">? Refresh</button>
            </div>
            
            ${this.firewallRulesLoading ? '<div style="opacity: 0.6; font-size: 12px;">Loading rules...</div>' : ''}
@@ -14884,7 +15005,7 @@ class TempleOS {
                            <span style="font-weight: bold; color: ${r.action === 'ALLOW' ? '#00ff41' : '#ff6464'}; width: 50px;">${r.action}</span>
                            <span>${r.to}</span>
                        </div>
-                       <button class="fw-delete-btn" data-id="${r.id}" style="background: none; border: none; color: #ff6464; cursor: pointer; opacity: 0.7;">🗑️</button>
+                       <button class="fw-delete-btn" data-id="${r.id}" style="background: none; border: none; color: #ff6464; cursor: pointer; opacity: 0.7;">???</button>
                    </div>
                `).join('')}
            </div>
@@ -14921,7 +15042,7 @@ class TempleOS {
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <div>
               <div style="font-weight: bold; color: ${this.networkManager.torStatus.running ? '#00ff41' : '#888'};">
-                🧅 ${this.networkManager.torStatus.running ? 'Tor Running' : 'Tor Off'}
+                ?? ${this.networkManager.torStatus.running ? 'Tor Running' : 'Tor Off'}
               </div>
               <div style="font-size: 12px; opacity: 0.7;">Route traffic through Tor network for anonymity</div>
             </div>
@@ -14935,7 +15056,7 @@ class TempleOS {
             </select>
             <div style="opacity: 0.7;">Installed</div>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="color: ${this.networkManager.torStatus.installed ? '#00ff41' : '#ff6464'};">${this.networkManager.torStatus.installed ? '✓ Yes' : '✗ No'}</span>
+              <span style="color: ${this.networkManager.torStatus.installed ? '#00ff41' : '#ff6464'};">${this.networkManager.torStatus.installed ? '? Yes' : '? No'}</span>
               ${!this.networkManager.torStatus.installed ? `<button class="tor-install-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Install Tor</button>` : ''}
             </div>
           </div>
@@ -14946,14 +15067,14 @@ class TempleOS {
             <button class="tor-stop-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Stop Tor</button>
           ` : ''}
           <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
-            ⚠️ System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps. Use "Browser Only" for Tor Browser usage.
+            ?? System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps. Use "Browser Only" for Tor Browser usage.
           </div>
         `)}
 
         ${card('Emergency Lockdown', `
           <div style="text-align: center;">
             <button class="panic-lockdown-btn" style="background: linear-gradient(135deg, #ff3333, #cc0000); color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit;">
-              🚨 PANIC: Lock & Disconnect
+              ?? PANIC: Lock & Disconnect
             </button>
             <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">
               Immediately locks screen and disables all network connections.
@@ -14961,7 +15082,7 @@ class TempleOS {
           </div>
         `)}
 
-        ${card('🛡️ Security Audit', (() => {
+        ${card('??? Security Audit', (() => {
         // Calculate security score
         const checks = [
           { name: 'Encryption', enabled: this.encryptionEnabled, weight: 23 },
@@ -14998,35 +15119,35 @@ class TempleOS {
             <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
               ${checks.map(c => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: ${c.enabled ? 'rgba(0,255,65,0.1)' : 'rgba(255,100,100,0.05)'}; border-left: 3px solid ${c.enabled ? '#00ff41' : '#ff6464'}; border-radius: 4px;">
-                  <span>${c.enabled ? '✅' : '❌'} ${c.name}</span>
+                  <span>${c.enabled ? '?' : '?'} ${c.name}</span>
                   <span style="opacity: 0.6; font-size: 11px;">${c.weight}pts</span>
                 </div>
               `).join('')}
             </div>
             
             <div style="margin-top: 15px; padding: 10px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: 6px; font-size: 11px;">
-              <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">💡 Recommendations:</div>
-              ${!this.encryptionEnabled ? '<div>• Enable disk encryption for data protection</div>' : ''}
-              ${!this.firewallEnabled ? '<div>• Enable firewall to block unauthorized access</div>' : ''}
-              ${this.sshEnabled ? '<div>• Disable SSH if not needed for remote access</div>' : ''}
-              ${!this.macRandomization ? '<div>• Enable MAC randomization for privacy</div>' : ''}
-              ${!(this.torEnabled && this.torDaemonRunning) ? '<div>• Consider Tor for anonymous browsing<br><span style="font-size: 10px; opacity: 0.7; margin-left: 8px;">Note: Tor service only. Use <code>torsocks</code> to route apps through Tor</span></div>' : ''}
-              ${percentage === 100 ? '<div style="color: #00ff41;">✨ Perfect! Your security is divine.</div>' : ''}
+              <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">?? Recommendations:</div>
+              ${!this.encryptionEnabled ? '<div>� Enable disk encryption for data protection</div>' : ''}
+              ${!this.firewallEnabled ? '<div>� Enable firewall to block unauthorized access</div>' : ''}
+              ${this.sshEnabled ? '<div>� Disable SSH if not needed for remote access</div>' : ''}
+              ${!this.macRandomization ? '<div>� Enable MAC randomization for privacy</div>' : ''}
+              ${!(this.torEnabled && this.torDaemonRunning) ? '<div>� Consider Tor for anonymous browsing<br><span style="font-size: 10px; opacity: 0.7; margin-left: 8px;">Note: Tor service only. Use <code>torsocks</code> to route apps through Tor</span></div>' : ''}
+              ${percentage === 100 ? '<div style="color: #00ff41;">? Perfect! Your security is divine.</div>' : ''}
             </div>
           `;
       })())}
 
-        ${card('📷 EXIF Metadata Stripper', `
+        ${card('?? EXIF Metadata Stripper', `
           <div style="margin-bottom: 12px;">
             <div style="font-size: 13px; opacity: 0.85; margin-bottom: 10px;">
               Remove location, camera, and timestamp data from images before sharing.
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
               <button class="exif-select-file-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">
-                📂 Select Image
+                ?? Select Image
               </button>
               <button class="exif-strip-btn" ${!this.exifSelectedFile ? 'disabled' : ''} style="background: none; border: 1px solid rgba(0,255,65,${this.exifSelectedFile ? '0.5' : '0.3'}); color: ${this.exifSelectedFile ? '#00ff41' : 'rgba(0,255,65,0.5)'}; padding: 8px 16px; border-radius: 6px; cursor: ${this.exifSelectedFile ? 'pointer' : 'not-allowed'}; font-family: inherit;">
-                🧹 Strip EXIF Data
+                ?? Strip EXIF Data
               </button>
             </div>
           </div>
@@ -15046,12 +15167,12 @@ class TempleOS {
           ` : ''}
           
           <div style="margin-top: 12px; padding: 10px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: 6px; font-size: 11px;">
-            <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">⚠️ Privacy Warning:</div>
+            <div style="color: #ffd700; font-weight: bold; margin-bottom: 4px;">?? Privacy Warning:</div>
             <div style="opacity: 0.85;">
-              • GPS coordinates can reveal your home address<br>
-              • Camera model/serial number can identify you<br>
-              • Timestamps reveal when photos were taken<br>
-              • Software info can leak your workflow
+              � GPS coordinates can reveal your home address<br>
+              � Camera model/serial number can identify you<br>
+              � Timestamps reveal when photos were taken<br>
+              � Software info can leak your workflow
             </div>
           </div>
         `)}
@@ -15089,7 +15210,7 @@ class TempleOS {
            <div style="margin-bottom: 15px;">
                <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Panic Button</div>
                <button class="panic-btn" style="width: 100%; background: #ff4444; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                 <span>🚨</span> INITIATE LOCKDOWN
+                 <span>??</span> INITIATE LOCKDOWN
                </button>
                <div style="font-size: 11px; margin-top: 5px; opacity: 0.7;">Immediately locks screen, dismounts VeraCrypt, and clears clipboard.</div>
            </div>
@@ -15230,7 +15351,7 @@ class TempleOS {
              ${launchers.length > 0 ? launchers.map(l => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid rgba(0,255,65,0.1);">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">🎮</span>
+                        <span style="font-size: 24px;">??</span>
                         <div>
                            <div style="font-weight: bold;">${escapeHtml(l.name)}</div>
                            <div style="font-size: 11px; opacity: 0.7;">${escapeHtml(l.exec || '')}</div>
@@ -15694,9 +15815,9 @@ class TempleOS {
 
     const tabsHtml = this.editorTabs.map((tab, i) => `
       <div class="editor-tab ${i === this.activeEditorTab ? 'active' : ''}" data-editor-tab="${i}">
-        ${tab.modified ? '<span class="editor-tab-modified">●</span>' : ''}
+        ${tab.modified ? '<span class="editor-tab-modified">?</span>' : ''}
         ${escapeHtml(tab.filename)}
-        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">×</span>` : ''}
+        ${this.editorTabs.length > 1 ? `<span class="editor-tab-close" data-editor-close="${i}">�</span>` : ''}
       </div>
     `).join('');
 
@@ -15708,14 +15829,14 @@ class TempleOS {
           <input type="text" class="editor-replace-input" placeholder="Replace..." 
                  value="${escapeHtml(this.editorReplaceQuery)}" data-editor-replace-input />
         ` : ''}
-        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">◀</button>
-        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">▶</button>
+        <button class="editor-find-btn" data-editor-action="find-prev" title="Previous (Shift+F3)">?</button>
+        <button class="editor-find-btn" data-editor-action="find-next" title="Next (F3)">?</button>
         ${this.editorFindMode === 'replace' ? `
           <button class="editor-find-btn" data-editor-action="replace" title="Replace">Replace</button>
           <button class="editor-find-btn" data-editor-action="replace-all" title="Replace All">All</button>
         ` : ''}
         <span class="editor-find-count">${this.editorFindMatches.length > 0 ? `${this.editorFindCurrentMatch + 1}/${this.editorFindMatches.length}` : ''}</span>
-        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">×</button>
+        <button class="editor-find-btn editor-find-close" data-editor-action="find-close">�</button>
       </div>
     ` : '';
 
@@ -15863,7 +15984,7 @@ class TempleOS {
     if (tabEl && !tabEl.querySelector('.editor-tab-modified')) {
       const modSpan = document.createElement('span');
       modSpan.className = 'editor-tab-modified';
-      modSpan.textContent = '●';
+      modSpan.textContent = '?';
       tabEl.insertBefore(modSpan, tabEl.firstChild);
     }
 
@@ -16156,7 +16277,7 @@ class TempleOS {
       })
       .slice(0, 250);
 
-    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const sortArrow = (key: string) => this.monitorSort === key ? (this.monitorSortDir === 'asc' ? ' ?' : ' ?') : '';
 
     // Use enhanced module for stats rendering (includes CPU graph + GPU)
     const enhancedStats = this.systemMonitor.renderMonitorContent(s);
@@ -16167,7 +16288,7 @@ class TempleOS {
         <button class="monitor-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 8px; cursor: pointer;">Refresh</button>
         <input class="monitor-search-input" placeholder="Search processes..." value="${escapeHtml(this.monitorQuery)}" style="flex: 1; min-width: 120px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); color: #00ff41; padding: 8px 10px; border-radius: 8px; font-family: inherit; outline: none;" />
         <div style="font-size: 12px; opacity: 0.75; white-space: nowrap;">
-          ${s ? `Uptime ${this.formatDuration(s.uptime)} • ${escapeHtml(s.hostname)}` : 'Loading…'}
+          ${s ? `Uptime ${this.formatDuration(s.uptime)} � ${escapeHtml(s.hostname)}` : 'Loading�'}
         </div>
       </div>
 
@@ -16244,14 +16365,14 @@ class TempleOS {
       ">
         <span style="opacity: 0.5; font-size: 14px;">${(i + 1).toString().padStart(2, '0')}</span>
         <span style="flex: 1; font-size: 15px;">${h.title}</span>
-        ${i === this.currentHymn ? '<span>▶</span>' : ''}
+        ${i === this.currentHymn ? '<span>?</span>' : ''}
       </div>
     `).join('');
 
     return `
       <div class="hymn-player" style="height: 100%; display: flex; flex-direction: column;">
         <div style="text-align: center; padding: 15px; border-bottom: 1px solid rgba(0,255,65,0.2);">
-          <div style="font-size: 24px; margin-bottom: 5px;">🎶 ✝️ 🎶</div>
+          <div style="font-size: 24px; margin-bottom: 5px;">?? ?? ??</div>
           <h2 style="font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ffd700; margin: 0;">DIVINE HYMNS</h2>
           <p style="font-size: 12px; opacity: 0.6; margin-top: 5px;">Orthodox Liturgical Music</p>
         </div>
@@ -16260,9 +16381,9 @@ class TempleOS {
           <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px; text-align: center;">${this.hymnList[this.currentHymn].title}</div>
           <audio id="hymn-audio" controls style="width: 100%; filter: sepia(0.3) hue-rotate(80deg);" src="./music/${this.hymnList[this.currentHymn].file}"></audio>
           <div style="display: flex; justify-content: center; gap: 15px; margin-top: 10px;">
-            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">⏮ Prev</button>
-            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">🎲 Random</button>
-            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next ⏭</button>
+            <button class="hymn-control" data-action="prev" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">? Prev</button>
+            <button class="hymn-control" data-action="random" style="background: none; border: 1px solid rgba(255,215,0,0.3); color: #ffd700; padding: 8px 15px; cursor: pointer; border-radius: 4px;">?? Random</button>
+            <button class="hymn-control" data-action="next" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 15px; cursor: pointer; border-radius: 4px;">Next ?</button>
           </div>
         </div>
         
@@ -16307,7 +16428,7 @@ class TempleOS {
             item.setAttribute('style', `padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(0,255,65,0.1); display: flex; align-items: center; gap: 10px; background: rgba(0,255,65,0.15); color: #ffd700;`);
             // Add play icon if missing
             if (!item.querySelector('span:nth-child(3)')) {
-              item.insertAdjacentHTML('beforeend', '<span>▶</span>');
+              item.insertAdjacentHTML('beforeend', '<span>?</span>');
             }
           } else {
             item.classList.remove('active');
@@ -16615,7 +16736,7 @@ class TempleOS {
           text-align: center;
           box-shadow: 0 0 40px rgba(0, 255, 65, 0.3);
         ">
-          <div style="font-size: 28px; color: var(--tos-yellow); margin-bottom: 20px;">⚠️ Display Settings</div>
+          <div style="font-size: 28px; color: var(--tos-yellow); margin-bottom: 20px;">?? Display Settings</div>
           
           <div style="font-size: 20px; color: var(--text-primary); margin-bottom: 15px;">
             Keep these display settings?
@@ -16651,7 +16772,7 @@ class TempleOS {
               cursor: pointer;
               transition: all 0.2s;
             ">
-              ✓ Keep Changes
+              ? Keep Changes
             </button>
             
             <button class="resolution-revert-btn" style="
@@ -16665,7 +16786,7 @@ class TempleOS {
               cursor: pointer;
               transition: all 0.2s;
             ">
-              ✕ Revert
+              ? Revert
             </button>
           </div>
         </div>
@@ -16914,7 +17035,7 @@ class TempleOS {
         if (result.updatesAvailable) {
           this.updaterState = {
             status: 'available',
-            message: `🆕 ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
+            message: `?? ${result.behindCount} new blessing${result.behindCount === 1 ? '' : 's'} available from Heaven!`,
             isUpdating: false
           };
 
@@ -16922,7 +17043,7 @@ class TempleOS {
           if (showNotification) {
             const count = result.behindCount || 1;
             this.showNotification(
-              '✝️ Holy Updater',
+              '?? Holy Updater',
               `${count} new update${count === 1 ? '' : 's'} available! Open Holy Updater to install.`,
               'divine',
               [{ id: 'open-updater', label: 'Open Updater' }]
@@ -16931,7 +17052,7 @@ class TempleOS {
         } else {
           this.updaterState = {
             status: 'idle',
-            message: '✨ Your temple is blessed with the latest version!',
+            message: '? Your temple is blessed with the latest version!',
             isUpdating: false
           };
         }
@@ -16948,7 +17069,7 @@ class TempleOS {
   private async runUpdate(): Promise<void> {
     if (!window.electronAPI) return;
 
-    this.updaterState = { status: 'updating', message: '📥 Downloading divine updates...', isUpdating: true };
+    this.updaterState = { status: 'updating', message: '?? Downloading divine updates...', isUpdating: true };
     this.updateUpdaterWindow();
 
     try {
@@ -16956,7 +17077,7 @@ class TempleOS {
       if (result.success) {
         this.updaterState = {
           status: 'success',
-          message: '✅ Update complete! Reboot to apply the new blessings.',
+          message: '? Update complete! Reboot to apply the new blessings.',
           isUpdating: false
         };
       } else {
@@ -17119,7 +17240,7 @@ class TempleOS {
               </div>
             </div>
           </div>
-          <div class="alt-tab-hint">Alt+Tab to cycle • Release Alt to switch</div>
+          <div class="alt-tab-hint">Alt+Tab to cycle � Release Alt to switch</div>
         </div>
       </div>
     `;
@@ -17163,7 +17284,7 @@ class TempleOS {
       const stats = this.monitorStats;
       const cpu = typeof stats?.cpuPercent === 'number' ? `${stats.cpuPercent.toFixed(0)}% CPU` : '';
       const mem = stats?.memory?.total ? `${this.formatFileSize(stats.memory.used)} / ${this.formatFileSize(stats.memory.total)} RAM` : '';
-      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s ↓ • ${this.formatFileSize(stats.network.txBps)}/s ↑` : '';
+      const net = stats?.network ? `${this.formatFileSize(stats.network.rxBps)}/s ? � ${this.formatFileSize(stats.network.txBps)}/s ?` : '';
       return ['Task Manager', cpu, mem, net].filter(Boolean);
     }
 
@@ -17614,7 +17735,7 @@ class TempleOS {
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="lock-pin-btn" data-pin-key="${n}">${n}</button>`).join('')}
             <button class="lock-pin-btn alt" data-pin-key="clear">CLR</button>
             <button class="lock-pin-btn" data-pin-key="0">0</button>
-            <button class="lock-pin-btn alt" data-pin-key="back">⌫</button>
+            <button class="lock-pin-btn alt" data-pin-key="back">?</button>
             <button class="lock-pin-enter" data-pin-key="enter">ENTER</button>
           </div>
 
@@ -18195,10 +18316,10 @@ class TempleOS {
         const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
         response = `
 <div class="terminal-line gold">"${verse.text}"</div>
-<div class="terminal-line system">    â€” ${verse.ref}</div>`;
+<div class="terminal-line system">    — ${verse.ref}</div>`;
         break;
       case 'hymn':
-        response = `<div class="terminal-line success">â™ª Opening Divine Hymns... â™ª</div>`;
+        response = `<div class="terminal-line success">♪ Opening Divine Hymns... ♪</div>`;
         // Open hymn player and play random hymn
         setTimeout(() => {
           this.openApp('hymns');
@@ -18212,15 +18333,15 @@ class TempleOS {
         break;
       case 'about':
         response = `
-<div class="terminal-line gold">â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—</div>
-<div class="terminal-line gold">â•‘          T E M P L E   O S             â•‘</div>
-<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
-<div class="terminal-line">â•‘  God's Operating System                â•‘</div>
-<div class="terminal-line">â•‘  Written in HolyC - God's Language     â•‘</div>
-<div class="terminal-line">â•‘  In memory of Terry A. Davis           â•‘</div>
-<div class="terminal-line gold">â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£</div>
-<div class="terminal-line system">â•‘  Remake by Giangero Studio             â•‘</div>
-<div class="terminal-line gold">â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•</div>`;
+<div class="terminal-line gold">╔══════════════�═�������������������������������╗</div>
+<div class="terminal-line gold">║          T E M P L E   O S             ║</div>
+<div class="terminal-line gold">╠�═��������������������������������������╣</div>
+<div class="terminal-line">║  God's Operating System                ║</div>
+<div class="terminal-line">║  Written in HolyC - God's Language     ║</div>
+<div class="terminal-line">║  In memory of Terry A. Davis           ║</div>
+<div class="terminal-line gold">╠����������������������������������������╣</div>
+<div class="terminal-line system">║  Remake by Giangero Studio             ║</div>
+<div class="terminal-line gold">╚����������������������������������������╝</div>`;
         break;
       default:
         if (cmd) {
@@ -18270,7 +18391,7 @@ class TempleOS {
     const cpuEl = document.getElementById('desktop-widget-cpu');
     if (cpuEl) {
       const cpu = this.monitorStats?.cpuPercent;
-      cpuEl.textContent = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '—';
+      cpuEl.textContent = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '�';
     }
 
     const ramEl = document.getElementById('desktop-widget-ram');
@@ -18280,7 +18401,7 @@ class TempleOS {
         const pct = Math.max(0, Math.min(100, Math.round((mem.used / mem.total) * 100)));
         ramEl.textContent = String(pct);
       } else {
-        ramEl.textContent = '—';
+        ramEl.textContent = '�';
       }
     }
 
@@ -18289,7 +18410,7 @@ class TempleOS {
       const pct = (this.batterySupported && this.batteryStatus?.present && typeof this.batteryStatus.percent === 'number')
         ? Math.max(0, Math.min(100, Math.round(this.batteryStatus.percent)))
         : null;
-      batEl.textContent = pct === null ? '—' : String(pct);
+      batEl.textContent = pct === null ? '�' : String(pct);
     }
   }
 
@@ -18353,26 +18474,26 @@ class TempleOS {
       // Step 2: Privacy Settings
       `
           <div style="text-align: center;">
-             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">🔐 Privacy Settings</div>
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">?? Privacy Settings</div>
              <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Configure your security preferences</p>
              <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
                 <div class="wizard-toggle-btn" data-setting="tracker-blocking" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
-                   <span>🔒 Tracker Blocking</span>
+                   <span>?? Tracker Blocking</span>
                    <span style="color: ${this.trackerBlockingEnabled ? '#00ff41' : '#666'}; font-weight: bold;">${this.trackerBlockingEnabled ? 'ON' : 'OFF'}</span>
                 </div>
                 <div class="wizard-toggle-btn" data-setting="mac-randomization" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 6px; cursor: pointer; user-select: none;">
-                   <span>📱 MAC Randomization</span>
+                   <span>?? MAC Randomization</span>
                    <span style="color: ${this.macRandomization ? '#00ff41' : '#666'}; font-weight: bold;">${this.macRandomization ? 'ON' : 'OFF'}</span>
                 </div>
              </div>
-             <p style="font-size: 12px; opacity: 0.6; margin-bottom: 20px;">You can change these in Settings → Security</p>
+             <p style="font-size: 12px; opacity: 0.6; margin-bottom: 20px;">You can change these in Settings ? Security</p>
              <button class="wizard-next-btn" style="padding: 10px 30px; font-size: 20px; background: #00ff41; color: #000; border: none; cursor: pointer;">Next</button>
           </div>
           `,
       // Step 3: Time & Reality
       `
           <div style="text-align: center;">
-             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">⏳ Time & Reality</div>
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">? Time & Reality</div>
              <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Align your temporal existence</p>
              <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
                 <div style="margin-bottom: 15px;">
@@ -18401,27 +18522,27 @@ class TempleOS {
       // Step 4: Features
       `
           <div style="text-align: center;">
-             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">⚡ Features</div>
+             <div style="font-size: 32px; color: #ffd700; margin-bottom: 20px;">? Features</div>
              <p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">Enabled features for your Divine experience</p>
              <div style="text-align: left; max-width: 400px; margin: 0 auto 30px auto;">
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
-                   <span style="font-size: 24px;">💻</span>
+                   <span style="font-size: 24px;">??</span>
                    <span>Terminal with Holy Commands</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
-                   <span style="font-size: 24px;">📝</span>
+                   <span style="font-size: 24px;">??</span>
                    <span>HolyC Code Editor</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
-                   <span style="font-size: 24px;">✝️</span>
+                   <span style="font-size: 24px;">??</span>
                    <span>Word of God Oracle</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
-                   <span style="font-size: 24px;">🎵</span>
+                   <span style="font-size: 24px;">??</span>
                    <span>Hymn Player</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(0,255,65,0.05); border-radius: 6px;">
-                   <span style="font-size: 24px;">📋</span>
+                   <span style="font-size: 24px;">??</span>
                    <span>Godly Notes</span>
                 </div>
              </div>
@@ -18441,7 +18562,7 @@ class TempleOS {
     return `
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999990; display: flex; align-items: center; justify-content: center;">
             <div style="width: 600px; padding: 40px; border: 4px double #00ff41; background: #001100; position: relative;">
-                <button class="wizard-skip-btn" style="position: absolute; top: 10px; right: 10px; background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.5); padding: 5px 10px; cursor: pointer; font-size: 12px; border-radius: 4px;" title="Skip setup and enter the Temple">Skip ✕</button>
+                <button class="wizard-skip-btn" style="position: absolute; top: 10px; right: 10px; background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.5); padding: 5px 10px; cursor: pointer; font-size: 12px; border-radius: 4px;" title="Skip setup and enter the Temple">Skip ?</button>
                 ${steps[this.firstRunStep] || steps[0]}
             </div>
         </div>
@@ -18476,14 +18597,14 @@ class TempleOS {
 
     const now = new Date();
     const cpu = this.monitorStats?.cpuPercent;
-    const cpuText = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '—';
+    const cpuText = (typeof cpu === 'number' && Number.isFinite(cpu)) ? String(Math.round(cpu)) : '�';
 
     const mem = this.monitorStats?.memory;
-    const ramText = (mem && mem.total > 0) ? String(Math.max(0, Math.min(100, Math.round((mem.used / mem.total) * 100)))) : '—';
+    const ramText = (mem && mem.total > 0) ? String(Math.max(0, Math.min(100, Math.round((mem.used / mem.total) * 100)))) : '�';
 
     const bat = (this.batterySupported && this.batteryStatus?.present && typeof this.batteryStatus.percent === 'number')
       ? String(Math.max(0, Math.min(100, Math.round(this.batteryStatus.percent))))
-      : '—';
+      : '�';
 
     return `
       <div class="desktop-widget" style="position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 0; color: rgba(0,255,65,0.4);">

@@ -197,6 +197,26 @@ div {
   transform: scale(1.1) translateY(-2px);
 }
 
+/* Neon Glyph (for Emojis styled as Neon) */
+.icon-neon-glyph {
+  font-size: 40px;
+  line-height: 1;
+  /* Filter stack to turn emoji monochrome green and neon */
+  filter: grayscale(100%) brightness(1.2) sepia(100%) hue-rotate(90deg) saturate(500%) drop-shadow(0 0 2px rgba(0, 255, 65, 0.8));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.desktop-icon:hover .icon-neon-glyph {
+  filter: grayscale(100%) brightness(1.7) sepia(100%) hue-rotate(90deg) saturate(800%) drop-shadow(0 0 8px var(--tos-green));
+  transform: scale(1.1) translateY(-2px);
+  text-shadow: 0 0 10px var(--tos-green);
+}
+
 .desktop-icon .label {
   font-size: 14px;
   color: #FFFFFF;
@@ -431,7 +451,6 @@ div {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 14px;
   line-height: 1.6;
-  letter-spacing: 0.5px;
   height: 100%;
   padding: 8px;
   background: rgba(0, 0, 0, 0.6);
@@ -441,9 +460,12 @@ div {
   --term-prompt: var(--tos-green);
   --term-caret: var(--tos-green);
   text-shadow: none !important;
-  /* Explicitly REMOVE shadows */
   font-weight: 500;
   color: #00FF41;
+  /* Prevent font blur/ghosting */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .terminal pre,
@@ -451,8 +473,9 @@ div {
   text-shadow: none !important;
   font-weight: 500;
   color: #00FF41;
-  letter-spacing: 0.5px;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .terminal-output {
@@ -4958,5 +4981,142 @@ span[role="img"],
 .terminal-xterm * {
   text-shadow: none !important;
   filter: none !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+/* Custom Dropdown (Replaces <select>) */
+.custom-dropdown {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  /* Important for grid/flex shrinking */
+  font-family: inherit;
+}
+
+.custom-dropdown-trigger {
+  width: 100%;
+  padding: 6px 30px 6px 10px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.custom-dropdown-trigger:hover {
+  background: rgba(0, 255, 65, 0.15);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
+.custom-dropdown-trigger::after {
+  content: '?';
+  font-size: 10px;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.custom-dropdown.open .custom-dropdown-trigger {
+  border-color: #00ff41;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.custom-dropdown-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+  background: rgba(8, 20, 12, 0.95);
+  border: 1px solid #00ff41;
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  z-index: 9999;
+  display: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.custom-dropdown.open .custom-dropdown-options {
+  display: block;
+}
+
+.custom-dropdown-option {
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.1s;
+}
+
+.custom-dropdown-option:hover {
+  background: rgba(0, 255, 65, 0.2);
+  color: #ffffff;
+  padding-left: 14px;
+  /* Slight movement effect */
+}
+
+.custom-dropdown-option.selected {
+  background: rgba(0, 255, 65, 0.1);
+  color: #00ff41;
+  font-weight: bold;
+}
+
+/* Custom Scrollbar for Dropdown */
+.custom-dropdown-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-dropdown-options::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.custom-dropdown-options::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+  border-radius: 3px;
+}
+
+.custom-dropdown-options::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ============================================
+   XTERM.JS CONTAINER - Prevent blur/ghosting
+   ============================================ */
+.xterm-container,
+.xterm-layout {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Force clean canvas rendering */
+.xterm-container canvas {
+  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Ensure xterm text rows don't have sub-pixel artifacts */
+.xterm-rows {
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
   -webkit-font-smoothing: antialiased !important;
 }

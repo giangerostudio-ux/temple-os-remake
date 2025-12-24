@@ -4025,8 +4025,8 @@ class TempleOS {
         <div class="start-menu-left">
           <div class="start-search-container">
             <div class="start-search-row">
-              <input type="text" class="start-search-input" placeholder="🔍 Search apps..." value="${escapeHtml(this.startMenuSearchQuery)}">
-              <button class="start-all-apps-btn" data-start-action="launcher" title="Open App Launcher (Super+A)">▦ All Apps</button>
+              <input type="text" class="start-search-input" placeholder="Search apps..." value="${escapeHtml(this.startMenuSearchQuery)}">
+              <button class="start-all-apps-btn" data-start-action="launcher" title="Open App Launcher (Super+A)"><i class="ph-bold ph-squares-four"></i> All Apps</button>
             </div>
           </div>
 
@@ -4044,19 +4044,19 @@ class TempleOS {
           </div>
           
           <div class="start-quick-links">
-            <div class="start-quick-link" data-path="root">💻 This PC</div>
-            <div class="start-quick-link" data-path="home">🏠 Home</div>
-            <div class="start-quick-link" data-path="Documents">📄 Documents</div>
-            <div class="start-quick-link" data-path="Downloads">⬇️ Downloads</div>
-            <div class="start-quick-link" data-path="Music">🎵 Music</div>
-            <div class="start-quick-link" data-path="Pictures">🖼️ Pictures</div>
-            <div class="start-quick-link" data-path="settings">⚙️ Settings</div>
+            <div class="start-quick-link" data-path="root"><i class="ph-fill ph-desktop"></i> This PC</div>
+            <div class="start-quick-link" data-path="home"><i class="ph-fill ph-house"></i> Home</div>
+            <div class="start-quick-link" data-path="Documents"><i class="ph-fill ph-file-text"></i> Documents</div>
+            <div class="start-quick-link" data-path="Downloads"><i class="ph-fill ph-download"></i> Downloads</div>
+            <div class="start-quick-link" data-path="Music"><i class="ph-fill ph-music-note"></i> Music</div>
+            <div class="start-quick-link" data-path="Pictures"><i class="ph-fill ph-image"></i> Pictures</div>
+            <div class="start-quick-link" data-path="settings"><i class="ph-fill ph-gear"></i> Settings</div>
           </div>
           
           <div class="start-power-section">
-            <button class="start-power-btn" data-power-action="lock">🔒 Lock</button>
-            <button class="start-power-btn" data-power-action="restart">🔄 Restart</button>
-            <button class="start-power-btn" data-power-action="shutdown">🔴 Shutdown</button>
+            <button class="start-power-btn" data-power-action="lock"><i class="ph-fill ph-lock"></i> Lock</button>
+            <button class="start-power-btn" data-power-action="restart"><i class="ph-bold ph-arrows-clockwise"></i> Restart</button>
+            <button class="start-power-btn" data-power-action="shutdown"><i class="ph-fill ph-power"></i> Shutdown</button>
           </div>
         </div>
       </div>
@@ -16857,14 +16857,14 @@ class TempleOS {
   };
 
   private getUpdaterContent(): string {
-    const statusIcon = this.updaterState.status === 'success' ? '✅' :
-      this.updaterState.status === 'error' ? '❌' :
-        this.updaterState.status === 'updating' ? '⏳' :
-          this.updaterState.status === 'available' ? '🆕' : '🔍';
+    const statusIcon = this.updaterState.status === 'success' ? '<i class="ph-fill ph-check-circle" style="color:var(--tos-green)"></i>' :
+      this.updaterState.status === 'error' ? '<i class="ph-fill ph-x-circle" style="color:var(--tos-red)"></i>' :
+        this.updaterState.status === 'updating' ? '<i class="ph-fill ph-hourglass"></i>' :
+          this.updaterState.status === 'available' ? '<i class="ph-fill ph-sparkle"></i>' : '<i class="ph-bold ph-magnifying-glass"></i>';
 
     return `
       <div class="updater" style="padding: 20px; text-align: center; height: 100%; display: flex; flex-direction: column;">
-        <h2 style="margin: 0 0 10px 0; color: #ffd700;">✝ HOLY UPDATER ✝</h2>
+        <h2 style="margin: 0 0 10px 0; color: #ffd700;"><i class="ph-fill ph-cross"></i> HOLY UPDATER <i class="ph-fill ph-cross"></i></h2>
         <p style="opacity: 0.7; margin-bottom: 20px;">Receive new blessings from the Divine Repository</p>
         
         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
@@ -16876,17 +16876,17 @@ class TempleOS {
           <button class="updater-btn" data-updater-action="check" 
                   style="background: rgba(0,255,65,0.2); border: 1px solid #00ff41; color: #00ff41; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating ? 'disabled' : ''}>
-            🔍 Check for Updates
+            <i class="ph-bold ph-magnifying-glass"></i> Check for Updates
           </button>
           <button class="updater-btn" data-updater-action="update" 
                   style="background: rgba(255,215,0,0.2); border: 1px solid #ffd700; color: #ffd700; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;"
                   ${this.updaterState.isUpdating || this.updaterState.status !== 'available' ? 'disabled' : ''}>
-            ⬇️ Download & Install
+            <i class="ph-bold ph-download-simple"></i> Download & Install
           </button>
           ${this.updaterState.status === 'success' ? `
           <button class="updater-btn" data-updater-action="reboot" 
                   style="background: rgba(255,100,100,0.2); border: 1px solid #ff6464; color: #ff6464; padding: 10px 20px; cursor: pointer; font-family: inherit; font-size: 14px;">
-            🔄 Reboot Now
+            <i class="ph-bold ph-arrows-clockwise"></i> Reboot Now
           </button>
           ` : ''}
         </div>

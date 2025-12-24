@@ -5,6 +5,7 @@
   --bg-root: #020502;
   --bg-window: rgba(8, 20, 12, 0.85);
   --text-primary: #E0F7E9;
+  /* Soft Mint */
   --text-secondary: #8FB39D;
   --accent-gold: #F0E68C;
   --accent-glow: #00FF41;
@@ -179,12 +180,12 @@ div {
 
 .desktop-icon .label {
   font-size: 14px;
-  color: var(--text-highlight);
-  /* Strong shadow for readability against wallpaper */
-  text-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.9),
-    0 0 10px rgba(0, 5, 0, 0.8),
-    0 0 5px rgba(0, 255, 65, 0.5);
+  color: #FFFFFF;
+  /* Pure White */
+  /* Sharp black shadow for readability */
+  text-shadow: 0 1px 3px black;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   font-weight: 500;
   letter-spacing: 0.5px;
   /* Truncate long names */
@@ -202,7 +203,7 @@ div {
   background: var(--bg-window);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  /* Refined border: thinner with bloom */
+  /* Refined border: thinner with glass glow */
   border: 1px solid rgba(0, 255, 65, 0.5);
   border-radius: 8px;
   box-shadow:
@@ -257,7 +258,8 @@ div {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--accent-gold);
+  color: #F0E68C;
+  /* Gold */
   text-shadow: 0 0 10px rgba(240, 230, 140, 0.3);
   display: flex;
   align-items: center;
@@ -424,6 +426,17 @@ div {
   --term-fg: var(--text-primary);
   --term-prompt: var(--tos-green);
   --term-caret: var(--tos-green);
+  text-shadow: none !important;
+  /* Explicitly REMOVE shadows */
+  font-weight: 500;
+  color: #00FF41;
+}
+
+.terminal pre,
+.terminal code {
+  text-shadow: none !important;
+  font-weight: 500;
+  color: #00FF41;
 }
 
 .terminal-output {
@@ -1372,6 +1385,10 @@ div {
 
 
 .start-btn {
+  display: flex;
+  /* Fix vertical alignment */
+  align-items: center;
+  justify-content: center;
   padding: 8px 24px;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--border-color);
@@ -4677,24 +4694,30 @@ svg.icon:hover,
 
 /* Force colorful app icons to monochrome green "holograms" */
 .app-icon img,
-.launcher-icon img,
-.start-menu-app img,
-.app-grid-item img,
-.app-launcher-icon img {
-  /* Strip color and force neon green theme */
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(300%) brightness(1.1) contrast(1.2);
+.launcher-grid img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.2);
   opacity: 0.9;
-  transition: all 0.3s ease;
 }
 
-.app-icon:hover img,
-.launcher-icon:hover img,
-.start-menu-app:hover img,
-.app-grid-item:hover img,
-.app-launcher-icon:hover img {
-  /* On hover, glow white-hot */
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(100%) brightness(2.0);
-  filter: drop-shadow(0 0 8px var(--accent-glow));
+.app-icon:hover img {
+  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(2.0) drop-shadow(0 0 8px var(--accent-glow));
+}
+
+/* Danger Buttons (Shutdown/Restart) */
+.danger-btn,
+.power-btn:hover,
+.start-power-btn[data-power-action="shutdown"],
+.start-power-btn[data-power-action="restart"] {
+  background: rgba(50, 0, 0, 0.8) !important;
+  border-color: #ff3333 !important;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.4) !important;
+  color: #ff6464 !important;
+}
+
+.start-power-btn[data-power-action="shutdown"]:hover,
+.start-power-btn[data-power-action="restart"]:hover {
+  background: rgba(255, 50, 50, 0.4) !important;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.6) !important;
 }
 
 /* Also apply to installed app icons in start menu */

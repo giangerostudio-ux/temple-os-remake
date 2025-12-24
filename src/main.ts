@@ -15718,12 +15718,22 @@ class TempleOS {
 
         // Update all open terminal tabs
         for (const tab of this.terminalTabs) {
-          if (tab.xterm) {
+          if (tab.xterm && tab.fitAddon) {
+            // Set the new font size
             tab.xterm.options.fontSize = this.terminalFontSize;
-            // Re-apply fontFamily to force fresh font metrics
             tab.xterm.options.fontFamily = this.terminalFontFamily;
-            tab.fitAddon?.fit();
-            tab.xterm.refresh(0, tab.xterm.rows - 1);
+            tab.fitAddon.fit();
+
+            // CRITICAL: Toggle font size to force xterm to recalculate metrics correctly
+            // This is the same trick used for window resize
+            const originalSize = this.terminalFontSize;
+            tab.xterm.options.fontSize = originalSize + 1;
+            requestAnimationFrame(() => {
+              if (tab.xterm) {
+                tab.xterm.options.fontSize = originalSize;
+                tab.xterm.refresh(0, tab.xterm.rows - 1);
+              }
+            });
           }
         }
       };

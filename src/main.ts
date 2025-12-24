@@ -17736,7 +17736,7 @@ class TempleOS {
       const reveal = lockScreen.querySelector('[data-lock-action="reveal"]') as HTMLButtonElement | null;
       if (reveal) {
         reveal.disabled = mode === 'pin';
-        reveal.textContent = '👁';
+        reveal.innerHTML = '<i class="ph-fill ph-eye"></i>';
       }
 
       lockScreen.querySelectorAll('[data-lock-mode]').forEach((el) => {
@@ -17761,7 +17761,7 @@ class TempleOS {
         e.preventDefault();
         if (this.lockInputMode === 'pin') return;
         input.type = input.type === 'password' ? 'text' : 'password';
-        revealBtn.textContent = input.type === 'password' ? 'ðŸ‘' : 'ðŸ™ˆ';
+        revealBtn.innerHTML = input.type === 'password' ? '<i class="ph-fill ph-eye"></i>' : '<i class="ph-fill ph-eye-slash"></i>';
         input.focus();
       });
     }

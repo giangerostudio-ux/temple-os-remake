@@ -200,40 +200,68 @@ class SnapDetector:
                 # Use hysteresis for zone detection (prevents flickering)
                 zone = self.get_zone_with_hysteresis(x, y)
                 
+                # STICKY TOP ZONE: Once the top popup is activated, it stays open
+                # for the ENTIRE drag. We don't emit zone_leave until button release.
+                # This prevents the popup from flickering when wiggling up/down.
+                top_popup_active = (self.last_activated_zone == 'top' and self.zone_activated) or \
+                                   (self.current_zone == 'top' and self.zone_activated)
+                
                 # Zone changed?
                 if zone != self.current_zone:
-                    # Left previous zone
+                    # Left previous zone - but DON'T close popup if it's the sticky top zone
                     if self.current_zone and self.zone_activated:
-                        self.emit({'event': 'zone_leave', 'x': x, 'y': y})
-                        self.last_activated_zone = self.current_zone
-                        self.last_zone_leave_time = now
-                        self.log(f"Left zone: {self.current_zone}")
-                    
-                    # Entered new zone
-                    self.current_zone = zone
-                    self.zone_enter_time = now if zone else 0
-                    self.zone_activated = False
-                    
-                    # Check if re-entering a zone within grace period (skip hold time)
-                    if zone and zone == self.last_activated_zone:
-                        time_since_leave = now - self.last_zone_leave_time
-                        if time_since_leave < REENTER_GRACE_MS:
-                            # Immediate re-activation! No hold time needed.
-                            self.zone_activated = True
-                            self.emit({
-                                'event': 'zone_enter',
-                                'zone': zone,
-                                'x': x,
-                                'y': y,
-                                'xid': hex(self.drag_xid) if self.drag_xid else None
-                            })
-                            self.log(f"Zone RE-ACTIVATED (grace period): {zone}")
-                    
-                    if zone and not self.zone_activated:
-                        self.log(f"Entered zone: {zone} (will activate after hold)")
+                        if self.current_zone == 'top':
+                            # TOP ZONE IS STICKY: Don't emit zone_leave, keep popup open
+                            # Just track that we left the zone for re-entry logic
+                            self.last_activated_zone = 'top'
+                            self.last_zone_leave_time = now
+                            self.log(f"Left top zone but popup stays STICKY (will close on button release)")
+                            # Keep zone_activated True so popup stays open!
+                            # Update current_zone to track actual position but don't deactivate
+                            self.current_zone = zone
+                            self.zone_enter_time = now if zone else 0
+                            # DON'T set zone_activated = False - keep it True!
+                        else:
+                            # Non-top zones: normal behavior - emit zone_leave
+                            self.emit({'event': 'zone_leave', 'x': x, 'y': y})
+                            self.last_activated_zone = self.current_zone
+                            self.last_zone_leave_time = now
+                            self.log(f"Left zone: {self.current_zone}")
+                            
+                            # Entered new zone
+                            self.current_zone = zone
+                            self.zone_enter_time = now if zone else 0
+                            self.zone_activated = False
+                            
+                            # Check if re-entering a zone within grace period (skip hold time)
+                            if zone and zone == self.last_activated_zone:
+                                time_since_leave = now - self.last_zone_leave_time
+                                if time_since_leave < REENTER_GRACE_MS:
+                                    # Immediate re-activation! No hold time needed.
+                                    self.zone_activated = True
+                                    self.emit({
+                                        'event': 'zone_enter',
+                                        'zone': zone,
+                                        'x': x,
+                                        'y': y,
+                                        'xid': hex(self.drag_xid) if self.drag_xid else None
+                                    })
+                                    self.log(f"Zone RE-ACTIVATED (grace period): {zone}")
+                            
+                            if zone and not self.zone_activated:
+                                self.log(f"Entered zone: {zone} (will activate after hold)")
+                    else:
+                        # No previously activated zone - normal new zone entry
+                        self.current_zone = zone
+                        self.zone_enter_time = now if zone else 0
+                        self.zone_activated = False
+                        
+                        if zone:
+                            self.log(f"Entered zone: {zone} (will activate after hold)")
                 
                 # Check if we should activate the zone (held long enough)
-                if zone and not self.zone_activated and self.zone_enter_time > 0:
+                # But skip if we already have a sticky top popup active
+                if zone and not self.zone_activated and self.zone_enter_time > 0 and self.last_activated_zone != 'top':
                     hold_time = now - self.zone_enter_time
                     required_hold = HOLD_TIME_TOP_MS if zone == 'top' else HOLD_TIME_EDGE_MS
                     
@@ -248,8 +276,9 @@ class SnapDetector:
                         })
                         self.log(f"Zone activated: {zone}")
                 
-                # Stream mouse position while in activated top zone (for popup highlighting)
-                if zone == 'top' and self.zone_activated:
+                # Stream mouse position while top popup is active (even if outside top zone)
+                # This allows the popup to update highlighting based on mouse position
+                if self.last_activated_zone == 'top' or (self.current_zone == 'top' and self.zone_activated):
                     self.emit({
                         'event': 'drag_position',
                         'x': x,
@@ -262,6 +291,7 @@ class SnapDetector:
                 zone = self.current_zone
                 xid = self.drag_xid
                 activated = self.zone_activated
+                sticky_top_popup = self.last_activated_zone == 'top'
                 
                 # Reset state
                 self.is_dragging = False
@@ -269,19 +299,44 @@ class SnapDetector:
                 self.current_zone = None
                 self.zone_enter_time = 0
                 self.zone_activated = False
+                self.last_activated_zone = None  # Clear sticky state
+                self.last_zone_leave_time = 0
                 
-                if zone and activated:
+                # Query current mouse position for popup hit detection
+                result = self.root.query_pointer()
+                final_x = result.root_x
+                final_y = result.root_y
+                
+                # If we had a sticky top popup, emit zone_leave now (it was deferred)
+                if sticky_top_popup:
+                    self.emit({'event': 'zone_leave', 'x': final_x, 'y': final_y})
+                    self.log(f"Sticky top popup closed on button release")
+                    
+                    # Check if mouse is at top of screen (user wants to snap)
+                    # or on the popup window (handled by main.cjs)
+                    if final_y < TOP_TRIGGER_ZONE or (zone == 'top' and activated):
+                        # Apply snap with zone='top' - main.cjs will check popup buttons
+                        self.emit({
+                            'event': 'snap_apply',
+                            'zone': 'top',
+                            'x': final_x,
+                            'y': final_y,
+                            'xid': hex(xid) if xid else None
+                        })
+                        self.log(f"Snap apply (sticky): top at ({final_x}, {final_y}) to {hex(xid) if xid else 'unknown'}")
+                    else:
+                        self.emit({'event': 'drag_end'})
+                        self.log("Drag ended (sticky popup, released outside zone)")
+                elif zone and activated:
                     # Released in an ACTIVATED zone - apply snap!
-                    # Query current mouse position for popup hit detection
-                    result = self.root.query_pointer()
                     self.emit({
                         'event': 'snap_apply',
                         'zone': zone,
-                        'x': result.root_x,
-                        'y': result.root_y,
+                        'x': final_x,
+                        'y': final_y,
                         'xid': hex(xid) if xid else None
                     })
-                    self.log(f"Snap apply: {zone} at ({result.root_x}, {result.root_y}) to {hex(xid) if xid else 'unknown'}")
+                    self.log(f"Snap apply: {zone} at ({final_x}, {final_y}) to {hex(xid) if xid else 'unknown'}")
                 else:
                     self.emit({'event': 'drag_end'})
                     self.log("Drag ended (no activated zone)")

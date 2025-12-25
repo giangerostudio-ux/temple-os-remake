@@ -39,6 +39,10 @@ HOLD_TIME_EDGE_MS = 100      # Hold 100ms at edges before preview
 
 # Anti-flicker: hysteresis - must move this far OUT of zone before zone_leave
 HYSTERESIS_PIXELS = 30
+TOP_HYSTERESIS_PIXELS = 60   # Larger hysteresis for top zone (popup is more important)
+
+# Anti-flicker: grace period for re-entering same zone (skip hold time)
+REENTER_GRACE_MS = 500
 
 # Button masks (from X11)
 Button1Mask = 1 << 8  # Left mouse button (256)
@@ -68,6 +72,8 @@ class SnapDetector:
         self.current_zone = None       # Current zone mouse is in
         self.zone_enter_time = 0       # When mouse entered current zone
         self.zone_activated = False    # True if we've emitted zone_enter for current zone
+        self.last_activated_zone = None  # Track last zone for grace period re-entry
+        self.last_zone_leave_time = 0    # When we left an activated zone
         self.running = True
         
         # EWMH atoms
@@ -136,8 +142,9 @@ class SnapDetector:
             return actual_zone
         
         # If we have an active zone, check if we're still "close enough" to it
+        # Use larger hysteresis for top zone since the popup is more important
         if self.current_zone == 'top':
-            if y < TOP_TRIGGER_ZONE + HYSTERESIS_PIXELS:
+            if y < TOP_TRIGGER_ZONE + TOP_HYSTERESIS_PIXELS:
                 return 'top'  # Still counts as top
         elif self.current_zone == 'left':
             if x < EDGE_TRIGGER_ZONE + HYSTERESIS_PIXELS:
@@ -198,6 +205,8 @@ class SnapDetector:
                     # Left previous zone
                     if self.current_zone and self.zone_activated:
                         self.emit({'event': 'zone_leave', 'x': x, 'y': y})
+                        self.last_activated_zone = self.current_zone
+                        self.last_zone_leave_time = now
                         self.log(f"Left zone: {self.current_zone}")
                     
                     # Entered new zone
@@ -205,7 +214,22 @@ class SnapDetector:
                     self.zone_enter_time = now if zone else 0
                     self.zone_activated = False
                     
-                    if zone:
+                    # Check if re-entering a zone within grace period (skip hold time)
+                    if zone and zone == self.last_activated_zone:
+                        time_since_leave = now - self.last_zone_leave_time
+                        if time_since_leave < REENTER_GRACE_MS:
+                            # Immediate re-activation! No hold time needed.
+                            self.zone_activated = True
+                            self.emit({
+                                'event': 'zone_enter',
+                                'zone': zone,
+                                'x': x,
+                                'y': y,
+                                'xid': hex(self.drag_xid) if self.drag_xid else None
+                            })
+                            self.log(f"Zone RE-ACTIVATED (grace period): {zone}")
+                    
+                    if zone and not self.zone_activated:
                         self.log(f"Entered zone: {zone} (will activate after hold)")
                 
                 # Check if we should activate the zone (held long enough)
@@ -268,8 +292,9 @@ class SnapDetector:
     
     def run(self):
         """Main loop"""
-        self.log(f"Started v3 (anti-flicker). Screen: {self.screen_width}x{self.screen_height}")
-        self.log(f"Top zone: {TOP_TRIGGER_ZONE}px, Hold time: {HOLD_TIME_TOP_MS}ms, Hysteresis: {HYSTERESIS_PIXELS}px")
+        self.log(f"Started v4 (anti-flicker + grace period). Screen: {self.screen_width}x{self.screen_height}")
+        self.log(f"Top zone: {TOP_TRIGGER_ZONE}px, Hold time: {HOLD_TIME_TOP_MS}ms, Hysteresis: {HYSTERESIS_PIXELS}px (top: {TOP_HYSTERESIS_PIXELS}px)")
+        self.log(f"Re-entry grace period: {REENTER_GRACE_MS}ms")
         self.log(f"Protected XIDs: {[hex(x) for x in self.protected_xids]}")
         
         while self.running:
@@ -282,7 +307,7 @@ class SnapDetector:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='X11 Snap Layout Detector v3 (Anti-Flicker)')
+    parser = argparse.ArgumentParser(description='X11 Snap Layout Detector v4 (Anti-Flicker + Grace Period)')
     parser.add_argument('--protected', nargs='*', default=[], 
                         help='Protected window XIDs to ignore (hex, e.g., 0x1a00003)')
     args = parser.parse_args()

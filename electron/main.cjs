@@ -2916,14 +2916,17 @@ function buildStartMenuHtml(config) {
 <style>
 @import url('https://fonts.googleapis.com/css2?family=VT323&family=Noto+Color+Emoji&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
+html { background: transparent; height: 100vh; overflow: hidden; }
+body {
     background: rgba(13, 17, 23, 0.98);
-    border: 1px solid rgba(0, 255, 65, 0.3);
-    border-radius: 8px 8px 0 0;
+    border: 1px solid #00ff41;
+    border-radius: 8px;
+    margin: 15px; /* Space for glow */
+    height: calc(100vh - 30px);
     overflow: hidden;
     font-family: 'VT323', 'Noto Color Emoji', monospace;
     color: #00ff41;
-    height: 100vh;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.4), 0 0 10px rgba(0, 255, 65, 0.2) inset;
 }
 .sm-container { display: flex; height: 100%; }
 

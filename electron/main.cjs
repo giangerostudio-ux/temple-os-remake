@@ -56,7 +56,7 @@ let lastNetAt = 0;
 
 // Taskbar Configuration (synced from renderer)
 let currentTaskbarPosition = 'bottom'; // 'top' | 'bottom' - Synced from renderer
-const TASKBAR_HEIGHT = 50;
+const TASKBAR_HEIGHT = 40;
 
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)
 let snapDetectorProcess = null;

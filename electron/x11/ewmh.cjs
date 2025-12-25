@@ -84,13 +84,13 @@ async function getWindowGeometry(xidHex) {
   try {
     const { stdout } = await execFileAsync('xwininfo', ['-id', xidHex]);
     const s = stdout || '';
-    
+
     // Parse absolute position (where the window actually is on screen)
     const absXMatch = s.match(/Absolute upper-left X:\s*(-?\d+)/);
     const absYMatch = s.match(/Absolute upper-left Y:\s*(-?\d+)/);
     const widthMatch = s.match(/Width:\s*(\d+)/);
     const heightMatch = s.match(/Height:\s*(\d+)/);
-    
+
     if (absXMatch && absYMatch && widthMatch && heightMatch) {
       return {
         x: parseInt(absXMatch[1], 10),
@@ -176,9 +176,9 @@ async function setWindowGeometry(xidHex, x, y, width, height) {
 
   // If a window is maximized, many WMs ignore manual geometry until maximize is cleared.
   await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,maximized_vert,maximized_horz']).catch(() => { });
-  // Use gravity 1 (NorthWest) so that coordinates apply to the top-left of the frame (including decorations)
+  // Use gravity 0 (Default/Frame) so that coordinates apply to the frame (solving CSD vs SSD sizing issues)
   // Gravity values: 0=NW (deprecated/forget), 1=NorthWest, 2=North, ... 10=Static
-  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `1,${xi},${yi},${wi},${hi}`]);
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `0,${xi},${yi},${wi},${hi}`]);
 }
 
 function fingerprintSnapshot(snap) {

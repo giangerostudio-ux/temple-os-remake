@@ -1627,11 +1627,9 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     console.log(`[snapX11WindowCore] screen bounds: x=${bounds.x}, y=${bounds.y}, w=${bounds.width}, h=${bounds.height}`);
     console.log(`[snapX11WindowCore] electron workArea: x=${electronWorkArea?.x}, y=${electronWorkArea?.y}, w=${electronWorkArea?.width}, h=${electronWorkArea?.height}`);
 
-    // Note: wmctrl with gravity 1 (NorthWest) sets the CLIENT AREA size, not the frame size.
-    // The window manager adds decorations (title bar ~24px) ON TOP of the client area.
-    // So if we want the total window (frame + content) to fit in our work area, we need to
-    // subtract the decoration height from the client area height we request.
-    const decorationHeight = 28; // Openbox title bar is typically ~24-28px
+    // Note: wmctrl with gravity 0 (Frame) sets the FRAME size.
+    // We no longer need to subtract decorations manually.
+    const decorationHeight = 0; // Was 28, set to 0 to rely on Frame gravity
 
     // SIMPLIFIED: Always calculate work area from screen bounds since our TempleOS
     // renderer-based taskbar does NOT set X11 struts. Ignore Electron's workArea.

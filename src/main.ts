@@ -697,6 +697,7 @@ class TempleOS {
   private monitorSortDir: 'asc' | 'desc' = 'desc';
   private monitorTimer: number | null = null;
   private monitorBusy = false;
+  private monitorSearchDebounceTimer: number | null = null;
 
   // Display State (multi-monitor, scale, refresh)
   private displayOutputs: DisplayOutput[] = [];
@@ -6213,6 +6214,22 @@ class TempleOS {
         this.updateTerminalSearchMatches();
         this.updateTerminalSearchCountDom();
         this.scrollTerminalToSearchMatch();
+      }
+
+      // Task Manager search (debounced for performance)
+      if (target.matches('.monitor-search-input')) {
+        const query = target.value;
+
+        // Clear existing debounce timer
+        if (this.monitorSearchDebounceTimer) {
+          clearTimeout(this.monitorSearchDebounceTimer);
+        }
+
+        // Set new timer to update after 300ms of no typing
+        this.monitorSearchDebounceTimer = window.setTimeout(() => {
+          this.monitorQuery = query;
+          this.refreshSystemMonitorWindowDom();
+        }, 300);
       }
     });
 

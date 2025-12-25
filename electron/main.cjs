@@ -2926,6 +2926,7 @@ html, body {
     height: 100vh;
 }
 .sm-container { display: flex; height: 100%; }
+
 .sm-left { flex: 1; display: flex; flex-direction: column; border-right: 1px solid rgba(0, 255, 65, 0.2); overflow: hidden; }
 .sm-right { width: 200px; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.2); }
 
@@ -2946,7 +2947,41 @@ html, body {
 .sm-all-apps-btn:hover { background: rgba(0, 255, 65, 0.2); border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.2); }
 
 .sm-dropdowns { display: none; } /* Hide dropdowns for cleaner look */
-/* ... */
+
+.sm-section { padding: 10px 15px; overflow-y: auto; flex: 1; }
+.sm-section::-webkit-scrollbar { width: 8px; }
+.sm-section::-webkit-scrollbar-track { background: transparent; }
+.sm-section::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.3); border-radius: 4px; }
+
+.sm-section h3 {
+    font-size: 12px; color: rgba(0, 255, 65, 0.7); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+}
+
+.sm-pinned-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+.sm-app { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; }
+.sm-app:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
+.sm-app.pinned { flex-direction: column; text-align: center; gap: 6px; }
+.sm-app.pinned .sm-icon { font-size: 28px; width: 34px; height: 34px; }
+.sm-app.pinned .sm-name { font-size: 13px; }
+.sm-app.installed { border-bottom: 1px solid rgba(0, 255, 65, 0.05); }
+
+.sm-icon { font-size: 20px; flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.sm-app-info { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-width: 0; }
+.sm-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-comment { font-size: 12px; color: rgba(200, 200, 200, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sm-user { padding: 20px; text-align: center; border-bottom: 1px solid rgba(0, 255, 65, 0.2); }
+.sm-user-avatar { width: 64px; height: 64px; margin: 0 auto 8px auto; border-radius: 50%; overflow: hidden; border: 2px solid #00ff41; box-shadow: 0 0 15px rgba(0, 255, 65, 0.3); }
+.sm-user-avatar img, .sm-user-avatar div { width: 100%; height: 100%; object-fit: cover; }
+.sm-user-name { font-size: 16px; color: #00ff41; font-weight: bold; }
+
+.sm-quick-links { flex: 1; padding: 10px; overflow-y: auto; }
+.sm-quick-link { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.sm-quick-link:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
+
+.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex; gap: 8px; }
+
 
 .sm-power-btn {
     flex: 1; padding: 10px; background: rgba(0, 20, 0, 0.8) !important; border: 1px solid rgba(0, 255, 65, 0.35) !important;

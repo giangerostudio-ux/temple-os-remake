@@ -152,6 +152,28 @@ You should see green-themed title bars and window controls instead of the defaul
 
 TempleOS now supports an **X11 panel window** (DOCK + STRUT + UNDER) so external apps (Firefox, etc.) cannot cover the bar, and so the OS can enumerate/control external windows for a taskbar experience.
 
+### Openbox Theme (Divine Cyberpunk)
+
+To ensure external windows (Firefox, Terminal) match the OS aesthetic (green borders, black title bars), you must install the **TempleOS-Divine** Openbox theme.
+
+**Files:**
+- `themes/TempleOS-Divine/` - The Openbox theme folder
+- `scripts/apply-theme.sh` - Installer script
+
+**Installation for ISO:**
+
+Add this to your ISO setup or first-run script:
+
+```bash
+# Install Openbox theme system-wide
+sudo mkdir -p /usr/share/themes/TempleOS-Divine
+sudo cp -r /opt/templeos/themes/TempleOS-Divine/openbox-3 /usr/share/themes/TempleOS-Divine/
+
+# Configure default Openbox rc.xml for new users
+# (Ensure /etc/xdg/openbox/rc.xml uses <name>TempleOS-Divine</name>)
+sudo sed -i 's|<name>.*</name>|<name>TempleOS-Divine</name>|' /etc/xdg/openbox/rc.xml
+```
+
 **New Features (Dec 2025):**
 - **Unified Taskbar**: X11 apps appear in the main taskbar alongside built-in apps.
 - **Minimized Apps**: Minimized windows remain visible (dimmed) and can be restored.

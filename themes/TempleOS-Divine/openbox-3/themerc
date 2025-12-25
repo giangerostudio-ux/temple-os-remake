@@ -1,0 +1,62 @@
+# TempleOS Divine - Openbox Theme
+# A cyberpunk theme matching the "Divine Cyberpunk" OS aesthetic.
+
+# Border width (in pixels)
+border.width: 1
+
+# Window Geometry
+padding.width: 3
+padding.height: 3
+window.client.padding.width: 0
+window.client.padding.height: 0
+window.handle.width: 0
+
+# Menu geometry
+menu.border.width: 1
+menu.overlap: 0
+
+# Colors & Fonts
+# ----------------------------------------------
+# Active Window (Focused)
+window.active.border.color: #00FF41
+window.active.title.bg.color: #020502
+window.active.title.bg.colorTo: #020502
+window.active.label.text.color: #00FF41
+window.active.button.unpressed.image.color: #00FF41
+window.active.button.hover.image.color: #FFFFFF
+window.active.button.pressed.image.color: #FF3366
+
+# Inactive Window (Unfocused)
+window.inactive.border.color: #004411
+window.inactive.title.bg.color: #08140c
+window.inactive.title.bg.colorTo: #08140c
+window.inactive.label.text.color: #005515
+window.inactive.button.unpressed.image.color: #005515
+
+# Menu Styling
+menu.border.color: #00FF41
+menu.title.bg.color: #020502
+menu.title.text.color: #00FF41
+menu.items.bg.color: #020502
+menu.items.text.color: #8FB39D
+menu.items.active.bg.color: #00FF41
+menu.items.active.text.color: #000000
+
+# OSD (On Screen Display)
+osd.border.width: 1
+osd.border.color: #00FF41
+osd.bg.color: #020502
+osd.bg.colorTo: #020502
+osd.label.text.color: #00FF41
+osd.hilight.bg.color: #00FF41
+
+# Fonts (Matches system CSS)
+window.active.label.text.font: shadow=n:shadowtint=0:shadowoffset=0
+window.inactive.label.text.font: shadow=n
+menu.title.text.font: shadow=n
+menu.items.font: shadow=n
+osd.label.text.font: shadow=n
+
+# Button Styles (Simple flat text-like icons)
+# We don't have XBM bitmaps here, so we rely on Openbox's built-in drawing or simple colors.
+# Openbox falls back to drawing simple shapes if no bitmaps are provided for buttons.

@@ -24,19 +24,20 @@
 ## ❌ CLAIMED BUT NOT IMPLEMENTED
 
 ### 3. Sliders Click-to-Set (HIGH PRIORITY)
-- **Status:** 🔴 **BROKEN/INCOMPLETE**
-- **Problem:** Code exists but is corrupted/malformed
-- **What's Needed:** 
-  - Add proper `onclick` handlers to ALL sliders
-  - Should jump to clicked position WITHOUT interfering with dragging
-  - Use 5% threshold detection (click far from thumb = jump, click near thumb = drag)
-- **Affected Sliders:**
+- **Status:** ✅ **FIXED**
+- **Solution:** Moved click-to-set logic from `input` event handler (which only fires during drag) to a proper `mousedown` event handler
+- **What Works:** 
+  - Clicking anywhere on slider track jumps to that position
+  - Uses 8% threshold to avoid interfering with drag operations
+  - Dispatches both `input` and `change` events for complete state updates
+  - Snaps to step increments correctly
+- **Affected Sliders (All Fixed):**
   - Volume slider (main taskbar)
   - Volume slider (settings)
   - Display scale slider
   - Mouse speed slider
   - Pulse intensity slider
-- **Location:** `src/main.ts` around line 6019 (currently broken)
+- **Location:** `src/main.ts` lines 5984-6029 (mousedown event listener)
 
 ---
 
@@ -114,14 +115,14 @@
 |---|---------|---------|--------------|
 | 1 | Icon Size Toggle | ✅ | ✅ **WORKING** |
 | 2 | Taskbar Settings | ✅ | ✅ **CSS WORKING** |
-| 3 | Sliders Click-to-Set | ✅ | 🔴 **BROKEN CODE** |
+| 3 | Sliders Click-to-Set | ✅ | ✅ **FIXED** |
 | 4 | Resolution Dialog | ✅ | 🔴 **NOT IMPLEMENTED** |
 | 5 | USB "(Mock)" Removal | ✅ | 🔴 **NOT DONE** |
 | 6 | Tor Instructions | ✅ | 🔴 **NOT DONE** |
 | 7 | "Tier 10" Removal | ✅ | ❓ **UNVERIFIED** |
 | 8 | Icon Collision | ✅ | 🔴 **NOT IMPLEMENTED** |
 
-**REALITY CHECK:** Out of 8 claimed fixes, only 2 are actually working.
+**REALITY CHECK:** Out of 8 claimed fixes, 3 are now working.
 
 ---
 

@@ -5981,6 +5981,52 @@ class TempleOS {
       }
     });
 
+    // ============================================
+    // SLIDER CLICK-TO-SET (Jump to position on click)
+    // ============================================
+    app.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+
+      const target = e.target as HTMLInputElement;
+      if (target.matches && target.matches('input[type="range"]')) {
+        const rect = target.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickPercentage = clickX / rect.width;
+
+        const min = parseFloat(target.getAttribute('min') || '0');
+        const max = parseFloat(target.getAttribute('max') || '100');
+        const step = parseFloat(target.getAttribute('step') || '1');
+        const currentValue = parseFloat(target.value);
+        const currentPercentage = (currentValue - min) / (max - min);
+
+        // Only jump if click is far from current thumb (>8% away)
+        // This prevents interfering with drag operations
+        const distanceThreshold = 0.08;
+        if (Math.abs(clickPercentage - currentPercentage) > distanceThreshold) {
+          let newValue = min + (max - min) * Math.max(0, Math.min(1, clickPercentage));
+
+          // Snap to step increments
+          if (step > 0) {
+            newValue = Math.round(newValue / step) * step;
+          }
+
+          // Clamp to valid range
+          newValue = Math.max(min, Math.min(max, newValue));
+
+          // Update value
+          target.value = String(newValue);
+
+          // Dispatch input event to trigger app state updates
+          const inputEvent = new Event('input', { bubbles: true });
+          target.dispatchEvent(inputEvent);
+
+          // Also dispatch change event for change handlers
+          const changeEvent = new Event('change', { bubbles: true });
+          target.dispatchEvent(changeEvent);
+        }
+      }
+    });
+
     document.addEventListener('mousemove', (e) => this.handleIconDragMove(e));
     document.addEventListener('mouseup', () => this.handleIconDragEnd());
 
@@ -6150,43 +6196,6 @@ class TempleOS {
         }
       }
 
-      // SLIDER CLICK-TO-SET: Click track (not handle) to jump to position
-      // Only triggers if click is far from current thumb position (not dragging)
-      if (target.matches('input[type="range"]')) {
-        const rect = target.getBoundingClientRect();
-        const clickX = (e as MouseEvent).clientX - rect.left;
-        const clickPercentage = clickX / rect.width;
-
-        // Get current value position as percentage
-        const min = parseFloat(target.getAttribute('min') || '0');
-        const max = parseFloat(target.getAttribute('max') || '100');
-        const currentValue = parseFloat(target.value);
-        const currentPercentage = (currentValue - min) / (max - min);
-
-        // Only jump if click is far from current thumb (>5% away)
-        // This prevents interfering with drag operations
-        const distanceThreshold = 0.05;
-        if (Math.abs(clickPercentage - currentPercentage) > distanceThreshold) {
-          const step = parseFloat(target.getAttribute('step') || '1');
-
-          let newValue = min + (max - min) * Math.max(0, Math.min(1, clickPercentage));
-
-          // Snap to step increments
-          if (step !== 1) {
-            newValue = Math.round(newValue / step) * step;
-          }
-
-          // Clamp to valid range
-          newValue = Math.max(min, Math.min(max, newValue));
-
-          // Update value
-          target.value = String(newValue);
-
-          // Dispatch input event to trigger app state updates
-          const inputEvent = new Event('input', { bubbles: true });
-          target.dispatchEvent(inputEvent);
-        }
-      }
 
       // App launcher search (update grid without losing focus)
       if (target.matches('.launcher-search-input')) {
@@ -16404,6 +16413,12 @@ class TempleOS {
       return;
     }
 
+    // Preserve search input focus state before DOM update
+    const searchInput = winEl.querySelector('.monitor-search-input') as HTMLInputElement | null;
+    const hadFocus = searchInput && document.activeElement === searchInput;
+    const cursorPos = searchInput?.selectionStart ?? 0;
+    const cursorEnd = searchInput?.selectionEnd ?? 0;
+
     // The scrollable container is the FIRST div inside system-monitor with overflow:auto
     // Not the .system-monitor-processes div itself
     const scrollContainer = winEl.querySelector('.system-monitor > div[style*="overflow"]') as HTMLElement | null;
@@ -16411,11 +16426,21 @@ class TempleOS {
 
     winEl.innerHTML = content;
 
-    // Use requestAnimationFrame to ensure DOM is updated before restoring scroll
+    // Use requestAnimationFrame to ensure DOM is updated before restoring scroll and focus
     requestAnimationFrame(() => {
       const newScrollContainer = winEl.querySelector('.system-monitor > div[style*="overflow"]') as HTMLElement | null;
       if (newScrollContainer && prevScroll > 0) {
         newScrollContainer.scrollTop = prevScroll;
+      }
+
+      // Restore focus to search input if it had focus before
+      if (hadFocus) {
+        const newSearchInput = winEl.querySelector('.monitor-search-input') as HTMLInputElement | null;
+        if (newSearchInput) {
+          newSearchInput.focus();
+          // Restore cursor position
+          newSearchInput.setSelectionRange(cursorPos, cursorEnd);
+        }
       }
     });
   }

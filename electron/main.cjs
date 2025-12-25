@@ -6651,6 +6651,20 @@ ipcMain.handle('updater:update', async () => {
                             console.log('[Holy Updater] Sandbox permissions fixed automatically');
                         }
                     });
+
+                    // NEW: Install/Update GTK Theme (non-blocking, user mode)
+                    // This ensures any new theme tweaks are applied to X11 apps after update
+                    const themeScript = path.join(projectRoot, 'scripts/install-gtk-theme.sh');
+                    // Ensure script is executable first
+                    const themeCmd = `chmod +x "${themeScript}" && "${themeScript}" user`;
+
+                    exec(themeCmd, { timeout: 15000 }, (themeErr, themeOut) => {
+                        if (themeErr) {
+                            console.warn('[Holy Updater] GTK Theme update failed:', themeErr.message);
+                        } else {
+                            console.log('[Holy Updater] GTK Theme updated successfully');
+                        }
+                    });
                 }
 
                 resolve({

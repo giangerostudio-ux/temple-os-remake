@@ -41,6 +41,11 @@ wmctrl -n 1 2>/dev/null || true
 # Allow X11 access for all local apps including snaps
 xhost +local: 2>/dev/null || true
 
+# CRITICAL: Force GTK3/4 apps (like Firefox) to use system borders (Openbox)
+# instead of drawing their own ugly client-side headers.
+export MOZ_GTK_TITLEBAR_DECORATION=system
+export GTK_CSD=0
+
 # CRITICAL: Force 1024x768 resolution (VirtualBox stability fix)
 # VirtualBox sometimes boots at 800x600 depending on Guest Additions state
 RESOLUTION_SCRIPT="/opt/templeos/scripts/set-boot-resolution.sh"

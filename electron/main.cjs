@@ -6664,6 +6664,18 @@ ipcMain.handle('updater:update', async () => {
                             console.log('[Holy Updater] GTK Theme updated successfully');
                         }
                     });
+
+                    // NEW: Install/Update Openbox Theme (non-blocking, user mode)
+                    const openboxScript = path.join(projectRoot, 'scripts/apply-theme.sh');
+                    const openboxCmd = `chmod +x "${openboxScript}" && "${openboxScript}"`;
+
+                    exec(openboxCmd, { timeout: 15000 }, (obErr, obOut) => {
+                        if (obErr) {
+                            console.warn('[Holy Updater] Openbox Theme update failed:', obErr.message);
+                        } else {
+                            console.log('[Holy Updater] Openbox Theme updated successfully');
+                        }
+                    });
                 }
 
                 resolve({

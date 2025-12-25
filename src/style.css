@@ -1511,13 +1511,23 @@ div {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Fix: ensure all taskbar apps use proper flex layout */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .taskbar-app.pinned {
   padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+}
+
+/* Title label for running windows (both pinned and unpinned) */
+.taskbar-title {
+  font-size: 13px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .taskbar-icon {

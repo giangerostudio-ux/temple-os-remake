@@ -242,6 +242,9 @@ export class WindowManager {
         const win = this.windows.find(w => w.id === windowId);
         if (!win) return;
 
+        // Taskbar: 56px height + 12px bottom margin = 68px total
+        const TASKBAR_TOTAL_HEIGHT = 68;
+
         if (win.maximized) {
             // Restore to saved bounds
             if (win.savedBounds) {
@@ -259,12 +262,11 @@ export class WindowManager {
                 width: win.width,
                 height: win.height
             };
-            win.x = 10;
-            win.y = 10;
-            // Note: Actual screen dimensions should be passed via parameter or callback
-            // For now, assume 1920x1080 minus taskbar
-            win.width = window.innerWidth - 20;
-            win.height = window.innerHeight - 80;
+            // Maximize: start at (0,0), fill width, height stops above taskbar
+            win.x = 0;
+            win.y = 0;
+            win.width = window.innerWidth;
+            win.height = window.innerHeight - TASKBAR_TOTAL_HEIGHT;
             win.maximized = true;
         }
 
@@ -417,14 +419,16 @@ export class WindowManager {
     getSnapPreview(clientX: number, clientY: number): SnapState | null {
         const w = window.innerWidth;
         const h = window.innerHeight;
-        const usableH = h - 50; // Account for taskbar
+        // Taskbar: 56px height + 12px bottom margin = 68px total space at bottom
+        const TASKBAR_TOTAL_HEIGHT = 68;
+        const usableH = h - TASKBAR_TOTAL_HEIGHT;
         const halfH = usableH / 2;
         const halfW = w / 2;
 
         let snapRect = null;
         let snapType = '';
 
-        // Corners & Edges
+        // Corners & Edges - all start at y=0 (flush with top)
         if (clientY < this.SNAP_MARGIN) {
             if (clientX < this.SNAP_MARGIN) {
                 snapType = 'top-left';

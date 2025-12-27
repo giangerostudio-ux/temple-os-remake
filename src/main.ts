@@ -2096,7 +2096,7 @@ class TempleOS {
       <div id="initial-loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:20000;"></div>
       <div class="desktop" id="desktop" style="background-image: url('${this.wallpaperImage}'); background-size: 100% 100%; background-position: center;">
         ${this.renderDesktop()}
-        <div id="windows-container"></div>
+        <div id="windows-container" style="position: relative; z-index: 100;"></div>
       </div>
       <div id="snap-preview" style="
         position: fixed;
@@ -8819,17 +8819,6 @@ class TempleOS {
       if (header) {
         const windowId = header.dataset.draggable!;
         const windowEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
-        const wmWindows = this.windowManager.getAllWindows();
-        const mainWindows = this.windows;
-        console.log('[DRAG DEBUG] Drag attempt:', {
-          windowId,
-          windowElExists: !!windowEl,
-          windowsInManager: wmWindows.length,
-          windowsInMain: mainWindows.length,
-          wmWindowIds: wmWindows.map(w => w.id),
-          mainWindowIds: mainWindows.map(w => w.id),
-          targetWindow: wmWindows.find(w => w.id === windowId) || 'NOT FOUND'
-        });
         if (!windowEl) return;
         const rect = windowEl.getBoundingClientRect();
         // Use WindowManager for drag state management

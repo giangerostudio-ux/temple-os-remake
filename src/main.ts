@@ -27,17 +27,22 @@ import { CalendarApp } from './apps/Calendar';
 import { HelpApp } from './apps/Help';
 import type {
   DisplayOutput, FirewallRule, VeraCryptVolume, MonitorStats, BatteryStatus,
-  NetworkDeviceStatus, VpnStatus, FileEntry, SystemInfo, ProcessInfo, InstalledApp
+  NetworkDeviceStatus, VpnStatus, FileEntry, SystemInfo, ProcessInfo, InstalledApp,
+  TempleConfig, NetworkStatus, WifiNetwork, MouseSettings, AudioDevice,
+  ThemeColor, ThemeMode, DesktopIconSize, LauncherView, LauncherCategory,
+  MonitorSortKey, HelpTab, StartMenuCategory, TerminalUiTheme, FileSortKey,
+  CalculatorMode, CalculatorBase, SpriteTool, ColorBlindMode
 } from './utils/types';
 import { buildSearchIndex, searchIndex } from './utils/appSearch';
 import { WorkspaceManager } from './system/WorkspaceManager';
 import { TilingManager } from './system/TilingManager';
 import { NotificationManager } from './system/NotificationManager';
 import { NetworkManager } from './system/NetworkManager';
-import { SettingsManager } from './system/SettingsManager';
+import { SettingsManager, type SettingsHost } from './system/SettingsManager';
 import { EffectsManager } from './system/EffectsManager';
 import { GodlyNotes } from './apps/GodlyNotes';
 import { MemoryOptimizer } from './system/MemoryOptimizer';
+import { WindowManager } from './core/WindowManager';
 
 // ============================================
 // ELECTRON API TYPE DECLARATION
@@ -50,9 +55,9 @@ declare global {
       readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
       deleteItem: (path: string) => Promise<{ success: boolean; error?: string }>;
-      trashItem?: (path: string) => Promise<{ success: boolean; entry?: any; error?: string }>;
-      listTrash?: () => Promise<{ success: boolean; entries?: any[]; error?: string }>;
-      restoreTrash?: (trashPath: string, originalPath: string) => Promise<{ success: boolean; restored?: any; error?: string }>;
+      trashItem?: (path: string) => Promise<{ success: boolean; entry?: { name: string; trashPath: string; originalPath: string; deletionDate: string; size: number; isDirectory: boolean }; error?: string }>;
+      listTrash?: () => Promise<{ success: boolean; entries?: Array<{ name: string; trashPath: string; originalPath: string; deletionDate: string; size: number; isDirectory: boolean }>; error?: string }>;
+      restoreTrash?: (trashPath: string, originalPath: string) => Promise<{ success: boolean; restored?: { name: string; trashPath: string; originalPath: string }; error?: string }>;
       deleteTrashItem?: (trashPath: string) => Promise<{ success: boolean; error?: string }>;
       emptyTrash?: () => Promise<{ success: boolean; error?: string }>;
       mkdir: (path: string) => Promise<{ success: boolean; error?: string }>;
@@ -77,10 +82,10 @@ declare global {
       setResolution: (resolution: string) => Promise<{ success: boolean; backend?: string; error?: string }>;
       getResolutions: () => Promise<{ success: boolean; resolutions: string[]; current: string }>;
       // Config
-      loadConfig?: () => Promise<{ success: boolean; config: any; error?: string }>;
-      saveConfig?: (config: any) => Promise<{ success: boolean; error?: string }>;
+      loadConfig?: () => Promise<{ success: boolean; config: TempleConfig; error?: string }>;
+      saveConfig?: (config: TempleConfig) => Promise<{ success: boolean; error?: string }>;
       // Audio devices
-      listAudioDevices?: () => Promise<{ success: boolean; sinks: any[]; sources: any[]; defaultSink: string | null; defaultSource: string | null; error?: string }>;
+      listAudioDevices?: () => Promise<{ success: boolean; sinks: AudioDevice[]; sources: AudioDevice[]; defaultSink: string | null; defaultSource: string | null; error?: string }>;
       setDefaultSink?: (sinkName: string) => Promise<{ success: boolean; error?: string }>;
       setDefaultSource?: (sourceName: string) => Promise<{ success: boolean; error?: string }>;
       setAudioVolume?: (level: number) => Promise<{ success: boolean; error?: string }>;
@@ -92,8 +97,8 @@ declare global {
       connectBluetoothDevice?: (mac: string) => Promise<{ success: boolean; connected?: boolean; error?: string }>;
       disconnectBluetoothDevice?: (mac: string) => Promise<{ success: boolean; connected?: boolean; error?: string }>;
       // Network
-      getNetworkStatus?: () => Promise<{ success: boolean; status?: any; error?: string }>;
-      listWifiNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
+      getNetworkStatus?: () => Promise<{ success: boolean; status?: NetworkStatus; unsupported?: boolean; error?: string }>;
+      listWifiNetworks?: () => Promise<{ success: boolean; networks?: WifiNetwork[]; error?: string }>;
       connectWifi?: (ssid: string, password?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       disconnectNetwork?: () => Promise<{ success: boolean; error?: string }>;
       disconnectNonVpnNetwork?: () => Promise<{ success: boolean; disconnected?: string[]; error?: string }>;
@@ -101,7 +106,7 @@ declare global {
       disconnectConnection?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
       getWifiEnabled?: () => Promise<{ success: boolean; enabled?: boolean; error?: string }>;
       setWifiEnabled?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
-      listSavedNetworks?: () => Promise<{ success: boolean; networks?: any[]; error?: string }>;
+      listSavedNetworks?: () => Promise<{ success: boolean; networks?: Array<{ name: string; uuid: string; type?: string; device?: string }>; error?: string }>;
       connectSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       forgetSavedNetwork?: (nameOrUuid: string) => Promise<{ success: boolean; error?: string }>;
       importVpnProfile?: (kind: 'openvpn' | 'wireguard', filePath: string) => Promise<{ success: boolean; output?: string; error?: string }>;
@@ -129,12 +134,12 @@ declare global {
       dismountVeraCrypt?: (slot?: number) => Promise<{ success: boolean; error?: string }>;
 
       // Display
-      getDisplayOutputs?: () => Promise<{ success: boolean; outputs?: any[]; backend?: string; error?: string }>;
+      getDisplayOutputs?: () => Promise<{ success: boolean; outputs?: DisplayOutput[]; backend?: string; error?: string }>;
       setDisplayMode?: (outputName: string, mode: string) => Promise<{ success: boolean; error?: string }>;
       setDisplayScale?: (outputName: string, scale: number) => Promise<{ success: boolean; error?: string }>;
       setDisplayTransform?: (outputName: string, transform: string) => Promise<{ success: boolean; error?: string }>;
       // Mouse / pointer
-      applyMouseSettings?: (settings: any) => Promise<{ success: boolean; warnings?: string[]; error?: string }>;
+      applyMouseSettings?: (settings: MouseSettings) => Promise<{ success: boolean; warnings?: string[]; error?: string }>;
       getMouseDpiInfo?: () => Promise<{ success: boolean; supported: boolean; devices?: Array<{ id: string; name: string }>; deviceId?: string; currentDpi?: number | null; dpiValues?: number[]; error?: string }>;
       setMouseDpi?: (deviceId: string | null, dpi: number) => Promise<{ success: boolean; error?: string }>;
       // Terminal
@@ -159,14 +164,14 @@ declare global {
       // X11 external window taskbar (Linux X11 only)
       x11Supported?: () => Promise<{ success: boolean; supported: boolean }>;
       getActiveX11Window?: () => Promise<{ success: boolean; supported: boolean; xidHex: string | null; error?: string }>;
-      getX11Windows?: () => Promise<{ success: boolean; supported: boolean; snapshot?: any; error?: string }>;
+      getX11Windows?: () => Promise<{ success: boolean; supported: boolean; snapshot?: { windows: Array<{ xidHex: string; title: string; wmClass?: string | null; active?: boolean; minimized?: boolean; alwaysOnTop?: boolean; iconUrl?: string | null; appName?: string | null }> }; error?: string }>;
       activateX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       closeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       minimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       unminimizeX11Window?: (xidHex: string) => Promise<{ success: boolean; error?: string }>;
       setX11WindowAlwaysOnTop?: (xidHex: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
       snapX11Window?: (xidHex: string, mode: string, taskbarConfig?: { height: number; position: 'top' | 'bottom' }) => Promise<{ success: boolean; error?: string }>;
-      onX11WindowsChanged?: (callback: (payload: any) => void) => () => void;
+      onX11WindowsChanged?: (callback: (payload: { windows: Array<{ xidHex: string; title: string; wmClass?: string | null; active?: boolean; minimized?: boolean; alwaysOnTop?: boolean; iconUrl?: string | null; appName?: string | null }> }) => void) => () => void;
       onX11SnapLayoutsSuggest?: (callback: (payload: { xid: string }) => void) => () => void;
       getSnapLayoutsEnabled?: () => Promise<{ success: boolean; enabled: boolean }>;
       setSnapLayoutsEnabled?: (enabled: boolean) => Promise<{ success: boolean }>;
@@ -185,7 +190,7 @@ declare global {
       setTaskbarPosition?: (position: 'top' | 'bottom') => Promise<{ success: boolean; error?: string }>;
       hasExternalPanel?: () => Promise<{ success: boolean; enabled: boolean }>;
       panelToggleStartMenu?: () => Promise<{ success: boolean; error?: string }>;
-      onShellToggleStartMenu?: (callback: (payload: any) => void) => () => void;
+      onShellToggleStartMenu?: (callback: (payload: Record<string, unknown>) => void) => () => void;
       // Context Menu Popup (Linux X11 floating menus)
       showContextMenuPopup?: (x: number, y: number, items: Array<{ id: string; label?: string; divider?: boolean }>) => Promise<{ success: boolean; error?: string }>;
       closeContextMenuPopup?: () => Promise<{ success: boolean }>;
@@ -201,7 +206,7 @@ declare global {
       }) => Promise<{ success: boolean; error?: string }>;
       hideStartMenuPopup?: () => Promise<{ success: boolean }>;
       onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string; x?: number; y?: number }) => void) => () => void;
-      onStartMenuClosed?: (callback: (payload: any) => void) => () => void;
+      onStartMenuClosed?: (callback: (payload: Record<string, unknown>) => void) => () => void;
       // Global Shortcuts (system-wide keybinds from main process)
       onGlobalShortcut?: (callback: (action: string) => void) => () => void;
       // Security
@@ -222,7 +227,7 @@ declare global {
       divineConfigure?: (config: { backend?: string; openRouterApiKey?: string; webSearch?: boolean; useOllamaForRants?: boolean }) => Promise<{ success: boolean; error?: string }>;
       divineDownloadModel?: () => Promise<{ success: boolean; error?: string }>;
       divineSendMessage?: (message: string) => Promise<{ success: boolean; response?: string; commands?: string[]; urls?: string[]; dangerous?: string[]; error?: string }>;
-      divineExecuteCommand?: (command: string, options?: any) => Promise<{ success: boolean; stdout?: string; stderr?: string; code?: number; error?: string }>;
+      divineExecuteCommand?: (command: string, options?: { cwd?: string; timeout?: number }) => Promise<{ success: boolean; stdout?: string; stderr?: string; code?: number; error?: string }>;
       divineOpenUrl?: (url: string) => Promise<{ success: boolean; error?: string }>;
       divineIsDangerous?: (command: string) => Promise<{ isDangerous: boolean }>;
       divineGetGreeting?: () => Promise<{ greeting: string }>;
@@ -247,18 +252,7 @@ declare global {
 
 
 
-interface AudioDevice {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-interface MouseSettings {
-  speed: number; // -1..1
-  raw: boolean; // disable accel
-  naturalScroll: boolean;
-  dpi?: number; // optional; requires ratbagd/libratbag-tools (ratbagctl)
-}
+// AudioDevice and MouseSettings are imported from './utils/types'
 
 // ============================================
 // FILE ICON HELPER
@@ -520,15 +514,17 @@ class TempleOS {
   private startMenuSearchTimer: number | null = null;
   private _wizardCoolingDown = false;
   private windowIdCounter = 0;
-  private dragState: { windowId: string; offsetX: number; offsetY: number } | null = null;
-  private snapState: { type: string; rect: { x: number; y: number; width: number; height: number } } | null = null;
-  private resizeState: { windowId: string; dir: string; startX: number; startY: number; startW: number; startH: number; startXLoc: number; startYLoc: number } | null = null;
+  // Drag/Resize/Snap state now managed by WindowManager
   private snapLayoutsOverlay: HTMLElement | null = null;
   private currentSnapXid: string | null = null;
   private x11SnapLayoutsEnabled = false; // Synced with main process on init
   // Priority 3: Window Grouping (Tier 8.3) - State prepared for future implementation
   // @ts-ignore - Will be used when Window Grouping feature is implemented
   private windowGroups: Record<string, string[]> = {}; // group ID to window IDs mapping (will be used when Window Grouping is implemented)
+
+  // Timer Registry (Phase 7: Memory Leak Prevention)
+  private timers: Set<number> = new Set();
+  private intervals: Set<number> = new Set();
 
   // Tray State
   private showVolumePopup = false;
@@ -629,8 +625,8 @@ class TempleOS {
   private isLocked = false;
   private lockInputMode: 'password' | 'pin' = 'password';
 
-  private lockPassword = 'temple'; // User-configurable lock screen password (default: temple)
-  private lockPin = '7777'; // User-configurable lock screen PIN (default: 7777)
+  private lockPassword = 'temple'; // Default lock screen password (user can change in Settings)
+  private lockPin = '7777'; // Default lock screen PIN (user can change in Settings)
 
 
 
@@ -721,12 +717,12 @@ class TempleOS {
 
   // Desktop Settings (Tier 9.2)
   private desktopWidgetsEnabled = localStorage.getItem('temple_desktop_widgets') === 'true';
-  private desktopIconSize: 'small' | 'large' = (localStorage.getItem('temple_desktop_icon_size') as any) || 'small';
+  private desktopIconSize: DesktopIconSize = (localStorage.getItem('temple_desktop_icon_size') as DesktopIconSize | null) || 'small';
   private desktopAutoArrange = localStorage.getItem('temple_desktop_auto_arrange') === 'true'; // Default false - icons can be dragged
 
   // Theme System (Tier 9.4)
-  private themeColor: 'green' | 'amber' | 'cyan' | 'white' = (localStorage.getItem('temple_theme_color') as any) || 'green';
-  private themeMode: 'dark' | 'light' = (localStorage.getItem('temple_theme_mode') as any) || 'dark';
+  private themeColor: ThemeColor = (localStorage.getItem('temple_theme_color') as ThemeColor | null) || 'green';
+  private themeMode: ThemeMode = (localStorage.getItem('temple_theme_mode') as ThemeMode | null) || 'dark';
   private highContrast = localStorage.getItem('temple_high_contrast') === 'true';
   private customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string; glowColor?: string }> = [];
   private activeCustomTheme: string | null = null;
@@ -810,7 +806,7 @@ class TempleOS {
 
   // Taskbar Hover Preview (Tier 9.1)
   private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
-  private taskbarHoverTimeout: ReturnType<typeof setTimeout> | null = null;
+  private taskbarHoverTimeout: number | null = null;
 
   // X11 external windows for unified taskbar (Linux X11 only)
   private x11Windows: Array<{
@@ -828,7 +824,7 @@ class TempleOS {
   private x11AutoRestoreCooldown = new Map<string, number>(); // xidHex -> last restore ms
 
   private x11LostWindows = new Map<string, number>(); // xidHex -> timestamp (ms) when lost
-  private _workspaceSwitchTimer: any = null; // Debounce timer for workspace switching
+  private _workspaceSwitchTimer: number | null = null; // Debounce timer for workspace switching
   private lastShellPointerDownMs = 0; // used to distinguish TempleOS-click-caused minimizes from user minimizing inside X11 apps
 
   // X11 Fake Workspaces - track which workspace each X11 window belongs to
@@ -864,9 +860,9 @@ class TempleOS {
    */
   private applyX11WorkspaceVisibility(targetWorkspace: number): void {
     if (this._workspaceSwitchTimer) {
-      clearTimeout(this._workspaceSwitchTimer);
+      this.clearSafeTimeout(this._workspaceSwitchTimer);
     }
-    this._workspaceSwitchTimer = setTimeout(() => {
+    this._workspaceSwitchTimer = this.safeTimeout(() => {
       this._doApplyX11WorkspaceVisibility(targetWorkspace);
       this._workspaceSwitchTimer = null;
     }, 150);
@@ -1055,6 +1051,8 @@ class TempleOS {
       customContent?: string; // For custom HTML in alert modals
     }
     | null = null;
+  // Modal resolve can return string|null (prompt), boolean (confirm), or void (alert)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private modalResolve: ((value: any) => void) | null = null;
 
 
@@ -1066,19 +1064,59 @@ class TempleOS {
   public effectsManager: EffectsManager;
   public jellyMode = false;
 
+  // ============================================
+  // WINDOW MANAGER (Phase 2 Refactoring)
+  // ============================================
+  public windowManager: WindowManager;
+
   constructor() {
     this.effectsManager = new EffectsManager();
+
+    // Initialize Window Manager with callbacks
+    // Pass this.windows as external reference so both main.ts and WindowManager share the same array
+    this.windowManager = new WindowManager({
+      onWindowsChange: () => this.render(),
+      onActiveWindowChange: (_id) => {
+        // Update taskbar when active window changes
+        const taskbarApps = document.querySelector('.taskbar-apps');
+        if (taskbarApps) {
+          taskbarApps.innerHTML = this.renderTaskbarAppsHtml();
+        }
+      },
+      onWindowMinimize: (windowId) => {
+        // DOM optimization: hide window instead of re-render
+        const winEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
+        if (winEl) {
+          winEl.style.display = 'none';
+        }
+      },
+      onWindowFocus: (windowId, wasMinimized) => {
+        // DOM optimization: show/move window instead of re-render
+        const winEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
+        const container = document.getElementById('windows-container');
+        if (winEl && container) {
+          if (wasMinimized) winEl.style.display = 'flex';
+          container.appendChild(winEl);
+        }
+      }
+    }, this.windows);
+
     // Initialize other managers...
     this.workspaceManager = new WorkspaceManager();
     this.tilingManager = new TilingManager();
     this.notificationManager = new NotificationManager();
 
-    // Legacy Settings Manager shim
-    this.settingsManager = new SettingsManager(this as any);
+    // Legacy Settings Manager shim - TempleOS implements all SettingsHost properties
+    this.settingsManager = new SettingsManager(this as unknown as SettingsHost);
     this.init();
   }
 
   private init() {
+    // Phase 7: Cleanup all timers when window closes
+    window.addEventListener('beforeunload', () => {
+      this.cleanupAllTimers();
+    });
+
     this.applyTheme();
     this.applyTaskbarPosition();
     this.renderInitial();
@@ -1097,7 +1135,7 @@ class TempleOS {
 
     // Sync panel policies (Linux X11 only; no-ops elsewhere)
     if (window.electronAPI?.onX11SnapLayoutsSuggest) {
-      window.electronAPI.onX11SnapLayoutsSuggest((payload: any) => {
+      window.electronAPI.onX11SnapLayoutsSuggest((payload) => {
         if (payload.xid) this.showSnapLayoutsOverlay(payload.xid);
       });
     }
@@ -1115,7 +1153,7 @@ class TempleOS {
     }
     // Subscribe to X11 external window changes for unified taskbar (Linux X11 only)
     if (window.electronAPI?.onX11WindowsChanged) {
-      window.electronAPI.onX11WindowsChanged((payload: any) => {
+      window.electronAPI.onX11WindowsChanged((payload) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
         const prevByXid = new Map(
           this.x11Windows
@@ -1403,7 +1441,7 @@ class TempleOS {
     this.setupGodlyNotesGlobals();
     this.keepLegacyMethodsReferenced();
     this.updateClock();
-    setInterval(() => this.updateClock(), 1000);
+    this.safeInterval(() => this.updateClock(), 1000);
 
     // Setup workspace manager callback
     this.workspaceManager.setOnChangeCallback(() => {
@@ -1481,24 +1519,24 @@ class TempleOS {
     }
 
     // Periodically save state (if we had complex state)
-    setInterval(() => {
+    this.safeInterval(() => {
       // Auto-save logic could go here
     }, 30000);
 
     // Random Terry Quotes (if enabled)
-    setInterval(() => {
+    this.safeInterval(() => {
       if (this.quoteNotifications && Math.random() < 0.03) { // 3% chance every check (reduced from 10%)
         this.showNotification('Divine Intellect', this.getRandomQuote(), 'divine');
       }
     }, 60000 * 15); // Check every 15 minutes (increased from 5 minutes)
     // Background Network & System Status
-    setInterval(() => {
+    this.safeInterval(() => {
       void this.networkManager.refreshStatus();
     }, 15000); // Every 15 seconds
 
     // Hide boot screen after animation completes (animation is 4.5s delay + 0.5s = 5s total)
     // BUGFIX: Also force pointer-events: none in JS since CSS animations aren't reliable
-    setTimeout(() => {
+    this.safeTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.pointerEvents = 'none';
@@ -1506,7 +1544,7 @@ class TempleOS {
         console.log('[BOOT] Boot screen pointer-events disabled at 5s');
       }
     }, 5000);
-    setTimeout(() => {
+    this.safeTimeout(() => {
       const bootScreen = document.querySelector('.boot-screen') as HTMLElement;
       if (bootScreen) {
         bootScreen.style.display = 'none';
@@ -1544,10 +1582,10 @@ class TempleOS {
 
     // Also render again after short delays to catch any timing issues
     // These are specifically timed to match boot screen phases
-    setTimeout(() => this.render(), 500);
-    setTimeout(() => this.render(), 2000);
-    setTimeout(() => { this.render(); console.log('[BOOT] Post-animation render at 5s'); }, 5000);
-    setTimeout(() => { this.render(); console.log('[BOOT] Final cleanup render at 6s'); }, 6000);
+    this.safeTimeout(() => this.render(), 500);
+    this.safeTimeout(() => this.render(), 2000);
+    this.safeTimeout(() => { this.render(); console.log('[BOOT] Post-animation render at 5s'); }, 5000);
+    this.safeTimeout(() => { this.render(); console.log('[BOOT] Final cleanup render at 6s'); }, 6000);
 
     // Memory Optimizer: check usage every 30 seconds
     // DISABLED: Users reported random refreshes disrupting workflow. 
@@ -1557,6 +1595,67 @@ class TempleOS {
       this.memoryOptimizer.checkAndClean(90, (title, msg) => this.showNotification(title, msg, 'warning'));
     }, 30000);
     */
+  }
+
+  // ============================================
+  // TIMER REGISTRY METHODS (Phase 7: Memory Leak Prevention)
+  // ============================================
+
+  /**
+   * Safe setTimeout wrapper - tracks timer ID for cleanup on destroy
+   */
+  private safeTimeout(callback: () => void, ms: number): number {
+    const id = window.setTimeout(() => {
+      this.timers.delete(id);
+      callback();
+    }, ms);
+    this.timers.add(id);
+    return id;
+  }
+
+  /**
+   * Safe setInterval wrapper - tracks interval ID for cleanup on destroy
+   */
+  private safeInterval(callback: () => void, ms: number): number {
+    const id = window.setInterval(callback, ms);
+    this.intervals.add(id);
+    return id;
+  }
+
+  /**
+   * Clear a specific timeout and remove from registry
+   */
+  private clearSafeTimeout(id: number | null | undefined): void {
+    if (id != null) {
+      window.clearTimeout(id);
+      this.timers.delete(id);
+    }
+  }
+
+  /**
+   * Clear a specific interval and remove from registry
+   */
+  // @ts-ignore - Kept for API completeness, will be used when intervals need individual cleanup
+  private clearSafeInterval(id: number | null | undefined): void {
+    if (id != null) {
+      window.clearInterval(id);
+      this.intervals.delete(id);
+    }
+  }
+
+  /**
+   * Cleanup all tracked timers and intervals - call on destroy/beforeunload
+   */
+  private cleanupAllTimers(): void {
+    for (const id of this.timers) {
+      window.clearTimeout(id);
+    }
+    this.timers.clear();
+    for (const id of this.intervals) {
+      window.clearInterval(id);
+    }
+    this.intervals.clear();
+    console.log('[TempleOS] All timers cleaned up');
   }
 
   // ============================================
@@ -1830,11 +1929,11 @@ class TempleOS {
     }
 
     // Periodic refresh (Windows-like status panels)
-    window.setInterval(() => void this.refreshNetworkStatus(), 10000);
-    window.setInterval(() => void this.refreshAudioDevices(), 15000);
-    window.setInterval(() => void this.refreshSystemInfo(), 30000);
-    window.setInterval(() => void this.refreshBatteryStatus(), 30000);
-    window.setInterval(() => {
+    this.safeInterval(() => void this.refreshNetworkStatus(), 10000);
+    this.safeInterval(() => void this.refreshAudioDevices(), 15000);
+    this.safeInterval(() => void this.refreshSystemInfo(), 30000);
+    this.safeInterval(() => void this.refreshBatteryStatus(), 30000);
+    this.safeInterval(() => {
       // Avoid duplicate polling when System Monitor is open (it has its own interval).
       if (this.windows.some(w => w.id.startsWith('system-monitor'))) return;
       void this.refreshMonitorStatsOnly(false);
@@ -1846,12 +1945,12 @@ class TempleOS {
     ]);
 
     // Background update check (delayed to not slow down startup)
-    setTimeout(() => {
+    this.safeTimeout(() => {
       void this.checkForUpdates(true); // true = show notification if updates available
     }, 10000); // Check 10 seconds after boot
 
     // Periodic update check every 4 hours
-    window.setInterval(() => {
+    this.safeInterval(() => {
       void this.checkForUpdates(true);
     }, 4 * 60 * 60 * 1000);
 
@@ -1985,7 +2084,7 @@ class TempleOS {
       console.log('[BOOT] Scheduling Hard Focus (Single-Shot @ 4.6s)');
 
       setTimeout(() => {
-        window.electronAPI!.inputWakeUp().catch((err: any) => console.error('Hard Focus failed:', err));
+        window.electronAPI!.inputWakeUp().catch((err: unknown) => console.error('Hard Focus failed:', err));
       }, 4600);
     }
   }
@@ -2577,7 +2676,7 @@ class TempleOS {
     });
   }
 
-  private closeModal(result: any): void {
+  private closeModal(result: string | boolean | null | undefined): void {
     const resolve = this.modalResolve;
     this.modalResolve = null;
     this.modal = null;
@@ -3388,12 +3487,12 @@ class TempleOS {
   private showTaskbarHoverPreview(windowId: string, targetElement: HTMLElement): void {
     // Clear any pending timeout
     if (this.taskbarHoverTimeout) {
-      clearTimeout(this.taskbarHoverTimeout);
+      this.clearSafeTimeout(this.taskbarHoverTimeout);
       this.taskbarHoverTimeout = null;
     }
 
     // Delay before showing preview (300ms feels natural)
-    this.taskbarHoverTimeout = setTimeout(() => {
+    this.taskbarHoverTimeout = this.safeTimeout(() => {
       const win = this.windows.find(w => w.id === windowId);
       if (!win) return;
 
@@ -3424,7 +3523,7 @@ class TempleOS {
 
   private hideTaskbarHoverPreview(): void {
     if (this.taskbarHoverTimeout) {
-      clearTimeout(this.taskbarHoverTimeout);
+      this.clearSafeTimeout(this.taskbarHoverTimeout);
       this.taskbarHoverTimeout = null;
     }
     if (this.taskbarHoverPreview) {
@@ -4412,13 +4511,13 @@ class TempleOS {
     }
 
     for (const btn of Array.from(root.querySelectorAll('.launcher-view-btn')) as HTMLElement[]) {
-      const v = (btn.dataset.launcherView as any) as 'all' | 'recent' | 'frequent' | undefined;
+      const v = btn.dataset.launcherView as LauncherView | undefined;
       btn.classList.toggle('active', !!v && v === this.launcherView);
       btn.setAttribute('aria-selected', !!v && v === this.launcherView ? 'true' : 'false');
     }
 
     for (const btn of Array.from(root.querySelectorAll('.launcher-cat-btn')) as HTMLElement[]) {
-      const c = (btn.dataset.launcherCategory as any) as typeof this.launcherCategory | undefined;
+      const c = btn.dataset.launcherCategory as LauncherCategory | undefined;
       btn.classList.toggle('active', !!c && c === this.launcherCategory);
       btn.setAttribute('aria-selected', !!c && c === this.launcherCategory ? 'true' : 'false');
     }
@@ -4435,7 +4534,7 @@ class TempleOS {
 
     try {
       const result = await window.electronAPI.getInstalledApps();
-      this.installedAppsUnsupported = !!(result as any)?.unsupported;
+      this.installedAppsUnsupported = !!(result && typeof result === 'object' && 'unsupported' in result && result.unsupported);
 
       if (result.success && Array.isArray(result.apps)) {
         this.installedApps = result.apps;
@@ -4522,7 +4621,7 @@ class TempleOS {
     try {
       let result = await window.electronAPI.uninstallApp(app);
 
-      if (!result?.success && (result as any)?.needsPassword) {
+      if (!result?.success && result && typeof result === 'object' && 'needsPassword' in result && result.needsPassword) {
         if (!window.electronAPI?.uninstallAppWithPassword) {
           this.showNotification('Apps', 'Uninstall requires administrator privileges, but password prompt is not available.', 'warning');
           return;
@@ -4545,11 +4644,12 @@ class TempleOS {
 
         const retry = await window.electronAPI.uninstallAppWithPassword(app, password);
         if (!retry?.success) {
-          if ((retry as any)?.wrongPassword) {
+          if (retry && typeof retry === 'object' && 'wrongPassword' in retry && retry.wrongPassword) {
             this.showNotification('Apps', 'Wrong password.', 'error');
             return;
           }
-          this.showNotification('Apps', (retry as any)?.error || 'Failed to uninstall app', 'error');
+          const errorMsg = (retry && typeof retry === 'object' && 'error' in retry && typeof retry.error === 'string') ? retry.error : 'Failed to uninstall app';
+          this.showNotification('Apps', errorMsg, 'error');
           return;
         }
 
@@ -4895,8 +4995,8 @@ class TempleOS {
       const res = await window.electronAPI.listAudioDevices();
       if (res.success) {
         this.audioDevices = {
-          sinks: (res.sinks || []).map((s: any) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
-          sources: (res.sources || []).map((s: any) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
+          sinks: (res.sinks || []).map((s) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
+          sources: (res.sources || []).map((s) => ({ id: String(s.id ?? ''), name: String(s.name ?? ''), description: String(s.description ?? s.name ?? '') })),
           defaultSink: res.defaultSink ?? null,
           defaultSource: res.defaultSource ?? null
         };
@@ -4922,7 +5022,7 @@ class TempleOS {
     return 'unknown';
   }
 
-  private setBluetoothDevicesFromApi(devices: any[], merge: boolean): void {
+  private setBluetoothDevicesFromApi(devices: Array<{ mac?: string; name?: string; connected?: boolean; paired?: boolean }>, merge: boolean): void {
     const byMac = new Map<string, { name: string; mac: string; connected: boolean; paired: boolean; type: 'headphone' | 'phone' | 'mouse' | 'keyboard' | 'unknown' }>();
 
     if (merge) {
@@ -4983,7 +5083,7 @@ class TempleOS {
       const err = (res.error || '').toLowerCase();
       const isPermissionErr = /permission|privilege|sudo|auth|polkit|admin|root|denied/i.test(err);
 
-      const mapError = (errObj: any) => {
+      const mapError = (errObj: { error?: string; unsupported?: boolean }) => {
         let errorMsg = errObj?.error || 'Failed to toggle Bluetooth';
         if (errObj?.unsupported) {
           return 'No Bluetooth adapter found. This may be a virtual machine without Bluetooth hardware.';
@@ -5449,9 +5549,9 @@ class TempleOS {
             transform: String(o.transform || 'normal'),
             currentMode: String(o.currentMode || ''),
             modes: Array.isArray(o.modes)
-              ? o.modes
-                .filter((m: any) => m && typeof m.width === 'number' && typeof m.height === 'number')
-                .map((m: any) => ({
+              ? (o.modes as Array<{ width?: number; height?: number; refreshHz?: number | null }>)
+                .filter((m): m is { width: number; height: number; refreshHz?: number | null } => m != null && typeof m.width === 'number' && typeof m.height === 'number')
+                .map((m) => ({
                   width: m.width,
                   height: m.height,
                   refreshHz: typeof m.refreshHz === 'number' ? m.refreshHz : null
@@ -6077,9 +6177,9 @@ class TempleOS {
       }
 
       if (target.matches('.theme-color-btn')) {
-        const color = target.dataset.color;
+        const color = target.dataset.color as ThemeColor | undefined;
         if (color) {
-          this.themeColor = color as any;
+          this.themeColor = color;
           this.applyTheme();
           this.render();
         }
@@ -6291,7 +6391,7 @@ class TempleOS {
       }
       if (accTarget.matches('.color-blind-select') || (e.target as HTMLElement).matches('.color-blind-select')) {
         const t = (accTarget.tagName === 'SELECT' ? accTarget : e.target) as HTMLSelectElement;
-        this.colorBlindMode = t.value as any;
+        this.colorBlindMode = t.value as ColorBlindMode;
         this.applyTheme();
         this.queueSaveConfig();
         this.refreshSettingsWindow();
@@ -6361,7 +6461,7 @@ class TempleOS {
       }
 
       if (target.matches('.file-sort-select')) {
-        const val = (target.value as any) as 'name' | 'size' | 'modified';
+        const val = target.value as FileSortKey;
         this.fileSortMode = val;
         this.fileSortDir = val === 'name' ? 'asc' : 'desc';
         this.updateFileBrowserWindow();
@@ -6381,19 +6481,19 @@ class TempleOS {
       }
 
       if (target.matches('.calc-mode-select')) {
-        const mode = (target.value as any);
+        const mode = target.value as CalculatorMode;
         this.calculator.setMode(mode);
         this.render();
       }
 
       if (target.matches('.start-view-select')) {
-        const val = (target.value as any) as 'all' | 'recent' | 'frequent';
+        const val = target.value as LauncherView;
         this.startMenuView = val;
         this.render();
       }
 
       if (target.matches('.start-category-select')) {
-        const val = target.value as any;
+        const val = target.value as StartMenuCategory;
         this.startMenuCategory = val;
         this.render();
       }
@@ -6703,7 +6803,7 @@ class TempleOS {
       if (target.matches('.calc-base-btn')) {
         const base = target.dataset.calcBase;
         if (base) {
-          this.calculator.setBase(base as any);
+          this.calculator.setBase(base as CalculatorBase);
           this.render();
         }
       }
@@ -6848,9 +6948,9 @@ class TempleOS {
       }
 
       if (target.matches('.theme-color-btn')) {
-        const color = target.dataset.color;
+        const color = target.dataset.color as ThemeColor | undefined;
         if (color) {
-          this.themeColor = color as any;
+          this.themeColor = color;
           this.applyTheme();
           this.queueSaveConfig();
           this.render();
@@ -7213,7 +7313,7 @@ class TempleOS {
 
       const launcherViewBtn = target.closest('.launcher-view-btn') as HTMLElement | null;
       if (launcherViewBtn?.dataset.launcherView) {
-        const view = (launcherViewBtn.dataset.launcherView as any) as 'all' | 'recent' | 'frequent';
+        const view = launcherViewBtn.dataset.launcherView as LauncherView;
         this.launcherView = view;
         if (view !== 'all') this.launcherCategory = 'All';
         this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
@@ -7222,7 +7322,7 @@ class TempleOS {
 
       const launcherCatBtn = target.closest('.launcher-cat-btn') as HTMLElement | null;
       if (launcherCatBtn?.dataset.launcherCategory) {
-        const cat = launcherCatBtn.dataset.launcherCategory as any;
+        const cat = launcherCatBtn.dataset.launcherCategory as LauncherCategory;
         if (this.launcherView === 'all') {
           this.launcherCategory = cat;
           this.updateAppLauncherDom(document.getElementById('launcher-overlay-root'));
@@ -7262,7 +7362,7 @@ class TempleOS {
       // Help App Navigation
       const helpTab = target.closest('[data-help-tab]') as HTMLElement;
       if (helpTab && helpTab.dataset.helpTab) {
-        this.helpApp.setTab(helpTab.dataset.helpTab as any);
+        this.helpApp.setTab(helpTab.dataset.helpTab as HelpTab);
         const win = this.windows.find(w => w.id.startsWith('help'));
         if (win) {
           win.content = this.helpApp.render();
@@ -8298,7 +8398,7 @@ class TempleOS {
 
       const themeColorBtn = target.closest('.theme-color-btn') as HTMLElement;
       if (themeColorBtn && themeColorBtn.dataset.color) {
-        this.themeColor = themeColorBtn.dataset.color as any;
+        this.themeColor = themeColorBtn.dataset.color as ThemeColor;
         localStorage.setItem('temple_theme_color', this.themeColor);
         this.applyTheme();
         this.queueSaveConfig();
@@ -8612,7 +8712,7 @@ class TempleOS {
 
       const monitorHeader = target.closest('.monitor-col-header') as HTMLElement;
       if (monitorHeader && monitorHeader.dataset.sortKey) {
-        const key = monitorHeader.dataset.sortKey as any;
+        const key = monitorHeader.dataset.sortKey as MonitorSortKey;
         if (this.monitorSort === key) {
           this.monitorSortDir = this.monitorSortDir === 'asc' ? 'desc' : 'asc';
         } else {
@@ -8705,20 +8805,8 @@ class TempleOS {
         e.preventDefault();
         const windowId = resizeHandle.dataset.window!;
         const dir = resizeHandle.dataset.resizeDir!;
-        const win = this.windows.find(w => w.id === windowId);
-        if (win) {
-          this.resizeState = {
-            windowId,
-            dir,
-            startX: e.clientX,
-            startY: e.clientY,
-            startW: win.width,
-            startH: win.height,
-            startXLoc: win.x,
-            startYLoc: win.y
-          };
-          this.focusWindow(windowId);
-        }
+        // Use WindowManager for resize state management
+        this.windowManager.startResize(windowId, dir, e.clientX, e.clientY);
         return;
       }
 
@@ -8732,12 +8820,8 @@ class TempleOS {
         const windowId = header.dataset.draggable!;
         const windowEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
         const rect = windowEl.getBoundingClientRect();
-        this.dragState = {
-          windowId,
-          offsetX: e.clientX - rect.left,
-          offsetY: e.clientY - rect.top
-        };
-        this.focusWindow(windowId);
+        // Use WindowManager for drag state management
+        this.windowManager.startDrag(windowId, e.clientX - rect.left, e.clientY - rect.top);
       }
     });
 
@@ -8792,7 +8876,7 @@ class TempleOS {
 
       // Accessibility: Color Blind Mode
       if (target.matches('.color-blind-select')) {
-        this.colorBlindMode = (target as HTMLSelectElement).value as any;
+        this.colorBlindMode = (target as HTMLSelectElement).value as ColorBlindMode;
         this.applyTheme();
         this.queueSaveConfig();
         return;
@@ -8871,146 +8955,71 @@ class TempleOS {
         if (taskbar) taskbar.classList.remove('taskbar-hidden');
       }
 
-      // RESIZE LOGIC
-      if (this.resizeState) {
+      // RESIZE LOGIC - Use WindowManager for state management
+      const resizeBounds = this.windowManager.handleResize(e.clientX, e.clientY);
+      if (resizeBounds) {
         e.preventDefault();
-        const win = this.windows.find(w => w.id === this.resizeState!.windowId);
-        if (win) {
-          const dx = e.clientX - this.resizeState.startX;
-          const dy = e.clientY - this.resizeState.startY;
-          const dir = this.resizeState.dir;
-
-          const MIN_W = 200;
-          const MIN_H = 150;
-
-          if (dir.includes('e')) {
-            win.width = Math.max(MIN_W, this.resizeState.startW + dx);
-          }
-          if (dir.includes('s')) {
-            win.height = Math.max(MIN_H, this.resizeState.startH + dy);
-          }
-          if (dir.includes('w')) {
-            const newW = Math.max(MIN_W, this.resizeState.startW - dx);
-            if (newW !== win.width) { // Only move X if width actually changed
-              win.x = this.resizeState.startXLoc + (this.resizeState.startW - newW);
-              win.width = newW;
-            }
-          }
-          if (dir.includes('n')) {
-            const newH = Math.max(MIN_H, this.resizeState.startH - dy);
-            if (newH !== win.height) { // Only move Y if height actually changed
-              win.y = this.resizeState.startYLoc + (this.resizeState.startH - newH);
-              win.height = newH;
-            }
-          }
-
-          // Apply changes
-          const windowEl = document.querySelector(`[data-window-id="${win.id}"]`) as HTMLElement;
-          if (windowEl) {
-            windowEl.style.width = `${win.width}px`;
-            windowEl.style.height = `${win.height}px`;
-            windowEl.style.left = `${win.x}px`;
-            windowEl.style.top = `${win.y}px`;
-          }
+        // Apply changes to DOM
+        const windowEl = document.querySelector(`[data-window-id="${resizeBounds.windowId}"]`) as HTMLElement;
+        if (windowEl) {
+          windowEl.style.width = `${resizeBounds.width}px`;
+          windowEl.style.height = `${resizeBounds.height}px`;
+          windowEl.style.left = `${resizeBounds.x}px`;
+          windowEl.style.top = `${resizeBounds.y}px`;
         }
         return; // Skip drag logic
       }
 
-      if (this.dragState) {
-        const win = this.windows.find(w => w.id === this.dragState!.windowId);
-        if (win) {
-          // Normal drag
-          win.x = e.clientX - this.dragState.offsetX;
-          win.y = e.clientY - this.dragState.offsetY;
-
-          const windowEl = document.querySelector(`[data-window-id="${win.id}"]`) as HTMLElement;
-          if (windowEl) {
-            windowEl.style.left = `${win.x}px`;
-            windowEl.style.top = `${win.y}px`;
-            // Effects: Jelly Mode
-            if (this.effectsManager) {
-              this.effectsManager.trackWindow(win.id, windowEl, win.x, win.y);
-              this.effectsManager.updateWindowPos(win.id, win.x, win.y);
-            }
+      // DRAG LOGIC - Use WindowManager for state management
+      const dragPos = this.windowManager.handleDrag(e.clientX, e.clientY);
+      if (dragPos) {
+        const windowEl = document.querySelector(`[data-window-id="${dragPos.windowId}"]`) as HTMLElement;
+        if (windowEl) {
+          windowEl.style.left = `${dragPos.x}px`;
+          windowEl.style.top = `${dragPos.y}px`;
+          // Effects: Jelly Mode
+          if (this.effectsManager) {
+            this.effectsManager.trackWindow(dragPos.windowId, windowEl, dragPos.x, dragPos.y);
+            this.effectsManager.updateWindowPos(dragPos.windowId, dragPos.x, dragPos.y);
           }
+        }
 
-          // Snapping Logic
-          const SNAP_MARGIN = 20;
-          const { clientX: x, clientY: y } = e;
-          const { innerWidth: w, innerHeight: h } = window;
-
-          let snapRect = null;
-          let snapType = '';
-
-          // Usable height accounting for taskbar
-          const usableH = h - 50;
-          const halfH = usableH / 2;
-          const halfW = w / 2;
-
-          // Corners & Edges
-          if (y < SNAP_MARGIN) {
-            if (x < SNAP_MARGIN) { snapType = 'top-left'; snapRect = { x: 0, y: 0, width: halfW, height: halfH }; }
-            else if (x > w - SNAP_MARGIN) { snapType = 'top-right'; snapRect = { x: halfW, y: 0, width: halfW, height: halfH }; }
-            else { snapType = 'maximize'; snapRect = { x: 0, y: 0, width: w, height: usableH }; }
-          } else if (y > h - SNAP_MARGIN) {
-            if (x < SNAP_MARGIN) { snapType = 'bottom-left'; snapRect = { x: 0, y: halfH, width: halfW, height: halfH }; }
-            else if (x > w - SNAP_MARGIN) { snapType = 'bottom-right'; snapRect = { x: halfW, y: halfH, width: halfW, height: halfH }; }
-          } else if (x < SNAP_MARGIN) {
-            snapType = 'left'; snapRect = { x: 0, y: 0, width: halfW, height: usableH };
-          } else if (x > w - SNAP_MARGIN) {
-            snapType = 'right'; snapRect = { x: halfW, y: 0, width: halfW, height: usableH };
-          }
-
-          const preview = document.getElementById('snap-preview');
-          if (preview) {
-            if (snapRect) {
-              preview.style.display = 'block';
-              preview.style.left = `${snapRect.x}px`;
-              preview.style.top = `${snapRect.y}px`;
-              preview.style.width = `${snapRect.width}px`;
-              preview.style.height = `${snapRect.height}px`;
-              this.snapState = { type: snapType, rect: snapRect };
-            } else {
-              preview.style.display = 'none';
-              this.snapState = null;
-            }
+        // Snapping Logic - Use WindowManager for snap preview calculation
+        const snapPreview = this.windowManager.getSnapPreview(e.clientX, e.clientY);
+        const preview = document.getElementById('snap-preview');
+        if (preview) {
+          if (snapPreview) {
+            preview.style.display = 'block';
+            preview.style.left = `${snapPreview.rect.x}px`;
+            preview.style.top = `${snapPreview.rect.y}px`;
+            preview.style.width = `${snapPreview.rect.width}px`;
+            preview.style.height = `${snapPreview.rect.height}px`;
+          } else {
+            preview.style.display = 'none';
           }
         }
       }
     });
 
     document.addEventListener('mouseup', (e) => {
-      this.resizeState = null;
+      // End resize operation via WindowManager
+      this.windowManager.endResize();
 
-      // Apply snap if exists
-      if (this.dragState && this.snapState) {
-        const win = this.windows.find(w => w.id === this.dragState!.windowId);
-        if (win) {
-          win.x = this.snapState.rect.x;
-          win.y = this.snapState.rect.y;
-          win.width = this.snapState.rect.width;
-          win.height = this.snapState.rect.height;
+      // Get current drag state before ending
+      const currentDragState = this.windowManager.getDragState();
 
-          // If maximized via snap, set flag
-          if (this.snapState.type === 'maximize') {
-            win.maximized = true;
-          } else {
-            win.maximized = false;
-            // Save these bounds as "restored" or "normal" if we want? 
-            // Actually, usually snapping IS the new state.
-          }
-        }
+      // Apply snap if exists and end drag via WindowManager
+      const wasSnapped = this.windowManager.endDrag();
+      if (wasSnapped) {
         this.render();
       }
 
-      if (this.dragState) {
-        if (this.effectsManager) {
-          this.effectsManager.releaseWindow(this.dragState.windowId);
-        }
+      // Release jelly effect for dragged window
+      if (currentDragState && this.effectsManager) {
+        this.effectsManager.releaseWindow(currentDragState.windowId);
       }
 
-      this.dragState = null;
-      this.snapState = null;
+      // Hide snap preview
       const preview = document.getElementById('snap-preview');
       if (preview) preview.style.display = 'none';
 
@@ -9849,7 +9858,7 @@ class TempleOS {
 
         // Calculator Mode Select
         if (target.classList.contains('calc-mode-select')) {
-          this.calculator.setMode(target.value as any);
+          this.calculator.setMode(target.value as CalculatorMode);
           const win = this.windows.find(w => w.id.startsWith('calculator'));
           if (win) {
             win.content = this.calculator.render();
@@ -10177,7 +10186,7 @@ class TempleOS {
 
         const toolBtn = target.closest('.sprite-tool') as HTMLElement;
         if (toolBtn && toolBtn.dataset.tool) {
-          this.spriteTool = toolBtn.dataset.tool as any;
+          this.spriteTool = toolBtn.dataset.tool as SpriteTool;
           this.render();
         }
 
@@ -10327,7 +10336,7 @@ class TempleOS {
         // Calculator Base Switch (Programmer Mode)
         const calcBaseBtn = target.closest('.calc-base-btn') as HTMLElement;
         if (calcBaseBtn && calcBaseBtn.dataset.calcBase) {
-          this.calculator.setBase(calcBaseBtn.dataset.calcBase as any);
+          this.calculator.setBase(calcBaseBtn.dataset.calcBase as CalculatorBase);
           const win = this.windows.find(w => w.id.startsWith('calculator'));
           if (win) {
             win.content = this.calculator.render();
@@ -11254,7 +11263,7 @@ class TempleOS {
   // Track apps currently being opened to prevent duplicate window creation
   private appsBeingOpened = new Set<string>();
 
-  private async openApp(appId: string, arg?: any) {
+  private async openApp(appId: string, arg?: boolean | { file?: string }) {
     // Prevent duplicate opens while async operations are in progress
     if (this.appsBeingOpened.has(appId)) {
       console.log(`[openApp] Already opening ${appId}, ignoring duplicate call`);
@@ -12602,13 +12611,13 @@ class TempleOS {
         this.refreshTerminalWindow();
         return;
       }
-      const allowed = ['green', 'cyan', 'amber', 'white'] as const;
-      if (!allowed.includes(next as any)) {
+      const allowed: readonly TerminalUiTheme[] = ['green', 'cyan', 'amber', 'white'];
+      if (!allowed.includes(next as TerminalUiTheme)) {
         print('Usage: theme green|cyan|amber|white', 'system');
         this.refreshTerminalWindow();
         return;
       }
-      this.terminalUiTheme = next as any;
+      this.terminalUiTheme = next as TerminalUiTheme;
       this.queueSaveConfig();
       if (this.ptySupported) {
         const fg = this.getTerminalThemeForeground();
@@ -13222,10 +13231,11 @@ class TempleOS {
           timestamp: Date.now()
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       this.divineMessages.push({
         role: 'assistant',
-        content: `A divine error has occurred: ${e.message || 'Unknown error'}\n\nEven the CIA couldn't cause this much trouble. Please ensure Ollama is running.`,
+        content: `A divine error has occurred: ${errorMessage}\n\nEven the CIA couldn't cause this much trouble. Please ensure Ollama is running.`,
         timestamp: Date.now()
       });
     } finally {
@@ -13313,10 +13323,11 @@ class TempleOS {
             content: output,
             timestamp: Date.now()
           });
-        } catch (e: any) {
+        } catch (e: unknown) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
           this.divineMessages.push({
             role: 'system',
-            content: `❌ Execution error: ${e.message}`,
+            content: `❌ Execution error: ${errorMessage}`,
             timestamp: Date.now()
           });
         }
@@ -13337,10 +13348,11 @@ class TempleOS {
         content: `🌐 Opened: ${url}`,
         timestamp: Date.now()
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       this.divineMessages.push({
         role: 'system',
-        content: `❌ Failed to open URL: ${e.message}`,
+        content: `❌ Failed to open URL: ${errorMessage}`,
         timestamp: Date.now()
       });
     }
@@ -13370,8 +13382,8 @@ class TempleOS {
       } else {
         this.divineStatus.error = result?.error || 'Download failed. Click to try again.';
       }
-    } catch (e: any) {
-      this.divineStatus.error = e.message;
+    } catch (e: unknown) {
+      this.divineStatus.error = e instanceof Error ? e.message : String(e);
       this.divineDownloadProgress = 0;
     }
     this.refreshDivineWindow();
@@ -18199,7 +18211,7 @@ class TempleOS {
   // ============================================
   // CONTEXT MENU SYSTEM
   // ============================================
-  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean; submenu?: any[] }>): void {
+  private showContextMenu(x: number, y: number, items: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean; submenu?: Array<{ label?: string; action?: () => void | Promise<void>; divider?: boolean }> }>): void {
     this.closeContextMenu();
 
     // On Linux X11 with external windows, use floating popup to appear above Firefox/X11 apps

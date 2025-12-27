@@ -2,6 +2,17 @@ const { app, BrowserWindow, ipcMain, shell, screen, protocol, globalShortcut } =
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
+
+// ============================================
+// MODULAR IPC HANDLERS (Phase 8 Refactoring)
+// ============================================
+// These modular handlers are ready for use but NOT activated yet to avoid
+// duplicate registration with the inline handlers below. To complete the
+// migration, remove the inline handlers and uncomment the registration call.
+//
+// const { registerAllHandlers } = require('./ipc/index.cjs');
+// Call in app.whenReady: registerAllHandlers(() => mainWindow);
+// ============================================
 const { createEwmhBridge, getActiveWindowXidHex, switchToDesktop, getCurrentDesktop, getDesktopCount, moveWindowToDesktop, makeWindowSticky } = require('./x11/ewmh.cjs');
 
 // Divine Assistant (Word of God AI)
@@ -58,10 +69,19 @@ let lastNetAt = 0;
 let currentTaskbarPosition = 'bottom'; // 'top' | 'bottom' - Synced from renderer
 const TASKBAR_HEIGHT = 60;
 
+
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)
 let snapDetectorProcess = null;
 let snapPreviewWindow = null; // Visual preview for edge snaps
 
+// IPC Response Helpers - Consistent error format across all handlers
+function ipcSuccess(data = {}) {
+    return { success: true, ...data };
+}
+
+function ipcError(message) {
+    return { success: false, error: message };
+}
 
 function execAsync(command, options = {}) {
     const timeoutMs = options.timeout || 3000; // Default 3s timeout to prevent hangs in VMs
@@ -88,6 +108,59 @@ function shEscape(value) {
     // Safe-ish for wrapping in double quotes in sh.
     // (Not a full shell-escape; good enough for SSIDs/passwords/ids passed to nmcli/pactl/etc.)
     return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// ============================================
+// PATH SECURITY - Prevent path traversal attacks
+// ============================================
+const SAFE_BASE_PATHS = [
+    os.homedir(),
+    '/tmp',
+    path.join(os.homedir(), 'Documents'),
+    path.join(os.homedir(), 'Downloads'),
+    path.join(os.homedir(), 'Desktop'),
+    path.join(os.homedir(), 'Pictures'),
+    path.join(os.homedir(), 'Music'),
+    path.join(os.homedir(), 'Videos'),
+    path.join(os.homedir(), '.config'),
+    path.join(os.homedir(), '.local/share/Trash'),
+    path.join(os.homedir(), '.templeos-remake'),
+];
+
+const BLOCKED_PATHS = [
+    '/etc/shadow',
+    '/etc/passwd',
+    '/etc/sudoers',
+    '/etc/gshadow',
+    path.join(os.homedir(), '.ssh'),
+    path.join(os.homedir(), '.gnupg'),
+    path.join(os.homedir(), '.aws'),
+    path.join(os.homedir(), '.kube'),
+    path.join(os.homedir(), '.docker'),
+];
+
+function isPathSafe(targetPath) {
+    if (!targetPath || typeof targetPath !== 'string') {
+        return { safe: false, reason: 'Invalid path' };
+    }
+
+    const resolved = path.resolve(targetPath);
+
+    // Block sensitive paths first (higher priority)
+    for (const blocked of BLOCKED_PATHS) {
+        if (resolved === blocked || resolved.startsWith(blocked + path.sep)) {
+            return { safe: false, reason: 'Access to sensitive path blocked' };
+        }
+    }
+
+    // Allow paths under safe bases
+    for (const base of SAFE_BASE_PATHS) {
+        if (resolved === base || resolved.startsWith(base + path.sep)) {
+            return { safe: true };
+        }
+    }
+
+    return { safe: false, reason: 'Path outside allowed directories' };
 }
 
 function readJsonArrayFile(filePath) {
@@ -668,7 +741,7 @@ async function restoreLinuxTrash(trashPath, originalPath) {
     const dest = originalPath ? path.resolve(originalPath) : null;
     if (!dest) throw new Error('Missing original path');
 
-    await fs.promises.mkdir(path.dirname(dest), { recursive: true }).catch(() => { });
+    await fs.promises.mkdir(path.dirname(dest), { recursive: true }).catch((e) => console.warn('[FS] mkdir for restore failed:', e.message));
 
     let finalDest = dest;
     try {
@@ -681,7 +754,7 @@ async function restoreLinuxTrash(trashPath, originalPath) {
     }
 
     await fs.promises.rename(resolvedTrash, finalDest);
-    await fs.promises.rm(infoPath, { force: true }).catch(() => { });
+    await fs.promises.rm(infoPath, { force: true }).catch((e) => console.warn('[FS] Remove trash info failed:', e.message));
     return { restoredPath: finalDest };
 }
 
@@ -747,7 +820,7 @@ function createWindow() {
     mainWindow.webContents.on('did-finish-load', () => {
         // In X11 mode, hide the shell window from task/window lists (panel should track real apps, not itself).
         if (isX11Session()) {
-            setTimeout(() => { void applyDesktopHintsToMainWindow().catch(() => { }); }, 150);
+            setTimeout(() => { void applyDesktopHintsToMainWindow().catch((e) => console.warn('[X11] applyDesktopHintsToMainWindow failed:', e.message)); }, 150);
 
             // CRITICAL: Capture main window XID to protect it from snap operations
             try {
@@ -799,7 +872,7 @@ function createWindow() {
             }
             // Only re-apply if we suspect we lost the 'below' state. 
             // We just fire-and-forget this to ensure we stay at the bottom.
-            void wmctrlSetState(xidHexFromBrowserWindow(mainWindow), 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
+            void wmctrlSetState(xidHexFromBrowserWindow(mainWindow), 'add', 'below,skip_taskbar,skip_pager').catch((e) => console.warn('[X11] wmctrlSetState on focus failed:', e.message));
         }
     });
 }
@@ -871,13 +944,13 @@ async function applyDockStrutToPanelWindow() {
     const height = panelWindow.getBounds().height || 60;
 
     // Dock + always-on-top behavior + skip taskbar/pager.
-    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch(() => { });
-    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_ABOVE,_NET_WM_STATE_STICKY,_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch(() => { });
+    await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch((e) => console.warn('[X11] xpropSet WINDOW_TYPE failed:', e.message));
+    await xpropSet(xid, '_NET_WM_STATE', '32a', '_NET_WM_STATE_ABOVE,_NET_WM_STATE_STICKY,_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER').catch((e) => console.warn('[X11] xpropSet WM_STATE failed:', e.message));
 
     // Reserve the bottom strip of the screen.
     // _NET_WM_STRUT_PARTIAL = left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x
     const strut = `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`;
-    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch(() => { });
+    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch((e) => console.warn('[X11] xpropSet STRUT_PARTIAL failed:', e.message));
 
     // Give the WM a moment to apply workarea, then resize the main window so it doesn't cover the panel.
     setTimeout(() => resizeMainWindowToWorkArea(), 120);
@@ -896,7 +969,7 @@ async function setPanelStrutEnabled(enabled) {
     const value = enabled
         ? `"0, 0, 0, ${height}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, width - 1)}"`
         : `"0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"`;
-    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', value).catch(() => { });
+    await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', value).catch((e) => console.warn('[X11] xpropSet STRUT_PARTIAL toggle failed:', e.message));
 
     // Workarea changes when struts change; resize main accordingly.
     setTimeout(() => resizeMainWindowToWorkArea(), 120);
@@ -943,7 +1016,7 @@ async function applyDesktopHintsToMainWindow() {
     // _NET_WM_STATE_BELOW ensures it stays at the bottom of the stack (like a desktop),
     // preventing it from obscuring other windows when clicked/focused.
     // Use wmctrl to request EWMH state changes (more reliable than directly setting _NET_WM_STATE).
-    await wmctrlSetState(xid, 'add', 'below,skip_taskbar,skip_pager').catch(() => { });
+    await wmctrlSetState(xid, 'add', 'below,skip_taskbar,skip_pager').catch((e) => console.warn('[X11] wmctrlSetState desktop hints failed:', e.message));
 
     // CRITICAL: Make the Electron shell appear on ALL X11 desktops (sticky/omnipresent)
     // This ensures the desktop UI is always visible when switching virtual desktops.
@@ -989,7 +1062,7 @@ function createPanelWindow() {
     }
 
     panelWindow.webContents.on('did-finish-load', () => {
-        void applyDockStrutToPanelWindow().catch(() => { });
+        void applyDockStrutToPanelWindow().catch((e) => console.warn('[X11] applyDockStrutToPanelWindow failed:', e.message));
         // Refresh ignore set for the X11 bridge (so the panel doesn't appear as an app).
         const xid = xidHexFromBrowserWindow(panelWindow);
         if (xid) x11IgnoreXids.add(String(xid).toLowerCase());
@@ -1106,7 +1179,7 @@ async function startX11EwmhBridge() {
 
     ewmhBridge.onChange((snap) => {
         broadcastX11WindowsChanged(snap);
-        void applyPanelPolicyFromSnapshot(snap).catch(() => { });
+        void applyPanelPolicyFromSnapshot(snap).catch((e) => console.warn('[X11] applyPanelPolicyFromSnapshot failed:', e.message));
         // Phase 4: Track window closures for auto-tiling
         updateOccupiedSlotsFromSnapshot(snap);
         // Note: Snap layout detection is now handled by the snap-detector.py daemon
@@ -1120,11 +1193,11 @@ app.whenReady().then(() => {
     createWindow();
     if (process.platform === 'linux') {
         startDesktopEntryWatcher();
-        void refreshInstalledAppsCache('startup').catch(() => { });
+        void refreshInstalledAppsCache('startup').catch((e) => console.warn('[Apps] Startup cache refresh failed:', e.message));
         if (isX11Session()) {
             // UNIFIED TASKBAR: Panel window is disabled. The main renderer handles X11 windows directly.
             // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
-            void applyDesktopHintsToMainWindow().catch(() => { });
+            void applyDesktopHintsToMainWindow().catch((e) => console.warn('[X11] applyDesktopHintsToMainWindow at ready failed:', e.message));
             // Maximize the main window to fill the screen (since there's no panel strut)
             setTimeout(() => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1148,7 +1221,7 @@ app.whenReady().then(() => {
                     }
                 }
             }, 200);
-            void startX11EwmhBridge().catch(() => { });  // Still need this to detect Firefox, etc.
+            void startX11EwmhBridge().catch((e) => console.warn('[X11] EWMH bridge start failed:', e.message));  // Still need this to detect Firefox, etc.
         }
     }
 });
@@ -1213,7 +1286,7 @@ ipcMain.handle('input-wake-up', async () => {
                 s.textContent = '*:focus, *:focus-visible { outline: none !important; box-shadow: none !important; border-color: inherit !important; }';
                 document.head.appendChild(s);
                 void 0;
-            `).catch(() => { });
+            `).catch((e) => console.warn('[IPC] Stealth CSS injection failed:', e.message));
 
             // STEP 2: Window activation
             if (mainWindowXid) {
@@ -1241,7 +1314,7 @@ ipcMain.handle('input-wake-up', async () => {
                         document.activeElement?.blur?.();
                         document.getElementById('__hard_focus_stealth')?.remove();
                         void 0;
-                    `).catch(() => { });
+                    `).catch((e) => console.warn('[IPC] Focus cleanup injection failed:', e.message));
                 }
             }, 100);
         }
@@ -1472,7 +1545,7 @@ ipcMain.handle('x11:activateWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.activateWindow(xidHex);
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after activate failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1484,7 +1557,7 @@ ipcMain.handle('x11:closeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.closeWindow(xidHex);
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after close failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1496,7 +1569,7 @@ ipcMain.handle('x11:minimizeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.minimizeWindow(xidHex);
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after minimize failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1508,7 +1581,7 @@ ipcMain.handle('x11:unminimizeWindow', async (event, xidHex) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.unminimizeWindow(xidHex);
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after unminimize failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1520,7 +1593,7 @@ ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
     if (!isValidXidHex(xidHex)) return { success: false, error: 'Invalid X11 window id' };
     try {
         await ewmhBridge.setAlwaysOnTop(xidHex, !!enabled);
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after setAlwaysOnTop failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -1659,14 +1732,14 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
 
     try {
         // Ensure it's visible before snapping (also de-iconifies on most WMs).
-        await ewmhBridge.activateWindow(xidHex).catch(() => { });
+        await ewmhBridge.activateWindow(xidHex).catch((e) => console.warn('[X11] activateWindow before snap failed:', e.message));
 
         if (m === 'maximize') {
             // For maximize, we need to set geometry manually instead of using WM maximize
             // because WM maximize ignores our custom work area
             if (ewmhBridge.setWindowGeometry) {
                 // First remove any existing maximized state
-                await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
+                await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch((e) => console.warn('[X11] wmctrl unmaximize failed:', e.message));
                 await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y, wa.width, clientHeight);
             } else {
                 await ewmhBridge.setMaximized?.(xidHex, true);
@@ -1721,7 +1794,7 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
             }
         }
 
-        await ewmhBridge.refreshNow?.().catch(() => { });
+        await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after snap failed:', e.message));
         return { success: true };
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
@@ -2143,7 +2216,7 @@ function handleSnapDetectorEvent(event) {
                 // Execute JS directly in popup to update highlight
                 snapPopupWindow.webContents.executeJavaScript(
                     `if (typeof highlightAtScreenPos === 'function') highlightAtScreenPos(${px}, ${py});`
-                ).catch(() => { }); // Ignore errors if popup closed
+                ).catch((e) => console.warn('[Snap] Popup highlight update failed:', e.message)); // Ignore errors if popup closed
             }
             break;
 
@@ -3305,6 +3378,10 @@ ipcMain.handle('startmenu:hide', async () => {
 // FILESYSTEM IPC
 // ============================================
 ipcMain.handle('fs:readdir', async (event, dirPath) => {
+    const pathCheck = isPathSafe(dirPath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
         const results = [];
@@ -3345,6 +3422,10 @@ ipcMain.handle('fs:readdir', async (event, dirPath) => {
 });
 
 ipcMain.handle('fs:readFile', async (event, filePath) => {
+    const pathCheck = isPathSafe(filePath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         const content = await fs.promises.readFile(filePath, 'utf-8');
         return { success: true, content };
@@ -3354,6 +3435,10 @@ ipcMain.handle('fs:readFile', async (event, filePath) => {
 });
 
 ipcMain.handle('fs:writeFile', async (event, filePath, content) => {
+    const pathCheck = isPathSafe(filePath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         await fs.promises.writeFile(filePath, content, 'utf-8');
         return { success: true };
@@ -3363,6 +3448,10 @@ ipcMain.handle('fs:writeFile', async (event, filePath, content) => {
 });
 
 ipcMain.handle('fs:delete', async (event, itemPath) => {
+    const pathCheck = isPathSafe(itemPath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         const stat = await fs.promises.stat(itemPath);
         if (stat.isDirectory()) {
@@ -3377,6 +3466,10 @@ ipcMain.handle('fs:delete', async (event, itemPath) => {
 });
 
 ipcMain.handle('fs:trash', async (event, itemPath) => {
+    const pathCheck = isPathSafe(itemPath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         const target = String(itemPath || '');
         if (!target) return { success: false, error: 'Invalid path' };
@@ -3431,7 +3524,7 @@ ipcMain.handle('fs:deleteTrashItem', async (event, trashPath) => {
         const stat = await fs.promises.stat(resolvedTrash);
         if (stat.isDirectory()) await fs.promises.rm(resolvedTrash, { recursive: true, force: true });
         else await fs.promises.unlink(resolvedTrash);
-        await fs.promises.rm(infoPath, { force: true }).catch(() => { });
+        await fs.promises.rm(infoPath, { force: true }).catch((e) => console.warn('[FS] Remove trash info on delete failed:', e.message));
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };
@@ -3452,6 +3545,10 @@ ipcMain.handle('fs:emptyTrash', async () => {
 });
 
 ipcMain.handle('fs:mkdir', async (event, dirPath) => {
+    const pathCheck = isPathSafe(dirPath);
+    if (!pathCheck.safe) {
+        return { success: false, error: pathCheck.reason };
+    }
     try {
         await fs.promises.mkdir(dirPath, { recursive: true });
         return { success: true };
@@ -3461,6 +3558,14 @@ ipcMain.handle('fs:mkdir', async (event, dirPath) => {
 });
 
 ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
+    const oldCheck = isPathSafe(oldPath);
+    if (!oldCheck.safe) {
+        return { success: false, error: oldCheck.reason };
+    }
+    const newCheck = isPathSafe(newPath);
+    if (!newCheck.safe) {
+        return { success: false, error: newCheck.reason };
+    }
     try {
         await fs.promises.rename(oldPath, newPath);
         return { success: true };
@@ -3470,6 +3575,14 @@ ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
 });
 
 ipcMain.handle('fs:copy', async (event, srcPath, destPath) => {
+    const srcCheck = isPathSafe(srcPath);
+    if (!srcCheck.safe) {
+        return { success: false, error: srcCheck.reason };
+    }
+    const destCheck = isPathSafe(destPath);
+    if (!destCheck.safe) {
+        return { success: false, error: destCheck.reason };
+    }
     try {
         const stat = await fs.promises.stat(srcPath);
         if (stat.isDirectory()) {
@@ -3524,6 +3637,14 @@ try { AdmZip = require('adm-zip'); } catch (e) { console.warn('adm-zip not found
 
 ipcMain.handle('fs:createZip', async (event, sourcePath, targetZipPath) => {
     if (!AdmZip) return { success: false, error: 'adm-zip dependency missing' };
+    const srcCheck = isPathSafe(sourcePath);
+    if (!srcCheck.safe) {
+        return { success: false, error: srcCheck.reason };
+    }
+    const destCheck = isPathSafe(targetZipPath);
+    if (!destCheck.safe) {
+        return { success: false, error: destCheck.reason };
+    }
     try {
         const zip = new AdmZip();
         const stat = await fs.promises.stat(sourcePath);
@@ -3543,6 +3664,14 @@ ipcMain.handle('fs:createZip', async (event, sourcePath, targetZipPath) => {
 
 ipcMain.handle('fs:extractZip', async (event, zipPath, targetDir) => {
     if (!AdmZip) return { success: false, error: 'adm-zip dependency missing' };
+    const zipCheck = isPathSafe(zipPath);
+    if (!zipCheck.safe) {
+        return { success: false, error: zipCheck.reason };
+    }
+    const destCheck = isPathSafe(targetDir);
+    if (!destCheck.safe) {
+        return { success: false, error: destCheck.reason };
+    }
     try {
         const zip = new AdmZip(zipPath);
         zip.extractAllTo(targetDir, true); // true = overwrite
@@ -6259,7 +6388,7 @@ async function refreshInstalledAppsCache(reason) {
 function scheduleInstalledAppsRefresh(reason) {
     if (desktopEntryRescanTimer) clearTimeout(desktopEntryRescanTimer);
     desktopEntryRescanTimer = setTimeout(() => {
-        void refreshInstalledAppsCache(reason || 'change').catch(() => { });
+        void refreshInstalledAppsCache(reason || 'change').catch((e) => console.warn('[Apps] Scheduled refresh failed:', e.message));
     }, 400);
 }
 
@@ -6360,7 +6489,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
         if (ewmhBridge?.supported && ewmhBridge.refreshNow) {
             const delays = [100, 250, 500, 900];
             for (const ms of delays) {
-                setTimeout(() => { void ewmhBridge.refreshNow().catch(() => { }); }, ms);
+                setTimeout(() => { void ewmhBridge.refreshNow().catch((e) => console.warn('[X11] Post-launch EWMH refresh failed:', e.message)); }, ms);
             }
         }
         return { success: true };

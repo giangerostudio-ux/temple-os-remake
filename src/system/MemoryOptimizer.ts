@@ -31,11 +31,12 @@ export class MemoryOptimizer {
         const oldUsage = this.getMockMemoryUsage();
 
         // Actual implementation for Electron/Linux:
-        if ((window.electronAPI as any)?.execCommand) {
+        const api = window.electronAPI as { execCommand?: (cmd: string) => Promise<unknown> } | undefined;
+        if (api?.execCommand) {
             try {
                 // Linux: sync; echo 3 > /proc/sys/vm/drop_caches
                 // Windows: Not easily possible without specialized tools/API
-                await (window.electronAPI as any).execCommand('sync; echo 3 > /proc/sys/vm/drop_caches');
+                await api.execCommand('sync; echo 3 > /proc/sys/vm/drop_caches');
             } catch (e) {
                 console.warn("Memory clean command failed", e);
             }
@@ -43,9 +44,9 @@ export class MemoryOptimizer {
 
         // Mock cleanup effect
         // triggers GC in V8 if exposed, but mostly just a placebo in web context
-        const win = window as any;
+        const win = window as unknown as { gc?: () => void };
         if (win.gc) {
-            try { win.gc(); } catch { }
+            try { win.gc(); } catch { /* ignore */ }
         }
 
         const newUsage = Math.max(0.1, oldUsage - 0.3); // Simulate reduction

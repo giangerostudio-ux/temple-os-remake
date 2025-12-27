@@ -77,13 +77,15 @@ export class GodlyNotes {
                 const legacyRaw = localStorage.getItem('godly_notes_db');
                 if (legacyRaw) {
                     const legacyCols = JSON.parse(legacyRaw);
+                    interface LegacyCard { id: string; content: string }
+                    interface LegacyColumn { id: string; title: string; cards: LegacyCard[] }
                     const board: Board = {
                         id: generateId('board'),
                         name: 'Migrated Board',
-                        lists: legacyCols.map((c: any) => ({
+                        lists: (legacyCols as LegacyColumn[]).map((c) => ({
                             id: c.id,
                             title: c.title,
-                            cards: c.cards.map((card: any) => ({
+                            cards: c.cards.map((card) => ({
                                 id: card.id,
                                 content: card.content,
                                 labels: [],

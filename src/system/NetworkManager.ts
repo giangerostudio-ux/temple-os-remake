@@ -1,4 +1,4 @@
-import type { NetworkStatus, WifiNetwork, MonitorStats } from '../utils/types';
+import type { NetworkStatus, WifiNetwork, MonitorStats, NotificationAction, PromptOptions, ConfirmOptions, NotificationType, SavedNetwork } from '../utils/types';
 
 export class NetworkManager {
     // State
@@ -6,7 +6,7 @@ export class NetworkManager {
     public wifiNetworks: WifiNetwork[] = [];
     public lastError: string | null = null;
     public wifiEnabled = true;
-    public savedNetworks: Array<{ name: string; uuid: string; type: string; device: string }> = [];
+    public savedNetworks: SavedNetwork[] = [];
 
     // VPN Kill Switch
     public vpnKillSwitchEnabled = false;
@@ -36,17 +36,17 @@ export class NetworkManager {
 
     // Callbacks
     private onUpdate: () => void = () => { };
-    private onNotify: (title: string, msg: string, type: 'info' | 'warning' | 'error' | 'divine', actions?: any[]) => void = () => { };
-    private onPrompt: (opts: any) => Promise<string | null> = async () => null;
-    private onConfirm: (opts: any) => Promise<boolean> = async () => false;
+    private onNotify: (title: string, msg: string, type: NotificationType, actions?: NotificationAction[]) => void = () => { };
+    private onPrompt: (opts: PromptOptions) => Promise<string | null> = async () => null;
+    private onConfirm: (opts: ConfirmOptions) => Promise<boolean> = async () => false;
 
     constructor() { }
 
     public setCallbacks(
         onUpdate: () => void,
-        onNotify: (title: string, msg: string, type: 'info' | 'warning' | 'error' | 'divine', actions?: any[]) => void,
-        onPrompt: (opts: any) => Promise<string | null>,
-        onConfirm: (opts: any) => Promise<boolean>
+        onNotify: (title: string, msg: string, type: NotificationType, actions?: NotificationAction[]) => void,
+        onPrompt: (opts: PromptOptions) => Promise<string | null>,
+        onConfirm: (opts: ConfirmOptions) => Promise<boolean>
     ) {
         this.onUpdate = onUpdate;
         this.onNotify = onNotify;
@@ -112,11 +112,12 @@ export class NetworkManager {
         try {
             const res = await window.electronAPI.getTorStatus();
             if (res.success) {
+                const torRes = res as { success: boolean; running?: boolean; installed?: boolean };
                 this.torStatus = {
-                    running: !!res.running,
-                    installed: !!(res as any).installed
+                    running: !!torRes.running,
+                    installed: !!torRes.installed
                 };
-            } else if ((res as any).unsupported) {
+            } else if ('unsupported' in res && res.unsupported) {
                 this.torStatus = { running: false, installed: false };
             }
         } catch {
@@ -142,7 +143,7 @@ export class NetworkManager {
             const res = await window.electronAPI.getWifiEnabled();
             if (res.success) {
                 this.wifiEnabled = res.enabled ?? true;
-            } else if ((res as any)?.unsupported) {
+            } else if ('unsupported' in res && res.unsupported) {
                 this.wifiEnabled = false;
             }
         } catch {
@@ -155,9 +156,11 @@ export class NetworkManager {
         try {
             const res = await window.electronAPI.listSavedNetworks();
             if (res.success && Array.isArray(res.networks)) {
-                this.savedNetworks = (res.networks as any[])
-                    .filter(n => n && typeof n.name === 'string' && typeof n.uuid === 'string')
-                    .map(n => ({ name: String(n.name), uuid: String(n.uuid), type: String(n.type || ''), device: String(n.device || '') }))
+                interface RawNetworkEntry { name?: unknown; uuid?: unknown; type?: unknown; device?: unknown }
+                this.savedNetworks = (res.networks as RawNetworkEntry[])
+                    .filter((n): n is RawNetworkEntry & { name: string; uuid: string } =>
+                        n != null && typeof n.name === 'string' && typeof n.uuid === 'string')
+                    .map(n => ({ name: n.name, uuid: n.uuid, type: String(n.type || ''), device: String(n.device || '') }))
                     .slice(0, 50);
             }
         } catch {

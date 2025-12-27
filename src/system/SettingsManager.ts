@@ -1,5 +1,6 @@
-import type { TempleConfig } from '../utils/types';
+import type { TempleConfig, MouseSettings, NotificationAction, NotificationType, ColorBlindMode } from '../utils/types';
 import { escapeHtml } from '../utils/helpers';
+import type { NetworkManager } from './NetworkManager';
 
 export type SettingsHost = {
   wallpaperImage: string;
@@ -32,7 +33,7 @@ export type SettingsHost = {
   tilingManager: { setTaskbarPosition: (position: 'top' | 'bottom') => void };
 
   // System modules/state
-  networkManager: any;
+  networkManager: NetworkManager;
 
   // Terminal config state
   terminalUiTheme: 'green' | 'cyan' | 'amber' | 'white';
@@ -49,7 +50,7 @@ export type SettingsHost = {
 
   // Audio / mouse config state
   audioDevices: { defaultSink: string | null; defaultSource: string | null };
-  mouseSettings: any;
+  mouseSettings: MouseSettings;
 
   // UI state persisted
   pinnedStart: string[];
@@ -60,7 +61,7 @@ export type SettingsHost = {
   fileBookmarks: string[];
 
   render: () => void;
-  showNotification: (title: string, msg: string, type: 'info' | 'warning' | 'error' | 'divine', actions?: any[]) => void;
+  showNotification: (title: string, msg: string, type: NotificationType, actions?: NotificationAction[]) => void;
 };
 
 export class SettingsManager {
@@ -202,7 +203,7 @@ export class SettingsManager {
 
     // Sync with Electron backend for X11 window snapping
     if (window.electronAPI?.setTaskbarPosition) {
-      window.electronAPI.setTaskbarPosition(position).catch((err: any) => {
+      window.electronAPI.setTaskbarPosition(position).catch((err: unknown) => {
         console.warn('[TaskbarSync] Failed to sync position to Electron:', err);
       });
     }
@@ -246,14 +247,14 @@ export class SettingsManager {
       if (typeof cfg.accessibility.largeText === 'boolean') this.host.largeText = cfg.accessibility.largeText;
       if (typeof cfg.accessibility.reduceMotion === 'boolean') this.host.reduceMotion = cfg.accessibility.reduceMotion;
       if (cfg.accessibility.colorBlindMode && ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'].includes(cfg.accessibility.colorBlindMode)) {
-        this.host.colorBlindMode = cfg.accessibility.colorBlindMode as any;
+        this.host.colorBlindMode = cfg.accessibility.colorBlindMode as ColorBlindMode;
       }
     }
 
     if (cfg.effects) {
       if (typeof cfg.effects.jellyMode === 'boolean') this.host.jellyMode = cfg.effects.jellyMode;
-      if (typeof (cfg.effects as any).heavenlyPulse === 'boolean') this.host.heavenlyPulse = (cfg.effects as any).heavenlyPulse;
-      if (typeof (cfg.effects as any).heavenlyPulseIntensity === 'number') this.host.heavenlyPulseIntensity = Math.max(0.03, Math.min(0.70, (cfg.effects as any).heavenlyPulseIntensity));
+      if (typeof cfg.effects.heavenlyPulse === 'boolean') this.host.heavenlyPulse = cfg.effects.heavenlyPulse;
+      if (typeof cfg.effects.heavenlyPulseIntensity === 'number') this.host.heavenlyPulseIntensity = Math.max(0.03, Math.min(0.70, cfg.effects.heavenlyPulseIntensity));
     }
 
     if (cfg.network) {
@@ -307,7 +308,7 @@ export class SettingsManager {
       if (typeof cfg.mouse.speed === 'number') this.host.mouseSettings.speed = Math.max(-1, Math.min(1, cfg.mouse.speed));
       if (typeof cfg.mouse.raw === 'boolean') this.host.mouseSettings.raw = cfg.mouse.raw;
       if (typeof cfg.mouse.naturalScroll === 'boolean') this.host.mouseSettings.naturalScroll = cfg.mouse.naturalScroll;
-      if (typeof (cfg.mouse as any).dpi === 'number') this.host.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round((cfg.mouse as any).dpi)));
+      if (typeof cfg.mouse.dpi === 'number') this.host.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round(cfg.mouse.dpi)));
     }
 
     if (Array.isArray(cfg.pinnedStart)) {

@@ -313,3 +313,127 @@ export interface MediaPlayerState {
     volume: number;
     isPlaying: boolean;
 }
+
+// Notification Action
+export interface NotificationAction {
+    id: string;
+    label: string;
+}
+
+// Prompt Dialog Options
+export interface PromptOptions {
+    title: string;
+    message?: string;
+    inputLabel?: string;
+    defaultValue?: string;
+    placeholder?: string;
+    password?: boolean;
+    confirmText?: string;
+    cancelText?: string;
+}
+
+// Confirm Dialog Options
+export interface ConfirmOptions {
+    title: string;
+    message?: string;
+    confirmText?: string;
+    cancelText?: string;
+}
+
+// Theme Color Type
+export type ThemeColor = 'green' | 'amber' | 'cyan' | 'white';
+
+// Theme Mode Type
+export type ThemeMode = 'dark' | 'light';
+
+// Desktop Icon Size Type
+export type DesktopIconSize = 'small' | 'large';
+
+// Notification Type
+export type NotificationType = 'info' | 'warning' | 'error' | 'divine';
+
+// Color Blind Mode Type
+export type ColorBlindMode = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+
+// Taskbar Position Type
+export type TaskbarPosition = 'top' | 'bottom';
+
+// Terminal UI Theme Type
+export type TerminalUiTheme = 'green' | 'cyan' | 'amber' | 'white';
+
+// Context Menu Item
+export interface ContextMenuItem {
+    label?: string;
+    action?: () => void | Promise<void>;
+    divider?: boolean;
+    submenu?: ContextMenuItem[];
+}
+
+// Trash Entry
+export interface TrashEntry {
+    name: string;
+    trashPath: string;
+    originalPath: string;
+    deletionDate: string;
+    size: number;
+    isDirectory: boolean;
+}
+
+// Saved Network Entry
+export interface SavedNetwork {
+    name: string;
+    uuid: string;
+    type: string;
+    device: string;
+}
+
+// Snap Direction
+export type SnapDirection = 'left' | 'right' | 'top' | 'bottom' | 'topleft' | 'topright' | 'bottomleft' | 'bottomright' | 'maximize';
+
+// Launcher View Type
+export type LauncherView = 'all' | 'recent' | 'frequent';
+
+// File Sort Key
+export type FileSortKey = 'name' | 'size' | 'modified';
+
+// Calculator Mode
+export type CalculatorMode = 'basic' | 'scientific' | 'programmer';
+
+// Calculator Base (matches Calculator.Base)
+export type CalculatorBase = 'HEX' | 'DEC' | 'OCT' | 'BIN';
+
+// Sprite Tool (matches main.ts property type)
+export type SpriteTool = 'pencil' | 'eraser' | 'fill' | 'eyedropper';
+
+// Equalizer Preset
+export type EqualizerPreset = 'flat' | 'rock' | 'pop' | 'techno';
+
+// Display Mode
+export interface DisplayMode {
+    width: number;
+    height: number;
+    refreshHz: number | null;
+}
+
+// Launcher Category Type
+export type LauncherCategory = 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities';
+
+// Monitor Sort Key Type
+export type MonitorSortKey = 'pid' | 'name' | 'cpu' | 'mem';
+
+// Help Tab Type (matches HelpApp.currentTab)
+export type HelpTab = 'guide' | 'shortcuts' | 'faq' | 'tribute' | 'about';
+
+// Start Menu Category Type
+export type StartMenuCategory = 'All' | 'Games' | 'Internet' | 'Office' | 'Multimedia' | 'Development' | 'System' | 'Utilities';
+
+// Uninstall App Result Type
+export interface UninstallResult {
+    success: boolean;
+    error?: string;
+    needsPassword?: boolean;
+    wrongPassword?: boolean;
+    unsupported?: boolean;
+}
+
+

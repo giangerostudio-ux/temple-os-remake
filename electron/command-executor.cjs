@@ -11,22 +11,83 @@ const os = require('os');
 
 // Commands that require extra confirmation (dangerous)
 const DANGEROUS_PATTERNS = [
+  // Destructive file operations
   /^sudo\s+rm\s+-rf?\s/i,
   /^rm\s+-rf?\s+\//i,
   /\brm\s+-rf?\s+~/i,
+  // Disk/partition operations
   /\bdd\s+if=/i,
   /\bmkfs\b/i,
   /\bfdisk\b/i,
   /\bparted\b/i,
   /\bformat\b/i,
+  // Device writes
   /\b>>\s*\/dev\//i,
   /\b>\s*\/dev\//i,
+  // Dangerous permission changes
   /\bchmod\s+777\s+\//i,
   /\bchown\s+-R\s+.*\s+\//i,
   /\bsudo\s+rm\s+.*\s+\//i,
-  /:\s*\(\)\s*\{.*\|.*&.*\}/i, // Fork bomb
+  // Fork bomb
+  /:\s*\(\)\s*\{.*\|.*&.*\}/i,
+  // System service attacks
   /\bsystemctl\s+(disable|stop)\s+(NetworkManager|systemd|dbus)/i,
+  // Remote code execution via download
+  /curl.*\|\s*(ba)?sh/i,
+  /wget.*\|\s*(ba)?sh/i,
+  /curl.*\|\s*python/i,
+  /wget.*\|\s*python/i,
+  // Shell escape/execution
+  /\beval\s/i,
+  /\bexec\s/i,
+  // Password/credential manipulation
+  /\bpasswd\b/i,
+  /\bsudo\s+su\b/i,
+  /\bvisudo\b/i,
+  // Sensitive file access
+  /\/etc\/shadow/i,
+  /\/etc\/passwd/i,
+  /\/etc\/sudoers/i,
+  // Container/namespace escape
+  /\bchroot\b/i,
+  /\bnsenter\b/i,
+  // Root shell access
+  /\bsudo\s+-i\b/i,
+  /\bsudo\s+-s\b/i,
 ];
+
+// Allowlist of safe commands for AI-executed operations (read-only, safe)
+const ALLOWED_AI_COMMANDS = [
+  /^ls(\s|$)/,
+  /^cat\s/,
+  /^pwd$/,
+  /^whoami$/,
+  /^date$/,
+  /^df(\s|$)/,
+  /^free(\s|$)/,
+  /^uname(\s|$)/,
+  /^echo\s/,
+  /^head\s/,
+  /^tail\s/,
+  /^wc(\s|$)/,
+  /^grep\s/,
+  /^find\s/,
+  /^file\s/,
+  /^stat\s/,
+  /^which\s/,
+  /^type\s/,
+  /^hostname$/,
+  /^uptime$/,
+  /^id$/,
+  /^groups$/,
+  /^printenv(\s|$)/,
+  /^env(\s|$)/,
+];
+
+function isCommandAllowedForAI(command) {
+  const trimmed = command.trim();
+  return ALLOWED_AI_COMMANDS.some(pattern => pattern.test(trimmed));
+}
 
 // Log file for executed commands
 const LOG_DIR = path.join(os.homedir(), '.templeos-remake');
@@ -102,7 +163,7 @@ class CommandExecutor {
 
       // For Windows, use cmd instead
       const isWindows = process.platform === 'win32';
-      const proc = isWindows 
+      const proc = isWindows
         ? spawn('cmd', ['/c', command], { cwd, env: process.env })
         : spawn('sh', ['-c', command], { cwd, env: { ...process.env, TERM: 'xterm-256color' } });
 
@@ -153,9 +214,9 @@ class CommandExecutor {
         setTimeout(() => {
           if (settled) return;
           settled = true;
-          
-          try { proc.kill('SIGTERM'); } catch (e) {}
-          
+
+          try { proc.kill('SIGTERM'); } catch (e) { }
+
           const result = {
             success: false,
             stdout: stdout.trim(),
@@ -237,7 +298,7 @@ class CommandExecutor {
    */
   describeCommand(command) {
     const cmd = command.trim().toLowerCase();
-    
+
     // Package installation
     if (cmd.includes('apt install') || cmd.includes('apt-get install')) {
       const pkg = cmd.match(/install\s+(-y\s+)?(.+)/)?.[2] || 'package';
@@ -255,7 +316,7 @@ class CommandExecutor {
     // System updates
     if (cmd.includes('apt update')) return 'Update package lists';
     if (cmd.includes('apt upgrade')) return 'Upgrade installed packages';
-    
+
     // File operations
     if (cmd.startsWith('rm ')) return 'Delete files or directories';
     if (cmd.startsWith('cp ')) return 'Copy files or directories';
@@ -272,9 +333,9 @@ class CommandExecutor {
     // System
     if (cmd.includes('systemctl')) return 'Manage system services';
     if (cmd.includes('sudo')) return 'Execute with administrator privileges';
-    
+
     return 'Execute terminal command';
   }
 }
 
-module.exports = { CommandExecutor, DANGEROUS_PATTERNS };
+module.exports = { CommandExecutor, DANGEROUS_PATTERNS, ALLOWED_AI_COMMANDS, isCommandAllowedForAI };

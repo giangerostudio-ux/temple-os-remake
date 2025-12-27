@@ -31,7 +31,7 @@ class TemplePanel {
     await this.refreshX11Windows();
 
     if (window.electronAPI?.onX11WindowsChanged) {
-      window.electronAPI.onX11WindowsChanged((payload: any) => {
+      window.electronAPI.onX11WindowsChanged((payload) => {
         const wins = Array.isArray(payload?.windows) ? payload.windows : [];
         this.x11Windows = wins;
 

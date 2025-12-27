@@ -95,9 +95,9 @@ export class MediaPlayerApp {
      * Set Equalizer Preset
      */
     setSafeEqualizerPreset(preset: string): void {
-        const validPresets = ['flat', 'rock', 'pop', 'techno'];
-        if (validPresets.includes(preset)) {
-            this.state.equalizerPreset = preset as any;
+        const validPresets: Array<'flat' | 'rock' | 'pop' | 'techno'> = ['flat', 'rock', 'pop', 'techno'];
+        if (validPresets.includes(preset as 'flat' | 'rock' | 'pop' | 'techno')) {
+            this.state.equalizerPreset = preset as 'flat' | 'rock' | 'pop' | 'techno';
         }
     }
 

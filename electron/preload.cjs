@@ -7,7 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeWindow: () => ipcRenderer.invoke('close-window'),
     minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
     maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
-    maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
     setWindowBounds: (bounds) => ipcRenderer.invoke('window:setBounds', bounds),
     inputWakeUp: () => ipcRenderer.invoke('input-wake-up'),
 

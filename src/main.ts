@@ -17599,7 +17599,12 @@ class TempleOS {
       this.editorView = null;
       this.editorViewTabId = null;
     }
-    this.windows = this.windows.filter(w => w.id !== windowId);
+    // IMPORTANT: Use splice() instead of filter() to mutate the existing array
+    // WindowManager holds a reference to this.windows, so we must not reassign it
+    const idx = this.windows.findIndex(w => w.id === windowId);
+    if (idx !== -1) {
+      this.windows.splice(idx, 1);
+    }
     if (this.windows.length > 0) {
       this.windows[this.windows.length - 1].active = true;
     }
@@ -17912,7 +17917,8 @@ class TempleOS {
   private openDecoySession() {
     this.isDecoySession = true;
     this.showNotification('System', 'Decoy Session Active', 'warning');
-    this.windows = []; // Close all windows
+    // IMPORTANT: Use length = 0 instead of = [] to preserve shared reference with WindowManager
+    this.windows.length = 0; // Close all windows
     this.render();
   }
 

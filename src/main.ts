@@ -8819,14 +8819,20 @@ class TempleOS {
       if (header) {
         const windowId = header.dataset.draggable!;
         const windowEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
-        console.log('[DRAG DEBUG] Header clicked, windowId:', windowId, 'windowEl:', !!windowEl);
-        if (!windowEl) {
-          console.error('[DRAG DEBUG] Window element not found in DOM!');
-          return;
-        }
+        const wmWindows = this.windowManager.getAllWindows();
+        const mainWindows = this.windows;
+        console.log('[DRAG DEBUG] Drag attempt:', {
+          windowId,
+          windowElExists: !!windowEl,
+          windowsInManager: wmWindows.length,
+          windowsInMain: mainWindows.length,
+          wmWindowIds: wmWindows.map(w => w.id),
+          mainWindowIds: mainWindows.map(w => w.id),
+          targetWindow: wmWindows.find(w => w.id === windowId) || 'NOT FOUND'
+        });
+        if (!windowEl) return;
         const rect = windowEl.getBoundingClientRect();
         // Use WindowManager for drag state management
-        console.log('[DRAG DEBUG] Starting drag, windows in manager:', this.windowManager.getAllWindows().length);
         this.windowManager.startDrag(windowId, e.clientX - rect.left, e.clientY - rect.top);
       }
     });

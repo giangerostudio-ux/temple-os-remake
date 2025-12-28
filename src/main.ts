@@ -4349,6 +4349,11 @@ class TempleOS {
         img.loading = 'lazy';
         img.draggable = false;
         img.src = url;
+        // Fallback to monogram on error
+        img.onerror = () => {
+          img.style.display = 'none';
+          iconWrap.textContent = first;
+        };
         iconWrap.appendChild(img);
       } else {
         iconWrap.textContent = first;
@@ -4534,7 +4539,7 @@ class TempleOS {
         category: this.canonicalCategoryForInstalledApp(app),
         comment: app.comment || '',
         searchText,
-        iconText: iconUrl ? undefined : first,
+        iconText: first, // Always keep fallback text
         iconUrl,
         iconKind: iconUrl ? 'img' : 'monogram',
       };
@@ -4578,7 +4583,7 @@ class TempleOS {
 
     return filtered.map(e => `
       <div class="launcher-app-tile" role="listitem" data-launch-key="${escapeHtml(e.key)}" title="${escapeHtml(e.label)}">
-        <div class="launcher-app-icon ${e.iconKind === 'img' ? 'img' : (e.iconKind === 'monogram' ? 'mono' : 'emoji')}" data-cat="${e.category}">${e.iconKind === 'img' && e.iconUrl ? `<img src="${escapeHtml(e.iconUrl)}" alt="" loading="lazy" draggable="false">` : escapeHtml(e.iconText || '')}</div>
+        <div class="launcher-app-icon ${e.iconKind === 'img' ? 'img' : (e.iconKind === 'monogram' ? 'mono' : 'emoji')}" data-cat="${e.category}" data-fallback="${escapeHtml(e.iconText || '')}">${e.iconKind === 'img' && e.iconUrl ? `<img src="${escapeHtml(e.iconUrl)}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('img');this.parentElement.classList.add('mono');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">` : escapeHtml(e.iconText || '')}</div>
         <div class="launcher-app-name">${escapeHtml(e.label)}</div>
         ${e.comment ? `<div class="launcher-app-comment">${escapeHtml(e.comment)}</div>` : ''}
       </div>

@@ -2425,8 +2425,16 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 .launcher-app-icon.img {
-  padding: 8px;
-  background: rgba(0, 255, 65, 0.06);
+  padding: 6px;
+  background: rgba(10, 15, 12, 0.7);
+  border: 1px solid rgba(0, 255, 65, 0.25);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.launcher-app-tile:hover .launcher-app-icon.img {
+  border-color: rgba(0, 255, 65, 0.5);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 65, 0.3);
 }
 
 .launcher-app-icon.img img {
@@ -2434,7 +2442,7 @@ input[type=range]::-webkit-slider-thumb {
   height: 100%;
   object-fit: contain;
   image-rendering: auto;
-  filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.22));
+  /* Green glow is applied globally via .launcher-app-icon img selector */
 }
 
 .launcher-app-name {
@@ -4887,18 +4895,23 @@ button[class*="restart"]:hover {
   /* Red Danger Glow */
 }
 
-/* Also apply to installed app icons in start menu */
+/* System app icons - colorful with themed green styling */
 .installed-app-icon img,
-.launcher-app-icon img {
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(300%) brightness(1.1) contrast(1.2);
-  opacity: 0.9;
-  transition: all 0.3s ease;
+.launcher-app-icon img,
+.start-installed-app-icon-img {
+  /* Keep icons colorful but add subtle green glow for theme consistency */
+  filter: drop-shadow(0 0 6px rgba(0, 255, 65, 0.35)) drop-shadow(0 0 2px rgba(0, 255, 65, 0.5));
+  opacity: 0.95;
+  transition: all 0.25s ease;
+  border-radius: 6px;
 }
 
 .installed-app-icon:hover img,
-.launcher-app-icon:hover img {
-  filter: grayscale(100%) sepia(100%) hue-rotate(90deg) saturate(100%) brightness(2.0);
-  filter: drop-shadow(0 0 8px var(--accent-glow));
+.launcher-app-icon:hover img,
+.start-app-item:hover .start-installed-app-icon-img {
+  filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.6)) drop-shadow(0 0 4px rgba(0, 255, 65, 0.8));
+  opacity: 1;
+  transform: scale(1.05);
 }
 
 /* Text readability improvements for sidebars and status bars */

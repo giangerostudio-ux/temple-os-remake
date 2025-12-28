@@ -5847,6 +5847,8 @@ function registerTempleIconProtocol() {
                     '/usr/share',
                     '/usr/local/share',
                     '/var/lib/snapd',
+                    '/snap', // Snap app icons
+                    '/var/lib/flatpak', // Flatpak system icons
                     path.join(home, '.local/share'),
                     path.join(home, '.icons')
                 ];
@@ -5932,6 +5934,60 @@ function resolveIconPath(icon, desktopFilePath) {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Snap app icons - search /snap/{appname}/current/meta/gui/ and internal icon dirs
+    const snapDirs = [
+        `/snap/${base}/current/meta/gui`,
+        `/snap/${base}/current/usr/share/icons/hicolor/256x256/apps`,
+        `/snap/${base}/current/usr/share/icons/hicolor/128x128/apps`,
+        `/snap/${base}/current/usr/share/icons/hicolor/64x64/apps`,
+        `/snap/${base}/current/usr/share/icons/hicolor/48x48/apps`,
+        `/snap/${base}/current/usr/share/pixmaps`,
+    ];
+    for (const snapDir of snapDirs) {
+        // Check for exact matches with known extensions
+        for (const name of candidates) {
+            for (const ext of exts) {
+                const p = path.join(snapDir, `${name}.${ext}`);
+                if (fileExists(p)) return remember(p);
+            }
+        }
+        // Also scan directory for any matching icon file (snap icons sometimes have different names)
+        try {
+            const files = fs.readdirSync(snapDir);
+            for (const name of candidates) {
+                const match = files.find(f =>
+                    (f.toLowerCase().startsWith(name.toLowerCase()) || f.toLowerCase().includes(name.toLowerCase())) &&
+                    /\.(png|svg|xpm)$/i.test(f)
+                );
+                if (match) {
+                    const p = path.join(snapDir, match);
+                    if (fileExists(p)) return remember(p);
+                }
+            }
+        } catch { /* directory doesn't exist, skip */ }
+    }
+
+    // Flatpak app icons - check exported icon directories
+    const flatpakDirs = [
+        '/var/lib/flatpak/exports/share/icons/hicolor/512x512/apps',
+        '/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps',
+        '/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps',
+        '/var/lib/flatpak/exports/share/icons/hicolor/64x64/apps',
+        '/var/lib/flatpak/exports/share/icons/hicolor/48x48/apps',
+        '/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps',
+        path.join(home, '.local/share/flatpak/exports/share/icons/hicolor/512x512/apps'),
+        path.join(home, '.local/share/flatpak/exports/share/icons/hicolor/256x256/apps'),
+        path.join(home, '.local/share/flatpak/exports/share/icons/hicolor/128x128/apps'),
+    ];
+    for (const flatDir of flatpakDirs) {
+        for (const name of candidates) {
+            for (const ext of exts) {
+                const p = path.join(flatDir, `${name}.${ext}`);
+                if (fileExists(p)) return remember(p);
             }
         }
     }

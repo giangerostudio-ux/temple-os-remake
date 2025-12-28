@@ -3460,15 +3460,18 @@ class TempleOS {
       const active = appWindows.some(w => w.active);
       const running = appWindows.some(w => !w.minimized);
       const countBadge = windowCount > 1 ? `<span class="taskbar-count-badge">${windowCount}</span>` : '';
+      const iconHtml = display.iconUrl
+        ? `<img src="${escapeHtml(display.iconUrl)}" alt="" class="taskbar-pinned-icon-img" draggable="false" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="taskbar-icon-fallback" style="display:none">${escapeHtml(display.icon)}</span>`
+        : escapeHtml(display.icon);
 
       return `
-        <div class="taskbar-app pinned ${active ? 'active' : ''} ${running ? 'running' : ''}" 
-             data-launch-key="${escapeHtml(key)}" 
+        <div class="taskbar-app pinned ${active ? 'active' : ''} ${running ? 'running' : ''}"
+             data-launch-key="${escapeHtml(key)}"
              data-app-type="${escapeHtml(builtinId)}"
              data-window-count="${windowCount}"
              title="${escapeHtml(display.label)}${windowCount > 1 ? ` (${windowCount} windows)` : ''}"
              tabindex="0" role="button" aria-label="${escapeHtml(display.label)}">
-          <span class="taskbar-icon" aria-hidden="true">${display.icon}</span>
+          <span class="taskbar-icon${display.iconUrl ? ' has-img' : ''}" aria-hidden="true">${iconHtml}</span>
           <span class="taskbar-title">${escapeHtml(display.label)}</span>
           ${countBadge}
         </div>
@@ -3965,9 +3968,9 @@ class TempleOS {
           .map(key => {
             const display = this.launcherDisplayForKey(key);
             if (!display) return null;
-            return { key, icon: display.icon, name: display.label };
+            return { key, icon: display.icon, iconUrl: display.iconUrl, name: display.label };
           })
-          .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
+          .filter(Boolean) as Array<{ key: string; icon: string; iconUrl?: string; name: string }>;
 
         // Gather installed apps (sync, fast)
         const installedApps = this.installedApps.slice(0, 100).map(app => ({
@@ -4106,9 +4109,9 @@ class TempleOS {
       .map(key => {
         const display = this.launcherDisplayForKey(key);
         if (!display) return null;
-        return { key, icon: display.icon, name: display.label };
+        return { key, icon: display.icon, iconUrl: display.iconUrl, name: display.label };
       })
-      .filter(Boolean) as Array<{ key: string; icon: string; name: string }>;
+      .filter(Boolean) as Array<{ key: string; icon: string; iconUrl?: string; name: string }>;
 
     // Filter installed apps based on search query
     const query = this.startMenuSearchQuery.toLowerCase();
@@ -4207,7 +4210,7 @@ class TempleOS {
         <div class="start-pinned-grid">
           ${pinnedAppsView.map(app => `
             <div class="start-app-item pinned" data-launch-key="${escapeHtml(app.key)}" tabindex="0" role="button" aria-label="${escapeHtml(app.name)}">
-              <span class="app-icon" aria-hidden="true">${app.icon}</span>
+              <span class="app-icon pinned-icon${app.iconUrl ? ' has-img' : ''}" aria-hidden="true" data-fallback="${escapeHtml(app.icon)}">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" class="pinned-app-icon-img" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('has-img');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">` : escapeHtml(app.icon)}</span>
               <span class="app-name">${escapeHtml(app.name)}</span>
             </div>
           `).join('')}
@@ -5784,13 +5787,20 @@ class TempleOS {
     return null;
   }
 
-  private launcherDisplayForKey(key: string): { label: string; icon: string } | null {
+  private launcherDisplayForKey(key: string): { label: string; icon: string; iconUrl?: string } | null {
     const raw = String(key || '');
     if (raw.startsWith('builtin:')) {
       return this.builtinLauncherMeta(raw.slice('builtin:'.length));
     }
     const installed = this.findInstalledAppByKey(raw);
-    if (installed) return { label: installed.name, icon: '📦' };
+    if (installed) {
+      const first = installed.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase() || installed.name.slice(0, 1).toUpperCase() || '?';
+      return {
+        label: installed.name,
+        icon: first, // Fallback monogram
+        iconUrl: installed.iconUrl || undefined
+      };
+    }
     return null;
   }
 

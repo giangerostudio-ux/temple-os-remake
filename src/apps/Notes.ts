@@ -20,6 +20,10 @@ export class NotesApp {
     public passwordError: string | null = null;
     public dialogMode: 'unlock' | 'encrypt' | 'decrypt-permanent' = 'unlock';
 
+    // Decoy mode support
+    private isDecoyMode: boolean = false;
+    private realNotesBackup: Note[] | null = null;
+
     constructor() {
         this.loadNotes();
         // Initialize with default note if empty
@@ -27,6 +31,31 @@ export class NotesApp {
             this.createNote('New Testament', 'Write your divine thoughts here...');
         } else {
             this.activeNoteId = this.notes[0].id;
+        }
+    }
+
+    // Decoy mode: hide real notes and show fake innocent note
+    public setDecoyMode(isDecoy: boolean) {
+        if (isDecoy && !this.isDecoyMode) {
+            // Entering decoy mode - backup real notes
+            this.realNotesBackup = [...this.notes];
+            this.notes = [{
+                id: 'decoy-welcome',
+                title: 'Welcome to Notes',
+                content: 'Your notes will appear here.\n\nClick "+ New" to create a note.',
+                isSecure: false,
+                updatedAt: Date.now()
+            }];
+            this.activeNoteId = 'decoy-welcome';
+            this.isDecoyMode = true;
+        } else if (!isDecoy && this.isDecoyMode) {
+            // Exiting decoy mode - restore real notes
+            if (this.realNotesBackup) {
+                this.notes = this.realNotesBackup;
+                this.realNotesBackup = null;
+                this.activeNoteId = this.notes.length > 0 ? this.notes[0].id : null;
+            }
+            this.isDecoyMode = false;
         }
     }
 

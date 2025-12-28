@@ -665,6 +665,20 @@ class TempleOS {
   private duressPassword = '';
   private isDecoySession = false;
 
+  // Decoy session backup storage - holds real data while in decoy mode
+  // Using 'any' for complex types to avoid circular type dependencies
+  private decoyBackup: {
+    windows: WindowState[];
+    terminalBuffer: string[];
+    terminalTabs: any[];
+    divineMessages: any[];
+    editorRecentFiles: string[];
+    recentApps: string[];
+    trashEntries: any[];
+    fileEntries: FileEntry[];
+    currentPath: string;
+  } | null = null;
+
   // SSH Server State (Tier 6.3)
   private sshEnabled = false;
   private sshPort = 22;
@@ -2563,10 +2577,10 @@ class TempleOS {
       shutdownRoot.innerHTML = this.renderShutdownOverlay();
     }
 
-    // Update Decoy Session Overlay
+    // Update Decoy Session Overlay (intentionally empty - decoy should be invisible to attackers)
     const decoyRoot = document.getElementById('decoy-overlay-root');
     if (decoyRoot) {
-      decoyRoot.innerHTML = this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : '';
+      decoyRoot.innerHTML = '';
     }
 
     // Update Desktop Icons (Fixed: Ensure they are direct grid items by removing wrapper or using display: contents)
@@ -2578,7 +2592,7 @@ class TempleOS {
 
   private renderDesktop(): string {
     return `
-      <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;">${this.isDecoySession ? '<div style="position:absolute;top:0;left:0;width:100%;background:rgba(255,0,0,0.3);color:white;text-align:center;padding:5px;pointer-events:none;z-index:9999;">DECOY SESSION</div>' : ''}</div>
+      <div id="decoy-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 9999;"></div>
       <div id="shutdown-overlay-root" style="position: absolute; inset: 0; pointer-events: none; z-index: 10000;">${this.renderShutdownOverlay()}</div>
       <div id="resolution-confirmation-root" style="position: absolute; inset: 0; pointer-events: ${this.resolutionConfirmation ? 'auto' : 'none'}; z-index: 10002;">${this.renderResolutionConfirmation()}</div>
       <div id="first-run-wizard-root" style="position: absolute; inset: 0; pointer-events: ${this.setupComplete ? 'none' : 'auto'}; z-index: 10001; display: ${this.setupComplete ? 'none' : 'block'};">${this.renderFirstRunWizard()}</div>
@@ -15541,7 +15555,12 @@ class TempleOS {
            </div>
            
            <div>
-               <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Duress Password</div>
+               <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Duress Password (Panic Login)</div>
+               <div style="background: rgba(255,200,0,0.1); border: 1px solid rgba(255,200,0,0.3); border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; line-height: 1.5;">
+                   <div style="margin-bottom: 8px;">If someone forces you to unlock your computer (police, thief, abuser, etc.), enter this password instead of your real one.</div>
+                   <div style="margin-bottom: 8px;">The system will appear to unlock normally, but shows a <strong style="color: #ffd700;">fake empty desktop</strong> - hiding all your real files, notes, terminal history, and data.</div>
+                   <div style="opacity: 0.8;">To restore your real session, lock the screen and enter your real password.</div>
+               </div>
                <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: center;">
                    <div style="font-size: 12px;">Password</div>
                    <input type="password" class="duress-input" placeholder="Set duress password..." value="${escapeHtml(this.duressPassword)}" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;">
@@ -15552,7 +15571,6 @@ class TempleOS {
                        <button class="save-duress-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
                    </div>
                </div>
-               <div style="font-size: 11px; margin-top: 5px; opacity: 0.7;">Entering this password at lock screen will open a decoy session.</div>
            </div>
         `)}
 
@@ -15733,9 +15751,40 @@ class TempleOS {
     `;
   }
 
+  // Returns fake innocent file entries for decoy mode
+  private getDecoyFileEntries(): FileEntry[] {
+    const basePath = this.currentPath || '/home/user';
 
+    // Fake innocent file structure
+    if (basePath === '/home/user' || basePath.endsWith('/user')) {
+      return [
+        { name: 'Documents', path: `${basePath}/Documents`, isDirectory: true, size: 0, modified: new Date().toISOString() },
+        { name: 'Pictures', path: `${basePath}/Pictures`, isDirectory: true, size: 0, modified: new Date().toISOString() },
+        { name: 'Downloads', path: `${basePath}/Downloads`, isDirectory: true, size: 0, modified: new Date().toISOString() },
+        { name: 'Music', path: `${basePath}/Music`, isDirectory: true, size: 0, modified: new Date().toISOString() },
+      ];
+    } else if (basePath.includes('/Documents')) {
+      return [
+        { name: 'readme.txt', path: `${basePath}/readme.txt`, isDirectory: false, size: 128, modified: new Date().toISOString() },
+      ];
+    } else if (basePath.includes('/Pictures')) {
+      return [
+        { name: 'wallpaper.jpg', path: `${basePath}/wallpaper.jpg`, isDirectory: false, size: 24000, modified: new Date().toISOString() },
+      ];
+    }
+    // Other folders appear empty
+    return [];
+  }
 
   private async loadFiles(path?: string): Promise<void> {
+    // In decoy mode, show fake innocent file structure
+    if (this.isDecoySession) {
+      this.currentPath = path || '/home/user';
+      this.fileEntries = this.getDecoyFileEntries();
+      this.updateFileBrowserWindow();
+      return;
+    }
+
     if (!window.electronAPI) {
       console.warn('electronAPI not available - running in browser mode');
       return;
@@ -18088,10 +18137,62 @@ class TempleOS {
   // LOCK SCREEN
   // ============================================
   private openDecoySession() {
+    // Backup all real data before entering decoy mode
+    this.decoyBackup = {
+      windows: [...this.windows],
+      terminalBuffer: [...this.terminalBuffer],
+      terminalTabs: this.terminalTabs.map(t => ({ ...t, buffer: [...t.buffer] })),
+      divineMessages: [...this.divineMessages],
+      editorRecentFiles: [...this.editorRecentFiles],
+      recentApps: [...this.recentApps],
+      trashEntries: [...this.trashEntries],
+      fileEntries: [...this.fileEntries],
+      currentPath: this.currentPath
+    };
+
     this.isDecoySession = true;
-    this.showNotification('System', 'Decoy Session Active', 'warning');
-    // IMPORTANT: Use length = 0 instead of = [] to preserve shared reference with WindowManager
-    this.windows.length = 0; // Close all windows
+    // No notification - decoy must be completely invisible to attackers
+
+    // Clear all sensitive data - replace with innocent decoy data
+    this.windows.length = 0;
+    this.terminalBuffer = ['TempleOS Terminal v1.0', 'Type "help" for commands.', ''];
+    this.terminalTabs = [{ id: 'decoy-term-1', ptyId: null, title: 'Terminal 1', buffer: [...this.terminalBuffer], cwd: '/home/user', xterm: null, fitAddon: null }];
+    this.divineMessages = [];
+    this.editorRecentFiles = [];
+    this.recentApps = ['Files', 'Terminal', 'Settings'];
+    this.trashEntries = [];
+    // File entries will be handled by the file browser check
+
+    // Set decoy mode on apps that manage their own data
+    this.notesApp.setDecoyMode(true);
+    this.godlyNotes.setDecoyMode(true);
+    this.calendarApp.setDecoyMode(true);
+
+    this.render();
+  }
+
+  private exitDecoySession() {
+    if (!this.decoyBackup) return;
+
+    // Restore all real data from backup
+    this.windows.length = 0;
+    this.windows.push(...this.decoyBackup.windows);
+    this.terminalBuffer = this.decoyBackup.terminalBuffer;
+    this.terminalTabs = this.decoyBackup.terminalTabs;
+    this.divineMessages = this.decoyBackup.divineMessages;
+    this.editorRecentFiles = this.decoyBackup.editorRecentFiles;
+    this.recentApps = this.decoyBackup.recentApps;
+    this.trashEntries = this.decoyBackup.trashEntries;
+    this.fileEntries = this.decoyBackup.fileEntries;
+    this.currentPath = this.decoyBackup.currentPath;
+
+    // Exit decoy mode on apps
+    this.notesApp.setDecoyMode(false);
+    this.godlyNotes.setDecoyMode(false);
+    this.calendarApp.setDecoyMode(false);
+
+    this.decoyBackup = null;
+    this.isDecoySession = false;
     this.render();
   }
 
@@ -18213,6 +18314,10 @@ class TempleOS {
       if (ok) {
         clearInterval(clockInterval);
         this.unlock();
+        // If we were in decoy mode, restore real data
+        if (this.isDecoySession) {
+          this.exitDecoySession();
+        }
       } else {
         // Error state
         if (msg) {

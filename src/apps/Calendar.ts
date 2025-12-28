@@ -18,6 +18,10 @@ export class CalendarApp {
     public selectedDay: number | null = null;
     public showReminderDialog: boolean = false;
 
+    // Decoy mode support
+    private isDecoyMode: boolean = false;
+    private realRemindersBackup: Reminder[] | null = null;
+
     // Static Data
     private monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     private holidays: Record<string, string> = {
@@ -43,6 +47,23 @@ export class CalendarApp {
         this.onNotify = onNotify;
         this.loadReminders();
         this.checkTodayReminders();
+    }
+
+    // Decoy mode: hide real reminders
+    public setDecoyMode(isDecoy: boolean) {
+        if (isDecoy && !this.isDecoyMode) {
+            // Entering decoy mode - backup real reminders
+            this.realRemindersBackup = [...this.reminders];
+            this.reminders = []; // Empty calendar in decoy mode
+            this.isDecoyMode = true;
+        } else if (!isDecoy && this.isDecoyMode) {
+            // Exiting decoy mode - restore real reminders
+            if (this.realRemindersBackup) {
+                this.reminders = this.realRemindersBackup;
+                this.realRemindersBackup = null;
+            }
+            this.isDecoyMode = false;
+        }
     }
 
     private loadReminders() {

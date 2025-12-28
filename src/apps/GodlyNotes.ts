@@ -37,6 +37,10 @@ export class GodlyNotes {
     private draggedCardId: string | null = null;
     private draggedFromListId: string | null = null;
 
+    // Decoy mode support
+    private isDecoyMode: boolean = false;
+    private realBoardsBackup: { boards: Board[]; activeBoardId: string | null } | null = null;
+
     // UI State
     // private showBoardMenu: boolean = false;
     // private editingCardId: string | null = null;
@@ -46,6 +50,39 @@ export class GodlyNotes {
         this.loadData();
         if (this.boards.length === 0) {
             this.createDefaultBoard();
+        }
+    }
+
+    // Decoy mode: hide real boards and show empty default board
+    public setDecoyMode(isDecoy: boolean) {
+        if (isDecoy && !this.isDecoyMode) {
+            // Entering decoy mode - backup real boards
+            this.realBoardsBackup = {
+                boards: JSON.parse(JSON.stringify(this.boards)),
+                activeBoardId: this.activeBoardId
+            };
+            // Create innocent empty board
+            const decoyBoard: Board = {
+                id: 'decoy-board',
+                name: 'My Tasks',
+                lists: [
+                    { id: 'decoy-todo', title: 'To Do', cards: [] },
+                    { id: 'decoy-progress', title: 'In Progress', cards: [] },
+                    { id: 'decoy-done', title: 'Done', cards: [] }
+                ],
+                createdAt: Date.now()
+            };
+            this.boards = [decoyBoard];
+            this.activeBoardId = 'decoy-board';
+            this.isDecoyMode = true;
+        } else if (!isDecoy && this.isDecoyMode) {
+            // Exiting decoy mode - restore real boards
+            if (this.realBoardsBackup) {
+                this.boards = this.realBoardsBackup.boards;
+                this.activeBoardId = this.realBoardsBackup.activeBoardId;
+                this.realBoardsBackup = null;
+            }
+            this.isDecoyMode = false;
         }
     }
 

@@ -737,6 +737,11 @@ class TempleOS {
   private altTabIndex = 0;
   private altTabOrder: string[] = [];
 
+  // Clipboard Manager State
+  private clipboardHistory: string[] = [];
+  private clipboardMaxHistory = 20;
+  private clipboardManagerOpen = false;
+
   // Win+D Show Desktop toggle
   private showDesktopMode = false;
   private showDesktopRestoreIds: string[] = [];
@@ -852,6 +857,85 @@ class TempleOS {
   // Helper for Random Quotes
   public getRandomQuote(): string {
     return terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+  }
+
+  // ============================================
+  // CLIPBOARD MANAGER
+  // ============================================
+  private toggleClipboardManager(): void {
+    this.clipboardManagerOpen = !this.clipboardManagerOpen;
+    if (this.clipboardManagerOpen) {
+      // Read current clipboard and add to history
+      navigator.clipboard.readText().then(text => {
+        if (text && text.trim() && !this.clipboardHistory.includes(text)) {
+          this.clipboardHistory.unshift(text);
+          if (this.clipboardHistory.length > this.clipboardMaxHistory) {
+            this.clipboardHistory.pop();
+          }
+        }
+        this.updateClipboardManagerDom();
+      }).catch(() => this.updateClipboardManagerDom());
+    } else {
+      this.updateClipboardManagerDom();
+    }
+  }
+
+  private updateClipboardManagerDom(): void {
+    // Remove existing overlay if any
+    const existing = document.querySelector('.clipboard-manager-overlay');
+    if (existing) existing.remove();
+
+    // Add new overlay if open
+    if (this.clipboardManagerOpen) {
+      const overlay = document.createElement('div');
+      overlay.innerHTML = this.renderClipboardManager();
+      const overlayEl = overlay.firstElementChild;
+      if (overlayEl) {
+        document.body.appendChild(overlayEl);
+      }
+    }
+  }
+
+  private pasteFromClipboardHistory(index: number): void {
+    const text = this.clipboardHistory[index];
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.clipboardManagerOpen = false;
+        this.showNotification('Clipboard', 'Copied to clipboard', 'info');
+        this.render();
+      }).catch(() => {
+        this.showNotification('Clipboard', 'Failed to copy', 'error');
+      });
+    }
+  }
+
+  private renderClipboardManager(): string {
+    if (!this.clipboardManagerOpen) return '';
+
+    const items = this.clipboardHistory.length > 0
+      ? this.clipboardHistory.map((text, i) => {
+        const preview = text.length > 60 ? text.slice(0, 60) + '...' : text;
+        const escaped = escapeHtml(preview).replace(/\n/g, ' ');
+        return `<div class="clipboard-manager-item" data-clipboard-index="${i}">${escaped}</div>`;
+      }).join('')
+      : '<div class="clipboard-manager-empty">No clipboard history</div>';
+
+    return `
+      <div class="clipboard-manager-overlay" data-clipboard-overlay>
+        <div class="clipboard-manager">
+          <div class="clipboard-manager-header">
+            <span>📋 Clipboard History</span>
+            <button class="clipboard-manager-close" data-clipboard-close>✕</button>
+          </div>
+          <div class="clipboard-manager-list">
+            ${items}
+          </div>
+          <div class="clipboard-manager-footer">
+            <span class="clipboard-manager-hint">Click to copy • Super+V to close</span>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   /**
@@ -976,6 +1060,8 @@ class TempleOS {
     cwd: string;
     xterm: Terminal | null;
     fitAddon: FitAddon | null;
+    resizeObserver?: ResizeObserver;
+    windowResizeHandler?: () => void;
   }> = [];
   private activeTerminalTab = 0;
   private ptySupported = false; // Set to true on Linux
@@ -1797,12 +1883,7 @@ class TempleOS {
       }
     }
     // Also trigger frontend lock
-    if ((this as any).lock) {
-      (this as any).lock();
-    } else {
-      this.isLocked = true;
-      this.render();
-    }
+    this.lock();
 
     if (this.encryptionEnabled) {
       // "Dismount" VeraCrypt volumes in lockdown
@@ -1835,7 +1916,7 @@ class TempleOS {
         const activeWin = this.windows.find(w => w.active && !w.minimized);
         if (activeWin) {
           e.preventDefault();
-          this.handleWindowSnap(activeWin.id, e.key as any);
+          this.handleWindowSnap(activeWin.id, e.key as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown');
         }
         return;
       }
@@ -1985,7 +2066,7 @@ class TempleOS {
 
   private playNotificationSound(type: string) {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
 
     if (this.audioContext.state === 'suspended') {
@@ -5843,7 +5924,7 @@ class TempleOS {
 
 
   private setupGodlyNotesGlobals() {
-    (window as any).createBoardPrompt = async () => {
+    window.createBoardPrompt = async () => {
       const name = await this.openPromptModal({
         title: 'New Board',
         message: 'Enter board name:',
@@ -5857,51 +5938,51 @@ class TempleOS {
       }
     };
 
-    (window as any).switchBoard = (id: string) => {
+    window.switchBoard = (id: string) => {
       if (id === 'new') {
-        (window as any).createBoardPrompt();
+        window.createBoardPrompt();
       } else {
         this.godlyNotes.switchBoard(id);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).deleteBoardPrompt = (id: string) => {
+    window.deleteBoardPrompt = (id: string) => {
       if (confirm('Delete this board permanently?')) {
         this.godlyNotes.deleteBoard(id);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).addNoteList = (title: string) => {
+    window.addNoteList = (title: string) => {
       if (title) {
         this.godlyNotes.addList(title);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).deleteNoteList = (id: string) => {
+    window.deleteNoteList = (id: string) => {
       if (confirm('Delete this list?')) {
         this.godlyNotes.deleteList(id);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).addNoteCard = (listId: string, content: string) => {
+    window.addNoteCard = (listId: string, content: string) => {
       if (content) {
         this.godlyNotes.addCard(listId, content);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).deleteNoteCard = (listId: string, cardId: string) => {
+    window.deleteNoteCard = (listId: string, cardId: string) => {
       if (confirm('Delete this card?')) {
         this.godlyNotes.deleteCard(listId, cardId);
         this.refreshGodlyNotes();
       }
     };
 
-    (window as any).editNoteCardPrompt = async (listId: string, cardId: string) => {
+    window.editNoteCardPrompt = async (listId: string, cardId: string) => {
       const currentContent = this.godlyNotes.getCardContent(listId, cardId);
       if (currentContent === null) return;
 
@@ -5920,7 +6001,7 @@ class TempleOS {
       }
     };
 
-    (window as any).renameBoardPrompt = async (id: string, currentName: string) => {
+    window.renameBoardPrompt = async (id: string, currentName: string) => {
       const newName = await this.openPromptModal({
         title: 'Rename Board',
         message: 'Enter new board name:',
@@ -5935,7 +6016,7 @@ class TempleOS {
       }
     };
 
-    (window as any).renameListPrompt = async (id: string, currentTitle: string) => {
+    window.renameListPrompt = async (id: string, currentTitle: string) => {
       const newTitle = await this.openPromptModal({
         title: 'Rename List',
         message: 'Enter new list title:',
@@ -10052,15 +10133,15 @@ class TempleOS {
         }
 
         // Command card actions
-        const cmdBtn = target.closest('.divine-cmd-btn') as HTMLElement;
+        const cmdBtn = target.closest('.divine-cmd-btn') as HTMLButtonElement & { __executing?: boolean };
         if (cmdBtn) {
           e.preventDefault();
           e.stopPropagation();
 
           // Guard against multiple rapid clicks (debounce)
-          if ((cmdBtn as any).__executing) return;
-          (cmdBtn as any).__executing = true;
-          setTimeout(() => { (cmdBtn as any).__executing = false; }, 1000);
+          if (cmdBtn.__executing) return;
+          cmdBtn.__executing = true;
+          setTimeout(() => { cmdBtn.__executing = false; }, 1000);
 
           const action = cmdBtn.dataset.action;
           const card = cmdBtn.closest('.divine-command-card, .divine-url-card') as HTMLElement;
@@ -11111,6 +11192,21 @@ class TempleOS {
               this.closeWindow(closeWin.id);
             }
             break;
+
+          // ========== OPEN TERMINAL (Super+T) ==========
+          case 'open-terminal':
+            this.openApp('builtin:terminal');
+            break;
+
+          // ========== CLIPBOARD MANAGER (Super+V) ==========
+          case 'clipboard-manager':
+            this.toggleClipboardManager();
+            break;
+
+          // ========== OPEN SETTINGS (from system tray) ==========
+          case 'open-settings':
+            this.openApp('builtin:settings');
+            break;
         }
       });
     }
@@ -11120,6 +11216,24 @@ class TempleOS {
     // ============================================
     app.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+
+      // ========== CLIPBOARD MANAGER CLICK HANDLERS ==========
+      // Close clipboard manager when clicking overlay background
+      if (target.matches('[data-clipboard-overlay]')) {
+        this.clipboardManagerOpen = false;
+        this.render();
+      }
+      // Close button
+      if (target.matches('[data-clipboard-close]')) {
+        this.clipboardManagerOpen = false;
+        this.render();
+      }
+      // Click on clipboard item to paste
+      const clipboardItem = target.closest('.clipboard-manager-item') as HTMLElement;
+      if (clipboardItem?.dataset.clipboardIndex !== undefined) {
+        const index = parseInt(clipboardItem.dataset.clipboardIndex, 10);
+        this.pasteFromClipboardHistory(index);
+      }
 
       // Theme Editor Navigation
       if (target.matches('.theme-editor-back-btn') || target.matches('.theme-editor-cancel-btn')) {
@@ -11776,11 +11890,11 @@ class TempleOS {
     for (const tab of this.terminalTabs) {
       if (tab.xterm) {
         try {
-          if ((tab as any).resizeObserver) {
-            (tab as any).resizeObserver.disconnect();
+          if (tab.resizeObserver) {
+            tab.resizeObserver.disconnect();
           }
-          if ((tab as any).windowResizeHandler) {
-            window.removeEventListener('resize', (tab as any).windowResizeHandler);
+          if (tab.windowResizeHandler) {
+            window.removeEventListener('resize', tab.windowResizeHandler);
           }
           tab.xterm.dispose();
         } catch { /* ignore */ }
@@ -11944,12 +12058,12 @@ class TempleOS {
     // Stronger cleanup: dispose existing xterm and observers
     if (tab.xterm) {
       try {
-        if ((tab as any).resizeObserver) {
-          (tab as any).resizeObserver.disconnect();
+        if (tab.resizeObserver) {
+          tab.resizeObserver.disconnect();
         }
         // Remove window resize handler to prevent listener accumulation
-        if ((tab as any).windowResizeHandler) {
-          window.removeEventListener('resize', (tab as any).windowResizeHandler);
+        if (tab.windowResizeHandler) {
+          window.removeEventListener('resize', tab.windowResizeHandler);
         }
         tab.xterm.dispose();
       } catch { /* ignore */ }
@@ -12089,7 +12203,7 @@ class TempleOS {
 
     tab.xterm = xterm;
     tab.fitAddon = fitAddon;
-    (tab as any).resizeObserver = resizeObserver;
+    tab.resizeObserver = resizeObserver;
 
     // Create PTY if available
     if (window.electronAPI?.createPty) {
@@ -12127,7 +12241,7 @@ class TempleOS {
       debouncedResize();
     };
     window.addEventListener('resize', resizeHandler);
-    (tab as any).windowResizeHandler = resizeHandler;
+    tab.windowResizeHandler = resizeHandler;
   }
 
   private ensureVisibleTerminalXterms(): void {
@@ -13856,7 +13970,7 @@ class TempleOS {
 
   private playTone(freq: number, type: 'sine' | 'square' | 'sawtooth' | 'triangle' = 'square', duration: number = 0.5) {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
     if (this.audioContext.state === 'suspended') this.audioContext.resume();
 
@@ -14355,7 +14469,7 @@ class TempleOS {
           <div class="file-browser-sidebar" style="width: 190px; border-right: 1px solid rgba(0,255,65,0.15); padding: 10px; background: rgba(0,0,0,0.12); overflow: auto;">
             <div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Favorites</div>
             ${sidebarItems.map(item => `
-              <div class="file-sidebar-link" data-path="${escapeHtml(item.path)}" data-is-bookmark="${!!(item as any).isBookmark}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; color: ${item.path === this.currentPath ? '#000' : '#00ff41'}; background: ${item.path === this.currentPath ? '#00ff41' : 'transparent'}; margin-bottom: 6px;">
+              <div class="file-sidebar-link" data-path="${escapeHtml(item.path)}" data-is-bookmark="${!!item.isBookmark}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; color: ${item.path === this.currentPath ? '#000' : '#00ff41'}; background: ${item.path === this.currentPath ? '#00ff41' : 'transparent'}; margin-bottom: 6px;">
                 ${escapeHtml(item.label)}
               </div>
             `).join('')}
@@ -19041,5 +19155,5 @@ class TempleOS {
 }
 
 // Initialize TempleOS
-(window as any).templeOS = new TempleOS();
+window.templeOS = new TempleOS();
 

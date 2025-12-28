@@ -37,7 +37,9 @@
       "Bash(node:*)",
       "Bash(tsc:*)",
       "Bash(eslint:*)",
-      "Bash(prettier:*)"
+      "Bash(prettier:*)",
+      "Bash(wc:*)",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

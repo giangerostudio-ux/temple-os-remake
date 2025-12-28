@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, protocol, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, protocol, globalShortcut, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
@@ -7245,6 +7245,98 @@ function stopKeybindWatcher() {
 app.whenReady().then(() => {
     createWindow(); // Initial window creation
 
+    // ============================================
+    // SYSTEM TRAY (Feature Enhancement)
+    // ============================================
+    let tray = null;
+
+    // Create tray icon - use a simple green circle as fallback
+    const createTrayIcon = () => {
+        // Try to load the temple logo, fallback to a generated icon
+        const iconPath = path.join(__dirname, '../public/icons/temple-tray.png');
+        let icon;
+
+        try {
+            if (fs.existsSync(iconPath)) {
+                icon = nativeImage.createFromPath(iconPath);
+            } else {
+                // Create a simple 16x16 green circle as fallback
+                icon = nativeImage.createEmpty();
+            }
+        } catch {
+            icon = nativeImage.createEmpty();
+        }
+
+        // Resize for tray (16x16 on most systems)
+        if (!icon.isEmpty()) {
+            icon = icon.resize({ width: 16, height: 16 });
+        }
+
+        return icon;
+    };
+
+    try {
+        const trayIcon = createTrayIcon();
+        tray = new Tray(trayIcon);
+
+        const contextMenu = Menu.buildFromTemplate([
+            {
+                label: 'Show TempleOS',
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.show();
+                        mainWindow.focus();
+                    }
+                }
+            },
+            {
+                label: 'Hide',
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.hide();
+                    }
+                }
+            },
+            { type: 'separator' },
+            {
+                label: 'Settings',
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.show();
+                        mainWindow.focus();
+                        mainWindow.webContents.send('global-shortcut', 'open-settings');
+                    }
+                }
+            },
+            { type: 'separator' },
+            {
+                label: 'Quit',
+                click: () => {
+                    app.quit();
+                }
+            }
+        ]);
+
+        tray.setToolTip('TempleOS Desktop');
+        tray.setContextMenu(contextMenu);
+
+        // Click on tray icon toggles window visibility
+        tray.on('click', () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                if (mainWindow.isVisible()) {
+                    mainWindow.hide();
+                } else {
+                    mainWindow.show();
+                    mainWindow.focus();
+                }
+            }
+        });
+
+        console.log('[Tray] System tray created successfully');
+    } catch (err) {
+        console.warn('[Tray] Failed to create system tray:', err.message);
+    }
+
     // Start file watcher for evdev daemon (daemon started by start-templeos.sh)
     startKeybindWatcher();
 
@@ -7292,6 +7384,33 @@ app.whenReady().then(() => {
     }
 
     console.log('[GlobalShortcut] Workspace keybinds registered (XGrabKey fallback)');
+
+    // ============================================
+    // ADDITIONAL KEYBOARD SHORTCUTS
+    // ============================================
+
+    // Super+T: Open Terminal
+    globalShortcut.register('Super+T', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'open-terminal');
+        }
+    });
+
+    // Alt+F4: Close focused window
+    globalShortcut.register('Alt+F4', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'close-window');
+        }
+    });
+
+    // Super+V: Open Clipboard Manager
+    globalShortcut.register('Super+V', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('global-shortcut', 'clipboard-manager');
+        }
+    });
+
+    console.log('[GlobalShortcut] Additional shortcuts registered (Super+T, Alt+F4, Super+V)');
 });
 
 // Cleanup on quit

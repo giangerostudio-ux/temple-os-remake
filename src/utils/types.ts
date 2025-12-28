@@ -8,6 +8,12 @@ export interface FileEntry {
     path: string;
     size: number;
     modified: string | null;
+    isBookmark?: boolean;  // For sidebar bookmarks
+}
+
+// Extended file entry for sidebar items with bookmark flag
+export interface SidebarFileEntry extends FileEntry {
+    isBookmark?: boolean;
 }
 
 export interface SystemInfo {
@@ -247,8 +253,11 @@ export interface TerminalTab {
     title: string;
     buffer: string[];
     cwd: string;
-    xterm: any | null; // Terminal from @xterm/xterm
-    fitAddon: any | null; // FitAddon from @xterm/addon-fit
+    xterm: import('@xterm/xterm').Terminal | null;
+    fitAddon: import('@xterm/addon-fit').FitAddon | null;
+    // Extended properties for UI management
+    resizeObserver?: ResizeObserver;
+    windowResizeHandler?: () => void;
 }
 
 // Editor Tab State
@@ -259,7 +268,7 @@ export interface EditorTab {
     content: string;
     modified: boolean;
     cursorPos?: number;
-    cmState: any | null; // EditorState from @codemirror/state
+    cmState: import('@codemirror/state').EditorState | null;
     revision: number;
     lastSavedRevision: number;
 }
@@ -436,4 +445,35 @@ export interface UninstallResult {
     unsupported?: boolean;
 }
 
+// WebKit AudioContext type extension
+export interface WebkitWindow extends Window {
+    webkitAudioContext?: typeof AudioContext;
+}
+
+// GodlyNotes global function types
+export interface GodlyNotesGlobals {
+    createBoardPrompt: () => Promise<void>;
+    switchBoard: (id: string) => void;
+    deleteBoardPrompt: (id: string) => void;
+    addNoteList: (title: string) => void;
+    deleteNoteList: (id: string) => void;
+    addNoteCard: (listId: string, content: string) => void;
+    deleteNoteCard: (listId: string, cardId: string) => void;
+    editNoteCardPrompt: (listId: string, cardId: string) => Promise<void>;
+    renameBoardPrompt: (id: string, currentName: string) => Promise<void>;
+    renameListPrompt: (id: string, currentTitle: string) => Promise<void>;
+}
+
+// Button with execution flag for command throttling
+export interface ThrottledButton extends HTMLButtonElement {
+    __executing?: boolean;
+}
+
+// Global window type augmentation
+declare global {
+    interface Window extends GodlyNotesGlobals {
+        templeOS: unknown;  // TempleOS class instance
+        webkitAudioContext?: typeof AudioContext;
+    }
+}
 

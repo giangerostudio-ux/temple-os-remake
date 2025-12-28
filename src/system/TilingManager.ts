@@ -3,8 +3,6 @@
 // Tier 14.1 - Advanced Window Tiling
 // ============================================
 
-import { TASKBAR_HEIGHT } from '../utils/constants';
-
 export type SnapZone = 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'maximize' | null;
 
 export interface WindowBounds {
@@ -52,22 +50,22 @@ export class TilingManager {
      * Get the usable screen bounds (accounting for taskbar position)
      */
     public getUsableBounds(): WindowBounds {
-        const taskbarHeight = TASKBAR_HEIGHT;
-        const padding = 10;
+        // Taskbar: 56px height + 12px bottom margin = 68px total
+        const TASKBAR_TOTAL_HEIGHT = 68;
 
         if (this.taskbarPosition === 'top') {
             return {
-                x: padding,
-                y: taskbarHeight + padding,
-                width: window.innerWidth - (padding * 2),
-                height: window.innerHeight - taskbarHeight - (padding * 2)
+                x: 0,
+                y: TASKBAR_TOTAL_HEIGHT,
+                width: window.innerWidth,
+                height: window.innerHeight - TASKBAR_TOTAL_HEIGHT
             };
         } else {
             return {
-                x: padding,
-                y: padding,
-                width: window.innerWidth - (padding * 2),
-                height: window.innerHeight - taskbarHeight - (padding * 2)
+                x: 0,
+                y: 0,
+                width: window.innerWidth,
+                height: window.innerHeight - TASKBAR_TOTAL_HEIGHT
             };
         }
     }

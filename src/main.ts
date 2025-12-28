@@ -677,6 +677,7 @@ class TempleOS {
     trashEntries: any[];
     fileEntries: FileEntry[];
     currentPath: string;
+    x11Windows: any[];
   } | null = null;
 
   // SSH Server State (Tier 6.3)
@@ -18147,7 +18148,8 @@ class TempleOS {
       recentApps: [...this.recentApps],
       trashEntries: [...this.trashEntries],
       fileEntries: [...this.fileEntries],
-      currentPath: this.currentPath
+      currentPath: this.currentPath,
+      x11Windows: [...this.x11Windows]
     };
 
     this.isDecoySession = true;
@@ -18162,6 +18164,15 @@ class TempleOS {
     this.recentApps = ['Files', 'Terminal', 'Settings'];
     this.trashEntries = [];
     // File entries will be handled by the file browser check
+
+    // Minimize all X11 windows and hide from taskbar
+    // Note: Can't fully hide X11 apps - attacker could unminimize them
+    for (const x11Win of this.x11Windows) {
+      if (window.electronAPI?.minimizeX11Window) {
+        window.electronAPI.minimizeX11Window(x11Win.xidHex).catch(() => {});
+      }
+    }
+    this.x11Windows = []; // Hide from taskbar
 
     // Set decoy mode on apps that manage their own data
     this.notesApp.setDecoyMode(true);
@@ -18185,6 +18196,14 @@ class TempleOS {
     this.trashEntries = this.decoyBackup.trashEntries;
     this.fileEntries = this.decoyBackup.fileEntries;
     this.currentPath = this.decoyBackup.currentPath;
+
+    // Restore X11 windows to taskbar and unminimize them
+    this.x11Windows = this.decoyBackup.x11Windows;
+    for (const x11Win of this.x11Windows) {
+      if (window.electronAPI?.unminimizeX11Window) {
+        window.electronAPI.unminimizeX11Window(x11Win.xidHex).catch(() => {});
+      }
+    }
 
     // Exit decoy mode on apps
     this.notesApp.setDecoyMode(false);

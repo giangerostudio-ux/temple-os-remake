@@ -4928,9 +4928,8 @@ button[class*="restart"]:hover {
   /* Red Danger Glow */
 }
 
-/* System app icons - colorful with themed green styling */
+/* System app icons - colorful with themed green styling (Start Menu, Taskbar) */
 .installed-app-icon img,
-.launcher-app-icon img,
 .start-installed-app-icon-img,
 .pinned-app-icon-img,
 .taskbar-pinned-icon-img {
@@ -4942,12 +4941,24 @@ button[class*="restart"]:hover {
 }
 
 .installed-app-icon:hover img,
-.launcher-app-icon:hover img,
 .start-app-item:hover .start-installed-app-icon-img,
 .start-app-item:hover .pinned-app-icon-img {
   filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.6)) drop-shadow(0 0 4px rgba(0, 255, 65, 0.8));
   opacity: 1;
   transform: scale(1.05);
+}
+
+/* Application Launcher - green monochrome matrix style to match emoji icons */
+.launcher-app-icon.img img {
+  filter: grayscale(100%) brightness(1.4) sepia(100%) hue-rotate(70deg) saturate(500%) drop-shadow(0 0 8px rgba(0, 255, 65, 0.4));
+  opacity: 0.92;
+  transition: all 0.25s ease;
+}
+
+.launcher-app-tile:hover .launcher-app-icon.img img {
+  filter: grayscale(100%) brightness(1.8) sepia(100%) hue-rotate(70deg) saturate(600%) drop-shadow(0 0 12px rgba(0, 255, 65, 0.7));
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 /* Text readability improvements for sidebars and status bars */

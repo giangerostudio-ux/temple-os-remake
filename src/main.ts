@@ -8259,7 +8259,15 @@ class TempleOS {
       // Security: Duress Password
       const saveDuressBtn = target.closest('.save-duress-btn') as HTMLElement;
       if (saveDuressBtn) {
-        const input = saveDuressBtn.parentElement?.querySelector('.duress-input') as HTMLInputElement;
+        const container = saveDuressBtn.closest('[style*="grid"]')?.parentElement || saveDuressBtn.parentElement?.parentElement;
+        const input = container?.querySelector('.duress-input') as HTMLInputElement;
+        const confirm = container?.querySelector('.duress-confirm') as HTMLInputElement;
+        const val = input ? String(input.value || '') : '';
+        const confirmVal = confirm ? String(confirm.value || '') : '';
+        if (val !== confirmVal) {
+          this.showNotification('Security', 'Duress passwords do not match', 'warning');
+          return;
+        }
         if (input) {
           this.setDuressPassword(input.value);
         }
@@ -8269,8 +8277,15 @@ class TempleOS {
       // Security: Lock Screen Password
       const savePasswordBtn = target.closest('.save-password-btn') as HTMLElement;
       if (savePasswordBtn) {
-        const input = savePasswordBtn.parentElement?.querySelector('.lock-password-field') as HTMLInputElement;
+        const container = savePasswordBtn.closest('.card, [style*="background"]')?.parentElement || savePasswordBtn.parentElement?.parentElement;
+        const input = container?.querySelector('.lock-password-field') as HTMLInputElement;
+        const confirm = container?.querySelector('.lock-password-confirm') as HTMLInputElement;
         const val = input ? String(input.value || '') : '';
+        const confirmVal = confirm ? String(confirm.value || '') : '';
+        if (val !== confirmVal) {
+          this.showNotification('Lock Screen', 'Passwords do not match', 'warning');
+          return;
+        }
         this.lockPassword = val;
         this.queueSaveConfig();
         this.showNotification('Lock Screen', val ? 'Password saved' : 'Password cleared (unlock may be weakened)', val ? 'divine' : 'warning');
@@ -8281,10 +8296,17 @@ class TempleOS {
       // Security: Lock Screen PIN
       const savePinBtn = target.closest('.save-pin-btn') as HTMLElement;
       if (savePinBtn) {
-        const input = savePinBtn.parentElement?.querySelector('.lock-pin-field') as HTMLInputElement;
+        const container = savePinBtn.closest('.card, [style*="background"]')?.parentElement || savePinBtn.parentElement?.parentElement;
+        const input = container?.querySelector('.lock-pin-field') as HTMLInputElement;
+        const confirm = container?.querySelector('.lock-pin-confirm') as HTMLInputElement;
         const raw = input ? String(input.value || '').trim() : '';
+        const confirmVal = confirm ? String(confirm.value || '').trim() : '';
         if (raw && !/^\d+$/.test(raw)) {
           this.showNotification('Lock Screen', 'PIN must be numbers only', 'warning');
+          return;
+        }
+        if (raw !== confirmVal) {
+          this.showNotification('Lock Screen', 'PINs do not match', 'warning');
           return;
         }
         this.lockPin = raw;
@@ -15476,12 +15498,20 @@ class TempleOS {
         ${card('Lock Screen Password', `
           <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
             <div>Password</div>
-            <div style="display: flex; gap: 10px;">
-              <input type="password" class="lock-password-field" value="${escapeHtml(this.lockPassword)}" placeholder="Password" 
-                     style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;" />
-              <button class="save-password-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
+            <div>
+              <input type="password" class="lock-password-field" value="${escapeHtml(this.lockPassword)}" placeholder="Password"
+                     style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit; box-sizing: border-box;" />
             </div>
-            <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Sets the password required to unlock the screen.</div>
+            <div>Confirm</div>
+            <div>
+              <input type="password" class="lock-password-confirm" placeholder="Confirm password"
+                     style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit; box-sizing: border-box;" />
+            </div>
+            <div></div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="save-password-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
+              <span style="font-size: 11px; opacity: 0.6;">Sets the password required to unlock the screen.</span>
+            </div>
           </div>
         `)}
 
@@ -15512,9 +15542,15 @@ class TempleOS {
            
            <div>
                <div style="font-weight: bold; color: #ffd700; margin-bottom: 5px;">Duress Password</div>
-               <div style="display: flex; gap: 10px;">
-                   <input type="password" class="duress-input" placeholder="Set duress password..." value="${escapeHtml(this.duressPassword)}" style="flex:1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;">
-                   <button class="save-duress-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+               <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: center;">
+                   <div style="font-size: 12px;">Password</div>
+                   <input type="password" class="duress-input" placeholder="Set duress password..." value="${escapeHtml(this.duressPassword)}" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;">
+                   <div style="font-size: 12px;">Confirm</div>
+                   <input type="password" class="duress-confirm" placeholder="Confirm duress password..." style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;">
+                   <div></div>
+                   <div>
+                       <button class="save-duress-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+                   </div>
                </div>
                <div style="font-size: 11px; margin-top: 5px; opacity: 0.7;">Entering this password at lock screen will open a decoy session.</div>
            </div>
@@ -15523,13 +15559,21 @@ class TempleOS {
         ${card('Lock Screen PIN', `
           <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center;">
             <div>PIN</div>
-            <div style="display: flex; gap: 10px;">
+            <div>
               <input type="password" class="lock-pin-field" value="${escapeHtml(this.lockPin)}" placeholder="PIN (numbers only)" inputmode="numeric" pattern="[0-9]*"
-                     style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit;" />
+                     style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit; box-sizing: border-box;" />
+            </div>
+            <div>Confirm</div>
+            <div>
+              <input type="password" class="lock-pin-confirm" placeholder="Confirm PIN" inputmode="numeric" pattern="[0-9]*"
+                     style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; font-family: inherit; box-sizing: border-box;" />
+            </div>
+            <div></div>
+            <div style="display: flex; gap: 10px; align-items: center;">
               <button class="save-pin-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Save</button>
+              <span style="font-size: 11px; opacity: 0.6;">PIN for lock screen (default: 7777). Leave empty to disable.</span>
             </div>
           </div>
-          <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">PIN for lock screen (default: 7777). Leave empty to disable PIN.</div>
         `)
         }
         ${card('Lock Screen', `

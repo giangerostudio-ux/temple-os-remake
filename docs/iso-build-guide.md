@@ -187,8 +187,27 @@ Runtime packages to include on the ISO (recommended):
 
 ```bash
 sudo apt update
-sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool python3-xlib
+sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool python3-xlib python3-pip
 ```
+
+### Voice of God TTS (Optional but Recommended)
+
+For the Word of God divine voice feature with audio effects (reverb, echo, chorus):
+
+```bash
+# Install Pedalboard for divine audio effects
+pip3 install pedalboard
+
+# Download Piper TTS (run as user, not root)
+mkdir -p /opt/templeos/electron/piper && cd /opt/templeos/electron/piper
+curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+tar xzf piper.tar.gz
+curl -L -o en_US-lessac-high.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx
+curl -L -o en_US-lessac-high.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json
+rm piper.tar.gz
+```
+
+**Note**: Users can also install TTS from the Word of God app - clicking Voice will prompt to open Terminal with install command.
 
 Notes:
 - Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.

@@ -17653,7 +17653,7 @@ After installing, restart the application for the divine voice to work.
     if (isLinux) {
       // Linux: Use curl to download and extract Piper
       installCommand = `# Piper TTS Installation for Voice of God
-# This will download Piper TTS and the voice model
+# This will download Piper TTS, the voice model, and divine audio effects
 
 mkdir -p "${piperDir}" && cd "${piperDir}" && \\
 echo "Downloading Piper TTS..." && \\
@@ -17663,7 +17663,9 @@ echo "Downloading voice model (lessac-high)..." && \\
 curl -L -o en_US-lessac-high.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && \\
 curl -L -o en_US-lessac-high.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json && \\
 rm piper.tar.gz && \\
-echo "Done! Restart the app to use Voice of God."`;
+echo "Installing divine audio effects (Pedalboard)..." && \\
+pip3 install pedalboard && \\
+echo "Done! Restart the app to use Voice of God with divine effects."`;
     } else {
       // Windows: Use PowerShell to download
       const winPiperDir = piperDir.replace(/\//g, '\\\\');

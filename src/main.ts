@@ -13486,14 +13486,26 @@ class TempleOS {
         });
         // Voice of God: Speak the response if TTS is enabled
         if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-          console.log('[TTS] Speaking response...');
-          window.electronAPI.ttsSpeak(result.response)
-            .then(res => {
-              if (!res?.success) {
-                if (res?.reason === 'piper_not_installed') {
-                  this.handlePiperNotInstalled(res.installInstructions);
+          console.log('[TTS] Speaking response, text length:', result.response?.length);
+          console.log('[TTS] Calling window.electronAPI.ttsSpeak...');
+
+          // Add timeout to detect hanging IPC
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('TTS IPC timeout after 30s')), 30000)
+          );
+
+          Promise.race([
+            window.electronAPI.ttsSpeak(result.response),
+            timeoutPromise
+          ])
+            .then((res) => {
+              console.log('[TTS] IPC response received:', res);
+              const ttsRes = res as { success?: boolean; reason?: string; error?: string; installInstructions?: unknown } | undefined;
+              if (!ttsRes?.success) {
+                if (ttsRes?.reason === 'piper_not_installed') {
+                  this.handlePiperNotInstalled(ttsRes.installInstructions as { platform: string; piperDir: string; steps: string[]; downloadUrl: string; modelUrl: string; command?: string });
                 } else {
-                  console.warn('[TTS] Speak failed:', res?.reason || res?.error);
+                  console.warn('[TTS] Speak failed:', ttsRes?.reason || ttsRes?.error);
                 }
               }
             })

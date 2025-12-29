@@ -15,17 +15,17 @@ const os = require('os');
 const DEFAULT_SETTINGS = {
     enabled: true,
     pitch: -2,              // Semitones (deeper voice)
-    reverbRoom: 0.85,       // Cathedral-sized reverb
-    reverbWet: 0.4,         // 40% reverb mix
+    reverbRoom: 0.6,        // Medium room reverb (was 0.85 cathedral)
+    reverbWet: 0.25,        // 25% reverb mix (was 0.4)
     reverbDamping: 0.7,     // High frequency damping
-    echoDelay: 120,         // Echo delay in ms
-    echoFeedback: 0.2,      // Echo repetition amount
-    echoMix: 0.15,          // Echo mix level
+    echoDelay: 100,         // Echo delay in ms (was 120)
+    echoFeedback: 0.15,     // Echo repetition amount (was 0.2)
+    echoMix: 0.1,           // Echo mix level (was 0.15)
     chorusEnabled: true,    // Ethereal chorus effect
-    chorusRate: 0.4,        // Chorus LFO rate in Hz
-    chorusDepth: 0.25,      // Chorus depth
-    chorusMix: 0.2,         // Chorus mix level
-    speed: 1.0,             // Speaking speed multiplier
+    chorusRate: 0.3,        // Chorus LFO rate in Hz (was 0.4)
+    chorusDepth: 0.15,      // Chorus depth (was 0.25)
+    chorusMix: 0.12,        // Chorus mix level (was 0.2)
+    speed: 1.35,            // Speaking speed multiplier (35% faster)
     volume: 1.0             // Volume level (0.0 to 2.0, 1.0 = normal)
 };
 

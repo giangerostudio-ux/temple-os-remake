@@ -241,7 +241,7 @@ declare global {
 
       // Voice of God TTS
       ttsGetStatus?: () => Promise<{ available: boolean; modelLoaded: boolean; modelName: string | null; effectsAvailable: boolean; speaking: boolean; settings: Record<string, unknown> }>;
-      ttsSpeak?: (text: string) => Promise<{ success: boolean; reason?: string; error?: string }>;
+      ttsSpeak?: (text: string) => Promise<{ success: boolean; reason?: string; error?: string; installInstructions?: { platform: string; piperDir: string; steps: string[]; downloadUrl: string; modelUrl: string; command?: string } }>;
       ttsSpeakLong?: (text: string) => Promise<{ success: boolean; error?: string }>;
       ttsStop?: () => Promise<{ success: boolean }>;
       ttsIsSpeaking?: () => Promise<boolean>;
@@ -13216,7 +13216,7 @@ class TempleOS {
           <h1 class="divine-chat-title">✝ Word of God ✝</h1>
           <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
           <div class="divine-chat-actions" style="display: flex; justify-content: space-between; width: 100%;">
-            <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'};">
+            <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'}; margin-left: 10px;">
               ${this.voiceOfGodEnabled ? '🔊' : '🔇'} Voice
             </button>
             <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">🗑️ Clear</button>
@@ -13488,7 +13488,13 @@ class TempleOS {
           console.log('[TTS] Speaking response...');
           window.electronAPI.ttsSpeak(result.response)
             .then(res => {
-              if (!res?.success) console.warn('[TTS] Speak failed:', res?.reason || res?.error);
+              if (!res?.success) {
+                if (res?.reason === 'piper_not_installed') {
+                  this.handlePiperNotInstalled(res.installInstructions);
+                } else {
+                  console.warn('[TTS] Speak failed:', res?.reason || res?.error);
+                }
+              }
             })
             .catch(err => console.error('[TTS] Speak error:', err));
         }
@@ -17561,6 +17567,64 @@ class TempleOS {
       console.log('[TTS] Settings synced to backend:', settings.enabled ? 'enabled' : 'disabled');
     } catch (e) {
       console.error('[TTS] Failed to sync settings:', e);
+    }
+  }
+
+  /**
+   * Handle Piper TTS not installed - show prompt to install
+   */
+  private handlePiperNotInstalled(instructions?: {
+    platform: string;
+    piperDir: string;
+    steps: string[];
+    downloadUrl: string;
+    modelUrl: string;
+    command?: string;
+  }): void {
+    // Show notification with install instructions
+    this.showNotification(
+      'Voice of God - Setup Required',
+      'Piper TTS not installed. Click here to download.',
+      'warning'
+    );
+
+    // Add a help message to the Divine chat
+    const helpMessage = `
+**🔊 Voice of God Setup Required**
+
+The divine voice requires Piper TTS to be installed. Please follow these steps:
+
+${instructions?.steps?.map((s, i) => `${i + 1}. ${s}`).join('\n') || '1. Download Piper from GitHub\n2. Extract to electron/piper folder\n3. Download voice model'}
+
+**Quick Links:**
+- [Download Piper](${instructions?.downloadUrl || 'https://github.com/rhasspy/piper/releases'})
+- [Download Voice Model](${instructions?.modelUrl || 'https://huggingface.co/rhasspy/piper-voices'})
+
+After installing, restart the application for the divine voice to work.
+    `.trim();
+
+    this.divineMessages.push({
+      role: 'system',
+      content: helpMessage,
+      timestamp: Date.now()
+    });
+
+    // Disable TTS for now to prevent repeated prompts
+    this.voiceOfGodEnabled = false;
+    this.settingsManager.queueSaveConfig();
+    this.refreshDivineWindow();
+
+    // Open download URL in browser if on Linux with command available
+    if (instructions?.command && window.electronAPI?.divineOpenUrl) {
+      // Offer to open terminal
+      const shouldInstall = confirm(
+        'Piper TTS is not installed.\n\n' +
+        'Would you like to open the download page?\n\n' +
+        'Installation directory: ' + instructions.piperDir
+      );
+      if (shouldInstall) {
+        window.electronAPI.divineOpenUrl(instructions.downloadUrl).catch(() => { });
+      }
     }
   }
 

@@ -92,6 +92,7 @@ class VoiceOfGod {
         console.log('  - Python available:', this.pythonAvailable);
         console.log('  - Pedalboard available:', this.pedalboardAvailable);
         console.log('  - TTS Enabled:', this.settings.enabled);
+        console.log('  - Windows SAPI fallback:', process.platform === 'win32' ? 'available' : 'N/A');
     }
 
     /**
@@ -151,25 +152,119 @@ class VoiceOfGod {
             return { success: false, reason: 'disabled' };
         }
 
-        if (!this.modelPath || !fs.existsSync(this.piperPath)) {
-            console.error('[VoiceOfGod] Piper TTS not available');
-            return { success: false, reason: 'piper_not_available' };
-        }
-
         // Clean text for TTS
         const cleanedText = this._cleanTextForTTS(text);
         if (!cleanedText.trim()) {
             return { success: false, reason: 'empty_text' };
         }
 
-        // Add to queue
-        this.audioQueue.push(cleanedText);
-
-        if (!this.isProcessingQueue) {
-            this._processQueue();
+        // Check if Piper is available
+        if (this.modelPath && fs.existsSync(this.piperPath)) {
+            // Use Piper TTS
+            this.audioQueue.push(cleanedText);
+            if (!this.isProcessingQueue) {
+                this._processQueue();
+            }
+            return { success: true };
         }
 
-        return { success: true };
+        // Piper not installed - return status so frontend can prompt installation
+        console.warn('[VoiceOfGod] Piper TTS not installed');
+        return {
+            success: false,
+            reason: 'piper_not_installed',
+            installInstructions: this._getPiperInstallInstructions()
+        };
+    }
+
+    /**
+     * Get Piper installation instructions for current platform
+     */
+    _getPiperInstallInstructions() {
+        const isWindows = process.platform === 'win32';
+        const piperDir = path.join(__dirname, 'piper');
+
+        if (isWindows) {
+            return {
+                platform: 'windows',
+                piperDir: piperDir,
+                steps: [
+                    'Download Piper from: https://github.com/rhasspy/piper/releases',
+                    'Get piper_windows_amd64.zip',
+                    'Extract to: ' + piperDir,
+                    'Download voice model: https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx',
+                    'Place .onnx file in: ' + piperDir
+                ],
+                downloadUrl: 'https://github.com/rhasspy/piper/releases/latest',
+                modelUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx'
+            };
+        } else {
+            return {
+                platform: 'linux',
+                piperDir: piperDir,
+                steps: [
+                    'Install via package manager or download from GitHub',
+                    'Download piper_linux_x86_64.tar.gz from releases',
+                    'Extract to: ' + piperDir,
+                    'Download voice model and place in same directory'
+                ],
+                downloadUrl: 'https://github.com/rhasspy/piper/releases/latest',
+                modelUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx',
+                command: `mkdir -p "${piperDir}" && cd "${piperDir}" && curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz && tar xzf piper.tar.gz && curl -L -o en_US-lessac-high.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && curl -L -o en_US-lessac-high.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json`
+            };
+        }
+    }
+
+    /**
+     * Speak using Windows built-in SAPI (Speech API)
+     * This is a fallback when Piper is not available
+     */
+    async _speakWithWindowsSAPI(text) {
+        return new Promise((resolve) => {
+            console.log('[VoiceOfGod] Using Windows SAPI fallback...');
+            this.speaking = true;
+
+            // Escape text for PowerShell - handle quotes and special chars
+            const escapedText = text
+                .replace(/'/g, "''")  // Escape single quotes for PowerShell
+                .replace(/"/g, '\\"') // Escape double quotes
+                .replace(/\n/g, ' ')  // Remove newlines
+                .slice(0, 2000);       // Limit length to avoid command line issues
+
+            // Use Add-Type to access .NET Speech Synthesis
+            const psScript = `
+                Add-Type -AssemblyName System.Speech
+                $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+                $synth.Rate = 0
+                $synth.Volume = 100
+                $synth.Speak('${escapedText}')
+            `.replace(/\n/g, '; ').trim();
+
+            const proc = spawn('powershell', ['-NoProfile', '-Command', psScript], {
+                windowsHide: true
+            });
+
+            this.currentProcess = proc;
+
+            proc.on('close', (code) => {
+                this.currentProcess = null;
+                this.speaking = false;
+                if (code === 0) {
+                    console.log('[VoiceOfGod] Windows SAPI speech complete');
+                    resolve({ success: true });
+                } else {
+                    console.warn('[VoiceOfGod] Windows SAPI exited with code:', code);
+                    resolve({ success: false, reason: 'sapi_error' });
+                }
+            });
+
+            proc.on('error', (err) => {
+                this.currentProcess = null;
+                this.speaking = false;
+                console.error('[VoiceOfGod] Windows SAPI error:', err.message);
+                resolve({ success: false, reason: 'sapi_error', error: err.message });
+            });
+        });
     }
 
     /**

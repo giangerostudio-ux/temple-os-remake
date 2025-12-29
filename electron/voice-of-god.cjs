@@ -464,80 +464,60 @@ class VoiceOfGod {
      * Apply divine audio effects using Python Pedalboard
      */
     async _applyDivineEffects(inputPath) {
-        return new Promise((resolve) => {
-            const outputPath = inputPath.replace('.wav', '_divine.wav');
-            const python = this.pythonCmd || (process.platform === 'win32' ? 'python' : 'python3');
-            const effectsScript = path.join(__dirname, 'audio-effects.py');
+        const outputPath = inputPath.replace('.wav', '_divine.wav');
+        const python = this.pythonCmd || (process.platform === 'win32' ? 'python' : 'python3');
+        const effectsScript = path.join(__dirname, 'audio-effects.py');
 
-            // Settings for the effects script
-            const settings = JSON.stringify({
-                pitch: this.settings.pitch,
-                reverbRoom: this.settings.reverbRoom,
-                reverbWet: this.settings.reverbWet,
-                reverbDamping: this.settings.reverbDamping,
-                echoDelay: this.settings.echoDelay,
-                echoFeedback: this.settings.echoFeedback,
-                echoMix: this.settings.echoMix,
-                chorusEnabled: this.settings.chorusEnabled,
-                chorusRate: this.settings.chorusRate,
-                chorusDepth: this.settings.chorusDepth,
-                chorusMix: this.settings.chorusMix,
-                volume: this.settings.volume
-            });
+        // Settings for the effects script
+        const settings = JSON.stringify({
+            pitch: this.settings.pitch,
+            reverbRoom: this.settings.reverbRoom,
+            reverbWet: this.settings.reverbWet,
+            reverbDamping: this.settings.reverbDamping,
+            echoDelay: this.settings.echoDelay,
+            echoFeedback: this.settings.echoFeedback,
+            echoMix: this.settings.echoMix,
+            chorusEnabled: this.settings.chorusEnabled,
+            chorusRate: this.settings.chorusRate,
+            chorusDepth: this.settings.chorusDepth,
+            chorusMix: this.settings.chorusMix,
+            volume: this.settings.volume
+        });
 
-            console.log('[VoiceOfGod] Applying divine effects...');
-            console.log('[VoiceOfGod] Python:', python);
-            console.log('[VoiceOfGod] Script:', effectsScript);
-            console.log('[VoiceOfGod] Input:', inputPath, 'exists:', fs.existsSync(inputPath));
+        console.log('[VoiceOfGod] Applying divine effects...');
+        console.log('[VoiceOfGod] Python:', python);
+        console.log('[VoiceOfGod] Script:', effectsScript);
+        console.log('[VoiceOfGod] Input:', inputPath, 'exists:', fs.existsSync(inputPath));
 
-            // Build args array (handle py -3 case)
-            const args = [...(this.pythonArgs || []), effectsScript, inputPath, outputPath, settings];
-            console.log('[VoiceOfGod] Spawn args:', args.slice(0, 3).join(' ') + '...');
+        try {
+            // Use execSync with shell: true (same as pedalboard check - proven to work)
+            // Escape the JSON settings for shell
+            const escapedSettings = settings.replace(/'/g, "'\\''");
+            const cmd = `${python} "${effectsScript}" "${inputPath}" "${outputPath}" '${escapedSettings}'`;
+            console.log('[VoiceOfGod] Running effects command...');
 
-            // Spawn without shell - args are passed directly
-            const proc = spawn(python, args, {
+            execSync(cmd, {
+                stdio: 'pipe',
+                timeout: 30000,
+                shell: true,
                 env: process.env
             });
 
-            // Timeout: if effects take more than 30 seconds, use raw audio
-            const timeout = setTimeout(() => {
-                console.warn('[VoiceOfGod] Effects script timed out after 30s, using raw audio');
-                try { proc.kill('SIGTERM'); } catch { }
-                resolve(inputPath);
-            }, 30000);
-
-            let stderr = '';
-            let stdout = '';
-
-            proc.stdout?.on('data', (data) => {
-                stdout += data.toString();
-            });
-
-            proc.stderr.on('data', (data) => {
-                stderr += data.toString();
-                console.log('[VoiceOfGod] Effects stderr:', data.toString().trim());
-            });
-
-            proc.on('close', (code) => {
-                clearTimeout(timeout);
-                console.log('[VoiceOfGod] Effects script exit code:', code);
-                if (code === 0 && fs.existsSync(outputPath)) {
-                    const size = fs.statSync(outputPath).size;
-                    console.log('[VoiceOfGod] Divine effects applied, output size:', size);
-                    resolve(outputPath);
-                } else {
-                    console.warn('[VoiceOfGod] Effects failed (code:', code, '), using raw audio');
-                    console.warn('[VoiceOfGod] stderr:', stderr);
-                    resolve(inputPath); // Fallback to raw audio
-                }
-            });
-
-            proc.on('error', (err) => {
-                clearTimeout(timeout);
-                console.error('[VoiceOfGod] Effects spawn error:', err.message);
-                resolve(inputPath); // Fallback to raw audio
-            });
-        });
+            if (fs.existsSync(outputPath)) {
+                const size = fs.statSync(outputPath).size;
+                console.log('[VoiceOfGod] Divine effects applied, output size:', size);
+                return outputPath;
+            } else {
+                console.warn('[VoiceOfGod] Output file not created, using raw audio');
+                return inputPath;
+            }
+        } catch (err) {
+            console.error('[VoiceOfGod] Effects failed:', err.message);
+            if (err.stderr) {
+                console.error('[VoiceOfGod] stderr:', err.stderr.toString().substring(0, 500));
+            }
+            return inputPath; // Fallback to raw audio
+        }
     }
 
     /**

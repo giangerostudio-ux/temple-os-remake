@@ -7382,8 +7382,15 @@ function stopKeybindWatcher() {
 }
 
 app.whenReady().then(() => {
+    console.log('[APP] app.whenReady() triggered - registering TTS handlers...');
+
     // Register TTS handlers (must be after app ready)
-    registerTTSHandlers();
+    try {
+        registerTTSHandlers();
+        console.log('[APP] TTS handlers registration complete');
+    } catch (err) {
+        console.error('[APP] TTS handlers registration FAILED:', err.message, err.stack);
+    }
 
     createWindow(); // Initial window creation
 

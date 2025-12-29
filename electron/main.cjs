@@ -20,10 +20,16 @@ const { OllamaManager } = require('./ollama-manager.cjs');
 const { DivineAssistant } = require('./divine-assistant.cjs');
 const { CommandExecutor } = require('./command-executor.cjs');
 
+// Voice of God TTS
+const { registerTTSHandlers } = require('./ipc/tts.cjs');
+
 // Initialize Divine Assistant components
 const ollamaManager = new OllamaManager();
 const divineAssistant = new DivineAssistant();
 const commandExecutor = new CommandExecutor();
+
+// Register TTS IPC handlers
+registerTTSHandlers();
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).

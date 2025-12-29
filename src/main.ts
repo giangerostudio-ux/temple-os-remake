@@ -10205,7 +10205,7 @@ class TempleOS {
                 });
                 // Voice of God: Speak the greeting
                 if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => { });
                 }
               }
             }
@@ -10216,7 +10216,7 @@ class TempleOS {
             this.divineStreamingResponse = ''; // Clear any streaming
             // Stop any ongoing TTS
             if (window.electronAPI?.ttsStop) {
-              window.electronAPI.ttsStop().catch(() => {});
+              window.electronAPI.ttsStop().catch(() => { });
             }
             if (window.electronAPI?.divineClearHistory) {
               await window.electronAPI.divineClearHistory();
@@ -10232,17 +10232,22 @@ class TempleOS {
                 });
                 // Voice of God: Speak the new greeting
                 if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => { });
                 }
               }
             }
             this.refreshDivineWindow();
           } else if (action === 'toggle-voice') {
-            // Toggle Voice of God TTS
+            // Toggle Voice of God TTS - guard against rapid clicks
+            const voiceBtn = actionBtn as HTMLButtonElement & { __toggling?: boolean };
+            if (voiceBtn.__toggling) return;
+            voiceBtn.__toggling = true;
+            setTimeout(() => { voiceBtn.__toggling = false; }, 500);
+
             this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
             // Sync to backend
             if (window.electronAPI?.ttsSetEnabled) {
-              window.electronAPI.ttsSetEnabled(this.voiceOfGodEnabled).catch(() => {});
+              window.electronAPI.ttsSetEnabled(this.voiceOfGodEnabled).catch(() => { });
             }
             // Save settings
             this.settingsManager.queueSaveConfig();
@@ -13210,7 +13215,7 @@ class TempleOS {
         <div class="divine-chat-header">
           <h1 class="divine-chat-title">✝ Word of God ✝</h1>
           <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
-          <div class="divine-chat-actions">
+          <div class="divine-chat-actions" style="display: flex; justify-content: space-between; width: 100%;">
             <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'};">
               ${this.voiceOfGodEnabled ? '🔊' : '🔇'} Voice
             </button>
@@ -13403,7 +13408,7 @@ class TempleOS {
           });
           // Voice of God: Speak the greeting if TTS is enabled
           if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-            window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+            window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => { });
           }
         }
       }
@@ -13497,7 +13502,7 @@ class TempleOS {
         });
         // Voice of God: Speak error if TTS enabled
         if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-          window.electronAPI.ttsSpeak(errorContent).catch(() => {});
+          window.electronAPI.ttsSpeak(errorContent).catch(() => { });
         }
       }
     } catch (e: unknown) {
@@ -13510,7 +13515,7 @@ class TempleOS {
       });
       // Voice of God: Speak error if TTS enabled
       if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-        window.electronAPI.ttsSpeak(errorContent).catch(() => {});
+        window.electronAPI.ttsSpeak(errorContent).catch(() => { });
       }
     } finally {
       this.divineIsLoading = false;
@@ -18302,7 +18307,7 @@ class TempleOS {
     // Note: Can't fully hide X11 apps - attacker could unminimize them
     for (const x11Win of this.x11Windows) {
       if (window.electronAPI?.minimizeX11Window) {
-        window.electronAPI.minimizeX11Window(x11Win.xidHex).catch(() => {});
+        window.electronAPI.minimizeX11Window(x11Win.xidHex).catch(() => { });
       }
     }
     this.x11Windows = []; // Hide from taskbar
@@ -18334,7 +18339,7 @@ class TempleOS {
     this.x11Windows = this.decoyBackup.x11Windows;
     for (const x11Win of this.x11Windows) {
       if (window.electronAPI?.unminimizeX11Window) {
-        window.electronAPI.unminimizeX11Window(x11Win.xidHex).catch(() => {});
+        window.electronAPI.unminimizeX11Window(x11Win.xidHex).catch(() => { });
       }
     }
 

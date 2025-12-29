@@ -494,9 +494,8 @@ class VoiceOfGod {
             const args = [...(this.pythonArgs || []), effectsScript, inputPath, outputPath, settings];
             console.log('[VoiceOfGod] Spawn args:', args.slice(0, 3).join(' ') + '...');
 
-            // Use shell: true to get proper environment (same as check)
+            // Spawn without shell - args are passed directly
             const proc = spawn(python, args, {
-                shell: true,
                 env: process.env
             });
 

@@ -20,22 +20,31 @@ const { OllamaManager } = require('./ollama-manager.cjs');
 const { DivineAssistant } = require('./divine-assistant.cjs');
 const { CommandExecutor } = require('./command-executor.cjs');
 
-// Voice of God TTS
-let registerTTSHandlers = null;
-try {
-    const ttsModule = require('./ipc/tts.cjs');
-    registerTTSHandlers = ttsModule.registerTTSHandlers;
-    console.log('[MAIN] TTS module loaded successfully');
-} catch (err) {
-    console.error('[MAIN] FAILED to load TTS module:', err.message, err.stack);
-}
-
 // Initialize Divine Assistant components
 const ollamaManager = new OllamaManager();
 const divineAssistant = new DivineAssistant();
 const commandExecutor = new CommandExecutor();
 
-// TTS handlers registered in app.whenReady()
+// ============================================
+// VOICE OF GOD TTS - Inline Implementation
+// ============================================
+const ttsState = {
+    enabled: false,
+    speaking: false,
+    currentProcess: null
+};
+
+// TTS paths - determined at startup
+const ttsConfig = {
+    piperDir: path.join(__dirname, 'piper'),
+    piperPath: process.platform === 'win32'
+        ? path.join(__dirname, 'piper', 'piper', 'piper.exe')
+        : path.join(__dirname, 'piper', 'piper', 'piper'),
+    modelPath: path.join(__dirname, 'piper', 'en_US-lessac-high.onnx')
+};
+
+console.log('[TTS] Piper path:', ttsConfig.piperPath);
+console.log('[TTS] Model path:', ttsConfig.modelPath);
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
@@ -7389,19 +7398,190 @@ function stopKeybindWatcher() {
 }
 
 app.whenReady().then(() => {
-    console.log('[APP] app.whenReady() triggered - registering TTS handlers...');
+    console.log('[APP] app.whenReady() triggered');
 
-    // Register TTS handlers (must be after app ready)
-    if (typeof registerTTSHandlers === 'function') {
-        try {
-            registerTTSHandlers();
-            console.log('[APP] TTS handlers registration complete');
-        } catch (err) {
-            console.error('[APP] TTS handlers registration FAILED:', err.message, err.stack);
-        }
-    } else {
-        console.error('[APP] TTS handlers NOT registered - registerTTSHandlers is not a function (module load failed)');
+    // ============================================
+    // INLINE TTS HANDLERS - Voice of God
+    // ============================================
+    console.log('[TTS] Registering inline TTS handlers...');
+    console.log('[TTS] Piper exists:', fs.existsSync(ttsConfig.piperPath));
+    console.log('[TTS] Model exists:', fs.existsSync(ttsConfig.modelPath));
+
+    // Helper: Speak text using Piper TTS
+    async function speakWithPiper(text) {
+        return new Promise((resolve, reject) => {
+            if (ttsState.speaking) {
+                reject(new Error('Already speaking'));
+                return;
+            }
+
+            // Clean text for TTS
+            const cleanedText = text
+                .replace(/\*\*(.+?)\*\*/g, '$1')  // Remove bold markdown
+                .replace(/\*(.+?)\*/g, '$1')       // Remove italic
+                .replace(/`(.+?)`/g, '$1')         // Remove code
+                .replace(/#+\s*/g, '')             // Remove headers
+                .replace(/\[(.+?)\]\(.+?\)/g, '$1') // Links to text
+                .replace(/[<>]/g, '')              // Remove HTML-like
+                .trim();
+
+            if (!cleanedText) {
+                resolve();
+                return;
+            }
+
+            ttsState.speaking = true;
+            console.log('[TTS] Speaking:', cleanedText.substring(0, 50) + '...');
+
+            // Create temp file for audio
+            const tempWav = path.join(os.tmpdir(), `tts_${Date.now()}.wav`);
+
+            // Spawn Piper
+            const piperArgs = [
+                '--model', ttsConfig.modelPath,
+                '--output_file', tempWav
+            ];
+
+            const piper = spawn(ttsConfig.piperPath, piperArgs, {
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
+            ttsState.currentProcess = piper;
+
+            piper.stdin.write(cleanedText);
+            piper.stdin.end();
+
+            let stderr = '';
+            piper.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            piper.on('close', (code) => {
+                if (code !== 0) {
+                    ttsState.speaking = false;
+                    ttsState.currentProcess = null;
+                    console.error('[TTS] Piper failed:', stderr);
+                    reject(new Error('Piper failed: ' + stderr));
+                    return;
+                }
+
+                // Play the audio
+                const isLinux = process.platform === 'linux';
+                const player = isLinux ? 'aplay' : 'powershell';
+                const playerArgs = isLinux
+                    ? [tempWav]
+                    : ['-c', `(New-Object Media.SoundPlayer '${tempWav}').PlaySync()`];
+
+                const audio = spawn(player, playerArgs);
+                ttsState.currentProcess = audio;
+
+                audio.on('close', () => {
+                    ttsState.speaking = false;
+                    ttsState.currentProcess = null;
+                    // Cleanup temp file
+                    fs.unlink(tempWav, () => { });
+                    resolve();
+                });
+
+                audio.on('error', (err) => {
+                    ttsState.speaking = false;
+                    ttsState.currentProcess = null;
+                    fs.unlink(tempWav, () => { });
+                    console.error('[TTS] Audio playback error:', err.message);
+                    reject(err);
+                });
+            });
+
+            piper.on('error', (err) => {
+                ttsState.speaking = false;
+                ttsState.currentProcess = null;
+                console.error('[TTS] Piper spawn error:', err.message);
+                reject(err);
+            });
+        });
     }
+
+    // TTS Handler: Speak text
+    ipcMain.handle('tts:speak', async (event, text) => {
+        console.log('[TTS] tts:speak called, enabled:', ttsState.enabled, 'text length:', text?.length);
+
+        if (!ttsState.enabled) {
+            return { success: false, reason: 'disabled' };
+        }
+
+        if (!fs.existsSync(ttsConfig.piperPath) || !fs.existsSync(ttsConfig.modelPath)) {
+            console.warn('[TTS] Piper not installed');
+            return {
+                success: false,
+                reason: 'piper_not_installed',
+                installInstructions: {
+                    platform: process.platform,
+                    piperDir: ttsConfig.piperDir,
+                    downloadUrl: 'https://github.com/rhasspy/piper/releases',
+                    modelUrl: 'https://huggingface.co/rhasspy/piper-voices'
+                }
+            };
+        }
+
+        try {
+            await speakWithPiper(text);
+            return { success: true };
+        } catch (err) {
+            console.error('[TTS] Speak error:', err.message);
+            return { success: false, error: err.message };
+        }
+    });
+
+    // TTS Handler: Set enabled state
+    ipcMain.handle('tts:setEnabled', async (event, enabled) => {
+        console.log('[TTS] tts:setEnabled:', enabled);
+        ttsState.enabled = enabled;
+        return { success: true, enabled };
+    });
+
+    // TTS Handler: Update settings (alias for setEnabled for compatibility)
+    ipcMain.handle('tts:updateSettings', async (event, settings) => {
+        console.log('[TTS] tts:updateSettings:', settings);
+        if (typeof settings.enabled === 'boolean') {
+            ttsState.enabled = settings.enabled;
+        }
+        return { success: true, settings: { enabled: ttsState.enabled } };
+    });
+
+    // TTS Handler: Get status
+    ipcMain.handle('tts:getStatus', async () => {
+        const available = fs.existsSync(ttsConfig.piperPath) && fs.existsSync(ttsConfig.modelPath);
+        return {
+            available,
+            enabled: ttsState.enabled,
+            speaking: ttsState.speaking,
+            piperDir: ttsConfig.piperDir,
+            modelLoaded: available,
+            modelName: available ? 'en_US-lessac-high' : null,
+            effectsAvailable: false,
+            settings: { enabled: ttsState.enabled }
+        };
+    });
+
+    // TTS Handler: Stop speech
+    ipcMain.handle('tts:stop', async () => {
+        if (ttsState.currentProcess) {
+            try {
+                ttsState.currentProcess.kill();
+            } catch (e) {
+                console.warn('[TTS] Failed to kill process:', e.message);
+            }
+            ttsState.currentProcess = null;
+        }
+        ttsState.speaking = false;
+        return { success: true };
+    });
+
+    // TTS Handler: Check if speaking
+    ipcMain.handle('tts:isSpeaking', async () => {
+        return ttsState.speaking;
+    });
+
+    console.log('[TTS] Inline TTS handlers registered successfully');
 
     createWindow(); // Initial window creation
 

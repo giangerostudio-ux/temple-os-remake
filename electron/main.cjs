@@ -3123,7 +3123,7 @@ body {
                     <i class="ph-bold ph-squares-four"></i> All Apps
                 </button>
             </div>
-            <div class="sm-dropdowns">
+            <div class="sm-dropdowns" style="display:none !important;">
                 <select class="sm-select" disabled><option>All apps</option></select>
                 <select class="sm-select" id="sm-cat-select">
                     <option value="All">All</option>
@@ -3158,10 +3158,10 @@ body {
             <div class="sm-quick-link" data-action="quicklink" data-path="Pictures"><i class="ph-fill ph-image"></i> Pictures</div>
             <div class="sm-quick-link" data-action="quicklink" data-path="settings"><i class="ph-fill ph-gear"></i> Settings</div>
         </div>
-        <div class="sm-power">
-            <button class="sm-power-btn" data-action="power" data-power="lock">🔒 Lock</button>
-            <button class="sm-power-btn" data-action="power" data-power="restart">🔄 Restart</button>
-            <button class="sm-power-btn" data-action="power" data-power="shutdown">🔴 Shutdown</button>
+        <div class="sm-power" style="display:flex !important; flex-direction:row !important; gap:8px;">
+            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="lock">🔒 Lock</button>
+            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="restart">🔄 Restart</button>
+            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="shutdown">🔴 Shutdown</button>
         </div>
     </div>
 </div>

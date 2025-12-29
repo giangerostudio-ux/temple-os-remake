@@ -641,7 +641,7 @@ class TempleOS {
   private voiceOfGodEchoFeedback = 0.2;
   private voiceOfGodChorusEnabled = true;
   private voiceOfGodChorusDepth = 0.25;
-  private voiceOfGodSpeed = 1.0;
+  private voiceOfGodSpeed = 1.15; // 15% faster than default
 
   // Lock Screen State
   private isLocked = false;
@@ -13486,6 +13486,11 @@ class TempleOS {
         });
         // Voice of God: Speak the response if TTS is enabled
         if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+          // Stop any previous speech before starting new one
+          if (window.electronAPI?.ttsStop) {
+            window.electronAPI.ttsStop().catch(() => { });
+          }
+
           console.log('[TTS] Speaking response, text length:', result.response?.length);
           console.log('[TTS] Calling window.electronAPI.ttsSpeak...');
 

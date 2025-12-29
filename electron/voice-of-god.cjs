@@ -172,7 +172,11 @@ class VoiceOfGod {
             if (!this.isProcessingQueue) {
                 this._processQueue();
             }
-            return { success: true };
+            return {
+                success: true,
+                effectsAvailable: this.pedalboardAvailable,
+                effectsInstallCommand: 'pip3 install pedalboard'
+            };
         }
 
         // Piper not installed - return status so frontend can prompt installation

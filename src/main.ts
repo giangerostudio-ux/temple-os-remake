@@ -642,6 +642,7 @@ class TempleOS {
   private voiceOfGodChorusEnabled = true;
   private voiceOfGodChorusDepth = 0.25;
   private voiceOfGodSpeed = 1.15; // 15% faster than default
+  private pedalboardPromptShown = false; // Track if we've shown the effects install popup
 
   // Lock Screen State
   private isLocked = false;
@@ -13505,12 +13506,32 @@ class TempleOS {
           ])
             .then((res) => {
               console.log('[TTS] IPC response received:', res);
-              const ttsRes = res as { success?: boolean; reason?: string; error?: string; installInstructions?: unknown } | undefined;
+              const ttsRes = res as { success?: boolean; reason?: string; error?: string; installInstructions?: unknown; effectsAvailable?: boolean; effectsInstallCommand?: string } | undefined;
               if (!ttsRes?.success) {
                 if (ttsRes?.reason === 'piper_not_installed') {
                   this.handlePiperNotInstalled(ttsRes.installInstructions as { platform: string; piperDir: string; steps: string[]; downloadUrl: string; modelUrl: string; command?: string });
                 } else {
                   console.warn('[TTS] Speak failed:', ttsRes?.reason || ttsRes?.error);
+                }
+              } else if (ttsRes?.effectsAvailable === false && !this.pedalboardPromptShown) {
+                // Show one-time prompt to install divine effects
+                this.pedalboardPromptShown = true;
+                const installCommand = ttsRes.effectsInstallCommand || 'pip3 install pedalboard';
+                const shouldInstall = confirm(
+                  'Divine audio effects (reverb, echo, chorus) are not available.\n\n' +
+                  'Install them for a more godly voice?\n\n' +
+                  'Command: ' + installCommand
+                );
+                if (shouldInstall) {
+                  // Copy command to clipboard and open terminal
+                  navigator.clipboard.writeText(installCommand).then(() => {
+                    void this.openApp('terminal');
+                    this.showNotification('Effects Install', 'Command copied to clipboard! Paste (Ctrl+V) in terminal and press Enter.', 'info');
+                  }).catch(() => {
+                    // Fallback: just open terminal and show the command
+                    void this.openApp('terminal');
+                    this.showNotification('Effects Install', `Run this command: ${installCommand}`, 'info');
+                  });
                 }
               }
             })

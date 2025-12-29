@@ -148,6 +148,10 @@ class VoiceOfGod {
      * Speak text with divine effects
      */
     async speak(text) {
+        console.log('[VoiceOfGod] speak() called, enabled:', this.settings.enabled);
+        console.log('[VoiceOfGod] piperPath:', this.piperPath, 'exists:', fs.existsSync(this.piperPath));
+        console.log('[VoiceOfGod] modelPath:', this.modelPath, 'exists:', this.modelPath ? fs.existsSync(this.modelPath) : false);
+
         if (!this.settings.enabled) {
             console.log('[VoiceOfGod] TTS disabled');
             return { success: false, reason: 'disabled' };
@@ -156,11 +160,13 @@ class VoiceOfGod {
         // Clean text for TTS
         const cleanedText = this._cleanTextForTTS(text);
         if (!cleanedText.trim()) {
+            console.log('[VoiceOfGod] Empty text after cleaning');
             return { success: false, reason: 'empty_text' };
         }
 
         // Check if Piper is available
         if (this.modelPath && fs.existsSync(this.piperPath)) {
+            console.log('[VoiceOfGod] Piper available! Queueing text...');
             // Use Piper TTS
             this.audioQueue.push(cleanedText);
             if (!this.isProcessingQueue) {

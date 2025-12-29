@@ -124,6 +124,16 @@ class VoiceOfGod {
     }
 
     /**
+     * Re-check pedalboard availability (call after installing)
+     */
+    recheckEffects() {
+        const wasAvailable = this.pedalboardAvailable;
+        this.pedalboardAvailable = this._checkPedalboard();
+        console.log('[VoiceOfGod] Effects re-check:', wasAvailable, '->', this.pedalboardAvailable);
+        return this.pedalboardAvailable;
+    }
+
+    /**
      * Get current status
      */
     getStatus() {
@@ -176,7 +186,7 @@ class VoiceOfGod {
             return {
                 success: true,
                 effectsAvailable: this.pedalboardAvailable,
-                effectsInstallCommand: 'pip3 install pedalboard'
+                effectsInstallCommand: 'python3 -m pip install pedalboard'
             };
         }
 
@@ -435,44 +445,80 @@ class VoiceOfGod {
      */
     async _playAudio(audioPath) {
         return new Promise((resolve, reject) => {
+            // Check if audio file exists
+            if (!fs.existsSync(audioPath)) {
+                console.error('[VoiceOfGod] Audio file not found:', audioPath);
+                reject(new Error('Audio file not found'));
+                return;
+            }
+
+            const fileSize = fs.statSync(audioPath).size;
+            console.log('[VoiceOfGod] Playing audio file:', audioPath, 'size:', fileSize, 'bytes');
+
+            if (fileSize < 100) {
+                console.error('[VoiceOfGod] Audio file too small, likely empty');
+                reject(new Error('Audio file too small'));
+                return;
+            }
+
             let player;
             let args;
 
             if (process.platform === 'win32') {
-                // Windows: Use PowerShell to play audio
+                // Windows: Use PowerShell to play audio with proper escaping
                 player = 'powershell';
+                // Escape single quotes in path
+                const escapedPath = audioPath.replace(/'/g, "''");
                 args = [
+                    '-NoProfile',
                     '-Command',
-                    `(New-Object Media.SoundPlayer '${audioPath}').PlaySync()`
+                    `try { (New-Object Media.SoundPlayer '${escapedPath}').PlaySync(); Write-Host 'OK' } catch { Write-Error $_.Exception.Message; exit 1 }`
                 ];
             } else if (process.platform === 'darwin') {
                 // macOS: Use afplay
                 player = 'afplay';
                 args = [audioPath];
             } else {
-                // Linux: Use paplay (PulseAudio) as primary, fallback to aplay/ffplay
-                player = 'paplay';
-                args = [audioPath];
+                // Linux: Try aplay first (works on servers), then paplay (PulseAudio)
+                player = 'aplay';
+                args = ['-q', audioPath]; // -q for quiet (no stats output)
             }
 
-            console.log('[VoiceOfGod] Playing audio...');
+            console.log('[VoiceOfGod] Running:', player, args.join(' ').substring(0, 100) + '...');
 
             const proc = spawn(player, args);
             this.currentProcess = proc;
 
+            let stdout = '';
+            let stderr = '';
+
+            proc.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+
+            proc.stderr?.on('data', (data) => {
+                stderr += data.toString();
+            });
+
             proc.on('close', (code) => {
                 this.currentProcess = null;
-                console.log('[VoiceOfGod] Audio playback complete');
-                resolve();
+                if (code === 0) {
+                    console.log('[VoiceOfGod] Audio playback complete');
+                } else {
+                    console.error('[VoiceOfGod] Audio playback failed, code:', code, 'stderr:', stderr);
+                }
+                resolve(); // Resolve anyway to continue queue
             });
 
             proc.on('error', (err) => {
                 this.currentProcess = null;
+                console.error('[VoiceOfGod] Audio player error:', err.message);
                 // Try alternative players on Linux
-                if (process.platform === 'linux' && player === 'aplay') {
-                    this._playWithAlternative(audioPath).then(resolve).catch(reject);
+                if (process.platform === 'linux') {
+                    console.log('[VoiceOfGod] Trying alternative audio players...');
+                    this._playWithAlternative(audioPath).then(resolve).catch(() => resolve());
                 } else {
-                    reject(err);
+                    resolve(); // Resolve anyway to continue queue
                 }
             });
         });
@@ -482,22 +528,30 @@ class VoiceOfGod {
      * Try alternative audio players on Linux
      */
     async _playWithAlternative(audioPath) {
-        const alternatives = ['paplay', 'ffplay -nodisp -autoexit'];
+        const alternatives = [
+            { cmd: 'paplay', args: [audioPath] },
+            { cmd: 'aplay', args: ['-q', audioPath] },
+            { cmd: 'ffplay', args: ['-nodisp', '-autoexit', '-loglevel', 'quiet', audioPath] },
+            { cmd: 'mpv', args: ['--no-video', '--really-quiet', audioPath] }
+        ];
 
-        for (const alt of alternatives) {
+        for (const { cmd, args } of alternatives) {
             try {
-                const [cmd, ...args] = alt.split(' ');
+                console.log('[VoiceOfGod] Trying:', cmd);
                 await new Promise((resolve, reject) => {
-                    const proc = spawn(cmd, [...args, audioPath]);
-                    proc.on('close', resolve);
+                    const proc = spawn(cmd, args);
+                    proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Exit code ${code}`)));
                     proc.on('error', reject);
                 });
+                console.log('[VoiceOfGod] Success with:', cmd);
                 return;
-            } catch {
+            } catch (err) {
+                console.log('[VoiceOfGod]', cmd, 'failed:', err.message);
                 continue;
             }
         }
 
+        console.error('[VoiceOfGod] All audio players failed');
         throw new Error('No audio player available');
     }
 

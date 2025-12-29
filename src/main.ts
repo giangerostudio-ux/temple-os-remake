@@ -644,6 +644,7 @@ class TempleOS {
   private voiceOfGodSpeed = 1.35; // 35% faster than default for snappier speech
   private voiceOfGodVolume = 1.0; // Volume (0.0 to 2.0, 1.0 = normal)
   private voiceOfGodSettingsOpen = false; // Track settings dropdown state
+  private voiceOfGodInstalling = false; // Prevent multiple install clicks
   private pedalboardPromptShown = false; // Track if we've shown the effects install popup
 
   // Lock Screen State
@@ -10189,6 +10190,8 @@ class TempleOS {
         // Setup/header action buttons
         const actionBtn = target.closest('[data-divine-action]') as HTMLElement;
         if (actionBtn) {
+          e.preventDefault();
+          e.stopPropagation();
           const action = actionBtn.dataset.divineAction;
           if (action === 'refresh' || action === 'check-ollama') {
             await this.initDivineAssistant();
@@ -10264,18 +10267,28 @@ class TempleOS {
             this.refreshDivineWindow();
           } else if (action === 'toggle-settings') {
             // Toggle settings dropdown
+            console.log('[Settings] Toggling from', this.voiceOfGodSettingsOpen, 'to', !this.voiceOfGodSettingsOpen);
             this.voiceOfGodSettingsOpen = !this.voiceOfGodSettingsOpen;
             this.refreshDivineWindow();
+            console.log('[Settings] After refresh, state is:', this.voiceOfGodSettingsOpen);
           } else if (action === 'install-piper') {
-            // Install Piper TTS via terminal
+            // Install Piper TTS via terminal - guard against multiple clicks
+            if (this.voiceOfGodInstalling) return;
+            this.voiceOfGodInstalling = true;
+            setTimeout(() => { this.voiceOfGodInstalling = false; }, 5000);
+
+            this.voiceOfGodSettingsOpen = false;
+            this.refreshDivineWindow();
             void this.installPiperViaTerminal();
-            this.voiceOfGodSettingsOpen = false;
-            this.refreshDivineWindow();
           } else if (action === 'install-effects') {
-            // Install Pedalboard effects via terminal
-            void this.installPedalboardViaTerminal('pip3 install pedalboard');
+            // Install Pedalboard effects via terminal - guard against multiple clicks
+            if (this.voiceOfGodInstalling) return;
+            this.voiceOfGodInstalling = true;
+            setTimeout(() => { this.voiceOfGodInstalling = false; }, 5000);
+
             this.voiceOfGodSettingsOpen = false;
             this.refreshDivineWindow();
+            void this.installPedalboardViaTerminal('python3 -m pip install pedalboard');
           }
           return;
         }
@@ -13604,7 +13617,7 @@ class TempleOS {
               } else if (ttsRes?.effectsAvailable === false && !this.pedalboardPromptShown) {
                 // Show one-time prompt to install divine effects
                 this.pedalboardPromptShown = true;
-                const installCommand = ttsRes.effectsInstallCommand || 'pip3 install pedalboard';
+                const installCommand = ttsRes.effectsInstallCommand || 'python3 -m pip install pedalboard';
                 const shouldInstall = confirm(
                   'Divine audio effects (reverb, echo, chorus) are not available.\n\n' +
                   'Install them for a more godly voice?\n\n' +
@@ -17783,7 +17796,7 @@ curl -L -o en_US-bryce-medium.onnx https://huggingface.co/rhasspy/piper-voices/r
 curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json && \\
 rm piper.tar.gz && \\
 echo "Installing divine audio effects (Pedalboard)..." && \\
-pip3 install pedalboard && \\
+python3 -m pip install pedalboard && \\
 echo "Done! Restart the app to use Voice of God with divine effects."`;
     } else {
       // Windows: Use PowerShell to download

@@ -3058,6 +3058,22 @@ body {
 }
 .sm-app.installed { border-bottom: 1px solid rgba(0, 255, 65, 0.05); }
 
+/* Force colorful app icons/emojis to monochrome green "holograms" - matches inline menu */
+.sm-icon,
+.pinned-app-icon-img,
+.installed-app-icon-img {
+    filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.1);
+    opacity: 0.9;
+    transition: all 0.2s ease;
+}
+
+.sm-app:hover .sm-icon,
+.sm-app:hover .pinned-app-icon-img,
+.sm-app:hover .installed-app-icon-img {
+    filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.5) drop-shadow(0 0 5px rgba(0, 255, 65, 0.5));
+    opacity: 1;
+}
+
 .sm-icon { font-size: 20px; flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
 .sm-app-info { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-width: 0; }
 .sm-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

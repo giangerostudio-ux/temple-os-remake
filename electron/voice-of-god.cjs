@@ -101,7 +101,7 @@ class VoiceOfGod {
     _checkPython() {
         try {
             const cmd = process.platform === 'win32' ? 'python --version' : 'python3 --version';
-            execSync(cmd, { stdio: 'pipe' });
+            execSync(cmd, { stdio: 'pipe', timeout: 3000 });
             return true;
         } catch {
             return false;
@@ -115,7 +115,7 @@ class VoiceOfGod {
         if (!this.pythonAvailable) return false;
         try {
             const python = process.platform === 'win32' ? 'python' : 'python3';
-            execSync(`${python} -c "import pedalboard"`, { stdio: 'pipe' });
+            execSync(`${python} -c "import pedalboard"`, { stdio: 'pipe', timeout: 5000 });
             return true;
         } catch {
             return false;
@@ -340,12 +340,20 @@ class VoiceOfGod {
 
             this.currentProcess = piper;
 
+            // Timeout: kill process if it takes more than 60 seconds
+            const timeout = setTimeout(() => {
+                console.warn('[VoiceOfGod] Piper TTS timed out after 60s');
+                try { piper.kill('SIGTERM'); } catch { }
+                reject(new Error('Piper TTS generation timed out'));
+            }, 60000);
+
             let stderr = '';
             piper.stderr.on('data', (data) => {
                 stderr += data.toString();
             });
 
             piper.on('close', (code) => {
+                clearTimeout(timeout);
                 this.currentProcess = null;
                 if (code === 0 && fs.existsSync(outputPath)) {
                     console.log('[VoiceOfGod] TTS generated successfully');
@@ -356,6 +364,7 @@ class VoiceOfGod {
             });
 
             piper.on('error', (err) => {
+                clearTimeout(timeout);
                 this.currentProcess = null;
                 reject(err);
             });

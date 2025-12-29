@@ -3027,7 +3027,7 @@ body {
 }
 .sm-all-apps-btn:hover { background: rgba(0, 255, 65, 0.2); border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.2); }
 
-.sm-dropdowns { display: none; } /* Hide dropdowns for cleaner look */
+.sm-dropdowns { display: none !important; } /* Hide dropdowns for cleaner look */
 
 .sm-section { padding: 10px 15px; overflow-y: auto; flex: 1; }
 .sm-section::-webkit-scrollbar { width: 8px; }
@@ -3072,7 +3072,7 @@ body {
 .sm-quick-link { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .sm-quick-link:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
 
-.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex; gap: 8px; }
+.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex !important; flex-direction: row !important; gap: 8px; }
 
 
 .sm-power-btn {

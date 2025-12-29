@@ -13523,15 +13523,8 @@ class TempleOS {
                   'Command: ' + installCommand
                 );
                 if (shouldInstall) {
-                  // Copy command to clipboard and open terminal
-                  navigator.clipboard.writeText(installCommand).then(() => {
-                    void this.openApp('terminal');
-                    this.showNotification('Effects Install', 'Command copied to clipboard! Paste (Ctrl+V) in terminal and press Enter.', 'info');
-                  }).catch(() => {
-                    // Fallback: just open terminal and show the command
-                    void this.openApp('terminal');
-                    this.showNotification('Effects Install', `Run this command: ${installCommand}`, 'info');
-                  });
+                  // Open terminal and send command directly
+                  void this.installPedalboardViaTerminal(installCommand);
                 }
               }
             })
@@ -17759,6 +17752,48 @@ Write-Host "Done! Restart the app to use Voice of God."`;
       this.showNotification(
         'Voice of God - Manual Install Required',
         'Please install Piper TTS manually from github.com/rhasspy/piper',
+        'warning'
+      );
+    }
+  }
+
+  /**
+   * Install Pedalboard audio effects via Terminal
+   * Opens terminal and sends the pip install command directly
+   */
+  private async installPedalboardViaTerminal(installCommand: string): Promise<void> {
+    // Open Terminal app if not already open
+    let terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+    if (!terminalWin) {
+      await this.openApp('terminal');
+      // Wait for terminal to initialize
+      await new Promise(resolve => setTimeout(resolve, 800));
+      terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+    }
+
+    // Focus terminal
+    if (terminalWin) {
+      this.focusWindow(terminalWin.id);
+    }
+
+    // Get the active terminal tab's ptyId and send the command
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const activeTab = this.terminalTabs[this.activeTerminalTab];
+    if (activeTab?.ptyId && window.electronAPI?.writePty) {
+      // Send the install command to the terminal
+      await window.electronAPI.writePty(activeTab.ptyId, installCommand + ' && echo "Divine effects installed! Restart the app."\n');
+
+      this.showNotification(
+        'Divine Effects',
+        'Installing audio effects... Please wait for completion.',
+        'divine'
+      );
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(installCommand).catch(() => {});
+      this.showNotification(
+        'Divine Effects',
+        `Run this command manually: ${installCommand}`,
         'warning'
       );
     }

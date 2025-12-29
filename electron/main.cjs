@@ -2996,7 +2996,7 @@ function buildStartMenuHtml(config) {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { background: transparent; height: 100vh; overflow: hidden; }
 body {
-    background: rgba(13, 17, 23, 0.98);
+    background: rgba(8, 20, 12, 0.95);
     border: 1px solid #00ff41;
     border-radius: 8px;
     margin: 15px; /* Space for glow */
@@ -3098,7 +3098,9 @@ body {
 }
 
 .sm-power-btn .emoji-icon {
-  transition: all 0.2s ease;
+  filter: grayscale(100%) brightness(1.2) sepia(100%) hue-rotate(90deg) saturate(500%) drop-shadow(0 0 2px rgba(0, 255, 65, 0.8));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-block;
 }
 
 .sm-power-btn.lock:hover {
@@ -3109,16 +3111,18 @@ body {
 }
 
 .sm-power-btn.restart:hover,
-.sm-power-btn.shutdown:hover {
-  background: rgba(50, 0, 0, 0.9);
-  border-color: #FF4444;
-  color: #FF4444;
-  box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+.sm-power-btn.shutdown:hover,
+.sm-power-btn.lock:hover {
+  background: rgba(0, 40, 0, 0.9);
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
 }
 
 .sm-power-btn:hover .emoji-icon {
-  transform: scale(1.15);
-  filter: brightness(1.4) drop-shadow(0 0 6px currentColor);
+  filter: grayscale(100%) brightness(1.7) sepia(100%) hue-rotate(90deg) saturate(800%) drop-shadow(0 0 8px var(--tos-green));
+  transform: scale(1.15) translateY(-2px);
+  text-shadow: 0 0 10px var(--tos-green);
 }
 
 /* Phosphor icons styling */

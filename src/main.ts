@@ -240,7 +240,7 @@ declare global {
       onDivineCommandOutput?: (callback: (output: { type: string; data: string }) => void) => () => void;
 
       // Voice of God TTS
-      ttsGetStatus?: () => Promise<{ available: boolean; modelLoaded: boolean; modelName: string | null; effectsAvailable: boolean; speaking: boolean; settings: Record<string, unknown> }>;
+      ttsGetStatus?: () => Promise<{ available: boolean; modelLoaded: boolean; modelName: string | null; effectsAvailable: boolean; speaking: boolean; settings: Record<string, unknown>; piperDir?: string }>;
       ttsSpeak?: (text: string) => Promise<{ success: boolean; reason?: string; error?: string; installInstructions?: { platform: string; piperDir: string; steps: string[]; downloadUrl: string; modelUrl: string; command?: string } }>;
       ttsSpeakLong?: (text: string) => Promise<{ success: boolean; error?: string }>;
       ttsStop?: () => Promise<{ success: boolean }>;
@@ -17648,11 +17648,20 @@ After installing, restart the application for the divine voice to work.
    * Opens the terminal and types in the download/install command
    */
   private async installPiperViaTerminal(): Promise<void> {
+    // Get the absolute piper directory path from backend
+    let piperDir = '';
+    if (window.electronAPI?.ttsGetStatus) {
+      const status = await window.electronAPI.ttsGetStatus();
+      piperDir = status?.piperDir || '';
+    }
+
+    if (!piperDir) {
+      this.showNotification('Voice of God', 'Could not determine install path', 'error');
+      return;
+    }
+
     // Determine the install command based on platform
     const isLinux = navigator.platform.toLowerCase().includes('linux');
-
-    // Get the piper directory path from electron
-    const piperDir = 'electron/piper';  // Relative path in project
 
     let installCommand: string;
 
@@ -17660,7 +17669,6 @@ After installing, restart the application for the divine voice to work.
       // Linux: Use curl to download and extract Piper
       installCommand = `# Piper TTS Installation for Voice of God
 # This will download Piper TTS and the voice model
-# Press Enter to continue, or Ctrl+C to cancel
 
 mkdir -p "${piperDir}" && cd "${piperDir}" && \\
 echo "Downloading Piper TTS..." && \\
@@ -17673,11 +17681,11 @@ rm piper.tar.gz && \\
 echo "Done! Restart the app to use Voice of God."`;
     } else {
       // Windows: Use PowerShell to download
+      const winPiperDir = piperDir.replace(/\//g, '\\\\');
       installCommand = `# Piper TTS Installation for Voice of God
 # This will download Piper TTS and the voice model
-# Press Enter to continue
 
-$piperDir = "electron\\piper"
+$piperDir = "${winPiperDir}"
 New-Item -ItemType Directory -Force -Path $piperDir | Out-Null
 cd $piperDir
 

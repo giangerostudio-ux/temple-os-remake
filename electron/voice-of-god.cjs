@@ -34,19 +34,19 @@ class VoiceOfGod {
 
         // Determine paths based on platform
         const isWindows = process.platform === 'win32';
-        const piperDir = path.join(__dirname, 'piper');
+        this.piperDir = path.join(__dirname, 'piper');
 
         this.piperPath = isWindows
-            ? path.join(piperDir, 'piper', 'piper.exe')
-            : path.join(piperDir, 'piper');
+            ? path.join(this.piperDir, 'piper', 'piper.exe')
+            : path.join(this.piperDir, 'piper');
 
-        console.log('[VoiceOfGod] Piper directory:', piperDir);
+        console.log('[VoiceOfGod] Piper directory:', this.piperDir);
         console.log('[VoiceOfGod] Piper executable:', this.piperPath);
         console.log('[VoiceOfGod] Piper exists:', fs.existsSync(this.piperPath));
 
         // Prefer lessac-high, fallback to bryce-medium
-        const lessacPath = path.join(piperDir, 'en_US-lessac-high.onnx');
-        const brycePath = path.join(piperDir, 'en_US-bryce-medium.onnx');
+        const lessacPath = path.join(this.piperDir, 'en_US-lessac-high.onnx');
+        const brycePath = path.join(this.piperDir, 'en_US-bryce-medium.onnx');
 
         console.log('[VoiceOfGod] Looking for lessac-high at:', lessacPath);
         console.log('[VoiceOfGod] Lessac exists:', fs.existsSync(lessacPath));
@@ -132,7 +132,8 @@ class VoiceOfGod {
             modelName: this.modelPath ? path.basename(this.modelPath) : null,
             effectsAvailable: this.pedalboardAvailable,
             speaking: this.speaking,
-            settings: { ...this.settings }
+            settings: { ...this.settings },
+            piperDir: this.piperDir  // Absolute path for install command
         };
     }
 

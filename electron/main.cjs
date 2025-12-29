@@ -2969,8 +2969,8 @@ function buildStartMenuHtml(config) {
     const pinnedHtml = pinnedApps.map(app => `
         <div class="sm-app pinned" data-action="launch" data-key="${escapeHtml(app.key)}">
             <span class="sm-icon${app.iconUrl ? ' has-img' : ''}" data-fallback="${escapeHtml(app.icon)}">${app.iconUrl
-                ? `<img src="${escapeHtml(app.iconUrl)}" alt="" class="pinned-app-icon-img" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('has-img');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">`
-                : escapeHtml(app.icon)}</span>
+            ? `<img src="${escapeHtml(app.iconUrl)}" alt="" class="pinned-app-icon-img" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('has-img');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">`
+            : escapeHtml(app.icon)}</span>
             <span class="sm-name">${escapeHtml(app.name)}</span>
         </div>
     `).join('');
@@ -3072,7 +3072,8 @@ body {
 .sm-quick-link { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .sm-quick-link:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
 
-.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex !important; flex-direction: row !important; gap: 8px; }
+.sm-power, .sm-right .sm-power, div.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 8px; justify-content: stretch !important; align-items: center !important; width: 100% !important; }
+.sm-power > * { flex: 1 1 0 !important; min-width: 0 !important; }
 
 
 .sm-power-btn {

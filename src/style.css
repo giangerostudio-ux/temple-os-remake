@@ -2023,6 +2023,13 @@ input[type=range]::-webkit-slider-thumb {
   font-style: italic;
 }
 
+/* Hide dropdown filters - cleaner look matching popout */
+.start-menu .start-view-select,
+.start-menu .start-category-select,
+.start-menu #start-menu-results-area>div:first-child {
+  display: none !important;
+}
+
 .start-section {
   padding: 10px 15px;
   overflow-y: auto;

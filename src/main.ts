@@ -10244,21 +10244,7 @@ class TempleOS {
             voiceBtn.__toggling = true;
             setTimeout(() => { voiceBtn.__toggling = false; }, 500);
 
-            // Check if Piper TTS is available before enabling
-            if (!this.voiceOfGodEnabled && window.electronAPI?.ttsGetStatus) {
-              const status = await window.electronAPI.ttsGetStatus();
-              if (!status?.available) {
-                // Piper not installed - open terminal with install command
-                this.showNotification(
-                  'Voice of God - Setup Required',
-                  'Opening Terminal with install command...',
-                  'warning'
-                );
-                await this.installPiperViaTerminal();
-                return;
-              }
-            }
-
+            // Just toggle - TTS will handle missing Piper when it tries to speak
             this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
             // Sync to backend
             if (window.electronAPI?.ttsSetEnabled) {
@@ -17629,16 +17615,15 @@ After installing, restart the application for the divine voice to work.
     this.settingsManager.queueSaveConfig();
     this.refreshDivineWindow();
 
-    // Open download URL in browser if on Linux with command available
-    if (instructions?.command && window.electronAPI?.divineOpenUrl) {
-      // Offer to open terminal
+    // Offer to install via terminal
+    if (instructions?.piperDir) {
       const shouldInstall = confirm(
         'Piper TTS is not installed.\n\n' +
-        'Would you like to open the download page?\n\n' +
+        'Would you like to open the Terminal with the install command?\n\n' +
         'Installation directory: ' + instructions.piperDir
       );
       if (shouldInstall) {
-        window.electronAPI.divineOpenUrl(instructions.downloadUrl).catch(() => { });
+        void this.installPiperViaTerminal();
       }
     }
   }

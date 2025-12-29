@@ -2968,22 +2968,29 @@ function buildStartMenuHtml(config) {
 
     const pinnedHtml = pinnedApps.map(app => `
         <div class="sm-app pinned" data-action="launch" data-key="${escapeHtml(app.key)}">
-            <span class="sm-icon">${escapeHtml(app.icon)}</span>
+            <span class="sm-icon${app.iconUrl ? ' has-img' : ''}" data-fallback="${escapeHtml(app.icon)}">${app.iconUrl
+                ? `<img src="${escapeHtml(app.iconUrl)}" alt="" class="pinned-app-icon-img" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('has-img');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">`
+                : escapeHtml(app.icon)}</span>
             <span class="sm-name">${escapeHtml(app.name)}</span>
         </div>
     `).join('');
 
-    const installedHtml = installedApps.map(app => `
+    const installedHtml = installedApps.map(app => {
+        const fallback = escapeHtml(app.icon || app.name.charAt(0).toUpperCase());
+        return `
         <div class="sm-app installed" data-action="launch" data-key="${escapeHtml(app.key)}" data-category="${escapeHtml(app.category || 'Utilities')}">
-            <span class="sm-icon">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;">` : escapeHtml(app.icon || app.name.charAt(0).toUpperCase())}</span>
+            <span class="sm-icon${app.iconUrl ? ' has-img' : ''}" data-fallback="${fallback}">${app.iconUrl
+                ? `<img src="${escapeHtml(app.iconUrl)}" alt="" class="installed-app-icon-img" draggable="false" onerror="this.style.display='none';this.parentElement.classList.remove('has-img');this.parentElement.textContent=this.parentElement.dataset.fallback||'?';">`
+                : fallback}</span>
             <div class="sm-app-info">
                 <span class="sm-name">${escapeHtml(app.name)}</span>
                 <span class="sm-comment">${app.comment ? escapeHtml(app.comment) : 'Application'}</span>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=VT323&family=Noto+Color+Emoji&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3011,7 +3018,7 @@ body {
     border-radius: 6px; color: #00ff41; font-size: 16px; outline: none; font-family: inherit;
 }
 .sm-search-input:focus { border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
-.sm-search-input::placeholder { color: rgba(0, 255, 65, 0.5); }
+.sm-search-input::placeholder { color: rgba(0, 255, 65, 0.5); font-style: italic; }
 
 .sm-all-apps-btn {
     padding: 0 15px; height: 40px; background: rgba(0, 255, 65, 0.1); border: 1px solid rgba(0, 255, 65, 0.3);
@@ -3036,8 +3043,19 @@ body {
 .sm-app { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; }
 .sm-app:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
 .sm-app.pinned { flex-direction: column; text-align: center; gap: 6px; }
-.sm-app.pinned .sm-icon { font-size: 28px; width: 34px; height: 34px; }
+.sm-app.pinned .sm-icon { font-size: 28px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+.sm-app.pinned .sm-icon.has-img { font-size: inherit; }
 .sm-app.pinned .sm-name { font-size: 13px; }
+
+/* Pinned app icon images */
+.pinned-app-icon-img {
+    width: 32px; height: 32px; object-fit: contain; image-rendering: auto; border-radius: 6px;
+}
+
+/* Installed app icon images */
+.installed-app-icon-img {
+    width: 22px; height: 22px; object-fit: contain; image-rendering: auto;
+}
 .sm-app.installed { border-bottom: 1px solid rgba(0, 255, 65, 0.05); }
 
 .sm-icon { font-size: 20px; flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
@@ -3068,13 +3086,18 @@ body {
     background: rgba(100, 0, 0, 0.95) !important; border-color: #FF0000 !important; color: #fff !important; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5) !important;
 }
 
-/* Green Matrix Filter for all images */
-.sm-icon img, .sm-app img, .sm-quick-link img {
-    filter: grayscale(100%) sepia(100%) hue-rotate(90deg) brightness(1.2) contrast(1.1) !important;
-    opacity: 0.9; transition: all 0.2s ease;
+/* Phosphor icons styling */
+.sm-quick-link i, .sm-all-apps-btn i {
+    font-size: 16px; width: 20px; display: inline-flex; align-items: center; justify-content: center;
 }
-.sm-app:hover img, .sm-quick-link:hover img {
-    filter: grayscale(0%) brightness(2.5) drop-shadow(0 0 5px #00FF41) !important; opacity: 1;
+
+/* App icon images - match regular start menu styling */
+.sm-icon img, .sm-app img {
+    filter: drop-shadow(0 0 8px rgba(0, 255, 65, 0.18));
+    opacity: 0.95; transition: all 0.2s ease;
+}
+.sm-app:hover img {
+    filter: drop-shadow(0 0 10px rgba(0, 255, 65, 0.4)); opacity: 1;
 }
 
 .sm-context-menu {
@@ -3095,9 +3118,9 @@ body {
     <div class="sm-left">
         <div class="sm-header">
             <div class="sm-search-container">
-                <input type="text" class="sm-search-input" placeholder="🔍 Search apps..." autofocus>
+                <input type="text" class="sm-search-input" placeholder="Search apps..." autofocus>
                 <button class="sm-all-apps-btn" onclick="emitAction('open_launcher')">
-                    <span style="font-size: 16px;">💻</span> All Apps
+                    <i class="ph-bold ph-squares-four"></i> All Apps
                 </button>
             </div>
             <div class="sm-dropdowns">
@@ -3127,13 +3150,13 @@ body {
             <div class="sm-user-name">TempleOS Remake</div>
         </div>
         <div class="sm-quick-links">
-            <div class="sm-quick-link" data-action="quicklink" data-path="root">💻 This PC</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="home">🏠 Home</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Documents">📄 Documents</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Downloads">⬇️ Downloads</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Music">🎵 Music</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="Pictures">🖼️ Pictures</div>
-            <div class="sm-quick-link" data-action="quicklink" data-path="settings">⚙️ Settings</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="root"><i class="ph-fill ph-desktop"></i> This PC</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="home"><i class="ph-fill ph-house"></i> Home</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Documents"><i class="ph-fill ph-file-text"></i> Documents</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Downloads"><i class="ph-fill ph-download"></i> Downloads</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Music"><i class="ph-fill ph-music-note"></i> Music</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="Pictures"><i class="ph-fill ph-image"></i> Pictures</div>
+            <div class="sm-quick-link" data-action="quicklink" data-path="settings"><i class="ph-fill ph-gear"></i> Settings</div>
         </div>
         <div class="sm-power">
             <button class="sm-power-btn" data-action="power" data-power="lock">🔒 Lock</button>

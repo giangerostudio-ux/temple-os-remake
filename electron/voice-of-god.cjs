@@ -186,7 +186,7 @@ class VoiceOfGod {
             return {
                 success: true,
                 effectsAvailable: this.pedalboardAvailable,
-                effectsInstallCommand: 'python3 -m pip install pedalboard'
+                effectsInstallCommand: 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard'
             };
         }
 

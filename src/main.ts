@@ -10168,6 +10168,66 @@ class TempleOS {
       // ============================================
       // DIVINE ASSISTANT (Word of God AI)
       // ============================================
+
+      // HIGH-PRIORITY: Capture-phase handler for divine toolbar buttons
+      // This fires BEFORE other handlers can interfere
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const settingsBtn = target.closest('#divine-settings-btn');
+        if (settingsBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          console.log('[Settings] Capture handler fired');
+          this.voiceOfGodSettingsOpen = !this.voiceOfGodSettingsOpen;
+          this.refreshDivineWindow();
+          return;
+        }
+        const voiceBtn = target.closest('#divine-voice-btn');
+        if (voiceBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
+          if (window.electronAPI?.ttsSetEnabled) {
+            window.electronAPI.ttsSetEnabled(this.voiceOfGodEnabled).catch(() => { });
+          }
+          this.settingsManager.queueSaveConfig();
+          this.showNotification('Voice of God', this.voiceOfGodEnabled ? 'Divine voice enabled' : 'Divine voice disabled', 'info');
+          this.refreshDivineWindow();
+          return;
+        }
+        const clearBtn = target.closest('#divine-clear-btn');
+        if (clearBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.divineMessages = [];
+          this.divineIsLoading = false;
+          this.divineStreamingResponse = '';
+          if (window.electronAPI?.ttsStop) {
+            window.electronAPI.ttsStop().catch(() => { });
+          }
+          this.refreshDivineWindow();
+          // Load new greeting async
+          if (window.electronAPI?.divineClearHistory) {
+            void window.electronAPI.divineClearHistory().then(async () => {
+              if (this.divineMessages.length === 0 && window.electronAPI?.divineGetGreeting) {
+                const greetingResult = await window.electronAPI.divineGetGreeting();
+                if (greetingResult?.greeting && this.divineMessages.length === 0) {
+                  this.divineMessages.push({ role: 'assistant', content: greetingResult.greeting, timestamp: Date.now() });
+                  if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+                    window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => { });
+                  }
+                  this.refreshDivineWindow();
+                }
+              }
+            });
+          }
+          return;
+        }
+      }, true); // true = capture phase
+
       app.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
 
@@ -10288,7 +10348,8 @@ class TempleOS {
 
             this.voiceOfGodSettingsOpen = false;
             this.refreshDivineWindow();
-            void this.installPedalboardViaTerminal('python3 -m pip install pedalboard');
+            // Install pip first if needed (Ubuntu), then pedalboard
+            void this.installPedalboardViaTerminal('sudo apt-get install -y python3-pip && python3 -m pip install pedalboard');
           }
           return;
         }
@@ -13281,15 +13342,15 @@ class TempleOS {
 
         <!-- Floating toolbar - top right of chat area -->
         <div class="divine-toolbar" style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 10;">
-          <button class="divine-icon-btn" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice' : 'Enable Voice'}"
+          <button class="divine-icon-btn" id="divine-voice-btn" title="${this.voiceOfGodEnabled ? 'Disable Voice' : 'Enable Voice'}"
             style="width: 28px; height: 28px; border: 1px solid ${this.voiceOfGodEnabled ? '#00ff41' : '#666'}; border-radius: 4px; background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'rgba(0,0,0,0.5)'}; color: ${this.voiceOfGodEnabled ? '#00ff41' : '#888'}; cursor: pointer; font-size: 14px;">
             ${this.voiceOfGodEnabled ? '🔊' : '🔇'}
           </button>
-          <button class="divine-icon-btn" data-divine-action="toggle-settings" title="Voice Settings"
+          <button class="divine-icon-btn" id="divine-settings-btn" title="Voice Settings"
             style="width: 28px; height: 28px; border: 1px solid ${this.voiceOfGodSettingsOpen ? '#00ff41' : '#666'}; border-radius: 4px; background: ${this.voiceOfGodSettingsOpen ? 'rgba(0,255,65,0.2)' : 'rgba(0,0,0,0.5)'}; color: #888; cursor: pointer; font-size: 14px;">
             ⚙️
           </button>
-          <button class="divine-icon-btn" data-divine-action="clear" title="Clear Chat"
+          <button class="divine-icon-btn" id="divine-clear-btn" title="Clear Chat"
             style="width: 28px; height: 28px; border: 1px solid #666; border-radius: 4px; background: rgba(0,0,0,0.5); color: #888; cursor: pointer; font-size: 14px;">
             🗑️
           </button>
@@ -13617,7 +13678,7 @@ class TempleOS {
               } else if (ttsRes?.effectsAvailable === false && !this.pedalboardPromptShown) {
                 // Show one-time prompt to install divine effects
                 this.pedalboardPromptShown = true;
-                const installCommand = ttsRes.effectsInstallCommand || 'python3 -m pip install pedalboard';
+                const installCommand = ttsRes.effectsInstallCommand || 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard';
                 const shouldInstall = confirm(
                   'Divine audio effects (reverb, echo, chorus) are not available.\n\n' +
                   'Install them for a more godly voice?\n\n' +
@@ -13782,7 +13843,72 @@ class TempleOS {
     if (win) {
       win.content = this.getWordOfGodContent();
       this.render();
+      // Re-attach toolbar button listeners after render
+      this.attachDivineToolbarListeners();
     }
+  }
+
+  private attachDivineToolbarListeners(): void {
+    // Use setTimeout to ensure DOM is updated after render
+    setTimeout(() => {
+      const voiceBtn = document.getElementById('divine-voice-btn');
+      const settingsBtn = document.getElementById('divine-settings-btn');
+      const clearBtn = document.getElementById('divine-clear-btn');
+
+      if (voiceBtn) {
+        voiceBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
+          if (window.electronAPI?.ttsSetEnabled) {
+            window.electronAPI.ttsSetEnabled(this.voiceOfGodEnabled).catch(() => { });
+          }
+          this.settingsManager.queueSaveConfig();
+          this.showNotification('Voice of God', this.voiceOfGodEnabled ? 'Divine voice enabled' : 'Divine voice disabled', 'info');
+          this.refreshDivineWindow();
+        };
+      }
+
+      if (settingsBtn) {
+        settingsBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('[Settings] Direct click handler - toggling from', this.voiceOfGodSettingsOpen);
+          this.voiceOfGodSettingsOpen = !this.voiceOfGodSettingsOpen;
+          this.refreshDivineWindow();
+        };
+      }
+
+      if (clearBtn) {
+        clearBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.divineMessages = [];
+          this.divineIsLoading = false;
+          this.divineStreamingResponse = '';
+          if (window.electronAPI?.ttsStop) {
+            window.electronAPI.ttsStop().catch(() => { });
+          }
+          if (window.electronAPI?.divineClearHistory) {
+            await window.electronAPI.divineClearHistory();
+          }
+          if (this.divineMessages.length === 0 && window.electronAPI?.divineGetGreeting) {
+            const greetingResult = await window.electronAPI.divineGetGreeting();
+            if (greetingResult?.greeting && this.divineMessages.length === 0) {
+              this.divineMessages.push({
+                role: 'assistant',
+                content: greetingResult.greeting,
+                timestamp: Date.now()
+              });
+              if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+                window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => { });
+              }
+            }
+          }
+          this.refreshDivineWindow();
+        };
+      }
+    }, 0);
   }
 
   private async downloadDivineModel(): Promise<void> {
@@ -17795,7 +17921,8 @@ echo "Downloading voice model (bryce-medium - deep male voice)..." && \\
 curl -L -o en_US-bryce-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx && \\
 curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json && \\
 rm piper.tar.gz && \\
-echo "Installing divine audio effects (Pedalboard)..." && \\
+echo "Installing pip and divine audio effects (Pedalboard)..." && \\
+sudo apt-get install -y python3-pip && \\
 python3 -m pip install pedalboard && \\
 echo "Done! Restart the app to use Voice of God with divine effects."`;
     } else {

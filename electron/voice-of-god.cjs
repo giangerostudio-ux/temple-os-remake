@@ -38,7 +38,7 @@ class VoiceOfGod {
 
         this.piperPath = isWindows
             ? path.join(this.piperDir, 'piper', 'piper.exe')
-            : path.join(this.piperDir, 'piper');
+            : path.join(this.piperDir, 'piper', 'piper');  // tar extracts to piper/ subdir
 
         console.log('[VoiceOfGod] Piper directory:', this.piperDir);
         console.log('[VoiceOfGod] Piper executable:', this.piperPath);

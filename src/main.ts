@@ -239,6 +239,17 @@ declare global {
       onDivineStreamChunk?: (callback: (data: { chunk: string; fullResponse: string }) => void) => () => void;
       onDivineCommandOutput?: (callback: (output: { type: string; data: string }) => void) => () => void;
 
+      // Voice of God TTS
+      ttsGetStatus?: () => Promise<{ available: boolean; modelLoaded: boolean; modelName: string | null; effectsAvailable: boolean; speaking: boolean; settings: Record<string, unknown> }>;
+      ttsSpeak?: (text: string) => Promise<{ success: boolean; reason?: string; error?: string }>;
+      ttsSpeakLong?: (text: string) => Promise<{ success: boolean; error?: string }>;
+      ttsStop?: () => Promise<{ success: boolean }>;
+      ttsIsSpeaking?: () => Promise<boolean>;
+      ttsUpdateSettings?: (settings: Record<string, unknown>) => Promise<{ success: boolean; settings: Record<string, unknown> }>;
+      ttsSetEnabled?: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>;
+      ttsTest?: () => Promise<{ success: boolean; error?: string }>;
+      ttsGetDefaults?: () => Promise<Record<string, unknown>>;
+      onTtsProgress?: (callback: (progress: { current: number; total: number; text: string }) => void) => () => void;
 
     };
   }
@@ -620,6 +631,9 @@ class TempleOS {
 
   private audioContext: AudioContext | null = null;
   private doNotDisturb = false;
+
+  // Voice of God TTS
+  private voiceOfGodEnabled = true; // Enabled by default
 
   // Lock Screen State
   private isLocked = false;
@@ -10178,6 +10192,10 @@ class TempleOS {
                   content: greetingResult.greeting,
                   timestamp: Date.now()
                 });
+                // Voice of God: Speak the greeting
+                if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+                }
               }
             }
             this.refreshDivineWindow();
@@ -10185,6 +10203,10 @@ class TempleOS {
             this.divineMessages = [];
             this.divineIsLoading = false; // Reset loading state
             this.divineStreamingResponse = ''; // Clear any streaming
+            // Stop any ongoing TTS
+            if (window.electronAPI?.ttsStop) {
+              window.electronAPI.ttsStop().catch(() => {});
+            }
             if (window.electronAPI?.divineClearHistory) {
               await window.electronAPI.divineClearHistory();
             }
@@ -10197,6 +10219,10 @@ class TempleOS {
                   content: greetingResult.greeting,
                   timestamp: Date.now()
                 });
+                // Voice of God: Speak the new greeting
+                if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+                  window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+                }
               }
             }
             this.refreshDivineWindow();
@@ -13345,6 +13371,10 @@ class TempleOS {
             content: greetingResult.greeting,
             timestamp: Date.now()
           });
+          // Voice of God: Speak the greeting if TTS is enabled
+          if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+            window.electronAPI.ttsSpeak(greetingResult.greeting).catch(() => {});
+          }
         }
       }
 
@@ -13418,21 +13448,37 @@ class TempleOS {
           dangerous: result.dangerous,
           timestamp: Date.now()
         });
+        // Voice of God: Speak the response if TTS is enabled
+        if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+          window.electronAPI.ttsSpeak(result.response).catch(() => {
+            // Silently ignore TTS errors
+          });
+        }
       } else {
         // Error response
+        const errorContent = `I apologize, my child. An error has occurred: ${result.error}\n\nThe feds probably interfered. Try again.`;
         this.divineMessages.push({
           role: 'assistant',
-          content: `I apologize, my child. An error has occurred: ${result.error}\n\nThe feds probably interfered. Try again.`,
+          content: errorContent,
           timestamp: Date.now()
         });
+        // Voice of God: Speak error if TTS enabled
+        if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+          window.electronAPI.ttsSpeak(errorContent).catch(() => {});
+        }
       }
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      const errorContent = `A divine error has occurred: ${errorMessage}\n\nEven the CIA couldn't cause this much trouble. Please ensure Ollama is running.`;
       this.divineMessages.push({
         role: 'assistant',
-        content: `A divine error has occurred: ${errorMessage}\n\nEven the CIA couldn't cause this much trouble. Please ensure Ollama is running.`,
+        content: errorContent,
         timestamp: Date.now()
       });
+      // Voice of God: Speak error if TTS enabled
+      if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
+        window.electronAPI.ttsSpeak(errorContent).catch(() => {});
+      }
     } finally {
       this.divineIsLoading = false;
       this.divineStreamingResponse = '';

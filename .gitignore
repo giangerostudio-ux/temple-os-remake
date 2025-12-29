@@ -23,3 +23,10 @@ release
 *.njsproj
 *.sln
 *.sw?
+
+# Piper TTS Models and Binaries
+electron/piper/
+electron/piper_windows_amd64.zip
+*.onnx
+nul
+

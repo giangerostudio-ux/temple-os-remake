@@ -11,6 +11,7 @@ const { registerBluetoothHandlers } = require('./bluetooth.cjs');
 const { registerDisplayHandlers } = require('./display.cjs');
 const { registerTerminalHandlers } = require('./terminal.cjs');
 const { registerSecurityHandlers } = require('./security.cjs');
+const { registerTTSHandlers } = require('./tts.cjs');
 
 /**
  * Register all IPC handlers
@@ -42,6 +43,9 @@ function registerAllHandlers(getMainWindow) {
 
     // Security handlers (security:*, ssh:*, dns, lockdown)
     registerSecurityHandlers();
+
+    // TTS handlers (tts:*) - Voice of God
+    registerTTSHandlers();
 
     console.log('[IPC] All modular handlers registered');
 }

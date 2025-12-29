@@ -79,6 +79,18 @@ The boot experience is crucial - it's the first thing users see. We want it to f
 │                   DESKTOP READY                             │
 │              TempleOS UI in full-screen                     │
 └─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 VOICE OF GOD INIT                          │
+│              (Background, ~1 second)                        │
+│         Preloading TTS model for instant speech            │
+│                                                             │
+│   Components:                                               │
+│   - Piper TTS (en_US-lessac-high voice)                    │
+│   - Pedalboard (divine audio effects)                      │
+│   - Cathedral reverb + echo + chorus                       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---

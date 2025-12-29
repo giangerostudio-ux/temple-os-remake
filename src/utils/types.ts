@@ -195,6 +195,17 @@ export interface TempleConfig {
     recentFiles?: string[];
     audio?: { defaultSink?: string | null; defaultSource?: string | null };
     mouse?: Partial<MouseSettings>;
+    voiceOfGod?: {
+        enabled?: boolean;
+        pitch?: number;          // -12 to 12 semitones
+        reverbRoom?: number;     // 0 to 1
+        reverbWet?: number;      // 0 to 1
+        echoDelay?: number;      // 0 to 500 ms
+        echoFeedback?: number;   // 0 to 1
+        chorusEnabled?: boolean;
+        chorusDepth?: number;    // 0 to 1
+        speed?: number;          // 0.5 to 2.0
+    };
     pinnedStart?: string[];
     pinnedTaskbar?: string[];
     desktopShortcuts?: Array<{ key: string; label: string }>;

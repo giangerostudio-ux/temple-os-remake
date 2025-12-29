@@ -52,6 +52,17 @@ export type SettingsHost = {
   audioDevices: { defaultSink: string | null; defaultSource: string | null };
   mouseSettings: MouseSettings;
 
+  // Voice of God TTS settings
+  voiceOfGodEnabled: boolean;
+  voiceOfGodPitch: number;
+  voiceOfGodReverbRoom: number;
+  voiceOfGodReverbWet: number;
+  voiceOfGodEchoDelay: number;
+  voiceOfGodEchoFeedback: number;
+  voiceOfGodChorusEnabled: boolean;
+  voiceOfGodChorusDepth: number;
+  voiceOfGodSpeed: number;
+
   // UI state persisted
   pinnedStart: string[];
   pinnedTaskbar: string[];
@@ -311,6 +322,19 @@ export class SettingsManager {
       if (typeof cfg.mouse.dpi === 'number') this.host.mouseSettings.dpi = Math.max(100, Math.min(20000, Math.round(cfg.mouse.dpi)));
     }
 
+    // Voice of God TTS settings
+    if (cfg.voiceOfGod) {
+      if (typeof cfg.voiceOfGod.enabled === 'boolean') this.host.voiceOfGodEnabled = cfg.voiceOfGod.enabled;
+      if (typeof cfg.voiceOfGod.pitch === 'number') this.host.voiceOfGodPitch = Math.max(-12, Math.min(12, cfg.voiceOfGod.pitch));
+      if (typeof cfg.voiceOfGod.reverbRoom === 'number') this.host.voiceOfGodReverbRoom = Math.max(0, Math.min(1, cfg.voiceOfGod.reverbRoom));
+      if (typeof cfg.voiceOfGod.reverbWet === 'number') this.host.voiceOfGodReverbWet = Math.max(0, Math.min(1, cfg.voiceOfGod.reverbWet));
+      if (typeof cfg.voiceOfGod.echoDelay === 'number') this.host.voiceOfGodEchoDelay = Math.max(0, Math.min(500, cfg.voiceOfGod.echoDelay));
+      if (typeof cfg.voiceOfGod.echoFeedback === 'number') this.host.voiceOfGodEchoFeedback = Math.max(0, Math.min(1, cfg.voiceOfGod.echoFeedback));
+      if (typeof cfg.voiceOfGod.chorusEnabled === 'boolean') this.host.voiceOfGodChorusEnabled = cfg.voiceOfGod.chorusEnabled;
+      if (typeof cfg.voiceOfGod.chorusDepth === 'number') this.host.voiceOfGodChorusDepth = Math.max(0, Math.min(1, cfg.voiceOfGod.chorusDepth));
+      if (typeof cfg.voiceOfGod.speed === 'number') this.host.voiceOfGodSpeed = Math.max(0.5, Math.min(2.0, cfg.voiceOfGod.speed));
+    }
+
     if (Array.isArray(cfg.pinnedStart)) {
       this.host.pinnedStart = cfg.pinnedStart.filter(k => typeof k === 'string').slice(0, 24);
     }
@@ -430,6 +454,19 @@ export class SettingsManager {
 
       audio: { defaultSink: this.host.audioDevices.defaultSink, defaultSource: this.host.audioDevices.defaultSource },
       mouse: { ...this.host.mouseSettings },
+
+      voiceOfGod: {
+        enabled: this.host.voiceOfGodEnabled,
+        pitch: this.host.voiceOfGodPitch,
+        reverbRoom: this.host.voiceOfGodReverbRoom,
+        reverbWet: this.host.voiceOfGodReverbWet,
+        echoDelay: this.host.voiceOfGodEchoDelay,
+        echoFeedback: this.host.voiceOfGodEchoFeedback,
+        chorusEnabled: this.host.voiceOfGodChorusEnabled,
+        chorusDepth: this.host.voiceOfGodChorusDepth,
+        speed: this.host.voiceOfGodSpeed,
+      },
+
       pinnedStart: this.host.pinnedStart.slice(0, 24),
       pinnedTaskbar: this.host.pinnedTaskbar.slice(0, 20),
       desktopShortcuts: this.host.desktopShortcuts.slice(0, 48),

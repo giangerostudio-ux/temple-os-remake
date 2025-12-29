@@ -297,4 +297,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('global-shortcut', handler);
         return () => ipcRenderer.removeListener('global-shortcut', handler);
     },
+
+    // ============================================
+    // VOICE OF GOD (TTS with divine effects)
+    // ============================================
+    ttsGetStatus: () => ipcRenderer.invoke('tts:getStatus'),
+    ttsGetDefaults: () => ipcRenderer.invoke('tts:getDefaults'),
+    ttsSpeak: (text) => ipcRenderer.invoke('tts:speak', text),
+    ttsSpeakLong: (text) => ipcRenderer.invoke('tts:speakLong', text),
+    ttsStop: () => ipcRenderer.invoke('tts:stop'),
+    ttsIsSpeaking: () => ipcRenderer.invoke('tts:isSpeaking'),
+    ttsUpdateSettings: (settings) => ipcRenderer.invoke('tts:updateSettings', settings),
+    ttsSetEnabled: (enabled) => ipcRenderer.invoke('tts:setEnabled', enabled),
+    ttsTest: () => ipcRenderer.invoke('tts:test'),
+    onTtsProgress: (callback) => {
+        const handler = (event, progress) => callback(progress);
+        ipcRenderer.on('tts:progress', handler);
+        return () => ipcRenderer.removeListener('tts:progress', handler);
+    },
 });

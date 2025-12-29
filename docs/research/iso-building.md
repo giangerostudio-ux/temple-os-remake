@@ -113,6 +113,16 @@ echo "=== Step 3: Copy Electron app ==="
 mkdir -p "$ROOTFS/opt/templeos"
 cp -r ../dist/electron-app/* "$ROOTFS/opt/templeos/"
 
+echo "=== Step 3b: Install Voice of God TTS ==="
+# Copy Piper TTS files
+mkdir -p "$ROOTFS/opt/templeos/piper"
+cp -r ../electron/piper/* "$ROOTFS/opt/templeos/piper/"
+
+# Install Python + Pedalboard for divine audio effects
+chroot "$ROOTFS" /bin/sh <<'EOF'
+pip3 install pedalboard numpy --break-system-packages
+EOF
+
 echo "=== Step 4: Configure system ==="
 # Add startup scripts, auto-login, etc.
 # (See alpine-linux-setup.md for details)
@@ -269,6 +279,18 @@ qemu-system-x86_64 -cdrom templeos-1.0.iso -m 2048 -enable-kvm \
 | Steam (optional) | ~500 MB |
 | **Total (no Steam)** | **~300 MB** |
 | **Total (with Steam)** | **~800 MB** |
+
+### Voice of God TTS (included)
+
+| Component | Size |
+|-----------|------|
+| Piper TTS binary | ~15 MB |
+| en_US-lessac-high.onnx | ~120 MB |
+| espeak-ng-data | ~25 MB |
+| Python + Pedalboard | ~50 MB |
+| **TTS Total** | **~210 MB** |
+
+> Updated total with TTS: ~510 MB (no Steam), ~1 GB (with Steam)
 
 ---
 

@@ -39,7 +39,9 @@
       "Bash(eslint:*)",
       "Bash(prettier:*)",
       "Bash(wc:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)"
     ]
   }
 }

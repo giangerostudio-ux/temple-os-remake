@@ -72,7 +72,11 @@ Collection of ideas and features for future development. Organized by category a
 - [ ] Bookmarks
 - [ ] Reading plans
 - [ ] Daily devotional
-- [ ] Audio Bible (text-to-speech or recordings)
+- [x] Audio Bible (text-to-speech) - **Voice of God with divine audio effects**
+  - Piper TTS with en_US-lessac-high voice model
+  - Cathedral reverb, echo, and chorus effects
+  - Pitch shift for deeper godly voice
+  - Fully customizable via Settings
 - [ ] Multiple translations (KJV, NIV, etc.)
 - [ ] Cross-references
 

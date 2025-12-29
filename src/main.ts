@@ -632,8 +632,16 @@ class TempleOS {
   private audioContext: AudioContext | null = null;
   private doNotDisturb = false;
 
-  // Voice of God TTS
-  private voiceOfGodEnabled = true; // Enabled by default
+  // Voice of God TTS settings
+  private voiceOfGodEnabled = true;
+  private voiceOfGodPitch = -2;
+  private voiceOfGodReverbRoom = 0.85;
+  private voiceOfGodReverbWet = 0.4;
+  private voiceOfGodEchoDelay = 120;
+  private voiceOfGodEchoFeedback = 0.2;
+  private voiceOfGodChorusEnabled = true;
+  private voiceOfGodChorusDepth = 0.25;
+  private voiceOfGodSpeed = 1.0;
 
   // Lock Screen State
   private isLocked = false;
@@ -1988,6 +1996,9 @@ class TempleOS {
   private async bootstrap(): Promise<void> {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
+
+    // Sync Voice of God TTS settings to backend
+    await this.syncTTSSettings();
 
     // INPUT FIX: Setup global listeners immediately
     this.setupGlobalInputListeners();
@@ -10226,6 +10237,22 @@ class TempleOS {
               }
             }
             this.refreshDivineWindow();
+          } else if (action === 'toggle-voice') {
+            // Toggle Voice of God TTS
+            this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
+            // Sync to backend
+            if (window.electronAPI?.ttsSetEnabled) {
+              window.electronAPI.ttsSetEnabled(this.voiceOfGodEnabled).catch(() => {});
+            }
+            // Save settings
+            this.settingsManager.queueSaveConfig();
+            // Show feedback
+            this.showNotification(
+              'Voice of God',
+              this.voiceOfGodEnabled ? 'Divine voice enabled' : 'Divine voice disabled',
+              'info'
+            );
+            this.refreshDivineWindow();
           }
           return;
         }
@@ -13184,6 +13211,9 @@ class TempleOS {
           <h1 class="divine-chat-title">✝ Word of God ✝</h1>
           <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
           <div class="divine-chat-actions">
+            <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'};">
+              ${this.voiceOfGodEnabled ? '🔊' : '🔇'} Voice
+            </button>
             <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">🗑️ Clear</button>
           </div>
         </div>
@@ -13450,9 +13480,12 @@ class TempleOS {
         });
         // Voice of God: Speak the response if TTS is enabled
         if (this.voiceOfGodEnabled && window.electronAPI?.ttsSpeak) {
-          window.electronAPI.ttsSpeak(result.response).catch(() => {
-            // Silently ignore TTS errors
-          });
+          console.log('[TTS] Speaking response...');
+          window.electronAPI.ttsSpeak(result.response)
+            .then(res => {
+              if (!res?.success) console.warn('[TTS] Speak failed:', res?.reason || res?.error);
+            })
+            .catch(err => console.error('[TTS] Speak error:', err));
         }
       } else {
         // Error response
@@ -17498,6 +17531,32 @@ class TempleOS {
   // ============================================
   private async loadConfig(): Promise<void> {
     await this.settingsManager.loadConfig();
+  }
+
+  /**
+   * Sync Voice of God TTS settings to the backend
+   */
+  private async syncTTSSettings(): Promise<void> {
+    if (!window.electronAPI?.ttsUpdateSettings) return;
+
+    try {
+      const settings = {
+        enabled: this.voiceOfGodEnabled,
+        pitch: this.voiceOfGodPitch,
+        reverbRoom: this.voiceOfGodReverbRoom,
+        reverbWet: this.voiceOfGodReverbWet,
+        echoDelay: this.voiceOfGodEchoDelay,
+        echoFeedback: this.voiceOfGodEchoFeedback,
+        chorusEnabled: this.voiceOfGodChorusEnabled,
+        chorusDepth: this.voiceOfGodChorusDepth,
+        speed: this.voiceOfGodSpeed
+      };
+
+      await window.electronAPI.ttsUpdateSettings(settings);
+      console.log('[TTS] Settings synced to backend:', settings.enabled ? 'enabled' : 'disabled');
+    } catch (e) {
+      console.error('[TTS] Failed to sync settings:', e);
+    }
   }
 
   private applyWallpaper(): void {

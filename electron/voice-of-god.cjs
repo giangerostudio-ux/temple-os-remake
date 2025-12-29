@@ -30,6 +30,8 @@ const DEFAULT_SETTINGS = {
 
 class VoiceOfGod {
     constructor(options = {}) {
+        console.log('[VoiceOfGod] Initializing Voice of God TTS...');
+
         // Determine paths based on platform
         const isWindows = process.platform === 'win32';
         const piperDir = path.join(__dirname, 'piper');
@@ -38,9 +40,16 @@ class VoiceOfGod {
             ? path.join(piperDir, 'piper', 'piper.exe')
             : path.join(piperDir, 'piper');
 
+        console.log('[VoiceOfGod] Piper directory:', piperDir);
+        console.log('[VoiceOfGod] Piper executable:', this.piperPath);
+        console.log('[VoiceOfGod] Piper exists:', fs.existsSync(this.piperPath));
+
         // Prefer lessac-high, fallback to bryce-medium
         const lessacPath = path.join(piperDir, 'en_US-lessac-high.onnx');
         const brycePath = path.join(piperDir, 'en_US-bryce-medium.onnx');
+
+        console.log('[VoiceOfGod] Looking for lessac-high at:', lessacPath);
+        console.log('[VoiceOfGod] Lessac exists:', fs.existsSync(lessacPath));
 
         if (fs.existsSync(lessacPath)) {
             this.modelPath = lessacPath;
@@ -75,6 +84,14 @@ class VoiceOfGod {
         if (!this.pedalboardAvailable) {
             console.warn('[VoiceOfGod] Pedalboard not available - divine effects disabled');
         }
+
+        // Summary log
+        console.log('[VoiceOfGod] Initialization complete:');
+        console.log('  - Piper available:', !!this.modelPath && fs.existsSync(this.piperPath));
+        console.log('  - Model:', this.modelPath ? path.basename(this.modelPath) : 'none');
+        console.log('  - Python available:', this.pythonAvailable);
+        console.log('  - Pedalboard available:', this.pedalboardAvailable);
+        console.log('  - TTS Enabled:', this.settings.enabled);
     }
 
     /**

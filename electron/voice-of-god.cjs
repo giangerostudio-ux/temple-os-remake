@@ -215,7 +215,7 @@ class VoiceOfGod {
             return {
                 success: true,
                 effectsAvailable: this.pedalboardAvailable,
-                effectsInstallCommand: 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard scipy numpy'
+                effectsInstallCommand: 'sudo apt-get install -y python3-pip && python3 -m pip install --break-system-packages pedalboard scipy numpy'
             };
         }
 

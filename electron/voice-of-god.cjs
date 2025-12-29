@@ -444,9 +444,9 @@ class VoiceOfGod {
                 player = 'afplay';
                 args = [audioPath];
             } else {
-                // Linux: Try aplay, then paplay, then ffplay
-                player = 'aplay';
-                args = ['-q', audioPath];
+                // Linux: Use paplay (PulseAudio) as primary, fallback to aplay/ffplay
+                player = 'paplay';
+                args = [audioPath];
             }
 
             console.log('[VoiceOfGod] Playing audio...');

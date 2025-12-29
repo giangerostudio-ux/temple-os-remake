@@ -3076,15 +3076,12 @@ body {
   padding: 10px;
   border-top: 1px solid rgba(0, 255, 65, 0.2);
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
+  flex-direction: column;
   gap: 8px;
-  width: 100%;
 }
 
 .sm-power-btn {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1;
   padding: 10px;
   background: rgba(0, 20, 0, 0.6);
   border: 1px solid rgba(0, 255, 65, 0.3);

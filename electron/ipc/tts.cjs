@@ -121,6 +121,17 @@ function registerTTSHandlers() {
         }
     });
 
+    /**
+     * Re-check if effects (pedalboard) are available
+     * Call this after installing pedalboard to update the status
+     */
+    ipcMain.handle('tts:recheckEffects', async () => {
+        console.log('[IPC:TTS] Rechecking effects availability...');
+        const available = voiceOfGod.recheckEffects();
+        console.log('[IPC:TTS] Effects now available:', available);
+        return { success: true, effectsAvailable: available };
+    });
+
     console.log('[IPC:TTS] TTS handlers registered');
 }
 

@@ -310,6 +310,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ttsUpdateSettings: (settings) => ipcRenderer.invoke('tts:updateSettings', settings),
     ttsSetEnabled: (enabled) => ipcRenderer.invoke('tts:setEnabled', enabled),
     ttsTest: () => ipcRenderer.invoke('tts:test'),
+    ttsRecheckEffects: () => ipcRenderer.invoke('tts:recheckEffects'),
     onTtsProgress: (callback) => {
         const handler = (event, progress) => callback(progress);
         ipcRenderer.on('tts:progress', handler);

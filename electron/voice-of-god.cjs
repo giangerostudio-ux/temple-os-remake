@@ -97,28 +97,57 @@ class VoiceOfGod {
     }
 
     /**
-     * Check if Python 3 is available
+     * Check if Python 3 is available and find the right executable
      */
     _checkPython() {
-        try {
-            const cmd = process.platform === 'win32' ? 'python --version' : 'python3 --version';
-            execSync(cmd, { stdio: 'pipe', timeout: 3000 });
-            return true;
-        } catch {
-            return false;
+        // Try multiple possible Python commands
+        const pythonCmds = process.platform === 'win32'
+            ? ['python', 'python3', 'py -3']
+            : ['python3', 'python', '/usr/bin/python3', '/usr/local/bin/python3'];
+
+        for (const cmd of pythonCmds) {
+            try {
+                const result = execSync(`${cmd} --version`, { stdio: 'pipe', timeout: 5000 });
+                const version = result.toString().trim();
+                console.log(`[VoiceOfGod] Found Python: ${cmd} -> ${version}`);
+                // Store the working Python command
+                this.pythonCmd = cmd.split(' ')[0]; // Handle 'py -3' case
+                if (cmd === 'py -3') {
+                    this.pythonArgs = ['-3'];
+                } else {
+                    this.pythonArgs = [];
+                }
+                return true;
+            } catch {
+                continue;
+            }
         }
+        console.log('[VoiceOfGod] No Python found');
+        return false;
     }
 
     /**
      * Check if Pedalboard is installed
      */
     _checkPedalboard() {
-        if (!this.pythonAvailable) return false;
+        if (!this.pythonAvailable) {
+            console.log('[VoiceOfGod] Pedalboard check: Python not available');
+            return false;
+        }
         try {
-            const python = process.platform === 'win32' ? 'python' : 'python3';
-            execSync(`${python} -c "import pedalboard"`, { stdio: 'pipe', timeout: 5000 });
+            const python = this.pythonCmd || (process.platform === 'win32' ? 'python' : 'python3');
+            const args = [...(this.pythonArgs || []), '-c', 'import pedalboard; print("OK")'];
+            const cmd = `${python} ${args.join(' ')}`;
+            console.log('[VoiceOfGod] Checking pedalboard with:', cmd);
+            const result = execSync(cmd, { stdio: 'pipe', timeout: 10000 });
+            console.log('[VoiceOfGod] Pedalboard check result:', result.toString().trim());
             return true;
-        } catch {
+        } catch (err) {
+            console.log('[VoiceOfGod] Pedalboard check failed:', err.message);
+            // Also log stderr if available
+            if (err.stderr) {
+                console.log('[VoiceOfGod] Pedalboard stderr:', err.stderr.toString());
+            }
             return false;
         }
     }
@@ -186,7 +215,7 @@ class VoiceOfGod {
             return {
                 success: true,
                 effectsAvailable: this.pedalboardAvailable,
-                effectsInstallCommand: 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard'
+                effectsInstallCommand: 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard scipy numpy'
             };
         }
 
@@ -293,7 +322,10 @@ class VoiceOfGod {
      * Process the audio queue
      */
     async _processQueue() {
+        console.log('[VoiceOfGod] _processQueue called, queue length:', this.audioQueue.length);
+
         if (this.audioQueue.length === 0) {
+            console.log('[VoiceOfGod] Queue empty, stopping');
             this.isProcessingQueue = false;
             this.speaking = false;
             return;
@@ -303,30 +335,42 @@ class VoiceOfGod {
         this.speaking = true;
 
         const text = this.audioQueue.shift();
+        console.log('[VoiceOfGod] Processing text:', text.substring(0, 50) + '...');
 
         try {
             // Generate raw TTS audio
+            console.log('[VoiceOfGod] Step 1: Generating TTS...');
             const rawAudioPath = await this._generateTTS(text);
+            console.log('[VoiceOfGod] Step 1 complete:', rawAudioPath);
 
             // Apply divine effects if available
             let finalAudioPath = rawAudioPath;
             if (this.pedalboardAvailable) {
+                console.log('[VoiceOfGod] Step 2: Applying divine effects...');
                 finalAudioPath = await this._applyDivineEffects(rawAudioPath);
+                console.log('[VoiceOfGod] Step 2 complete:', finalAudioPath);
+            } else {
+                console.log('[VoiceOfGod] Step 2: Skipping effects (not available)');
             }
 
             // Play the audio
+            console.log('[VoiceOfGod] Step 3: Playing audio...');
             await this._playAudio(finalAudioPath);
+            console.log('[VoiceOfGod] Step 3 complete');
 
             // Cleanup temp files
             this._cleanupTempFile(rawAudioPath);
             if (finalAudioPath !== rawAudioPath) {
                 this._cleanupTempFile(finalAudioPath);
             }
+            console.log('[VoiceOfGod] Cleanup complete');
         } catch (error) {
-            console.error('[VoiceOfGod] Error:', error.message);
+            console.error('[VoiceOfGod] Queue processing error:', error.message);
+            console.error('[VoiceOfGod] Error stack:', error.stack);
         }
 
         // Process next item in queue
+        console.log('[VoiceOfGod] Scheduling next queue item...');
         setImmediate(() => this._processQueue());
     }
 
@@ -394,9 +438,9 @@ class VoiceOfGod {
      * Apply divine audio effects using Python Pedalboard
      */
     async _applyDivineEffects(inputPath) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const outputPath = inputPath.replace('.wav', '_divine.wav');
-            const python = process.platform === 'win32' ? 'python' : 'python3';
+            const python = this.pythonCmd || (process.platform === 'win32' ? 'python' : 'python3');
             const effectsScript = path.join(__dirname, 'audio-effects.py');
 
             // Settings for the effects script
@@ -416,25 +460,52 @@ class VoiceOfGod {
             });
 
             console.log('[VoiceOfGod] Applying divine effects...');
+            console.log('[VoiceOfGod] Python:', python);
+            console.log('[VoiceOfGod] Script:', effectsScript);
+            console.log('[VoiceOfGod] Input:', inputPath, 'exists:', fs.existsSync(inputPath));
 
-            const proc = spawn(python, [effectsScript, inputPath, outputPath, settings]);
+            // Build args array (handle py -3 case)
+            const args = [...(this.pythonArgs || []), effectsScript, inputPath, outputPath, settings];
+            console.log('[VoiceOfGod] Spawn args:', args.slice(0, 3).join(' ') + '...');
+
+            const proc = spawn(python, args);
+
+            // Timeout: if effects take more than 30 seconds, use raw audio
+            const timeout = setTimeout(() => {
+                console.warn('[VoiceOfGod] Effects script timed out after 30s, using raw audio');
+                try { proc.kill('SIGTERM'); } catch { }
+                resolve(inputPath);
+            }, 30000);
 
             let stderr = '';
+            let stdout = '';
+
+            proc.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+
             proc.stderr.on('data', (data) => {
                 stderr += data.toString();
+                console.log('[VoiceOfGod] Effects stderr:', data.toString().trim());
             });
 
             proc.on('close', (code) => {
+                clearTimeout(timeout);
+                console.log('[VoiceOfGod] Effects script exit code:', code);
                 if (code === 0 && fs.existsSync(outputPath)) {
-                    console.log('[VoiceOfGod] Divine effects applied');
+                    const size = fs.statSync(outputPath).size;
+                    console.log('[VoiceOfGod] Divine effects applied, output size:', size);
                     resolve(outputPath);
                 } else {
-                    console.warn('[VoiceOfGod] Effects failed, using raw audio:', stderr);
+                    console.warn('[VoiceOfGod] Effects failed (code:', code, '), using raw audio');
+                    console.warn('[VoiceOfGod] stderr:', stderr);
                     resolve(inputPath); // Fallback to raw audio
                 }
             });
 
-            proc.on('error', () => {
+            proc.on('error', (err) => {
+                clearTimeout(timeout);
+                console.error('[VoiceOfGod] Effects spawn error:', err.message);
                 resolve(inputPath); // Fallback to raw audio
             });
         });

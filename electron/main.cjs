@@ -1618,6 +1618,13 @@ ipcMain.handle('tts:updateSettings', async (event, settings) => {
     return { success: true, settings: getVoiceOfGod().getStatus().settings };
 });
 
+ipcMain.handle('tts:recheckEffects', async () => {
+    const vog = getVoiceOfGod();
+    if (!vog) return { success: false, effectsAvailable: false };
+    const available = vog.recheckEffects();
+    return { success: true, effectsAvailable: available };
+});
+
 ipcMain.handle('tts:setEnabled', async (event, enabled) => {
     getVoiceOfGod().updateSettings({ enabled });
     return { success: true, enabled };

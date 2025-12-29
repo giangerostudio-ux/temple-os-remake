@@ -249,6 +249,7 @@ declare global {
       ttsSetEnabled?: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>;
       ttsTest?: () => Promise<{ success: boolean; error?: string }>;
       ttsGetDefaults?: () => Promise<Record<string, unknown>>;
+      ttsRecheckEffects?: () => Promise<{ success: boolean; effectsAvailable: boolean }>;
       onTtsProgress?: (callback: (progress: { current: number; total: number; text: string }) => void) => () => void;
 
     };
@@ -10349,7 +10350,21 @@ class TempleOS {
             this.voiceOfGodSettingsOpen = false;
             this.refreshDivineWindow();
             // Install pip first if needed (Ubuntu), then pedalboard
-            void this.installPedalboardViaTerminal('sudo apt-get install -y python3-pip && python3 -m pip install pedalboard');
+            void this.installPedalboardViaTerminal('sudo apt-get install -y python3-pip && python3 -m pip install pedalboard scipy numpy');
+          } else if (action === 'recheck-effects') {
+            // Manually recheck if effects are available
+            this.showNotification('Divine Effects', 'Checking effects availability...', 'divine');
+            window.electronAPI?.ttsRecheckEffects?.()
+              .then((result: { effectsAvailable?: boolean } | undefined) => {
+                if (result?.effectsAvailable) {
+                  this.showNotification('Divine Effects', '✓ Effects are available! Divine voice is active.', 'divine');
+                } else {
+                  this.showNotification('Divine Effects', '✗ Effects not found. Install pedalboard first.', 'divine');
+                }
+              })
+              .catch(() => {
+                this.showNotification('Divine Effects', 'Failed to check effects.', 'divine');
+              });
           }
           return;
         }
@@ -13380,8 +13395,11 @@ class TempleOS {
             <button class="divine-header-btn" data-divine-action="install-piper" style="width: 100%; margin-bottom: 4px; font-size: 10px; padding: 6px;">
               🎤 Install Voice (Piper)
             </button>
-            <button class="divine-header-btn" data-divine-action="install-effects" style="width: 100%; font-size: 10px; padding: 6px;">
+            <button class="divine-header-btn" data-divine-action="install-effects" style="width: 100%; margin-bottom: 4px; font-size: 10px; padding: 6px;">
               ✨ Install Effects (Pedalboard)
+            </button>
+            <button class="divine-header-btn" data-divine-action="recheck-effects" style="width: 100%; font-size: 10px; padding: 6px;">
+              🔄 Recheck Effects
             </button>
           </div>
         </div>
@@ -13678,7 +13696,7 @@ class TempleOS {
               } else if (ttsRes?.effectsAvailable === false && !this.pedalboardPromptShown) {
                 // Show one-time prompt to install divine effects
                 this.pedalboardPromptShown = true;
-                const installCommand = ttsRes.effectsInstallCommand || 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard';
+                const installCommand = ttsRes.effectsInstallCommand || 'sudo apt-get install -y python3-pip && python3 -m pip install pedalboard scipy numpy';
                 const shouldInstall = confirm(
                   'Divine audio effects (reverb, echo, chorus) are not available.\n\n' +
                   'Install them for a more godly voice?\n\n' +
@@ -17923,7 +17941,7 @@ curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voi
 rm piper.tar.gz && \\
 echo "Installing pip and divine audio effects (Pedalboard)..." && \\
 sudo apt-get install -y python3-pip && \\
-python3 -m pip install pedalboard && \\
+python3 -m pip install pedalboard scipy numpy && \\
 echo "Done! Restart the app to use Voice of God with divine effects."`;
     } else {
       // Windows: Use PowerShell to download
@@ -18009,13 +18027,35 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     const activeTab = this.terminalTabs[this.activeTerminalTab];
     if (activeTab?.ptyId && window.electronAPI?.writePty) {
       // Send the install command to the terminal
-      await window.electronAPI.writePty(activeTab.ptyId, installCommand + ' && echo "Divine effects installed! Restart the app."\n');
+      await window.electronAPI.writePty(activeTab.ptyId, installCommand + ' && echo "Divine effects installed!"\n');
 
       this.showNotification(
         'Divine Effects',
-        'Installing audio effects... Please wait for completion.',
+        'Installing audio effects... This may take a minute.',
         'divine'
       );
+
+      // Schedule recheck after install likely completes (30 seconds for pip install)
+      setTimeout(async () => {
+        try {
+          const result = await window.electronAPI?.ttsRecheckEffects?.();
+          if (result?.effectsAvailable) {
+            this.showNotification(
+              'Divine Effects',
+              'Effects installed successfully! Divine voice is now active.',
+              'divine'
+            );
+          } else {
+            this.showNotification(
+              'Divine Effects',
+              'Effects may still be installing. Try sending a message to test.',
+              'divine'
+            );
+          }
+        } catch (e) {
+          console.warn('[TTS] Failed to recheck effects:', e);
+        }
+      }, 30000);
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(installCommand).catch(() => {});

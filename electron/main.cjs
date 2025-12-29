@@ -1534,20 +1534,38 @@ ipcMain.handle('divine:getInstallInstructions', async () => {
 // ============================================
 // VOICE OF GOD TTS IPC HANDLERS
 // ============================================
-const { VoiceOfGod, DEFAULT_SETTINGS: TTS_DEFAULT_SETTINGS } = require('./voice-of-god.cjs');
+let VoiceOfGod = null;
+let TTS_DEFAULT_SETTINGS = {};
 let voiceOfGod = null;
+
+try {
+    const ttsModule = require('./voice-of-god.cjs');
+    VoiceOfGod = ttsModule.VoiceOfGod;
+    TTS_DEFAULT_SETTINGS = ttsModule.DEFAULT_SETTINGS;
+    console.log('[TTS] Voice of God module loaded successfully');
+} catch (e) {
+    console.error('[TTS] Failed to load voice-of-god.cjs:', e.message);
+}
 
 // Initialize VoiceOfGod lazily on first use
 function getVoiceOfGod() {
-    if (!voiceOfGod) {
+    if (!voiceOfGod && VoiceOfGod) {
         console.log('[TTS] Initializing VoiceOfGod...');
-        voiceOfGod = new VoiceOfGod();
+        try {
+            voiceOfGod = new VoiceOfGod();
+            console.log('[TTS] VoiceOfGod initialized successfully');
+        } catch (e) {
+            console.error('[TTS] VoiceOfGod initialization failed:', e.message);
+            return null;
+        }
     }
     return voiceOfGod;
 }
 
 ipcMain.handle('tts:getStatus', async () => {
-    return getVoiceOfGod().getStatus();
+    const vog = getVoiceOfGod();
+    if (!vog) return { available: false, error: 'TTS module not loaded' };
+    return vog.getStatus();
 });
 
 ipcMain.handle('tts:getDefaults', async () => {
@@ -1556,8 +1574,13 @@ ipcMain.handle('tts:getDefaults', async () => {
 
 ipcMain.handle('tts:speak', async (event, text) => {
     console.log('[IPC:TTS] tts:speak called with text length:', text?.length);
+    const vog = getVoiceOfGod();
+    if (!vog) {
+        console.error('[IPC:TTS] VoiceOfGod not available');
+        return { success: false, error: 'TTS module not loaded' };
+    }
     try {
-        const result = await getVoiceOfGod().speak(text);
+        const result = await vog.speak(text);
         console.log('[IPC:TTS] speak result:', result);
         return result;
     } catch (error) {

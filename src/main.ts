@@ -10244,6 +10244,21 @@ class TempleOS {
             voiceBtn.__toggling = true;
             setTimeout(() => { voiceBtn.__toggling = false; }, 500);
 
+            // Check if Piper TTS is available before enabling
+            if (!this.voiceOfGodEnabled && window.electronAPI?.ttsGetStatus) {
+              const status = await window.electronAPI.ttsGetStatus();
+              if (!status?.available) {
+                // Piper not installed - open terminal with install command
+                this.showNotification(
+                  'Voice of God - Setup Required',
+                  'Opening Terminal with install command...',
+                  'warning'
+                );
+                await this.installPiperViaTerminal();
+                return;
+              }
+            }
+
             this.voiceOfGodEnabled = !this.voiceOfGodEnabled;
             // Sync to backend
             if (window.electronAPI?.ttsSetEnabled) {
@@ -17625,6 +17640,94 @@ After installing, restart the application for the divine voice to work.
       if (shouldInstall) {
         window.electronAPI.divineOpenUrl(instructions.downloadUrl).catch(() => { });
       }
+    }
+  }
+
+  /**
+   * Install Piper TTS via the Terminal app
+   * Opens the terminal and types in the download/install command
+   */
+  private async installPiperViaTerminal(): Promise<void> {
+    // Determine the install command based on platform
+    const isLinux = navigator.platform.toLowerCase().includes('linux');
+
+    // Get the piper directory path from electron
+    const piperDir = 'electron/piper';  // Relative path in project
+
+    let installCommand: string;
+
+    if (isLinux) {
+      // Linux: Use curl to download and extract Piper
+      installCommand = `# Piper TTS Installation for Voice of God
+# This will download Piper TTS and the voice model
+# Press Enter to continue, or Ctrl+C to cancel
+
+mkdir -p "${piperDir}" && cd "${piperDir}" && \\
+echo "Downloading Piper TTS..." && \\
+curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz && \\
+tar xzf piper.tar.gz && \\
+echo "Downloading voice model (lessac-high)..." && \\
+curl -L -o en_US-lessac-high.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && \\
+curl -L -o en_US-lessac-high.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json && \\
+rm piper.tar.gz && \\
+echo "Done! Restart the app to use Voice of God."`;
+    } else {
+      // Windows: Use PowerShell to download
+      installCommand = `# Piper TTS Installation for Voice of God
+# This will download Piper TTS and the voice model
+# Press Enter to continue
+
+$piperDir = "electron\\piper"
+New-Item -ItemType Directory -Force -Path $piperDir | Out-Null
+cd $piperDir
+
+Write-Host "Downloading Piper TTS..."
+Invoke-WebRequest -Uri "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip" -OutFile "piper.zip"
+
+Write-Host "Extracting..."
+Expand-Archive -Path "piper.zip" -DestinationPath "." -Force
+
+Write-Host "Downloading voice model (lessac-high)..."
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx" -OutFile "en_US-lessac-high.onnx"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json" -OutFile "en_US-lessac-high.onnx.json"
+
+Remove-Item "piper.zip"
+Write-Host "Done! Restart the app to use Voice of God."`;
+    }
+
+    // Open Terminal app if not already open
+    let terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+    if (!terminalWin) {
+      this.openApp('terminal');
+      // Wait for terminal to initialize
+      await new Promise(resolve => setTimeout(resolve, 800));
+      terminalWin = this.windows.find(w => w.id.startsWith('terminal'));
+    }
+
+    // Focus terminal
+    if (terminalWin) {
+      this.focusWindow(terminalWin.id);
+    }
+
+    // Get the active terminal tab's ptyId and send the command
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const activeTab = this.terminalTabs[this.activeTerminalTab];
+    if (activeTab?.ptyId && window.electronAPI?.writePty) {
+      // Send the install command to the terminal
+      await window.electronAPI.writePty(activeTab.ptyId, installCommand + '\n');
+
+      this.showNotification(
+        'Voice of God',
+        'Install command ready in Terminal. Run it to install Piper TTS.',
+        'divine'
+      );
+    } else {
+      // Fallback: show instructions via notification
+      this.showNotification(
+        'Voice of God - Manual Install Required',
+        'Please install Piper TTS manually from github.com/rhasspy/piper',
+        'warning'
+      );
     }
   }
 

@@ -17659,9 +17659,9 @@ mkdir -p "${piperDir}" && cd "${piperDir}" && \\
 echo "Downloading Piper TTS..." && \\
 curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz && \\
 tar xzf piper.tar.gz && \\
-echo "Downloading voice model (lessac-high)..." && \\
-curl -L -o en_US-lessac-high.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && \\
-curl -L -o en_US-lessac-high.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json && \\
+echo "Downloading voice model (bryce-medium - deep male voice)..." && \\
+curl -L -o en_US-bryce-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx && \\
+curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json && \\
 rm piper.tar.gz && \\
 echo "Installing divine audio effects (Pedalboard)..." && \\
 pip3 install pedalboard && \\

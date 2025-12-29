@@ -8283,6 +8283,11 @@ class TempleOS {
           this.showNotification('Security', 'Duress passwords do not match', 'warning');
           return;
         }
+        // CRITICAL: Duress password must not equal real password or PIN!
+        if (val && (val === this.lockPassword || val === this.lockPin)) {
+          this.showNotification('Security', 'Duress password cannot be the same as your real password or PIN!', 'error');
+          return;
+        }
         if (input) {
           this.setDuressPassword(input.value);
         }
@@ -8301,9 +8306,19 @@ class TempleOS {
           this.showNotification('Lock Screen', 'Passwords do not match', 'warning');
           return;
         }
+        // Prevent empty password - this would break the lock screen!
+        if (!val) {
+          this.showNotification('Lock Screen', 'Password cannot be empty!', 'error');
+          return;
+        }
+        // Prevent setting password same as duress password
+        if (this.duressPassword && val === this.duressPassword) {
+          this.showNotification('Lock Screen', 'Password cannot be the same as your duress password!', 'error');
+          return;
+        }
         this.lockPassword = val;
         this.queueSaveConfig();
-        this.showNotification('Lock Screen', val ? 'Password saved' : 'Password cleared (unlock may be weakened)', val ? 'divine' : 'warning');
+        this.showNotification('Lock Screen', 'Password saved', 'divine');
         if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
         return;
       }
@@ -8324,9 +8339,19 @@ class TempleOS {
           this.showNotification('Lock Screen', 'PINs do not match', 'warning');
           return;
         }
+        // Prevent empty PIN - this would break the lock screen!
+        if (!raw) {
+          this.showNotification('Lock Screen', 'PIN cannot be empty!', 'error');
+          return;
+        }
+        // Prevent setting PIN same as duress password
+        if (this.duressPassword && raw === this.duressPassword) {
+          this.showNotification('Lock Screen', 'PIN cannot be the same as your duress password!', 'error');
+          return;
+        }
         this.lockPin = raw;
         this.queueSaveConfig();
-        this.showNotification('Lock Screen', raw ? 'PIN saved' : 'PIN cleared', 'divine');
+        this.showNotification('Lock Screen', 'PIN saved', 'divine');
         if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
         return;
       }

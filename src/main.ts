@@ -10375,6 +10375,9 @@ class TempleOS {
           const setting = settingSlider.dataset.divineSetting;
           const value = parseInt(settingSlider.value, 10) / 100;
 
+          // Stop current speech so new settings take effect immediately
+          window.electronAPI?.ttsStop?.().catch(() => { });
+
           if (setting === 'volume') {
             this.voiceOfGodVolume = Math.max(0, Math.min(2.0, value));
             if (window.electronAPI?.ttsUpdateSettings) {

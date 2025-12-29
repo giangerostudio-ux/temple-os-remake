@@ -28,8 +28,7 @@ const ollamaManager = new OllamaManager();
 const divineAssistant = new DivineAssistant();
 const commandExecutor = new CommandExecutor();
 
-// Register TTS IPC handlers
-registerTTSHandlers();
+// TTS handlers registered in app.whenReady()
 
 
 // Allow loading local icons even when the renderer is on http:// (dev server).
@@ -7383,6 +7382,9 @@ function stopKeybindWatcher() {
 }
 
 app.whenReady().then(() => {
+    // Register TTS handlers (must be after app ready)
+    registerTTSHandlers();
+
     createWindow(); // Initial window creation
 
     // ============================================

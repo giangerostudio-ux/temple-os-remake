@@ -134,22 +134,48 @@ class VoiceOfGod {
             console.log('[VoiceOfGod] Pedalboard check: Python not available');
             return false;
         }
-        try {
-            const python = this.pythonCmd || (process.platform === 'win32' ? 'python' : 'python3');
-            const args = [...(this.pythonArgs || []), '-c', 'import pedalboard; print("OK")'];
-            const cmd = `${python} ${args.join(' ')}`;
-            console.log('[VoiceOfGod] Checking pedalboard with:', cmd);
-            const result = execSync(cmd, { stdio: 'pipe', timeout: 10000 });
-            console.log('[VoiceOfGod] Pedalboard check result:', result.toString().trim());
-            return true;
-        } catch (err) {
-            console.log('[VoiceOfGod] Pedalboard check failed:', err.message);
-            // Also log stderr if available
-            if (err.stderr) {
-                console.log('[VoiceOfGod] Pedalboard stderr:', err.stderr.toString());
+
+        // Try multiple Python paths and methods
+        const pythonPaths = process.platform === 'win32'
+            ? [this.pythonCmd, 'python', 'python3']
+            : [this.pythonCmd, '/usr/bin/python3', 'python3', 'python'];
+
+        for (const python of pythonPaths) {
+            if (!python) continue;
+            try {
+                // Use shell: true to get proper environment
+                const env = { ...process.env };
+
+                const cmd = `${python} -c "import pedalboard; print('OK')"`;
+                console.log('[VoiceOfGod] Checking pedalboard with:', cmd);
+
+                const result = execSync(cmd, {
+                    stdio: 'pipe',
+                    timeout: 10000,
+                    shell: true,
+                    env: env
+                });
+
+                const output = result.toString().trim();
+                console.log('[VoiceOfGod] Pedalboard check result:', output);
+
+                if (output === 'OK') {
+                    // Store which Python works
+                    this.pythonCmd = python;
+                    console.log('[VoiceOfGod] Pedalboard found using:', python);
+                    return true;
+                }
+            } catch (err) {
+                console.log(`[VoiceOfGod] Pedalboard check failed with ${python}:`, err.message);
+                if (err.stderr) {
+                    console.log('[VoiceOfGod] stderr:', err.stderr.toString().substring(0, 200));
+                }
+                // Continue to try next Python path
             }
-            return false;
         }
+
+        console.log('[VoiceOfGod] Pedalboard not found in any Python installation');
+        return false;
     }
 
     /**
@@ -468,7 +494,11 @@ class VoiceOfGod {
             const args = [...(this.pythonArgs || []), effectsScript, inputPath, outputPath, settings];
             console.log('[VoiceOfGod] Spawn args:', args.slice(0, 3).join(' ') + '...');
 
-            const proc = spawn(python, args);
+            // Use shell: true to get proper environment (same as check)
+            const proc = spawn(python, args, {
+                shell: true,
+                env: process.env
+            });
 
             // Timeout: if effects take more than 30 seconds, use raw audio
             const timeout = setTimeout(() => {

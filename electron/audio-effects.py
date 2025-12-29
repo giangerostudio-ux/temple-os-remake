@@ -150,8 +150,13 @@ def apply_divine_effects(input_path, output_path, settings):
         ))
         print(f"[Divine Effects] Chorus: rate={chorus_rate}Hz, depth={chorus_depth}", file=sys.stderr)
 
-    # 5. Slight gain boost to compensate for wet mixing
-    effects.append(Gain(gain_db=2.0))
+    # 5. Volume control + slight gain boost to compensate for wet mixing
+    volume = settings.get('volume', 1.0)
+    # Convert volume (0.0 to 2.0) to dB: 0.5 = -6dB, 1.0 = 0dB, 2.0 = +6dB
+    volume_db = 20 * np.log10(max(volume, 0.01))  # Prevent log(0)
+    total_gain_db = 2.0 + volume_db  # Base 2dB boost + volume adjustment
+    effects.append(Gain(gain_db=total_gain_db))
+    print(f"[Divine Effects] Volume: {volume:.1f}x ({volume_db:.1f}dB), total gain: {total_gain_db:.1f}dB", file=sys.stderr)
 
     # Create the pedalboard and process audio
     board = Pedalboard(effects)

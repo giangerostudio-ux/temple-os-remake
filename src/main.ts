@@ -642,6 +642,8 @@ class TempleOS {
   private voiceOfGodChorusEnabled = true;
   private voiceOfGodChorusDepth = 0.25;
   private voiceOfGodSpeed = 1.15; // 15% faster than default
+  private voiceOfGodVolume = 1.0; // Volume (0.0 to 2.0, 1.0 = normal)
+  private voiceOfGodSettingsOpen = false; // Track settings dropdown state
   private pedalboardPromptShown = false; // Track if we've shown the effects install popup
 
   // Lock Screen State
@@ -10260,6 +10262,38 @@ class TempleOS {
               'info'
             );
             this.refreshDivineWindow();
+          } else if (action === 'toggle-settings') {
+            // Toggle settings dropdown
+            this.voiceOfGodSettingsOpen = !this.voiceOfGodSettingsOpen;
+            this.refreshDivineWindow();
+          } else if (action === 'install-piper') {
+            // Install Piper TTS via terminal
+            void this.installPiperViaTerminal();
+            this.voiceOfGodSettingsOpen = false;
+            this.refreshDivineWindow();
+          } else if (action === 'install-effects') {
+            // Install Pedalboard effects via terminal
+            void this.installPedalboardViaTerminal('pip3 install pedalboard');
+            this.voiceOfGodSettingsOpen = false;
+            this.refreshDivineWindow();
+          }
+          return;
+        }
+
+        // Volume slider input
+        const volumeSlider = target.closest('[data-divine-action="set-volume"]') as HTMLInputElement;
+        if (volumeSlider && volumeSlider.tagName === 'INPUT') {
+          const newVolume = parseInt(volumeSlider.value, 10) / 100;
+          this.voiceOfGodVolume = Math.max(0, Math.min(2.0, newVolume));
+          // Sync to backend
+          if (window.electronAPI?.ttsUpdateSettings) {
+            window.electronAPI.ttsUpdateSettings({ volume: this.voiceOfGodVolume }).catch(() => { });
+          }
+          this.settingsManager.queueSaveConfig();
+          // Update the label without full refresh (to prevent slider jumping)
+          const label = volumeSlider.parentElement?.querySelector('label');
+          if (label) {
+            label.textContent = `🔊 Volume: ${Math.round(this.voiceOfGodVolume * 100)}%`;
           }
           return;
         }
@@ -13217,12 +13251,34 @@ class TempleOS {
         <div class="divine-chat-header">
           <h1 class="divine-chat-title">✝ Word of God ✝</h1>
           <div class="divine-chat-subtitle">"Ask, and it shall be given you." - Matthew 7:7</div>
-          <div class="divine-chat-actions" style="display: flex; justify-content: space-between; width: 100%;">
-            <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'}; margin-left: 10px;">
+          <div class="divine-chat-actions" style="display: flex; justify-content: center; gap: 8px; width: 100%; margin-top: 8px;">
+            <button class="divine-header-btn divine-voice-toggle" data-divine-action="toggle-voice" title="${this.voiceOfGodEnabled ? 'Disable Voice of God' : 'Enable Voice of God'}" style="background: ${this.voiceOfGodEnabled ? 'rgba(0,255,65,0.2)' : 'transparent'};">
               ${this.voiceOfGodEnabled ? '🔊' : '🔇'} Voice
+            </button>
+            <button class="divine-header-btn divine-settings-toggle" data-divine-action="toggle-settings" title="Voice Settings" style="background: ${this.voiceOfGodSettingsOpen ? 'rgba(0,255,65,0.2)' : 'transparent'};">
+              ⚙️ Settings
             </button>
             <button class="divine-header-btn" data-divine-action="clear" title="Clear conversation">🗑️ Clear</button>
           </div>
+          ${this.voiceOfGodSettingsOpen ? `
+          <div class="divine-settings-panel" style="background: rgba(0,0,0,0.8); border: 1px solid #00ff41; border-radius: 4px; padding: 12px; margin-top: 8px;">
+            <div class="divine-settings-section" style="margin-bottom: 12px;">
+              <label style="display: block; color: #00ff41; font-size: 12px; margin-bottom: 6px;">🔊 Volume: ${Math.round(this.voiceOfGodVolume * 100)}%</label>
+              <input type="range" min="0" max="200" value="${Math.round(this.voiceOfGodVolume * 100)}"
+                data-divine-action="set-volume"
+                style="width: 100%; accent-color: #00ff41; cursor: pointer;" />
+            </div>
+            <div class="divine-settings-section" style="border-top: 1px solid #00ff4133; padding-top: 10px;">
+              <div style="color: #00ff41; font-size: 11px; margin-bottom: 8px; opacity: 0.8;">Installation</div>
+              <button class="divine-header-btn" data-divine-action="install-piper" style="width: 100%; margin-bottom: 6px; font-size: 11px;">
+                🎤 Install/Reinstall Voice (Piper TTS)
+              </button>
+              <button class="divine-header-btn" data-divine-action="install-effects" style="width: 100%; font-size: 11px;">
+                ✨ Install Divine Effects (Pedalboard)
+              </button>
+            </div>
+          </div>
+          ` : ''}
         </div>
         
         <div class="divine-chat-messages" id="divine-messages">

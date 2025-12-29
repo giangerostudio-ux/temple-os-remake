@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS = {
     chorusRate: 0.4,        // Chorus LFO rate in Hz
     chorusDepth: 0.25,      // Chorus depth
     chorusMix: 0.2,         // Chorus mix level
-    speed: 1.0              // Speaking speed multiplier
+    speed: 1.0,             // Speaking speed multiplier
+    volume: 1.0             // Volume level (0.0 to 2.0, 1.0 = normal)
 };
 
 class VoiceOfGod {
@@ -400,7 +401,8 @@ class VoiceOfGod {
                 chorusEnabled: this.settings.chorusEnabled,
                 chorusRate: this.settings.chorusRate,
                 chorusDepth: this.settings.chorusDepth,
-                chorusMix: this.settings.chorusMix
+                chorusMix: this.settings.chorusMix,
+                volume: this.settings.volume
             });
 
             console.log('[VoiceOfGod] Applying divine effects...');

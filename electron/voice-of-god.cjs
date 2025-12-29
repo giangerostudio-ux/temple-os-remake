@@ -25,8 +25,8 @@ const DEFAULT_SETTINGS = {
     chorusRate: 0.3,        // Chorus LFO rate in Hz (was 0.4)
     chorusDepth: 0.15,      // Chorus depth (was 0.25)
     chorusMix: 0.12,        // Chorus mix level (was 0.2)
-    speed: 1.35,            // Speaking speed multiplier (35% faster)
-    volume: 1.0             // Volume level (0.0 to 2.0, 1.0 = normal)
+    speed: 1.33,            // Speaking speed multiplier (33% faster)
+    volume: 0.4             // Volume level (0.0 to 2.0, 0.4 = 40%)
 };
 
 class VoiceOfGod {
@@ -233,6 +233,8 @@ class VoiceOfGod {
         // Check if Piper is available
         if (this.modelPath && fs.existsSync(this.piperPath)) {
             console.log('[VoiceOfGod] Piper available! Queueing text...');
+            // Stop any currently playing speech first to prevent overlap
+            this.stop();
             // Use Piper TTS
             this.audioQueue.push(cleanedText);
             if (!this.isProcessingQueue) {

@@ -21,7 +21,14 @@ const { DivineAssistant } = require('./divine-assistant.cjs');
 const { CommandExecutor } = require('./command-executor.cjs');
 
 // Voice of God TTS
-const { registerTTSHandlers } = require('./ipc/tts.cjs');
+let registerTTSHandlers = null;
+try {
+    const ttsModule = require('./ipc/tts.cjs');
+    registerTTSHandlers = ttsModule.registerTTSHandlers;
+    console.log('[MAIN] TTS module loaded successfully');
+} catch (err) {
+    console.error('[MAIN] FAILED to load TTS module:', err.message, err.stack);
+}
 
 // Initialize Divine Assistant components
 const ollamaManager = new OllamaManager();
@@ -7385,11 +7392,15 @@ app.whenReady().then(() => {
     console.log('[APP] app.whenReady() triggered - registering TTS handlers...');
 
     // Register TTS handlers (must be after app ready)
-    try {
-        registerTTSHandlers();
-        console.log('[APP] TTS handlers registration complete');
-    } catch (err) {
-        console.error('[APP] TTS handlers registration FAILED:', err.message, err.stack);
+    if (typeof registerTTSHandlers === 'function') {
+        try {
+            registerTTSHandlers();
+            console.log('[APP] TTS handlers registration complete');
+        } catch (err) {
+            console.error('[APP] TTS handlers registration FAILED:', err.message, err.stack);
+        }
+    } else {
+        console.error('[APP] TTS handlers NOT registered - registerTTSHandlers is not a function (module load failed)');
     }
 
     createWindow(); // Initial window creation

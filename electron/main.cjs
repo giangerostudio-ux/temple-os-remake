@@ -3072,19 +3072,56 @@ body {
 .sm-quick-link { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; color: #c9d1d9; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .sm-quick-link:hover { background: rgba(0, 255, 65, 0.15); color: #00ff41; }
 
-.sm-power, .sm-right .sm-power, div.sm-power { padding: 10px; border-top: 1px solid rgba(0, 255, 65, 0.2); display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 8px; justify-content: stretch !important; align-items: center !important; width: 100% !important; }
-.sm-power > * { flex: 1 1 0 !important; min-width: 0 !important; }
-
+.sm-power {
+  padding: 10px;
+  border-top: 1px solid rgba(0, 255, 65, 0.2);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+}
 
 .sm-power-btn {
-    flex: 1; padding: 10px; background: rgba(0, 20, 0, 0.8) !important; border: 1px solid rgba(0, 255, 65, 0.35) !important;
-    color: #E0F7E9 !important; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s ease;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px;
+  background: rgba(0, 20, 0, 0.6);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: #E0F7E9;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
-.sm-power-btn:hover { background: rgba(0, 255, 65, 0.18) !important; border-color: #00ff41 !important; color: #fff !important; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3) !important; }
-/* Danger buttons turn red ONLY on hover */
-.sm-power-btn[data-power="restart"]:hover,
-.sm-power-btn[data-power="shutdown"]:hover {
-    background: rgba(100, 0, 0, 0.95) !important; border-color: #FF0000 !important; color: #fff !important; box-shadow: 0 0 15px rgba(255, 0, 0, 0.5) !important;
+
+.sm-power-btn .emoji-icon {
+  transition: all 0.2s ease;
+}
+
+.sm-power-btn.lock:hover {
+  background: rgba(0, 40, 0, 0.9);
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+}
+
+.sm-power-btn.restart:hover,
+.sm-power-btn.shutdown:hover {
+  background: rgba(50, 0, 0, 0.9);
+  border-color: #FF4444;
+  color: #FF4444;
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+}
+
+.sm-power-btn:hover .emoji-icon {
+  transform: scale(1.15);
+  filter: brightness(1.4) drop-shadow(0 0 6px currentColor);
 }
 
 /* Phosphor icons styling */
@@ -3159,10 +3196,10 @@ body {
             <div class="sm-quick-link" data-action="quicklink" data-path="Pictures"><i class="ph-fill ph-image"></i> Pictures</div>
             <div class="sm-quick-link" data-action="quicklink" data-path="settings"><i class="ph-fill ph-gear"></i> Settings</div>
         </div>
-        <div class="sm-power" style="display:flex !important; flex-direction:row !important; gap:8px;">
-            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="lock">🔒 Lock</button>
-            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="restart">🔄 Restart</button>
-            <button class="sm-power-btn" style="flex:1;" data-action="power" data-power="shutdown">🔴 Shutdown</button>
+        <div class="sm-power">
+            <button class="sm-power-btn lock" data-action="power" data-power="lock"><span class="emoji-icon">🔒</span> Lock</button>
+            <button class="sm-power-btn restart" data-action="power" data-power="restart"><span class="emoji-icon">🔄</span> Restart</button>
+            <button class="sm-power-btn shutdown" data-action="power" data-power="shutdown"><span class="emoji-icon">🛑</span> Shutdown</button>
         </div>
     </div>
 </div>

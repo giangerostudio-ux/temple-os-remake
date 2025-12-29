@@ -1532,11 +1532,92 @@ ipcMain.handle('divine:getInstallInstructions', async () => {
 });
 
 // ============================================
+// VOICE OF GOD TTS IPC HANDLERS
+// ============================================
+const { VoiceOfGod, DEFAULT_SETTINGS: TTS_DEFAULT_SETTINGS } = require('./voice-of-god.cjs');
+let voiceOfGod = null;
+
+// Initialize VoiceOfGod lazily on first use
+function getVoiceOfGod() {
+    if (!voiceOfGod) {
+        console.log('[TTS] Initializing VoiceOfGod...');
+        voiceOfGod = new VoiceOfGod();
+    }
+    return voiceOfGod;
+}
+
+ipcMain.handle('tts:getStatus', async () => {
+    return getVoiceOfGod().getStatus();
+});
+
+ipcMain.handle('tts:getDefaults', async () => {
+    return TTS_DEFAULT_SETTINGS;
+});
+
+ipcMain.handle('tts:speak', async (event, text) => {
+    console.log('[IPC:TTS] tts:speak called with text length:', text?.length);
+    try {
+        const result = await getVoiceOfGod().speak(text);
+        console.log('[IPC:TTS] speak result:', result);
+        return result;
+    } catch (error) {
+        console.error('[IPC:TTS] Speak error:', error.message);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('tts:speakLong', async (event, text) => {
+    try {
+        await getVoiceOfGod().speakLong(text, (progress) => {
+            // Send progress updates to renderer
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('tts:progress', progress);
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('[IPC:TTS] SpeakLong error:', error.message);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('tts:stop', async () => {
+    getVoiceOfGod().stop();
+    return { success: true };
+});
+
+ipcMain.handle('tts:isSpeaking', async () => {
+    return getVoiceOfGod().isSpeaking();
+});
+
+ipcMain.handle('tts:updateSettings', async (event, settings) => {
+    getVoiceOfGod().updateSettings(settings);
+    return { success: true, settings: getVoiceOfGod().getStatus().settings };
+});
+
+ipcMain.handle('tts:setEnabled', async (event, enabled) => {
+    getVoiceOfGod().updateSettings({ enabled });
+    return { success: true, enabled };
+});
+
+ipcMain.handle('tts:test', async () => {
+    const testPhrase = "Blessed are those who hear the Word of God and keep it.";
+    try {
+        return await getVoiceOfGod().speak(testPhrase);
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+console.log('[TTS] TTS IPC handlers registered');
+
+// ============================================
 // X11 WINDOW BRIDGE IPC (EWMH via wmctrl/xprop)
 // ============================================
 function isValidXidHex(x) {
     return typeof x === 'string' && /^0x[0-9a-fA-F]+$/.test(x);
 }
+
 
 ipcMain.handle('x11:supported', async () => {
     return { success: true, supported: !!ewmhBridge?.supported };

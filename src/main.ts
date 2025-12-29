@@ -10350,7 +10350,7 @@ class TempleOS {
             this.voiceOfGodSettingsOpen = false;
             this.refreshDivineWindow();
             // Install pip first if needed (Ubuntu), then pedalboard
-            void this.installPedalboardViaTerminal('sudo apt-get install -y python3-pip && python3 -m pip install --break-system-packages pedalboard scipy numpy');
+            void this.installPedalboardViaTerminal('sudo apt-get install -y python3-pip && sudo python3 -m pip install --break-system-packages pedalboard scipy numpy');
           } else if (action === 'recheck-effects') {
             // Manually recheck if effects are available
             this.showNotification('Divine Effects', 'Checking effects availability...', 'divine');
@@ -13696,7 +13696,7 @@ class TempleOS {
               } else if (ttsRes?.effectsAvailable === false && !this.pedalboardPromptShown) {
                 // Show one-time prompt to install divine effects
                 this.pedalboardPromptShown = true;
-                const installCommand = ttsRes.effectsInstallCommand || 'sudo apt-get install -y python3-pip && python3 -m pip install --break-system-packages pedalboard scipy numpy';
+                const installCommand = ttsRes.effectsInstallCommand || 'sudo apt-get install -y python3-pip && sudo python3 -m pip install --break-system-packages pedalboard scipy numpy';
                 const shouldInstall = confirm(
                   'Divine audio effects (reverb, echo, chorus) are not available.\n\n' +
                   'Install them for a more godly voice?\n\n' +
@@ -17941,7 +17941,7 @@ curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voi
 rm piper.tar.gz && \\
 echo "Installing pip and divine audio effects (Pedalboard)..." && \\
 sudo apt-get install -y python3-pip && \\
-python3 -m pip install --break-system-packages pedalboard scipy numpy && \\
+sudo python3 -m pip install --break-system-packages pedalboard scipy numpy && \\
 echo "Done! Restart the app to use Voice of God with divine effects."`;
     } else {
       // Windows: Use PowerShell to download

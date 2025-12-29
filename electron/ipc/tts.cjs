@@ -44,8 +44,11 @@ function registerTTSHandlers() {
      * @param {string} text - Text to speak
      */
     ipcMain.handle('tts:speak', async (event, text) => {
+        console.log('[IPC:TTS] tts:speak called with text length:', text?.length);
         try {
-            return await voiceOfGod.speak(text);
+            const result = await voiceOfGod.speak(text);
+            console.log('[IPC:TTS] speak result:', result);
+            return result;
         } catch (error) {
             console.error('[IPC:TTS] Speak error:', error.message);
             return { success: false, error: error.message };

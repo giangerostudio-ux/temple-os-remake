@@ -8274,7 +8274,8 @@ class TempleOS {
       // Security: Duress Password
       const saveDuressBtn = target.closest('.save-duress-btn') as HTMLElement;
       if (saveDuressBtn) {
-        const container = saveDuressBtn.closest('[style*="grid"]')?.parentElement || saveDuressBtn.parentElement?.parentElement;
+        // Find the card container (has border-radius: 10px in style)
+        const container = saveDuressBtn.closest('[style*="border-radius: 10px"]') || saveDuressBtn.closest('[style*="border-radius:10px"]');
         const input = container?.querySelector('.duress-input') as HTMLInputElement;
         const confirm = container?.querySelector('.duress-confirm') as HTMLInputElement;
         const val = input ? String(input.value || '') : '';
@@ -8297,7 +8298,8 @@ class TempleOS {
       // Security: Lock Screen Password
       const savePasswordBtn = target.closest('.save-password-btn') as HTMLElement;
       if (savePasswordBtn) {
-        const container = savePasswordBtn.closest('.card, [style*="background"]')?.parentElement || savePasswordBtn.parentElement?.parentElement;
+        // Find the card container (has border-radius: 10px in style)
+        const container = savePasswordBtn.closest('[style*="border-radius: 10px"]') || savePasswordBtn.closest('[style*="border-radius:10px"]');
         const input = container?.querySelector('.lock-password-field') as HTMLInputElement;
         const confirm = container?.querySelector('.lock-password-confirm') as HTMLInputElement;
         const val = input ? String(input.value || '') : '';
@@ -8326,7 +8328,8 @@ class TempleOS {
       // Security: Lock Screen PIN
       const savePinBtn = target.closest('.save-pin-btn') as HTMLElement;
       if (savePinBtn) {
-        const container = savePinBtn.closest('.card, [style*="background"]')?.parentElement || savePinBtn.parentElement?.parentElement;
+        // Find the card container (has border-radius: 10px in style)
+        const container = savePinBtn.closest('[style*="border-radius: 10px"]') || savePinBtn.closest('[style*="border-radius:10px"]');
         const input = container?.querySelector('.lock-pin-field') as HTMLInputElement;
         const confirm = container?.querySelector('.lock-pin-confirm') as HTMLInputElement;
         const raw = input ? String(input.value || '').trim() : '';

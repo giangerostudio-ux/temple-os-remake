@@ -27,6 +27,8 @@ except ImportError:
     print('{"event": "error", "message": "python3-xlib not installed. Run: sudo apt install python3-xlib"}', flush=True)
     sys.exit(1)
 
+import subprocess
+
 # Configuration - ANTI-FLICKER TUNED
 POLL_INTERVAL_MS = 25        # Fast polling for responsiveness
 TOP_TRIGGER_ZONE = 250       # LARGE zone from top for snap layouts menu (user requested)
@@ -43,6 +45,10 @@ TOP_HYSTERESIS_PIXELS = 60   # Larger hysteresis for top zone (popup is more imp
 
 # Anti-flicker: grace period for re-entering same zone (skip hold time)
 REENTER_GRACE_MS = 500
+
+# Movement validation: must move window this many pixels before considering it a drag
+MOVEMENT_THRESHOLD_PX = 8    # Window must move at least 8px to be considered a real drag
+MOVEMENT_CHECK_DELAY_MS = 100  # Wait this long before checking if window moved
 
 # Button masks (from X11)
 Button1Mask = 1 << 8  # Left mouse button (256)
@@ -68,7 +74,10 @@ class SnapDetector:
         
         # State tracking
         self.is_dragging = False
+        self.drag_confirmed = False     # True only after window has actually moved
         self.drag_xid = None           # XID captured at drag START - doesn't change
+        self.drag_start_time = 0       # When the drag started (for movement check delay)
+        self.initial_window_pos = None  # (x, y) of window when drag started
         self.current_zone = None       # Current zone mouse is in
         self.zone_enter_time = 0       # When mouse entered current zone
         self.zone_activated = False    # True if we've emitted zone_enter for current zone
@@ -82,6 +91,31 @@ class SnapDetector:
     def log(self, message):
         """Debug logging to stderr"""
         print(f"[SnapDetector] {message}", file=sys.stderr, flush=True)
+    
+    def get_window_position(self, xid):
+        """Get window position (x, y) using xwininfo. Returns None on failure."""
+        try:
+            result = subprocess.run(
+                ['xwininfo', '-id', hex(xid)],
+                capture_output=True,
+                text=True,
+                timeout=0.5
+            )
+            if result.returncode != 0:
+                return None
+            
+            x, y = None, None
+            for line in result.stdout.split('\n'):
+                if 'Absolute upper-left X:' in line:
+                    x = int(line.split(':')[1].strip())
+                elif 'Absolute upper-left Y:' in line:
+                    y = int(line.split(':')[1].strip())
+            
+            if x is not None and y is not None:
+                return (x, y)
+        except Exception:
+            pass
+        return None
         
     def get_active_window_xid(self):
         """Get the currently active/focused window XID"""
@@ -184,18 +218,56 @@ class SnapDetector:
                     # Check if it's a protected window
                     if active_xid and active_xid not in self.protected_xids:
                         self.is_dragging = True
+                        self.drag_confirmed = False  # NOT confirmed until window moves
                         self.drag_xid = active_xid  # LOCKED for entire drag
+                        self.drag_start_time = now
+                        self.initial_window_pos = self.get_window_position(active_xid)
                         self.current_zone = None
                         self.zone_enter_time = 0
                         self.zone_activated = False
-                        self.log(f"Drag started, locked xid={hex(active_xid)}")
+                        self.log(f"Button down on xid={hex(active_xid)}, pos={self.initial_window_pos} (awaiting movement)")
                     else:
                         # Protected window or no window - ignore
                         return
                 
-                # We're dragging - check zones
+                # We're tracking a potential drag - check if movement is confirmed
                 if not self.is_dragging:
                     return
+                
+                # If not yet confirmed, check if window has moved
+                if not self.drag_confirmed:
+                    # Wait a bit before checking (gives WM time to start the move)
+                    if now - self.drag_start_time < MOVEMENT_CHECK_DELAY_MS:
+                        return
+                    
+                    # Check current window position
+                    if self.drag_xid and self.initial_window_pos:
+                        current_pos = self.get_window_position(self.drag_xid)
+                        if current_pos:
+                            dx = abs(current_pos[0] - self.initial_window_pos[0])
+                            dy = abs(current_pos[1] - self.initial_window_pos[1])
+                            if dx >= MOVEMENT_THRESHOLD_PX or dy >= MOVEMENT_THRESHOLD_PX:
+                                # Window has moved! This is a real drag.
+                                self.drag_confirmed = True
+                                self.log(f"Drag CONFIRMED: window moved ({dx}px, {dy}px)")
+                            else:
+                                # Window hasn't moved yet - probably not a drag
+                                # Keep checking on subsequent polls
+                                return
+                        else:
+                            # Couldn't get position - be lenient and confirm after delay
+                            if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
+                                self.drag_confirmed = True
+                                self.log(f"Drag confirmed (fallback - couldn't track position)")
+                            return
+                    else:
+                        # No initial position - confirm after delay as fallback
+                        if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
+                            self.drag_confirmed = True
+                            self.log(f"Drag confirmed (fallback - no initial position)")
+                        return
+                
+                # Drag is confirmed - proceed with zone detection
                 
                 # Use hysteresis for zone detection (prevents flickering)
                 zone = self.get_zone_with_hysteresis(x, y)
@@ -292,15 +364,25 @@ class SnapDetector:
                 xid = self.drag_xid
                 activated = self.zone_activated
                 sticky_top_popup = self.last_activated_zone == 'top'
+                was_confirmed = self.drag_confirmed  # Was this an actual drag?
                 
                 # Reset state
                 self.is_dragging = False
+                self.drag_confirmed = False
                 self.drag_xid = None
+                self.drag_start_time = 0
+                self.initial_window_pos = None
                 self.current_zone = None
                 self.zone_enter_time = 0
                 self.zone_activated = False
                 self.last_activated_zone = None  # Clear sticky state
                 self.last_zone_leave_time = 0
+                
+                # If drag was never confirmed (window didn't move), silently ignore
+                # This is the key fix for scrollbar/text selection interactions
+                if not was_confirmed:
+                    self.log("Button released - drag was NOT confirmed (window didn't move)")
+                    return
                 
                 # Query current mouse position for popup hit detection
                 result = self.root.query_pointer()

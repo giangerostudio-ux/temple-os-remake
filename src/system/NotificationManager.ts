@@ -142,6 +142,15 @@ export class NotificationManager {
         this.triggerChange();
     }
 
+    public clickNotification(id: string) {
+        // Mark the notification as read when clicked
+        const notification = this.notifications.find(n => n.id === id);
+        if (notification) {
+            notification.read = true;
+            this.triggerChange();
+        }
+    }
+
     public renderToasts(): string {
         if (this.activeToasts.length === 0) return '';
 

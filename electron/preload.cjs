@@ -333,4 +333,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('tray-popup:closed', handler);
         return () => ipcRenderer.removeListener('tray-popup:closed', handler);
     },
+
+    // ============================================
+    // FLOATING APP WINDOWS (X11-compatible system apps)
+    // ============================================
+    openAppWindow: (appId, config) => ipcRenderer.invoke('app-window:open', { appId, config }),
+    closeAppWindow: (windowId) => ipcRenderer.invoke('app-window:close', { windowId }),
+    minimizeAppWindow: (windowId) => ipcRenderer.invoke('app-window:minimize', { windowId }),
+    maximizeAppWindow: (windowId) => ipcRenderer.invoke('app-window:maximize', { windowId }),
+    focusAppWindow: (windowId) => ipcRenderer.invoke('app-window:focus', { windowId }),
+    updateAppWindow: (windowId, html) => ipcRenderer.invoke('app-window:update', { windowId, html }),
+    listAppWindows: () => ipcRenderer.invoke('app-window:list'),
+    closeAllAppWindows: () => ipcRenderer.invoke('app-window:closeAll'),
+    onAppWindowAction: (callback) => {
+        const handler = (event, action) => callback(action);
+        ipcRenderer.on('app-window:action', handler);
+        return () => ipcRenderer.removeListener('app-window:action', handler);
+    },
+    onAppWindowClosed: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('app-window:closed', handler);
+        return () => ipcRenderer.removeListener('app-window:closed', handler);
+    },
 });

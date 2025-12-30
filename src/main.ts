@@ -213,6 +213,17 @@ declare global {
       updateTrayPopup?: (html: string) => Promise<{ success: boolean; error?: string }>;
       onTrayPopupAction?: (callback: (action: { action: string; data?: unknown; type: string }) => void) => () => void;
       onTrayPopupClosed?: (callback: (data: { type: string }) => void) => () => void;
+      // Floating App Windows (X11-compatible system apps)
+      openAppWindow?: (appId: string, config?: { width?: number; height?: number; x?: number; y?: number; title?: string; html?: string; styles?: string; script?: string }) => Promise<{ success: boolean; windowId?: string; error?: string }>;
+      closeAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
+      minimizeAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
+      maximizeAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
+      focusAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
+      updateAppWindow?: (windowId: string, html: string) => Promise<{ success: boolean; error?: string }>;
+      listAppWindows?: () => Promise<{ success: boolean; windows?: Array<{ windowId: string; appId: string; bounds: { x: number; y: number; width: number; height: number } }> }>;
+      closeAllAppWindows?: () => Promise<{ success: boolean }>;
+      onAppWindowAction?: (callback: (action: { windowId: string; appId: string; action: string; data?: unknown }) => void) => () => void;
+      onAppWindowClosed?: (callback: (data: { windowId: string; appId: string }) => void) => () => void;
       // Global Shortcuts (system-wide keybinds from main process)
       onGlobalShortcut?: (callback: (action: string) => void) => () => void;
       // Security
@@ -1596,10 +1607,21 @@ class TempleOS {
           }
         } else if (action.type === 'calendar') {
           // Calendar popup has no actions currently
+        } else if (action.type === 'notification') {
+          if (action.action === 'markAllRead') {
+            this.notificationManager.markAllRead();
+          } else if (action.action === 'clearAll') {
+            this.notificationManager.clearAll();
+          } else if (action.action === 'dismiss' && typeof action.data === 'string') {
+            this.notificationManager.dismissNotification(action.data);
+          } else if (action.action === 'click' && typeof action.data === 'string') {
+            this.notificationManager.clickNotification(action.data);
+          }
         }
         this.showVolumePopup = false;
         this.showNetworkPopup = false;
         this.showCalendarPopup = false;
+        this.showNotificationPopup = false;
         this.render();
       });
     }
@@ -2996,6 +3018,36 @@ class TempleOS {
         </div>
         <div style="text-align: center; font-size: 13px; color: #ffd700; opacity: 0.9;">
           Cannot have a bad day if looking at God's calendar.
+        </div>
+      `;
+    } else if (type === 'notification') {
+      width = 350;
+      const notifications = this.notificationManager.getNotifications();
+      height = Math.min(400, 100 + (notifications.length * 60));
+      const unreadCount = notifications.filter(n => !n.read).length;
+
+      const notifItems = notifications.length === 0
+        ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No notifications</div>'
+        : notifications.map(n => `
+            <div class="net-item ${n.read ? '' : 'connected'}" onclick="emitAction('click', '${n.id}')" style="cursor: pointer;">
+              <div style="flex: 1; min-width: 0;">
+                <div class="net-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(n.title)}</div>
+                <div class="net-info" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(n.message || '')}</div>
+              </div>
+              <button onclick="event.stopPropagation(); emitAction('dismiss', '${n.id}')" style="padding: 4px 8px; font-size: 16px;">&times;</button>
+            </div>
+          `).join('');
+
+      html = `
+        <div class="popup-header">
+          <span>Notifications ${unreadCount > 0 ? `(${unreadCount})` : ''}</span>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="emitAction('markAllRead')">Mark All</button>
+            <button onclick="emitAction('clearAll')">Clear</button>
+          </div>
+        </div>
+        <div style="max-height: 300px; overflow-y: auto;">
+          ${notifItems}
         </div>
       `;
     }
@@ -8049,13 +8101,27 @@ class TempleOS {
       // Tray: Notifications
       const notifIcon = target.closest('#tray-notification');
       if (notifIcon) {
-        this.showNotificationPopup = !this.showNotificationPopup;
+        // Close other popups
         this.showVolumePopup = false;
         this.showCalendarPopup = false;
-        this.showCalendarPopup = false;
         this.showNetworkPopup = false;
-        this.showNetworkPopup = false;
-        this.render();
+
+        if (this.showNotificationPopup) {
+          // Close popup
+          this.showNotificationPopup = false;
+          window.electronAPI?.hideTrayPopup?.();
+          this.render();
+        } else {
+          // Try external popup first (X11), fall back to inline
+          this.showNotificationPopup = true;
+          void this.showExternalTrayPopup('notification').then(success => {
+            if (success) {
+              // External popup shown, hide inline
+              this.showNotificationPopup = false;
+            }
+            this.render();
+          });
+        }
         return;
       }
 
@@ -11902,6 +11968,8 @@ class TempleOS {
 
   // Track apps currently being opened to prevent duplicate window creation
   private appsBeingOpened = new Set<string>();
+  // Track floating window IDs -> appId mapping
+  private floatingWindowIds = new Map<string, string>();
 
   private async openApp(appId: string, arg?: boolean | { file?: string }) {
     // Prevent duplicate opens while async operations are in progress
@@ -11937,6 +12005,72 @@ class TempleOS {
 
     try {
       this.recordAppLaunch(`builtin:${appId}`);
+
+      // List of apps that should use floating windows for X11 compatibility
+      const floatingApps = ['terminal', 'files', 'settings', 'system-monitor', 'editor'];
+
+      // Try to open as floating window if API available and app supports it
+      if (floatingApps.includes(appId) && window.electronAPI?.openAppWindow) {
+        try {
+          // Generate app content
+          let content = '';
+          let title = appId;
+          let width = 800;
+          let height = 600;
+
+          switch (appId) {
+            case 'terminal':
+              title = 'Terminal';
+              content = this.getTerminalContent();
+              width = 800;
+              height = 500;
+              break;
+            case 'files':
+              title = 'File Manager';
+              content = this.getFileBrowserContentV2();
+              width = 900;
+              height = 600;
+              break;
+            case 'settings':
+              title = 'Settings';
+              content = this.getSettingsContentV2();
+              width = 800;
+              height = 600;
+              break;
+            case 'system-monitor':
+              title = 'Task Manager';
+              content = this.getSystemMonitorContent();
+              width = 900;
+              height = 600;
+              break;
+            case 'editor':
+              title = 'Text Editor';
+              content = this.getEditorContent();
+              width = 900;
+              height = 700;
+              break;
+          }
+
+          const result = await window.electronAPI.openAppWindow(appId, {
+            title,
+            width,
+            height,
+            html: content,
+            styles: this.getFloatingAppStyles()
+          });
+
+          if (result?.success) {
+            console.log(`[openApp] Opened ${appId} as floating window: ${result.windowId}`);
+            // Track the floating window
+            this.floatingWindowIds.set(result.windowId!, appId);
+            // Clear the guard and return
+            this.appsBeingOpened.delete(appId);
+            return; // Don't create DOM window
+          }
+        } catch (e) {
+          console.warn(`[openApp] Failed to open ${appId} as floating window, falling back to DOM:`, e);
+        }
+      }
 
       const nextId = `${appId}-${++this.windowIdCounter}`;
       let windowConfig: Partial<WindowState> = {};
@@ -12408,6 +12542,39 @@ class TempleOS {
     }
   }
 
+  /**
+   * Get CSS styles for floating app windows (TempleOS aesthetic)
+   */
+  private getFloatingAppStyles(): string {
+    return `
+      /* Base app styles from main CSS */
+      .window-content {
+        height: 100%;
+        overflow: auto;
+      }
+      .file-manager, .file-grid, .fm-main { height: 100%; }
+      .settings-container { height: 100%; display: flex; }
+      .settings-nav { width: 200px; border-right: 1px solid rgba(0,255,65,0.3); }
+      .settings-content { flex: 1; padding: 20px; overflow-y: auto; }
+      .settings-nav-item { padding: 10px 15px; cursor: pointer; border-left: 3px solid transparent; }
+      .settings-nav-item:hover { background: rgba(0,255,65,0.1); }
+      .settings-nav-item.active { background: rgba(0,255,65,0.15); border-left-color: #00ff41; }
+      .terminal-container { height: 100%; display: flex; flex-direction: column; }
+      .terminal { flex: 1; overflow: auto; padding: 10px; font-size: 14px; }
+      .terminal-input-line { display: flex; padding: 8px; border-top: 1px solid rgba(0,255,65,0.3); }
+      .terminal-input { flex: 1; background: transparent; border: none; color: #00ff41; outline: none; font-family: inherit; }
+      .terminal-prompt { color: #ffd700; margin-right: 8px; }
+      .terminal-line { margin: 2px 0; white-space: pre-wrap; word-break: break-all; }
+      .terminal-line.gold { color: #ffd700; }
+      .terminal-line.system { color: #888; }
+      .terminal-line.error { color: #ff4444; }
+      .terminal-tabs { display: flex; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(0,255,65,0.3); }
+      .terminal-tab { padding: 8px 12px; cursor: pointer; border-right: 1px solid rgba(0,255,65,0.2); }
+      .terminal-tab.active { background: rgba(0,255,65,0.15); }
+      .xterm-layout { flex: 1; overflow: hidden; }
+      .xterm-container { height: 100%; }
+    `;
+  }
 
   private getTerminalContent(): string {
     // CRITICAL FIX: Always clean up and recreate tabs to avoid stale xterm state

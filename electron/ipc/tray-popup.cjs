@@ -156,6 +156,16 @@ function showTrayPopup(config) {
     // Set highest z-order for X11 compatibility
     trayPopupWindow.setAlwaysOnTop(true, 'screen-saver');
 
+    // Make visible on all workspaces for X11 multi-desktop support
+    trayPopupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    // Skip pager and taskbar on X11
+    if (process.platform === 'linux') {
+        try {
+            trayPopupWindow.setSkipTaskbar(true);
+        } catch { }
+    }
+
     // Build full HTML document
     const fullHtml = `<!DOCTYPE html>
 <html>
@@ -187,6 +197,10 @@ document.addEventListener('keydown', (e) => {
     trayPopupWindow.once('ready-to-show', () => {
         if (trayPopupWindow && !trayPopupWindow.isDestroyed()) {
             trayPopupWindow.show();
+            // Explicit focus for X11 - ensure popup gets input focus
+            trayPopupWindow.focus();
+            // Re-apply alwaysOnTop after show (some X11 WMs need this)
+            trayPopupWindow.setAlwaysOnTop(true, 'screen-saver');
         }
     });
 
@@ -217,7 +231,7 @@ document.addEventListener('keydown', (e) => {
         }
     }, 50);
 
-    // Close on blur
+    // Close on blur - use 300ms delay for X11 focus settling
     trayPopupWindow.on('blur', () => {
         setTimeout(() => {
             if (trayPopupWindow && !trayPopupWindow.isDestroyed()) {
@@ -226,7 +240,7 @@ document.addEventListener('keydown', (e) => {
                     mainWindowRef.webContents.send('tray-popup:closed', { type });
                 }
             }
-        }, 150);
+        }, 300);
     });
 
     trayPopupWindow.on('closed', () => {

@@ -384,7 +384,7 @@ export class HelpApp {
                 
                 <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; margin-bottom: 25px;">
                     <p style="line-height: 1.7; color: #aaa; margin: 0; text-align: center;">
-                        A custom desktop shell for Lubuntu, faithfully recreating the TempleOS aesthetic 
+                        A faithful recreation of TempleOS aesthetic 
                         with modern functionality. Built with Electron, TypeScript, and divine inspiration.
                     </p>
                 </div>

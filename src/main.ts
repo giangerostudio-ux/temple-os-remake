@@ -9015,8 +9015,37 @@ class TempleOS {
         return;
       }
 
+      // Don't start drag if clicking on interactive elements or content that should be selectable
+      const interactiveTagNames = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'];
+      if (interactiveTagNames.includes(target.tagName)) {
+        return;
+      }
+
+      // Don't start drag if clicking on elements with contenteditable
+      if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+        return;
+      }
+
+      // Check if clicking on a scrollbar by comparing click position with element bounds
+      // If clicking inside a scrollable container near the edges (scrollbar area), don't drag
+      const scrollableParent = target.closest('.window-body, .terminal-output, .file-browser-main, .editor-container, .note-content, .calendar-content, .settings-content, .hymn-list, .media-playlist');
+      if (scrollableParent) {
+        const rect = scrollableParent.getBoundingClientRect();
+        const scrollbarWidth = 17; // Standard scrollbar width
+        // Check if click is in the scrollbar region (right edge for vertical, bottom for horizontal)
+        if (e.clientX > rect.right - scrollbarWidth || e.clientY > rect.bottom - scrollbarWidth) {
+          return;
+        }
+      }
+
       const header = target.closest('[data-draggable]') as HTMLElement;
       if (header) {
+        // Only drag if clicking directly on the header, not inside window content
+        // This prevents dragging when interacting with X11 apps, scrollbars, or any embedded content
+        if (target.closest('.window-content')) {
+          return;
+        }
+
         const windowId = header.dataset.draggable!;
         const windowEl = document.querySelector(`[data-window-id="${windowId}"]`) as HTMLElement;
         if (!windowEl) return;

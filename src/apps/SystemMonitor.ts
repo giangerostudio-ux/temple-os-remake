@@ -201,7 +201,7 @@ export class SystemMonitorEnhancer {
         <div style="padding: 10px; background: rgba(0,255,65,0.05); border: 1px solid rgba(0,255,65,0.2); border-radius: 4px;">
           <div style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">⚙️ ${stats.hostname}</div>
           <div style="font-size: 12px; opacity: 0.8;">
-            ${stats.platform} • ${stats.cpuCores} cores • Uptime: ${formatUptime(stats.uptime)}
+            ${stats.cpuCores} cores • Uptime: ${formatUptime(stats.uptime)}
           </div>
         </div>
 

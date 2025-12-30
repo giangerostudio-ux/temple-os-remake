@@ -219,12 +219,10 @@ function createFloatingAppWindow(appId, config = {}) {
         resizable: true,
         movable: true,
         alwaysOnTop: true,
-        skipTaskbar: false, // Show in taskbar for better X11 WM handling
+        skipTaskbar: true,
         show: false,
         transparent: true,
         hasShadow: true,
-        // X11 window type hint - 'toolbar' or 'dock' windows stay above normal windows
-        type: process.platform === 'linux' ? 'toolbar' : undefined,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -232,14 +230,8 @@ function createFloatingAppWindow(appId, config = {}) {
         }
     });
 
-    // X11 compatibility - try multiple approaches
-    if (process.platform === 'linux') {
-        // Try 'pop-up-menu' level first - often works better than 'screen-saver' on X11
-        win.setAlwaysOnTop(true, 'pop-up-menu');
-    } else {
-        win.setAlwaysOnTop(true, 'screen-saver');
-    }
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // Set highest z-order level for X11 compatibility (same as start menu)
+    win.setAlwaysOnTop(true, 'screen-saver');
 
     // Store window reference
     floatingWindows.set(windowId, win);
@@ -271,13 +263,7 @@ function createFloatingAppWindow(appId, config = {}) {
     win.once('ready-to-show', () => {
         if (win && !win.isDestroyed()) {
             win.show();
-            win.focus();
-            // Re-apply alwaysOnTop after show (X11 WMs may need this)
-            if (process.platform === 'linux') {
-                win.setAlwaysOnTop(true, 'pop-up-menu');
-            } else {
-                win.setAlwaysOnTop(true, 'screen-saver');
-            }
+            // Don't call focus() to avoid stealing focus from X11 apps (same as start menu)
         }
     });
 

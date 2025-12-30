@@ -147,31 +147,14 @@ function showTrayPopup(config) {
         show: false,
         transparent: true,
         hasShadow: true,
-        // X11 window type hint - 'toolbar' windows stay above normal windows
-        type: process.platform === 'linux' ? 'toolbar' : undefined,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
         }
     });
 
-    // Set highest z-order for X11 compatibility
-    if (process.platform === 'linux') {
-        // 'pop-up-menu' level works better than 'screen-saver' on many X11 WMs
-        trayPopupWindow.setAlwaysOnTop(true, 'pop-up-menu');
-    } else {
-        trayPopupWindow.setAlwaysOnTop(true, 'screen-saver');
-    }
-
-    // Make visible on all workspaces for X11 multi-desktop support
-    trayPopupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-    // Skip pager and taskbar on X11
-    if (process.platform === 'linux') {
-        try {
-            trayPopupWindow.setSkipTaskbar(true);
-        } catch { }
-    }
+    // Set highest z-order level for X11 compatibility (same as start menu)
+    trayPopupWindow.setAlwaysOnTop(true, 'screen-saver');
 
     // Build full HTML document
     const fullHtml = `<!DOCTYPE html>
@@ -204,14 +187,7 @@ document.addEventListener('keydown', (e) => {
     trayPopupWindow.once('ready-to-show', () => {
         if (trayPopupWindow && !trayPopupWindow.isDestroyed()) {
             trayPopupWindow.show();
-            // Explicit focus for X11 - ensure popup gets input focus
-            trayPopupWindow.focus();
-            // Re-apply alwaysOnTop after show (some X11 WMs need this)
-            if (process.platform === 'linux') {
-                trayPopupWindow.setAlwaysOnTop(true, 'pop-up-menu');
-            } else {
-                trayPopupWindow.setAlwaysOnTop(true, 'screen-saver');
-            }
+            // Don't call focus() to avoid stealing focus from X11 apps (same as start menu)
         }
     });
 

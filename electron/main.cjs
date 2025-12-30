@@ -1094,6 +1094,9 @@ function createPanelWindow() {
         }
     });
 
+    // Set highest z-order level for X11 compatibility (above Firefox etc.)
+    panelWindow.setAlwaysOnTop(true, 'screen-saver');
+
     if (process.env.NODE_ENV === 'development') {
         panelWindow.loadURL('http://localhost:5173/panel.html');
     } else {
@@ -2085,6 +2088,9 @@ function showSnapLayoutsPopup(xidHex) {
         }
     });
 
+    // Set highest z-order level for X11 compatibility (above Firefox etc.)
+    snapPopupWindow.setAlwaysOnTop(true, 'screen-saver');
+
     // HTML content for the popup - IMPROVED for drag-and-release
     const html = `
     <!DOCTYPE html>
@@ -2544,6 +2550,9 @@ function showSnapPreview(zone) {
         webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
+    // Set highest z-order level for X11 compatibility (above Firefox etc.)
+    snapPreviewWindow.setAlwaysOnTop(true, 'screen-saver');
+
     const previewHtml = `<!DOCTYPE html><html><head><style>
         * { margin: 0; padding: 0; }
         body {
@@ -2995,6 +3004,9 @@ ipcMain.handle('contextmenu:show', async (event, { x, y, items }) => {
                 contextIsolation: true,
             }
         });
+
+        // Set highest z-order level for X11 compatibility (above Firefox etc.)
+        contextPopup.setAlwaysOnTop(true, 'screen-saver');
 
         const html = buildContextMenuHtml(items);
 
@@ -3530,6 +3542,9 @@ ipcMain.handle('startmenu:show', async (event, config) => {
                 contextIsolation: true,
             }
         });
+
+        // Set highest z-order level for X11 compatibility (above Firefox etc.)
+        startMenuPopup.setAlwaysOnTop(true, 'screen-saver');
 
         const html = buildStartMenuHtml(config);
         startMenuPopup.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);

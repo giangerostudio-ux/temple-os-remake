@@ -12017,7 +12017,8 @@ class TempleOS {
 
       // Try to open as floating window if API available, app supports it, AND X11 windows exist
       // (Same pattern as start menu - only use external popup when X11 apps are running)
-      const hasFloatingApi = !!window.electronAPI?.openAppWindow;
+      const api = window.electronAPI;
+      const hasFloatingApi = !!api?.openAppWindow;
       const hasX11Windows = this.x11Windows.length > 0;
       const isFloatingApp = floatingApps.includes(appId);
       const shouldUseFloating = isFloatingApp && hasFloatingApi && hasX11Windows;
@@ -12025,7 +12026,7 @@ class TempleOS {
       // Debug: Log floating window decision
       console.log(`[openApp] ${appId}: shouldFloat=${shouldUseFloating} (isFloatingApp=${isFloatingApp}, hasApi=${hasFloatingApi}, x11Count=${this.x11Windows.length})`);
 
-      if (shouldUseFloating) {
+      if (shouldUseFloating && api) {
         try {
           // Generate app content
           let content = '';
@@ -12067,7 +12068,7 @@ class TempleOS {
           }
 
           console.log(`[openApp] Attempting floating window for ${appId}...`);
-          const result = await window.electronAPI.openAppWindow(appId, {
+          const result = await api.openAppWindow!(appId, {
             title,
             width,
             height,

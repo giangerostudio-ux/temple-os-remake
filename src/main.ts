@@ -642,8 +642,8 @@ class TempleOS {
   private voiceOfGodEchoFeedback = 0.2;
   private voiceOfGodChorusEnabled = true;
   private voiceOfGodChorusDepth = 0.25;
-  private voiceOfGodSpeed = 1.35; // 35% faster than default for snappier speech
-  private voiceOfGodVolume = 1.0; // Volume (0.0 to 2.0, 1.0 = normal)
+  private voiceOfGodSpeed = 1.33; // 33% faster than default for snappier speech
+  private voiceOfGodVolume = 0.4; // Volume (0.0 to 2.0, 0.4 = 40%)
   private voiceOfGodSettingsOpen = false; // Track settings dropdown state
   private voiceOfGodInstalling = false; // Prevent multiple install clicks
   private pedalboardPromptShown = false; // Track if we've shown the effects install popup

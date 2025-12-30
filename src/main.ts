@@ -2908,7 +2908,12 @@ class TempleOS {
    */
   private async showExternalTrayPopup(type: 'volume' | 'network' | 'calendar' | 'notification', trayIconRect?: DOMRect): Promise<boolean> {
     // Only use external popups if API is available (X11/Linux)
+    console.log('[TrayPopup Debug] showExternalTrayPopup called for type:', type);
+    console.log('[TrayPopup Debug] window.electronAPI:', !!window.electronAPI);
+    console.log('[TrayPopup Debug] showTrayPopup available:', !!window.electronAPI?.showTrayPopup);
+
     if (!window.electronAPI?.showTrayPopup) {
+      console.log('[TrayPopup Debug] API not available, falling back to inline');
       return false;
     }
 
@@ -2996,7 +3001,8 @@ class TempleOS {
     }
 
     try {
-      await window.electronAPI.showTrayPopup({
+      console.log('[TrayPopup Debug] Calling showTrayPopup IPC with config:', { type, x: Math.round(x), width, height, taskbarPosition });
+      const result = await window.electronAPI.showTrayPopup({
         type,
         x: Math.round(x),
         y: 0, // Position handled by backend based on taskbar
@@ -3005,7 +3011,8 @@ class TempleOS {
         html,
         taskbarPosition
       });
-      return true;
+      console.log('[TrayPopup Debug] showTrayPopup IPC result:', result);
+      return result?.success === true;
     } catch (e) {
       console.warn('[TrayPopup] Failed to show external popup:', e);
       return false;

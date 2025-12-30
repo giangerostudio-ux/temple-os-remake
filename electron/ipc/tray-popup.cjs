@@ -113,6 +113,7 @@ function closeTrayPopup() {
  * @param {string} config.taskbarPosition - 'top' or 'bottom'
  */
 function showTrayPopup(config) {
+    console.log('[TrayPopup] showTrayPopup called with config type:', config?.type);
     closeTrayPopup();
 
     const { type, x, y, width, height, html, taskbarPosition = 'bottom' } = config;
@@ -240,16 +241,23 @@ document.addEventListener('keydown', (e) => {
  * @param {Function} getMainWindow - Function that returns the main window
  */
 function registerTrayPopupHandlers(getMainWindow) {
+    console.log('[TrayPopup] Registering tray popup handlers...');
     mainWindowRef = typeof getMainWindow === 'function' ? getMainWindow() : getMainWindow;
+    console.log('[TrayPopup] mainWindowRef initialized:', !!mainWindowRef);
 
     ipcMain.handle('tray-popup:show', async (event, config) => {
+        console.log('[TrayPopup] IPC tray-popup:show received with config:', JSON.stringify(config, null, 2));
         try {
             // Refresh main window reference
             if (typeof getMainWindow === 'function') {
                 mainWindowRef = getMainWindow();
+                console.log('[TrayPopup] Refreshed mainWindowRef:', !!mainWindowRef);
             }
-            return showTrayPopup(config);
+            const result = showTrayPopup(config);
+            console.log('[TrayPopup] showTrayPopup result:', result);
+            return result;
         } catch (e) {
+            console.error('[TrayPopup] Error in tray-popup:show handler:', e);
             return { success: false, error: e.message };
         }
     });

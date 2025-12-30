@@ -891,9 +891,17 @@ function createWindow() {
                 // CRITICAL: Do NOT send the window to background if we are actively trying to hard-focus it!
                 return;
             }
-            // Only re-apply if we suspect we lost the 'below' state. 
+            // Only re-apply if we suspect we lost the 'below' state.
             // We just fire-and-forget this to ensure we stay at the bottom.
             void wmctrlSetState(xidHexFromBrowserWindow(mainWindow), 'add', 'below,skip_taskbar,skip_pager').catch((e) => console.warn('[X11] wmctrlSetState on focus failed:', e.message));
+        }
+    });
+
+    // Stop TTS when window is closed
+    mainWindow.on('close', () => {
+        const vog = getVoiceOfGod();
+        if (vog) {
+            vog.stop();
         }
     });
 }

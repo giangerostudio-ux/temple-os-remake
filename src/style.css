@@ -1424,14 +1424,28 @@ div {
 }
 
 .taskbar-transparent {
-  background: rgba(13, 17, 23, 0.7) !important;
-  backdrop-filter: blur(10px);
-  border-top-color: rgba(0, 255, 65, 0.1);
+  background: rgba(13, 17, 23, 0.6) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(0, 255, 65, 0.15) !important;
+  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
 
+/* Taskbar Autohide - hide by default, show on hover with trigger zone */
 .taskbar-autohide {
-  transform: translateY(100%);
-  transition: transform 0.3s ease;
+  transform: translateY(calc(100% + 12px));
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Invisible hover trigger zone - extends outside taskbar for easier triggering */
+.taskbar-autohide::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  right: -20px;
+  bottom: -30px;
+  top: -30px;
+  pointer-events: auto;
 }
 
 .taskbar-autohide:hover {
@@ -4742,28 +4756,42 @@ body.heavenly-pulse-enabled .temple-gold-beam {
    ============================================ */
 
 /* Taskbar Transparency Effect */
+/* Taskbar Transparency Effect - enhanced glassmorphism */
 .taskbar-transparent {
-  background: rgba(13, 17, 23, 0.7) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(13, 17, 23, 0.6) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(0, 255, 65, 0.15) !important;
+  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Taskbar Autohide - hide by default, show on hover */
+/* Taskbar Autohide - hide by default, show on hover with trigger zone */
 .taskbar-autohide {
-  transform: translateY(100%);
-  transition: transform 0.3s ease;
+  transform: translateY(calc(100% + 12px));
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Invisible hover trigger zone - extends outside taskbar for easier triggering */
+.taskbar-autohide::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  right: -20px;
+  bottom: -30px;
+  top: -30px;
+  pointer-events: auto;
 }
 
 .taskbar-autohide:hover {
   transform: translateY(0);
 }
 
-/* When taskbar is at top */
-.taskbar-autohide[style*="top: 0"] {
-  transform: translateY(-100%);
+/* When taskbar is at top - reverse the autohide direction */
+.taskbar[style*="top:"].taskbar-autohide {
+  transform: translateY(calc(-100% - 12px));
 }
 
-.taskbar-autohide[style*="top: 0"]:hover {
+.taskbar[style*="top:"].taskbar-autohide:hover {
   transform: translateY(0);
 }
 

@@ -653,24 +653,13 @@ class VoiceOfGod {
             this.currentProcess = null;
         }
 
-        // On Linux, aggressively kill any audio player processes
+        // Kill any audio player processes to prevent overlap
         if (process.platform === 'linux') {
-            // Try multiple methods to stop audio
-            const killCmds = [
-                'killall -9 aplay paplay piper 2>/dev/null',
-                'pkill -9 -f aplay 2>/dev/null',
-                'pkill -9 -f paplay 2>/dev/null',
-                'pkill -9 -f piper 2>/dev/null',
-                // PulseAudio: kill all playback streams
-                'pactl list short sink-inputs 2>/dev/null | cut -f1 | xargs -r -I{} pactl kill-sink-input {} 2>/dev/null'
-            ];
-            for (const cmd of killCmds) {
-                try {
-                    execSync(cmd + ' || true', { shell: true, stdio: 'ignore', timeout: 2000 });
-                } catch { }
-            }
+            try {
+                // Single combined command for speed
+                execSync('killall -9 aplay paplay piper 2>/dev/null; pactl list short sink-inputs 2>/dev/null | cut -f1 | xargs -r -I{} pactl kill-sink-input {} 2>/dev/null || true', { shell: true, stdio: 'ignore', timeout: 2000 });
+            } catch { }
         } else if (process.platform === 'win32') {
-            // On Windows, kill any powershell playing audio
             try {
                 execSync('taskkill /F /IM powershell.exe 2>nul || exit 0', { shell: true, stdio: 'ignore' });
             } catch { }
@@ -679,7 +668,7 @@ class VoiceOfGod {
         this.audioQueue = [];
         this.speaking = false;
         this.isProcessingQueue = false;
-        console.log('[VoiceOfGod] Speech stopped (all audio processes killed)');
+        console.log('[VoiceOfGod] Speech stopped');
     }
 
     /**

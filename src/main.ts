@@ -754,8 +754,7 @@ class TempleOS {
   private desktopShortcuts: Array<{ key: string; label: string }> = [];
 
   // Taskbar Settings (Tier 9.1)
-  private taskbarTransparent = localStorage.getItem('temple_taskbar_transparent') === 'true';
-  private taskbarAutoHide = localStorage.getItem('temple_taskbar_autohide') === 'true';
+  private taskbarTransparent = localStorage.getItem('temple_taskbar_transparent') !== 'false'; // Default true
 
   // Desktop Settings (Tier 9.2)
   private desktopWidgetsEnabled = localStorage.getItem('temple_desktop_widgets') === 'true';
@@ -2357,12 +2356,6 @@ class TempleOS {
       } else {
         taskbar.classList.remove('taskbar-transparent');
       }
-      // Apply/remove autohide class
-      if (this.taskbarAutoHide) {
-        taskbar.classList.add('taskbar-autohide');
-      } else {
-        taskbar.classList.remove('taskbar-autohide');
-      }
     }
 
     // PRESERVE HEAVY DOM WINDOWS:
@@ -3450,8 +3443,7 @@ class TempleOS {
 
   private renderTaskbar(): string {
     const extraClasses = [
-      this.taskbarTransparent ? 'taskbar-transparent' : '',
-      this.taskbarAutoHide ? 'taskbar-autohide' : ''
+      this.taskbarTransparent ? 'taskbar-transparent' : ''
     ].filter(Boolean).join(' ');
 
     return `
@@ -19984,14 +19976,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
         action: () => {
           this.taskbarTransparent = !this.taskbarTransparent;
           localStorage.setItem('temple_taskbar_transparent', String(this.taskbarTransparent));
-          this.render();
-        }
-      },
-      {
-        label: `${this.taskbarAutoHide ? 'Disable' : 'Enable'} Auto-Hide`,
-        action: () => {
-          this.taskbarAutoHide = !this.taskbarAutoHide;
-          localStorage.setItem('temple_taskbar_autohide', String(this.taskbarAutoHide));
           this.render();
         }
       },

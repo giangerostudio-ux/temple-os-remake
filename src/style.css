@@ -1435,28 +1435,6 @@ div {
 }
 
 
-/* Taskbar Autohide - hide by default, show on hover with trigger zone */
-.taskbar-autohide {
-  transform: translateY(calc(100% + 12px));
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Invisible hover trigger zone - extends outside taskbar for easier triggering */
-.taskbar-autohide::before {
-  content: '';
-  position: absolute;
-  left: -20px;
-  right: -20px;
-  bottom: -30px;
-  top: -30px;
-  pointer-events: auto;
-}
-
-.taskbar-autohide:hover {
-  transform: translateY(0);
-}
-
-
 .start-btn {
   display: flex;
   align-items: center;
@@ -4769,36 +4747,6 @@ body.heavenly-pulse-enabled .temple-gold-beam {
     0 0 10px rgba(0, 255, 65, 0.1),
     inset 0 0 15px rgba(0, 15, 0, 0.5),
     0 5px 30px rgba(0, 0, 0, 0.5) !important;
-}
-
-/* Taskbar Autohide - hide by default, show on hover with trigger zone */
-.taskbar-autohide {
-  transform: translateY(calc(100% + 12px));
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Invisible hover trigger zone - extends outside taskbar for easier triggering */
-.taskbar-autohide::before {
-  content: '';
-  position: absolute;
-  left: -20px;
-  right: -20px;
-  bottom: -30px;
-  top: -30px;
-  pointer-events: auto;
-}
-
-.taskbar-autohide:hover {
-  transform: translateY(0);
-}
-
-/* When taskbar is at top - reverse the autohide direction */
-.taskbar[style*="top:"].taskbar-autohide {
-  transform: translateY(calc(-100% - 12px));
-}
-
-.taskbar[style*="top:"].taskbar-autohide:hover {
-  transform: translateY(0);
 }
 
 /* ============================================

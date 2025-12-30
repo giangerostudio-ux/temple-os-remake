@@ -259,13 +259,13 @@ function createFloatingAppWindow(appId, config = {}) {
         }
     });
 
-    // Ready to show
-    win.once('ready-to-show', () => {
+    // Show immediately without waiting for ready-to-show (like context menu)
+    win.showInactive();
+    setTimeout(() => {
         if (win && !win.isDestroyed()) {
-            win.show();
-            // Don't call focus() to avoid stealing focus from X11 apps (same as start menu)
+            win.focus();
         }
-    });
+    }, 10);
 
     return { windowId, win };
 }

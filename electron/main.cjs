@@ -3620,6 +3620,210 @@ ipcMain.handle('startmenu:hide', async () => {
 });
 
 // ============================================
+// FLOATING APP WINDOW (Inline - X11 compatible)
+// Same pattern as Start Menu - creates separate BrowserWindow
+// that floats above X11 apps like Firefox
+// ============================================
+let floatingAppWindows = new Map(); // windowId -> BrowserWindow
+let floatingAppIdCounter = 0;
+
+function closeFloatingAppWindow(windowId) {
+    const win = floatingAppWindows.get(windowId);
+    if (win && !win.isDestroyed()) {
+        try { win.destroy(); } catch { }
+    }
+    floatingAppWindows.delete(windowId);
+}
+
+ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
+    console.log(`[FloatingApp-Inline] Opening floating window for: ${appId}`);
+    try {
+        const primary = screen.getPrimaryDisplay();
+        const bounds = primary?.bounds || { x: 0, y: 0, width: 1920, height: 1080 };
+
+        const width = config?.width || 800;
+        const height = config?.height || 600;
+        const title = config?.title || appId;
+
+        // Center the window
+        const posX = config?.x !== undefined ? config.x : Math.round((bounds.width - width) / 2);
+        const posY = config?.y !== undefined ? config.y : Math.round((bounds.height - height) / 2);
+
+        const windowId = `floating-${appId}-${++floatingAppIdCounter}`;
+
+        const win = new BrowserWindow({
+            x: posX,
+            y: posY,
+            width: width,
+            height: height,
+            frame: false,
+            resizable: true,
+            movable: true,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            focusable: true,
+            show: false,
+            transparent: true,
+            hasShadow: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+            }
+        });
+
+        // CRITICAL: Set highest z-order for X11 compatibility (same as Start Menu)
+        win.setAlwaysOnTop(true, 'screen-saver');
+
+        floatingAppWindows.set(windowId, win);
+
+        // Build HTML with title bar and content
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+            color: #00ff41;
+            background: rgba(13, 17, 23, 0.98);
+        }
+        .app-window {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3), 0 4px 15px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        .title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(0, 255, 65, 0.15);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+            -webkit-app-region: drag;
+            cursor: move;
+        }
+        .title-bar-title { font-weight: bold; font-size: 16px; }
+        .title-bar-buttons {
+            display: flex;
+            gap: 6px;
+            -webkit-app-region: no-drag;
+        }
+        .title-bar-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #00ff41;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        .title-bar-btn:hover { background: rgba(0, 255, 65, 0.2); border-color: #00ff41; }
+        .title-bar-btn.close:hover { background: rgba(255, 0, 0, 0.3); border-color: #ff4444; color: #ff4444; }
+        .app-content { flex: 1; overflow: auto; padding: 10px; }
+        ${config?.styles || ''}
+    </style>
+</head>
+<body>
+    <div class="app-window">
+        <div class="title-bar">
+            <span class="title-bar-title">${title}</span>
+            <div class="title-bar-buttons">
+                <button class="title-bar-btn" onclick="window.__floatingAction = 'minimize'" title="Minimize">−</button>
+                <button class="title-bar-btn" onclick="window.__floatingAction = 'maximize'" title="Maximize">□</button>
+                <button class="title-bar-btn close" onclick="window.__floatingAction = 'close'" title="Close">×</button>
+            </div>
+        </div>
+        <div class="app-content" id="app-content">
+            ${config?.html || '<div style="display: flex; align-items: center; justify-content: center; height: 100%; opacity: 0.6;">Loading...</div>'}
+        </div>
+    </div>
+    <script>
+        window.__windowId = '${windowId}';
+        window.__appId = '${appId}';
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') window.__floatingAction = 'close';
+        });
+    </script>
+</body>
+</html>`;
+
+        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+        win.once('ready-to-show', () => {
+            if (win && !win.isDestroyed()) {
+                win.show();
+                // Don't call focus() to avoid stealing focus from X11 apps
+            }
+        });
+
+        // Poll for actions (same pattern as Start Menu)
+        const pollInterval = setInterval(async () => {
+            if (!win || win.isDestroyed()) {
+                clearInterval(pollInterval);
+                floatingAppWindows.delete(windowId);
+                return;
+            }
+            try {
+                const action = await win.webContents.executeJavaScript('window.__floatingAction || null');
+                if (action) {
+                    await win.webContents.executeJavaScript('window.__floatingAction = null');
+
+                    switch (action) {
+                        case 'close':
+                            closeFloatingAppWindow(windowId);
+                            if (mainWindow && !mainWindow.isDestroyed()) {
+                                mainWindow.webContents.send('floatingApp:closed', { windowId, appId });
+                            }
+                            break;
+                        case 'minimize':
+                            win.minimize();
+                            break;
+                        case 'maximize':
+                            if (win.isMaximized()) win.unmaximize();
+                            else win.maximize();
+                            break;
+                    }
+                }
+            } catch {
+                clearInterval(pollInterval);
+            }
+        }, 32);
+
+        win.on('closed', () => {
+            clearInterval(pollInterval);
+            floatingAppWindows.delete(windowId);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('floatingApp:closed', { windowId, appId });
+            }
+        });
+
+        console.log(`[FloatingApp-Inline] SUCCESS: Created window ${windowId} for ${appId}`);
+        return { success: true, windowId };
+    } catch (e) {
+        console.error('[FloatingApp-Inline] Error:', e);
+        return { success: false, error: e && e.message ? e.message : String(e) };
+    }
+});
+
+ipcMain.handle('floatingApp:close', async (event, { windowId }) => {
+    closeFloatingAppWindow(windowId);
+    return { success: true };
+});
+
+// ============================================
 // FILESYSTEM IPC
 // ============================================
 ipcMain.handle('fs:readdir', async (event, dirPath) => {

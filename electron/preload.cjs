@@ -337,6 +337,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ============================================
     // FLOATING APP WINDOWS (X11-compatible system apps)
     // ============================================
+    // NEW: Use inline handler (same pattern as Start Menu - guaranteed to work)
+    openFloatingApp: (appId, config) => ipcRenderer.invoke('floatingApp:open', { appId, config }),
+    closeFloatingApp: (windowId) => ipcRenderer.invoke('floatingApp:close', { windowId }),
+    onFloatingAppClosed: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('floatingApp:closed', handler);
+        return () => ipcRenderer.removeListener('floatingApp:closed', handler);
+    },
+    // Legacy: external module handlers (may have issues)
     openAppWindow: (appId, config) => ipcRenderer.invoke('app-window:open', { appId, config }),
     closeAppWindow: (windowId) => ipcRenderer.invoke('app-window:close', { windowId }),
     minimizeAppWindow: (windowId) => ipcRenderer.invoke('app-window:minimize', { windowId }),

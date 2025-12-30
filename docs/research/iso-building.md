@@ -114,14 +114,32 @@ mkdir -p "$ROOTFS/opt/templeos"
 cp -r ../dist/electron-app/* "$ROOTFS/opt/templeos/"
 
 echo "=== Step 3b: Install Voice of God TTS ==="
-# Copy Piper TTS files
-mkdir -p "$ROOTFS/opt/templeos/piper"
-cp -r ../electron/piper/* "$ROOTFS/opt/templeos/piper/"
-
-# Install Python + Pedalboard for divine audio effects
+# Install Python pip if not already installed
 chroot "$ROOTFS" /bin/sh <<'EOF'
-pip3 install pedalboard numpy --break-system-packages
+apk add --no-cache python3-pip || apt-get install -y python3-pip
 EOF
+
+# Install Pedalboard and dependencies for divine audio effects
+chroot "$ROOTFS" /bin/sh <<'EOF'
+python3 -m pip install --break-system-packages pedalboard scipy numpy
+EOF
+
+# Download and install Piper TTS
+mkdir -p "$ROOTFS/opt/templeos/electron/piper"
+cd "$ROOTFS/opt/templeos/electron/piper"
+
+# Download Piper binary for Linux
+wget -O piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+tar xzf piper.tar.gz
+
+# Download voice model (Bryce medium - deep divine voice)
+wget -O en_US-bryce-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx
+wget -O en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json
+
+# Cleanup
+rm piper.tar.gz
+
+echo "Voice of God TTS installation complete!"
 
 echo "=== Step 4: Configure system ==="
 # Add startup scripts, auto-login, etc.
@@ -285,10 +303,11 @@ qemu-system-x86_64 -cdrom templeos-1.0.iso -m 2048 -enable-kvm \
 | Component | Size |
 |-----------|------|
 | Piper TTS binary | ~15 MB |
-| en_US-lessac-high.onnx | ~120 MB |
+| en_US-bryce-medium.onnx | ~120 MB |
 | espeak-ng-data | ~25 MB |
-| Python + Pedalboard | ~50 MB |
-| **TTS Total** | **~210 MB** |
+| Python + pip | ~10 MB |
+| Pedalboard + scipy + numpy | ~50 MB |
+| **TTS Total** | **~220 MB** |
 
 > Updated total with TTS: ~510 MB (no Steam), ~1 GB (with Steam)
 

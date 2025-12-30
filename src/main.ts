@@ -214,6 +214,11 @@ declare global {
       onTrayPopupAction?: (callback: (action: { action: string; data?: unknown; type: string }) => void) => () => void;
       onTrayPopupClosed?: (callback: (data: { type: string }) => void) => () => void;
       // Floating App Windows (X11-compatible system apps)
+      // NEW: Inline handler (same pattern as Start Menu - guaranteed to work)
+      openFloatingApp?: (appId: string, config?: { width?: number; height?: number; x?: number; y?: number; title?: string; html?: string; styles?: string }) => Promise<{ success: boolean; windowId?: string; error?: string }>;
+      closeFloatingApp?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
+      onFloatingAppClosed?: (callback: (data: { windowId: string; appId: string }) => void) => () => void;
+      // Legacy: external module handlers
       openAppWindow?: (appId: string, config?: { width?: number; height?: number; x?: number; y?: number; title?: string; html?: string; styles?: string; script?: string }) => Promise<{ success: boolean; windowId?: string; error?: string }>;
       closeAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
       minimizeAppWindow?: (windowId: string) => Promise<{ success: boolean; error?: string }>;
@@ -12022,7 +12027,7 @@ class TempleOS {
       // Try to open as floating window if API available, app supports it, AND X11 windows exist
       // (Same pattern as start menu - only use external popup when X11 apps are running)
       const api = window.electronAPI;
-      const hasFloatingApi = !!api?.openAppWindow;
+      const hasFloatingApi = !!api?.openFloatingApp;
       const hasX11Windows = this.x11Windows.length > 0;
       const isFloatingApp = floatingApps.includes(normalizedAppId);
       const shouldUseFloating = isFloatingApp && hasFloatingApi && hasX11Windows;
@@ -12032,7 +12037,7 @@ class TempleOS {
       console.log(`[openApp] appId: "${appId}" -> normalizedAppId: "${normalizedAppId}"`);
       console.log(`[openApp] floatingApps: ${JSON.stringify(floatingApps)}`);
       console.log(`[openApp] isFloatingApp: ${isFloatingApp} (includes check: ${floatingApps.includes(normalizedAppId)})`);
-      console.log(`[openApp] hasFloatingApi: ${hasFloatingApi} (typeof: ${typeof api?.openAppWindow})`);
+      console.log(`[openApp] hasFloatingApi: ${hasFloatingApi} (typeof: ${typeof api?.openFloatingApp})`);
       console.log(`[openApp] hasX11Windows: ${hasX11Windows} (count: ${this.x11Windows.length})`);
       console.log(`[openApp] shouldUseFloating: ${shouldUseFloating}`);
       console.log(`[openApp] ===============================================`);
@@ -12079,7 +12084,7 @@ class TempleOS {
           }
 
           console.log(`[openApp] Attempting floating window for ${appId}...`);
-          const result = await api.openAppWindow!(normalizedAppId, {
+          const result = await api.openFloatingApp!(normalizedAppId, {
             title,
             width,
             height,

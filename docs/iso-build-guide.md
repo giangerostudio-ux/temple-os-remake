@@ -195,19 +195,32 @@ sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotoo
 For the Word of God divine voice feature with audio effects (reverb, echo, chorus):
 
 ```bash
-# Install Pedalboard for divine audio effects
-pip3 install pedalboard
+# Install Python pip if not already installed
+sudo apt-get install -y python3-pip
+
+# Install Pedalboard and dependencies for divine audio effects
+sudo python3 -m pip install --break-system-packages pedalboard scipy numpy
 
 # Download Piper TTS (run as user, not root)
 mkdir -p /opt/templeos/electron/piper && cd /opt/templeos/electron/piper
+
+# Download Piper binary for Linux
+echo "Downloading Piper TTS..."
 curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
 tar xzf piper.tar.gz
+
+# Download voice model (Bryce medium - deep divine voice)
+echo "Downloading voice model..."
 curl -L -o en_US-bryce-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx
 curl -L -o en_US-bryce-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json
+
+# Cleanup
 rm piper.tar.gz
+
+echo "Voice of God TTS installation complete!"
 ```
 
-**Note**: Users can also install TTS from the Word of God app - clicking Voice will prompt to open Terminal with install command.
+**Note**: Users can also install TTS from the Word of God app - clicking "Install Voice (Piper)" or "Install Effects (Pedalboard)" will open Terminal with the appropriate install commands.
 
 Notes:
 - Under Wayland (`XDG_SESSION_TYPE=wayland`), a normal app (Electron) cannot implement global window management; the panel/taskbar integration won't work the same way.

@@ -184,13 +184,13 @@ document.addEventListener('keydown', (e) => {
 
     trayPopupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
 
-    // Show immediately without waiting for ready-to-show (like context menu)
-    trayPopupWindow.showInactive();
-    setTimeout(() => {
+    // Wait for ready-to-show, then show() - same as working start menu
+    trayPopupWindow.once('ready-to-show', () => {
         if (trayPopupWindow && !trayPopupWindow.isDestroyed()) {
-            trayPopupWindow.focus();
+            trayPopupWindow.show();
+            // DO NOT call focus() - it steals focus from X11 apps
         }
-    }, 10);
+    });
 
     // Poll for actions from the popup
     trayPopupPollInterval = setInterval(async () => {

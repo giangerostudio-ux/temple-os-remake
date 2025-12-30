@@ -12015,12 +12015,16 @@ class TempleOS {
       // List of apps that should use floating windows for X11 compatibility
       const floatingApps = ['terminal', 'files', 'settings', 'system-monitor', 'editor'];
 
+      // Normalize appId by stripping 'builtin:' prefix if present
+      // This handles cases where Start Menu passes 'builtin:settings' but we check for 'settings'
+      const normalizedAppId = appId.startsWith('builtin:') ? appId.slice(8) : appId;
+
       // Try to open as floating window if API available, app supports it, AND X11 windows exist
       // (Same pattern as start menu - only use external popup when X11 apps are running)
       const api = window.electronAPI;
       const hasFloatingApi = !!api?.openAppWindow;
       const hasX11Windows = this.x11Windows.length > 0;
-      const isFloatingApp = floatingApps.includes(appId);
+      const isFloatingApp = floatingApps.includes(normalizedAppId);
       const shouldUseFloating = isFloatingApp && hasFloatingApi && hasX11Windows;
 
       // Debug: Log floating window decision
@@ -12034,7 +12038,7 @@ class TempleOS {
           let width = 800;
           let height = 600;
 
-          switch (appId) {
+          switch (normalizedAppId) {
             case 'terminal':
               title = 'Terminal';
               content = this.getTerminalContent();
@@ -12068,7 +12072,7 @@ class TempleOS {
           }
 
           console.log(`[openApp] Attempting floating window for ${appId}...`);
-          const result = await api.openAppWindow!(appId, {
+          const result = await api.openAppWindow!(normalizedAppId, {
             title,
             width,
             height,

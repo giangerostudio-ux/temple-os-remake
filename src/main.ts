@@ -12017,8 +12017,13 @@ class TempleOS {
 
       // Try to open as floating window if API available, app supports it, AND X11 windows exist
       // (Same pattern as start menu - only use external popup when X11 apps are running)
-      const shouldUseFloating = floatingApps.includes(appId) && window.electronAPI?.openAppWindow && this.x11Windows.length > 0;
-      console.log(`[openApp] ${appId}: floating=${shouldUseFloating}, x11Windows=${this.x11Windows.length}`);
+      const hasFloatingApi = !!window.electronAPI?.openAppWindow;
+      const hasX11Windows = this.x11Windows.length > 0;
+      const isFloatingApp = floatingApps.includes(appId);
+      const shouldUseFloating = isFloatingApp && hasFloatingApi && hasX11Windows;
+
+      // Debug: Log floating window decision
+      console.log(`[openApp] ${appId}: shouldFloat=${shouldUseFloating} (isFloatingApp=${isFloatingApp}, hasApi=${hasFloatingApi}, x11Count=${this.x11Windows.length})`);
 
       if (shouldUseFloating) {
         try {
@@ -12061,6 +12066,7 @@ class TempleOS {
               break;
           }
 
+          console.log(`[openApp] Attempting floating window for ${appId}...`);
           const result = await window.electronAPI.openAppWindow(appId, {
             title,
             width,
@@ -12069,17 +12075,22 @@ class TempleOS {
             styles: this.getFloatingAppStyles()
           });
 
+          console.log(`[openApp] Floating window result for ${appId}:`, result);
           if (result?.success) {
-            console.log(`[openApp] Opened ${appId} as floating window: ${result.windowId}`);
+            console.log(`[openApp] SUCCESS: Opened ${appId} as floating window: ${result.windowId}`);
             // Track the floating window
             this.floatingWindowIds.set(result.windowId!, appId);
             // Clear the guard and return
             this.appsBeingOpened.delete(appId);
             return; // Don't create DOM window
+          } else {
+            console.warn(`[openApp] FAILED: Floating window returned success=false for ${appId}:`, result?.error);
           }
         } catch (e) {
-          console.warn(`[openApp] Failed to open ${appId} as floating window, falling back to DOM:`, e);
+          console.warn(`[openApp] EXCEPTION: Failed to open ${appId} as floating window, falling back to DOM:`, e);
         }
+      } else {
+        console.log(`[openApp] Using inline DOM for ${appId} (floating conditions not met)`);
       }
 
       const nextId = `${appId}-${++this.windowIdCounter}`;

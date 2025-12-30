@@ -14,6 +14,7 @@ const { exec, spawn } = require('child_process');
 // Call in app.whenReady: registerAllHandlers(() => mainWindow);
 // ============================================
 const { createEwmhBridge, getActiveWindowXidHex, switchToDesktop, getCurrentDesktop, getDesktopCount, moveWindowToDesktop, makeWindowSticky } = require('./x11/ewmh.cjs');
+const { registerTrayPopupHandlers } = require('./ipc/tray-popup.cjs');
 
 // Divine Assistant (Word of God AI)
 const { OllamaManager } = require('./ollama-manager.cjs');
@@ -7731,6 +7732,12 @@ app.whenReady().then(() => {
     });
 
     console.log('[TTS] Inline TTS handlers registered successfully');
+
+    // ============================================
+    // TRAY POPUP HANDLERS (X11-compatible floating popups)
+    // ============================================
+    registerTrayPopupHandlers(() => mainWindow);
+    console.log('[TrayPopup] External popup handlers registered');
 
     createWindow(); // Initial window creation
 

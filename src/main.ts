@@ -207,6 +207,12 @@ declare global {
       hideStartMenuPopup?: () => Promise<{ success: boolean }>;
       onStartMenuAction?: (callback: (action: { type: string; key?: string; path?: string; action?: string; x?: number; y?: number }) => void) => () => void;
       onStartMenuClosed?: (callback: (payload: Record<string, unknown>) => void) => () => void;
+      // Tray Popup (X11-compatible floating popups)
+      showTrayPopup?: (config: { type: string; x: number; y: number; width: number; height: number; html: string; taskbarPosition: 'top' | 'bottom' }) => Promise<{ success: boolean; error?: string }>;
+      hideTrayPopup?: () => Promise<{ success: boolean }>;
+      updateTrayPopup?: (html: string) => Promise<{ success: boolean; error?: string }>;
+      onTrayPopupAction?: (callback: (action: { action: string; data?: unknown; type: string }) => void) => () => void;
+      onTrayPopupClosed?: (callback: (data: { type: string }) => void) => () => void;
       // Global Shortcuts (system-wide keybinds from main process)
       onGlobalShortcut?: (callback: (action: string) => void) => () => void;
       // Security
@@ -1565,6 +1571,50 @@ class TempleOS {
       });
     }
 
+    // Handle Tray Popup actions (volume/network/calendar external popups for X11)
+    if (window.electronAPI?.onTrayPopupAction) {
+      window.electronAPI.onTrayPopupAction((action) => {
+        if (action.type === 'volume') {
+          if (action.action === 'setVolume' && typeof action.data === 'number') {
+            this.updateVolume(action.data);
+          }
+        } else if (action.type === 'network') {
+          if (action.action === 'connect' && typeof action.data === 'object') {
+            const { ssid, security } = action.data as { ssid: string; security: string };
+            void this.connectWifiFromUi(ssid, security);
+          } else if (action.action === 'disconnect') {
+            void window.electronAPI?.disconnectNetwork?.();
+            this.render();
+          } else if (action.action === 'refresh') {
+            void this.refreshNetworkStatus();
+          } else if (action.action === 'open-settings') {
+            this.openApp('settings');
+            this.safeTimeout(() => {
+              const nav = document.querySelector('.settings-nav-item[data-section="network"]') as HTMLElement;
+              if (nav) nav.click();
+            }, 100);
+          }
+        } else if (action.type === 'calendar') {
+          // Calendar popup has no actions currently
+        }
+        this.showVolumePopup = false;
+        this.showNetworkPopup = false;
+        this.showCalendarPopup = false;
+        this.render();
+      });
+    }
+
+    // Handle Tray Popup closed (blur)
+    if (window.electronAPI?.onTrayPopupClosed) {
+      window.electronAPI.onTrayPopupClosed((data) => {
+        if (data.type === 'volume') this.showVolumePopup = false;
+        else if (data.type === 'network') this.showNetworkPopup = false;
+        else if (data.type === 'calendar') this.showCalendarPopup = false;
+        else if (data.type === 'notification') this.showNotificationPopup = false;
+        this.render();
+      });
+    }
+
     this.setupGodlyNotesGlobals();
     this.keepLegacyMethodsReferenced();
     this.updateClock();
@@ -2850,6 +2900,116 @@ class TempleOS {
                ">
       </div>
     `;
+  }
+
+  /**
+   * Show an external tray popup (volume/network/calendar) that floats above X11 apps.
+   * Falls back to inline rendering if not on X11 or API unavailable.
+   */
+  private async showExternalTrayPopup(type: 'volume' | 'network' | 'calendar' | 'notification', trayIconRect?: DOMRect): Promise<boolean> {
+    // Only use external popups if API is available (X11/Linux)
+    if (!window.electronAPI?.showTrayPopup) {
+      return false;
+    }
+
+    // Get tray icon position for popup placement
+    const iconId = type === 'volume' ? '#tray-volume' :
+      type === 'network' ? '#tray-network' :
+        type === 'calendar' ? '#clock-container' : '#notification-icon';
+    const iconEl = document.querySelector(iconId);
+    const rect = trayIconRect || iconEl?.getBoundingClientRect();
+
+    // Default position
+    let x = rect ? rect.left : window.innerWidth - 200;
+    const taskbarPosition = this.taskbarPosition;
+
+    // Generate popup HTML
+    let html = '';
+    let width = 200;
+    let height = 200;
+
+    if (type === 'volume') {
+      width = 60;
+      height = 160;
+      html = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+          <div style="font-size: 20px; margin-bottom: 10px;">🔊</div>
+          <input type="range" min="0" max="100" value="${this.volumeLevel}"
+            style="width: 100px; height: 20px; cursor: pointer; transform: rotate(-90deg); accent-color: #00ff41; margin: 30px 0;"
+            oninput="emitAction('setVolume', parseInt(this.value))"
+          >
+          <div style="font-size: 14px; margin-top: 10px;">${this.volumeLevel}%</div>
+        </div>
+      `;
+    } else if (type === 'network') {
+      width = 320;
+      height = Math.min(400, 150 + this.networkManager.wifiNetworks.length * 55);
+      const connected = this.networkManager.status.connected;
+      const ssid = this.networkManager.status.wifi?.ssid;
+      const ip = this.networkManager.status.ip4;
+
+      const networks = this.networkManager.wifiNetworks.slice(0, 6).map(n => `
+        <div class="net-item ${n.inUse ? 'connected' : ''}">
+          <div>
+            <div class="net-name" style="color: ${n.inUse ? '#ffd700' : '#00ff41'};">${escapeHtml(n.ssid)}</div>
+            <div class="net-info">${n.security ? 'Secured' : 'Open'} • ${n.signal}%</div>
+          </div>
+          ${n.inUse ? `
+            <button onclick="emitAction('disconnect')">Disconnect</button>
+          ` : `
+            <button onclick="emitAction('connect', {ssid: '${escapeHtml(n.ssid)}', security: '${escapeHtml(n.security)}'})">Connect</button>
+          `}
+        </div>
+      `).join('');
+
+      html = `
+        <div class="popup-header">
+          <span>Network</span>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="emitAction('refresh')">Refresh</button>
+            <button onclick="emitAction('open-settings')">Settings</button>
+          </div>
+        </div>
+        <div class="status-box">
+          <div class="status-title">${connected ? (ssid || 'Connected') : 'Disconnected'}</div>
+          <div class="status-detail">${connected ? `${this.networkManager.status.type || 'network'}${ip ? ` • IP ${ip}` : ''}` : 'Not connected'}</div>
+        </div>
+        <div style="max-height: 220px; overflow-y: auto;">
+          ${networks || '<div style="opacity: 0.6;">No Wi-Fi networks found.</div>'}
+        </div>
+      `;
+    } else if (type === 'calendar') {
+      width = 220;
+      height = 180;
+      const now = new Date();
+      html = `
+        <div style="text-align: center; border-bottom: 1px solid rgba(0, 255, 65, 0.3); padding-bottom: 8px; font-size: 16px;">
+          ${now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+        <div style="text-align: center; font-size: 48px; font-weight: bold; margin: 15px 0;">
+          ${now.getDate()}
+        </div>
+        <div style="text-align: center; font-size: 13px; color: #ffd700; opacity: 0.9;">
+          Cannot have a bad day if looking at God's calendar.
+        </div>
+      `;
+    }
+
+    try {
+      await window.electronAPI.showTrayPopup({
+        type,
+        x: Math.round(x),
+        y: 0, // Position handled by backend based on taskbar
+        width,
+        height,
+        html,
+        taskbarPosition
+      });
+      return true;
+    } catch (e) {
+      console.warn('[TrayPopup] Failed to show external popup:', e);
+      return false;
+    }
   }
 
   private renderCalendarPopup() {
@@ -7754,13 +7914,27 @@ class TempleOS {
       // Tray: Volume
       const volIcon = target.closest('#tray-volume');
       if (volIcon) {
-        this.showVolumePopup = !this.showVolumePopup;
+        // Close other popups
         this.showCalendarPopup = false;
-        this.showCalendarPopup = false;
-        this.showNetworkPopup = false;
         this.showNetworkPopup = false;
         this.showNotificationPopup = false;
-        this.render();
+
+        if (this.showVolumePopup) {
+          // Close popup
+          this.showVolumePopup = false;
+          window.electronAPI?.hideTrayPopup?.();
+          this.render();
+        } else {
+          // Try external popup first (X11), fall back to inline
+          this.showVolumePopup = true;
+          void this.showExternalTrayPopup('volume').then(success => {
+            if (success) {
+              // External popup shown, hide inline
+              this.showVolumePopup = false;
+            }
+            this.render();
+          });
+        }
         return;
       }
 
@@ -7772,32 +7946,59 @@ class TempleOS {
       }
 
       // Tray: Clock/Calendar
-      // Tray: Clock/Calendar
       const clock = target.closest('#clock-container');
       if (clock) {
-        this.showCalendarPopup = !this.showCalendarPopup;
+        // Close other popups
         this.showVolumePopup = false;
-        this.showVolumePopup = false;
-        this.showNetworkPopup = false;
         this.showNetworkPopup = false;
         this.showNotificationPopup = false;
-        this.render();
+
+        if (this.showCalendarPopup) {
+          // Close popup
+          this.showCalendarPopup = false;
+          window.electronAPI?.hideTrayPopup?.();
+          this.render();
+        } else {
+          // Try external popup first (X11), fall back to inline
+          this.showCalendarPopup = true;
+          void this.showExternalTrayPopup('calendar').then(success => {
+            if (success) {
+              // External popup shown, hide inline
+              this.showCalendarPopup = false;
+            }
+            this.render();
+          });
+        }
         return;
       }
 
       // Tray: Network
       const networkIcon = target.closest('#tray-network');
       if (networkIcon) {
-        this.showNetworkPopup = !this.showNetworkPopup;
+        // Close other popups
         this.showVolumePopup = false;
         this.showCalendarPopup = false;
-        this.showCalendarPopup = false;
         this.showNotificationPopup = false;
-        this.showNotificationPopup = false;
+
         if (this.showNetworkPopup) {
-          void this.refreshNetworkStatus();
+          // Close popup
+          this.showNetworkPopup = false;
+          window.electronAPI?.hideTrayPopup?.();
+          this.render();
+        } else {
+          // Refresh network status first
+          void this.refreshNetworkStatus().then(() => {
+            // Try external popup first (X11), fall back to inline
+            this.showNetworkPopup = true;
+            void this.showExternalTrayPopup('network').then(success => {
+              if (success) {
+                // External popup shown, hide inline
+                this.showNetworkPopup = false;
+              }
+              this.render();
+            });
+          });
         }
-        this.render();
         return;
       }
 

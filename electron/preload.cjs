@@ -316,4 +316,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('tts:progress', handler);
         return () => ipcRenderer.removeListener('tts:progress', handler);
     },
+
+    // ============================================
+    // TRAY POPUP (X11-compatible floating popups)
+    // ============================================
+    showTrayPopup: (config) => ipcRenderer.invoke('tray-popup:show', config),
+    hideTrayPopup: () => ipcRenderer.invoke('tray-popup:hide'),
+    updateTrayPopup: (html) => ipcRenderer.invoke('tray-popup:update', { html }),
+    onTrayPopupAction: (callback) => {
+        const handler = (event, action) => callback(action);
+        ipcRenderer.on('tray-popup:action', handler);
+        return () => ipcRenderer.removeListener('tray-popup:action', handler);
+    },
+    onTrayPopupClosed: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('tray-popup:closed', handler);
+        return () => ipcRenderer.removeListener('tray-popup:closed', handler);
+    },
 });

@@ -2939,6 +2939,12 @@ class TempleOS {
       return false;
     }
 
+    // Only use external popup if X11 windows exist (like start menu does)
+    if (this.x11Windows.length === 0) {
+      console.log('[TrayPopup Debug] No X11 windows, using inline popup');
+      return false;  // Falls back to inline
+    }
+
     // Get tray icon position for popup placement
     const iconId = type === 'volume' ? '#tray-volume' :
       type === 'network' ? '#tray-network' :
@@ -12009,8 +12015,12 @@ class TempleOS {
       // List of apps that should use floating windows for X11 compatibility
       const floatingApps = ['terminal', 'files', 'settings', 'system-monitor', 'editor'];
 
-      // Try to open as floating window if API available and app supports it
-      if (floatingApps.includes(appId) && window.electronAPI?.openAppWindow) {
+      // Try to open as floating window if API available, app supports it, AND X11 windows exist
+      // (Same pattern as start menu - only use external popup when X11 apps are running)
+      const shouldUseFloating = floatingApps.includes(appId) && window.electronAPI?.openAppWindow && this.x11Windows.length > 0;
+      console.log(`[openApp] ${appId}: floating=${shouldUseFloating}, x11Windows=${this.x11Windows.length}`);
+
+      if (shouldUseFloating) {
         try {
           // Generate app content
           let content = '';

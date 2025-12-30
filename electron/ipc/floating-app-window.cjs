@@ -351,7 +351,7 @@ async function openAppWindow(appId, config = {}) {
             // Window likely destroyed
             clearInterval(pollInterval);
         }
-    }, 50);
+    }, 32);  // 32ms polling to match start menu
 
     win.on('closed', () => {
         clearInterval(pollInterval);

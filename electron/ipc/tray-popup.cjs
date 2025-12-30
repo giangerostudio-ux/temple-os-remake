@@ -217,7 +217,7 @@ document.addEventListener('keydown', (e) => {
         } catch {
             closeTrayPopup();
         }
-    }, 50);
+    }, 32);  // 32ms polling to match start menu
 
     // Close on blur - use 300ms delay for X11 focus settling
     trayPopupWindow.on('blur', () => {

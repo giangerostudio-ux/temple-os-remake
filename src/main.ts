@@ -13644,6 +13644,11 @@ class TempleOS {
   private async sendDivineMessage(message: string): Promise<void> {
     if (!window.electronAPI?.divineSendMessage || !message.trim() || this.divineIsLoading) return;
 
+    // Stop any currently playing TTS when user sends a new message
+    if (window.electronAPI?.ttsStop) {
+      window.electronAPI.ttsStop().catch(() => { });
+    }
+
     // Add user message
     this.divineMessages.push({
       role: 'user',

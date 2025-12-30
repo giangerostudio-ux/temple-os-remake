@@ -641,8 +641,15 @@ class VoiceOfGod {
      * Stop current speech
      */
     stop() {
+        console.log('[VoiceOfGod] stop() called, currentProcess:', !!this.currentProcess);
         if (this.currentProcess) {
-            this.currentProcess.kill();
+            try {
+                // Use SIGKILL to forcefully terminate the audio player
+                this.currentProcess.kill('SIGKILL');
+            } catch (e) {
+                // Fallback to regular kill if SIGKILL fails (Windows)
+                try { this.currentProcess.kill(); } catch { }
+            }
             this.currentProcess = null;
         }
         this.audioQueue = [];

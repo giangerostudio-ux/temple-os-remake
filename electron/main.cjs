@@ -7379,6 +7379,11 @@ ipcMain.handle('security:installTor', async () => {
 app.on('before-quit', () => {
     app.isQuitting = true;
     stopSnapDetector();
+    // Stop TTS to kill any audio player processes
+    const vog = getVoiceOfGod();
+    if (vog) {
+        vog.stop();
+    }
 });
 
 app.on('window-all-closed', () => {

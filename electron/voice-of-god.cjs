@@ -642,20 +642,37 @@ class VoiceOfGod {
      */
     stop() {
         console.log('[VoiceOfGod] stop() called, currentProcess:', !!this.currentProcess);
+
+        // Kill the tracked process
         if (this.currentProcess) {
             try {
-                // Use SIGKILL to forcefully terminate the audio player
                 this.currentProcess.kill('SIGKILL');
             } catch (e) {
-                // Fallback to regular kill if SIGKILL fails (Windows)
                 try { this.currentProcess.kill(); } catch { }
             }
             this.currentProcess = null;
         }
+
+        // On Linux, also kill any audio player processes system-wide
+        // This is more aggressive but ensures audio actually stops
+        if (process.platform === 'linux') {
+            try {
+                // Kill all aplay and paplay processes
+                execSync('pkill -9 aplay 2>/dev/null || true', { shell: true, stdio: 'ignore' });
+                execSync('pkill -9 paplay 2>/dev/null || true', { shell: true, stdio: 'ignore' });
+                execSync('pkill -9 piper 2>/dev/null || true', { shell: true, stdio: 'ignore' });
+            } catch { }
+        } else if (process.platform === 'win32') {
+            // On Windows, kill any powershell playing audio
+            try {
+                execSync('taskkill /F /IM powershell.exe /FI "WINDOWTITLE eq *SoundPlayer*" 2>nul || exit 0', { shell: true, stdio: 'ignore' });
+            } catch { }
+        }
+
         this.audioQueue = [];
         this.speaking = false;
         this.isProcessingQueue = false;
-        console.log('[VoiceOfGod] Speech stopped');
+        console.log('[VoiceOfGod] Speech stopped (all audio processes killed)');
     }
 
     /**

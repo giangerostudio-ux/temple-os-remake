@@ -2348,6 +2348,23 @@ class TempleOS {
       workspaceSwitcher.outerHTML = this.renderWorkspaceSwitcher();
     }
 
+    // Update taskbar classes for transparency and autohide
+    const taskbar = document.querySelector('.taskbar') as HTMLElement;
+    if (taskbar) {
+      // Apply/remove transparency class
+      if (this.taskbarTransparent) {
+        taskbar.classList.add('taskbar-transparent');
+      } else {
+        taskbar.classList.remove('taskbar-transparent');
+      }
+      // Apply/remove autohide class
+      if (this.taskbarAutoHide) {
+        taskbar.classList.add('taskbar-autohide');
+      } else {
+        taskbar.classList.remove('taskbar-autohide');
+      }
+    }
+
     // PRESERVE HEAVY DOM WINDOWS:
     // Keep xterm/audio alive across renders by detaching those window elements before
     // we overwrite the windows container, then re-attach afterwards.

@@ -897,8 +897,18 @@ function createWindow() {
         }
     });
 
-    // Stop TTS when window is closed
+    // Stop TTS when window is closing
     mainWindow.on('close', () => {
+        console.log('[MainWindow] close event - stopping TTS');
+        const vog = getVoiceOfGod();
+        if (vog) {
+            vog.stop();
+        }
+    });
+
+    // Also stop on closed (after window is destroyed)
+    mainWindow.on('closed', () => {
+        console.log('[MainWindow] closed event - stopping TTS');
         const vog = getVoiceOfGod();
         if (vog) {
             vog.stop();

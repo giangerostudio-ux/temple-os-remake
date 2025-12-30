@@ -99,7 +99,7 @@ export class HelpApp {
     private guideSteps = [
         {
             title: 'Welcome to TempleOS Remake',
-            content: 'This is a faithful recreation of Terry Davis\'s TempleOS, rebuilt as a custom desktop shell for modern Linux systems. It preserves the authentic 16-color aesthetic while providing real system integration and utility.',
+            content: 'This is a faithful recreation of Terry Davis\'s TempleOS, rebuilt as a custom desktop shell for TempleOS environments. It preserves the authentic 16-color aesthetic while providing real system integration and utility.',
             icon: '✝️'
         },
         {

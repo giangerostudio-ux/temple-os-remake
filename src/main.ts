@@ -4679,7 +4679,7 @@ class TempleOS {
       }
 
       if (this.installedAppsUnsupported) {
-        this.showNotification('Apps', 'App discovery is Linux-only (no .desktop apps on this platform).', 'info');
+        this.showNotification('Apps', 'App discovery is TempleOS-only (no .desktop apps on this platform).', 'info');
       }
     } catch (error) {
       console.error('Error loading installed apps:', error);
@@ -5205,7 +5205,7 @@ class TempleOS {
     if (this.activeSettingsCategory === 'Bluetooth') this.refreshSettingsWindow();
 
     if (!window.electronAPI?.setBluetoothEnabled) {
-      this.showNotification('Bluetooth', 'Bluetooth control not available (requires Electron/Linux)', 'warning');
+      this.showNotification('Bluetooth', 'Bluetooth control not available (requires TempleOS)', 'warning');
       return;
     }
 
@@ -5366,7 +5366,7 @@ class TempleOS {
     if (!window.electronAPI?.sshControl) {
       this.showNotification(
         'SSH Server',
-        'SSH control not available (requires Electron/Linux)',
+        'SSH control not available (requires TempleOS)',
         'warning'
       );
       this.sshEnabled = false;
@@ -7330,7 +7330,7 @@ class TempleOS {
               this.showNotification('DNS', String(e), 'error');
             }
           } else {
-            this.showNotification('DNS', 'DNS control requires Electron/Linux', 'warning');
+            this.showNotification('DNS', 'DNS control requires TempleOS', 'warning');
           }
         }
         return;
@@ -15362,13 +15362,13 @@ class TempleOS {
                   <button class="net-btn" data-net-action="connect" data-ssid="${n.ssid}" data-sec="${n.security}" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
                 `}
               </div>
-            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires Electron/Linux.</div>'}
+            `).join('') || '<div style=\"opacity: 0.6;\">No Wi‑Fi networks found.</div>') : '<div style=\"opacity: 0.6;\">Wi‑Fi management requires TempleOS.</div>'}
           </div>
         `)}
 
         ${card('Saved Networks', `
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require Electron/Linux.</div>' : ''}
+            ${(!window.electronAPI?.listSavedNetworks) ? '<div style=\"opacity: 0.6;\">Saved networks require TempleOS.</div>' : ''}
             ${window.electronAPI?.listSavedNetworks ? ([
           ...savedWifi.map(n => ({ ...n, kind: 'Wi‑Fi' })),
           ...savedOther.map(n => ({ ...n, kind: n.type || 'Connection' }))
@@ -15399,7 +15399,7 @@ class TempleOS {
           </div>
 
           ${!window.electronAPI?.listSavedNetworks ? `
-            <div style="opacity: 0.6;">VPN management requires Electron/Linux.</div>
+            <div style="opacity: 0.6;">VPN management requires TempleOS.</div>
           ` : ''}
 
           <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -18066,7 +18066,7 @@ Write-Host "Done! Restart the app to use Voice of God."`;
       }, 30000);
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(installCommand).catch(() => {});
+      navigator.clipboard.writeText(installCommand).catch(() => { });
       this.showNotification(
         'Divine Effects',
         `Run this command manually: ${installCommand}`,
@@ -18435,9 +18435,14 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     const wasEditor = windowId.startsWith('editor');
     const wasDivine = windowId.startsWith('word-of-god');
 
-    // Abort Divine AI request when closing the window
-    if (wasDivine && window.electronAPI?.divineAbort) {
-      window.electronAPI.divineAbort();
+    // Abort Divine AI request and stop TTS when closing the window
+    if (wasDivine) {
+      if (window.electronAPI?.divineAbort) {
+        window.electronAPI.divineAbort();
+      }
+      if (window.electronAPI?.ttsStop) {
+        window.electronAPI.ttsStop().catch(() => { });
+      }
       this.divineIsLoading = false;
       this.divineStreamingResponse = '';
     }

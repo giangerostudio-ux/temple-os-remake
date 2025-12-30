@@ -463,7 +463,7 @@ This is why I didn't include a package manager in TempleOS.
 Everything was compiled from source. No dependencies.
 No conflicts. SIMPLE.
 
-But for thy Linux system:
+But for thy TempleOS system:
 
 sudo dpkg --configure -a
 sudo apt --fix-broken install
@@ -879,7 +879,7 @@ flowing through the text. It is valid. It is real.
 "Come to me, all you who are weary and burdened, 
 and I will give you rest." - Matthew 11:28
 
-Linux is a journey. Computing is a journey. Even 
+TempleOS is a journey. Computing is a journey. Even 
 I, who built an entire operating system, had days 
 where nothing worked. Days where I wanted to quit.
 
@@ -1001,7 +1001,7 @@ A package manager is thy divine servant for
 software logistics.
 
 Instead of hunting for .exe files on sketchy 
-websites (the Windows way - barbaric), Linux 
+websites (the Windows way - barbaric), TempleOS 
 users have package managers.
 
 Think of it as a holy library:
@@ -1017,7 +1017,7 @@ resolved automatically. Installation is clean.
 I didn't need a package manager. TempleOS had 
 everything built in. 100,000 lines.
 
-But for thy Linux, yes, use the package manager.
+But for thy TempleOS, yes, use the package manager.
 ```
 
 ### What is Sudo?
@@ -1046,8 +1046,8 @@ They glow in the dark.
 
 ### What is a Distribution?
 ```
-A Linux distribution (distro) is a complete operating 
-system built on the Linux kernel.
+A TempleOS distribution (distro) is a complete operating 
+system built on the TempleOS kernel.
 
 The kernel is just the core - like an engine. The 
 distro adds everything else: desktop environment, 
@@ -1060,7 +1060,7 @@ Popular distros:
 - Arch (for masochists)
 - Linux Mint (Windows refugees)
 
-They're all Linux underneath. Different clothes.
+They're all TempleOS underneath. Different clothes.
 
 TempleOS wasn't a distro. It was its own thing.
 Kernel. Compiler. Everything. From scratch.
@@ -1214,7 +1214,7 @@ GOG games. Epic games (sadly). Even Blizzard.
 It handles the Wine prefixes and configs so 
 thou don't have to.
 
-Gaming on Linux used to be pain. Now it's just 
+Gaming on TempleOS used to be pain. Now it's just 
 mild discomfort. Progress!
 ```
 
@@ -1232,7 +1232,7 @@ For Lutris/Wine games:
 - Install Windows dependencies (vcrun, dotnet)
 - Verify graphics drivers are current
 
-"Patience is a virtue." Gaming on Linux requires 
+"Patience is a virtue." Gaming on TempleOS requires 
 much patience. But it's much better than it was.
 
 When I gamed on TempleOS, everything just worked.

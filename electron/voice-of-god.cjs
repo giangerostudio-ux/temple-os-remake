@@ -653,19 +653,26 @@ class VoiceOfGod {
             this.currentProcess = null;
         }
 
-        // On Linux, also kill any audio player processes system-wide
-        // This is more aggressive but ensures audio actually stops
+        // On Linux, aggressively kill any audio player processes
         if (process.platform === 'linux') {
-            try {
-                // Kill all aplay and paplay processes
-                execSync('pkill -9 aplay 2>/dev/null || true', { shell: true, stdio: 'ignore' });
-                execSync('pkill -9 paplay 2>/dev/null || true', { shell: true, stdio: 'ignore' });
-                execSync('pkill -9 piper 2>/dev/null || true', { shell: true, stdio: 'ignore' });
-            } catch { }
+            // Try multiple methods to stop audio
+            const killCmds = [
+                'killall -9 aplay paplay piper 2>/dev/null',
+                'pkill -9 -f aplay 2>/dev/null',
+                'pkill -9 -f paplay 2>/dev/null',
+                'pkill -9 -f piper 2>/dev/null',
+                // PulseAudio: kill all playback streams
+                'pactl list short sink-inputs 2>/dev/null | cut -f1 | xargs -r -I{} pactl kill-sink-input {} 2>/dev/null'
+            ];
+            for (const cmd of killCmds) {
+                try {
+                    execSync(cmd + ' || true', { shell: true, stdio: 'ignore', timeout: 2000 });
+                } catch { }
+            }
         } else if (process.platform === 'win32') {
             // On Windows, kill any powershell playing audio
             try {
-                execSync('taskkill /F /IM powershell.exe /FI "WINDOWTITLE eq *SoundPlayer*" 2>nul || exit 0', { shell: true, stdio: 'ignore' });
+                execSync('taskkill /F /IM powershell.exe 2>nul || exit 0', { shell: true, stdio: 'ignore' });
             } catch { }
         }
 

@@ -12027,8 +12027,15 @@ class TempleOS {
       const isFloatingApp = floatingApps.includes(normalizedAppId);
       const shouldUseFloating = isFloatingApp && hasFloatingApi && hasX11Windows;
 
-      // Debug: Log floating window decision
-      console.log(`[openApp] ${appId}: shouldFloat=${shouldUseFloating} (isFloatingApp=${isFloatingApp}, hasApi=${hasFloatingApi}, x11Count=${this.x11Windows.length})`);
+      // ENHANCED DEBUG: Log all conditions with detailed info
+      console.log(`[openApp] ========== FLOATING WINDOW DEBUG ==========`);
+      console.log(`[openApp] appId: "${appId}" -> normalizedAppId: "${normalizedAppId}"`);
+      console.log(`[openApp] floatingApps: ${JSON.stringify(floatingApps)}`);
+      console.log(`[openApp] isFloatingApp: ${isFloatingApp} (includes check: ${floatingApps.includes(normalizedAppId)})`);
+      console.log(`[openApp] hasFloatingApi: ${hasFloatingApi} (typeof: ${typeof api?.openAppWindow})`);
+      console.log(`[openApp] hasX11Windows: ${hasX11Windows} (count: ${this.x11Windows.length})`);
+      console.log(`[openApp] shouldUseFloating: ${shouldUseFloating}`);
+      console.log(`[openApp] ===============================================`);
 
       if (shouldUseFloating && api) {
         try {

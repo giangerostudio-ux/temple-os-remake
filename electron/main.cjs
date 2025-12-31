@@ -7009,20 +7009,32 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const fullCmd = [bin, ...args].map(escapeArg).join(' ');
 
         // Use spawn with bash login shell (-l) to mimic SSH environment
-        // SSH works because it creates a login shell that sources ~/.bashrc and snap paths
         const launchCmd = `nohup ${fullCmd} > /dev/null 2>&1 &`;
 
         console.log('[apps:launch] Spawning bash login shell with:', launchCmd);
         console.log('[apps:launch] DISPLAY:', x11Env.DISPLAY);
+        console.log('[apps:launch] bin:', bin, 'args:', args);
 
-        // Use spawn with detached + unref to fully detach
-        const bashProcess = spawn('/bin/bash', ['-l', '-c', launchCmd], {
-            detached: true,
-            stdio: 'ignore',
-            cwd: cwd || undefined,
-            env: x11Env
-        });
-        bashProcess.unref();
+        let spawnError = null;
+        try {
+            const bashProcess = spawn('/bin/bash', ['-l', '-c', launchCmd], {
+                detached: true,
+                stdio: 'ignore',
+                cwd: cwd || undefined,
+                env: x11Env
+            });
+
+            bashProcess.on('error', (err) => {
+                console.error('[apps:launch] Spawn error event:', err.message);
+                spawnError = err.message;
+            });
+
+            bashProcess.unref();
+            console.log('[apps:launch] Spawn successful, PID:', bashProcess.pid);
+        } catch (spawnErr) {
+            console.error('[apps:launch] Spawn threw error:', spawnErr.message);
+            spawnError = spawnErr.message;
+        }
 
         // Help the unified taskbar "see" the new app quickly (avoid ~650ms poll delay).
         if (ewmhBridge?.supported && ewmhBridge.refreshNow) {
@@ -7032,7 +7044,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
             }
         }
         // Return debug info that will show in renderer console
-        return { success: true, cmd: launchCmd, display: x11Env.DISPLAY };
+        return { success: !spawnError, cmd: launchCmd, display: x11Env.DISPLAY, error: spawnError, bin };
     } catch (error) {
         return { success: false, error: error.message };
     }

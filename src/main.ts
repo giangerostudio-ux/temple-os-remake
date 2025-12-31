@@ -1462,9 +1462,11 @@ class TempleOS {
     // Handle actions from floating Start Menu popup (X11)
     if (window.electronAPI?.onStartMenuAction) {
       window.electronAPI.onStartMenuAction((action) => {
+        console.log('[DEBUG StartMenu] Received action from popup:', JSON.stringify(action));
         this.startMenuPopupOpen = false;
 
         if (action.type === 'launch' && action.key) {
+          console.log('[DEBUG StartMenu] Launching app with key:', action.key);
           this.launchByKey(action.key);
         } else if (action.type === 'pin-start' && action.key) {
           this.pinStart(action.key);
@@ -6090,14 +6092,19 @@ class TempleOS {
 
   private launchByKey(key: string, toggle = false): void {
     const raw = String(key || '');
+    console.log('[DEBUG launchByKey] Called with key:', raw);
 
     const now = Date.now();
     const last = this.lastLaunchByKeyAt[raw] || 0;
-    if (now - last < 1000) return;
+    if (now - last < 1000) {
+      console.log('[DEBUG launchByKey] Debounced - too soon after last launch');
+      return;
+    }
     this.lastLaunchByKeyAt[raw] = now;
 
     if (raw.startsWith('builtin:')) {
       const appId = raw.slice('builtin:'.length);
+      console.log('[DEBUG launchByKey] Opening builtin app:', appId);
       // Special handling for trash - open files app to trash folder
       if (appId === 'trash') {
         this.openApp('files');
@@ -6108,6 +6115,7 @@ class TempleOS {
       return;
     }
     const installed = this.findInstalledAppByKey(raw);
+    console.log('[DEBUG launchByKey] Found installed app:', installed ? installed.name : 'NOT FOUND', 'launchApp available:', !!window.electronAPI?.launchApp);
     if (installed && window.electronAPI?.launchApp) {
       // Gaming Mode logic
       const cat = this.canonicalCategoryForInstalledApp(installed);

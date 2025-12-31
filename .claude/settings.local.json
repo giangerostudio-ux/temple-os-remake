@@ -41,7 +41,8 @@
       "Bash(wc:*)",
       "Bash(powershell -Command:*)",
       "Bash(python:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(ssh:*)"
     ]
   }
 }

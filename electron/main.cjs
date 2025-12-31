@@ -3420,11 +3420,17 @@ searchInput.addEventListener('input', filterApps);
 if (catSelect) catSelect.addEventListener('change', filterApps);
 
 document.body.addEventListener('click', (e) => {
+    console.log('[DEBUG Popup] Click detected on:', e.target);
     const el = e.target.closest('[data-action]');
-    if (!el) return;
+    if (!el) {
+        console.log('[DEBUG Popup] No data-action element found');
+        return;
+    }
     const action = el.dataset.action;
+    console.log('[DEBUG Popup] Action:', action, 'Key:', el.dataset.key);
     if (action === 'launch') {
         window.__startMenuAction = { type: 'launch', key: el.dataset.key };
+        console.log('[DEBUG Popup] Set __startMenuAction:', window.__startMenuAction);
     } else if (action === 'quicklink') {
         window.__startMenuAction = { type: 'quicklink', path: el.dataset.path };
     } else if (action === 'power') {
@@ -3567,17 +3573,22 @@ ipcMain.handle('startmenu:show', async (event, config) => {
             try {
                 const action = await startMenuPopup.webContents.executeJavaScript('window.__startMenuAction || null');
                 if (action) {
+                    console.log('[DEBUG Poll] Got action from popup:', JSON.stringify(action));
                     // Clear action
                     await startMenuPopup.webContents.executeJavaScript('window.__startMenuAction = null');
 
                     if (mainWindow && !mainWindow.isDestroyed()) {
+                        console.log('[DEBUG Poll] Sending action to main window');
                         mainWindow.webContents.send('startmenu:action', action);
+                    } else {
+                        console.log('[DEBUG Poll] ERROR: mainWindow not available!');
                     }
 
                     // Close popup after action
                     closeStartMenuPopupSync();
                 }
-            } catch {
+            } catch (e) {
+                console.log('[DEBUG Poll] Error polling:', e);
                 closeStartMenuPopupSync();
             }
         }, 32);
@@ -6943,6 +6954,7 @@ ipcMain.handle('apps:getInstalled', async () => {
 
 // Launch an application by its .desktop file or exec command
 ipcMain.handle('apps:launch', async (event, app) => {
+    console.log('[DEBUG apps:launch] Called with app:', JSON.stringify(app));
     if (process.platform !== 'linux') {
         return { success: false, unsupported: true, error: 'Launching apps is only supported on Linux' };
     }
@@ -6951,6 +6963,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
         // Prefer the provided exec (it may be modified e.g. "gamemoderun ...").
         // Fallback: read Exec from the .desktop file.
         let execLine = app && typeof app.exec === 'string' ? app.exec.trim() : '';
+        console.log('[DEBUG apps:launch] Initial execLine:', execLine);
         let cwd = null;
 
         if ((!execLine || !execLine.length) && app && typeof app.desktopFile === 'string') {

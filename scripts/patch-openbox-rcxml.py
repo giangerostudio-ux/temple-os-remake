@@ -22,6 +22,13 @@ DEFAULT_RC_XML = """<?xml version="1.0" encoding="UTF-8"?>
     <center>yes</center>
     <monitor>Primary</monitor>
   </placement>
+  <desktops>
+    <number>1</number>
+    <firstdesk>1</firstdesk>
+    <names>
+      <name>Desktop</name>
+    </names>
+  </desktops>
   <theme>
     <name>Clearlooks</name>
     <titleLayout>NLIMC</titleLayout>
@@ -67,6 +74,28 @@ def ensure_templeos_app_rule(xml: str) -> str:
   <applications>{rule}  </applications>
 """
     return re.sub(r"(</openbox_config\s*>)", block + r"\1", xml, count=1, flags=re.IGNORECASE)
+
+
+def ensure_single_desktop(xml: str) -> str:
+    """Ensure only 1 virtual desktop is configured to prevent apps appearing on wrong desktop."""
+    # If <desktops> section exists, patch <number> to 1
+    if re.search(r"<desktops\b", xml, flags=re.IGNORECASE):
+        # Replace existing <number>N</number> with <number>1</number>
+        xml = re.sub(r"(<desktops\b[^>]*>.*?<number>)\d+(</number>)", r"\g<1>1\g<2>", xml, flags=re.DOTALL | re.IGNORECASE)
+        return xml
+    
+    # If no <desktops> section, add one
+    desktops_block = """
+  <desktops>
+    <number>1</number>
+    <firstdesk>1</firstdesk>
+    <names>
+      <name>Desktop</name>
+    </names>
+  </desktops>
+"""
+    # Insert before </openbox_config>
+    return re.sub(r"(</openbox_config\s*>)", desktops_block + r"\1", xml, count=1, flags=re.IGNORECASE)
 
 
 def main() -> int:
@@ -117,6 +146,7 @@ def main() -> int:
         xml = DEFAULT_RC_XML
 
     xml = ensure_templeos_app_rule(xml)
+    xml = ensure_single_desktop(xml)
 
     path.write_text(xml, encoding="utf-8")
     return 0

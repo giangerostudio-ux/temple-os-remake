@@ -42,7 +42,8 @@
       "Bash(powershell -Command:*)",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(ssh:*)"
+      "Bash(ssh:*)",
+      "Bash(scp:*)"
     ]
   }
 }

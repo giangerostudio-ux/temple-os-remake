@@ -6991,15 +6991,52 @@ ipcMain.handle('apps:launch', async (event, app) => {
 
         const bin = argv[0];
         const args = argv.slice(1);
-        const child = spawn(bin, args, {
+        console.log('[apps:launch] Spawning:', bin, args);
+        console.log('[apps:launch] DISPLAY env:', process.env.DISPLAY);
+
+        // For snap apps, use shell execution to ensure proper environment
+        const isSnapApp = bin.includes('/snap/') || bin.startsWith('snap ');
+        const useShell = isSnapApp && process.platform === 'linux';
+
+        const spawnOptions = {
             detached: true,
-            stdio: 'ignore',
+            stdio: ['ignore', 'pipe', 'pipe'],
             cwd: cwd || undefined,
             env: { ...process.env, ...envVars }
+        };
+
+        let child;
+        if (useShell) {
+            // Run through shell for snap apps
+            const fullCmd = [bin, ...args].map(a => a.includes(' ') ? `"${a}"` : a).join(' ');
+            console.log('[apps:launch] Using shell for snap app:', fullCmd);
+            child = spawn(fullCmd, [], { ...spawnOptions, shell: true });
+        } else {
+            child = spawn(bin, args, spawnOptions);
+        }
+
+        // Capture stderr for debugging
+        let stderrOutput = '';
+        child.stderr?.on('data', (chunk) => {
+            stderrOutput += chunk.toString();
         });
+
+        child.once('exit', (code, signal) => {
+            if (code !== 0 && code !== null) {
+                console.log('[apps:launch] Process exited early - code:', code, 'signal:', signal);
+                if (stderrOutput) console.log('[apps:launch] stderr:', stderrOutput.slice(0, 1000));
+            }
+        });
+
         await new Promise((resolve, reject) => {
-            child.once('error', reject);
-            child.once('spawn', resolve);
+            child.once('error', (err) => {
+                console.log('[apps:launch] Spawn error:', err.message);
+                reject(err);
+            });
+            child.once('spawn', () => {
+                console.log('[apps:launch] Spawn OK, PID:', child.pid);
+                resolve();
+            });
         });
         child.unref();
 

@@ -6990,11 +6990,29 @@ ipcMain.handle('apps:launch', async (event, app) => {
 
         const bin = argv[0];
         const args = argv.slice(1);
+
+        // FIX: Explicitly set X11 environment variables to fix corrupted session
+        // GNOME/Wayland installation may have set wrong session type or missing vars
+        const x11Env = {
+            ...process.env,
+            ...envVars,
+            // Force X11 session type (may have been set to wayland by GNOME)
+            XDG_SESSION_TYPE: 'x11',
+            // Force X11 backend for GTK apps (prevents trying to use Wayland)
+            GDK_BACKEND: 'x11',
+            // Force X11 backend for Qt apps
+            QT_QPA_PLATFORM: 'xcb',
+            // Ensure DISPLAY is set
+            DISPLAY: process.env.DISPLAY || ':0',
+            // Unset Wayland display if it was set
+            WAYLAND_DISPLAY: '',
+        };
+
         const child = spawn(bin, args, {
             detached: true,
             stdio: 'ignore',
             cwd: cwd || undefined,
-            env: { ...process.env, ...envVars }
+            env: x11Env
         });
         await new Promise((resolve, reject) => {
             child.once('error', reject);

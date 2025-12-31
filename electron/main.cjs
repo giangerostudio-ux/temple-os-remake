@@ -7248,97 +7248,88 @@ ipcMain.handle('updater:check', async () => {
 });
 
 ipcMain.handle('updater:update', async () => {
-    return new Promise((resolve) => {
-        const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        // Core update script (no sandbox fix - that's done separately)
-        const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
-        console.log('[DEBUG updater:update] Starting update with script:', updateScript);
-        console.log('[DEBUG updater:update] projectRoot:', projectRoot);
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    console.log('[Holy Updater] Starting update process...');
+    console.log('[Holy Updater] projectRoot:', projectRoot);
 
-        const runUpdate = () => {
-            exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: 300000 }, (error, stdout, stderr) => {
-                console.log('[DEBUG updater:update] exec completed. error:', error ? error.message : 'none');
+    // Helper to run a command with timeout
+    const runCmd = (cmd, timeoutMs = 120000) => {
+        return new Promise((resolve) => {
+            console.log('[Holy Updater] Running:', cmd);
+            exec(cmd, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: timeoutMs }, (error, stdout, stderr) => {
                 if (error) {
-                    // Self-healing: On Linux, if we get EACCES/permission denied, try to reclaim ownership via pkexec
-                    if (process.platform === 'linux' && (error.message.includes('EACCES') || error.message.includes('permission denied'))) {
-                        console.log('Update failed with permissions error. Attempting to fix ownership via pkexec...');
-                        const user = process.env.USER || 'temple';
-                        const fixCmd = `pkexec chown -R ${user}:${user} "${projectRoot}"`;
-
-                        exec(fixCmd, (fixErr) => {
-                            if (fixErr) {
-                                resolve({
-                                    success: false,
-                                    error: `Permission denied and failed to auto-fix: ${fixErr.message}`,
-                                    output: stdout + '\n' + stderr + '\n' + 'Fix attempt failed.'
-                                });
-                            } else {
-                                // Retry update after fixing permissions
-                                runUpdate();
-                            }
-                        });
-                        return;
-                    }
-
-                    resolve({
-                        success: false,
-                        error: error.message,
-                        output: stdout + '\n' + stderr
-                    });
-                    return;
+                    console.log('[Holy Updater] Command failed:', error.message);
+                    resolve({ success: false, error: error.message, stdout, stderr });
+                } else {
+                    console.log('[Holy Updater] Command succeeded');
+                    resolve({ success: true, stdout, stderr });
                 }
-
-                // Update succeeded! Now try to fix sandbox permissions (non-blocking)
-                if (process.platform === 'linux') {
-                    const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
-                    const sandboxFixCmd = `sudo chown root:root "${sandboxPath}" && sudo chmod 4755 "${sandboxPath}"`;
-
-                    // Try to fix sandbox in background - don't block on it
-                    exec(sandboxFixCmd, { timeout: 5000 }, (sandboxErr) => {
-                        if (sandboxErr) {
-                            console.warn('[Holy Updater] Sandbox fix failed (may need manual fix):', sandboxErr.message);
-                        } else {
-                            console.log('[Holy Updater] Sandbox permissions fixed automatically');
-                        }
-                    });
-
-                    // NEW: Install/Update GTK Theme (non-blocking, user mode)
-                    // This ensures any new theme tweaks are applied to X11 apps after update
-                    const themeScript = path.join(projectRoot, 'scripts/install-gtk-theme.sh');
-                    // Ensure script is executable first
-                    const themeCmd = `chmod +x "${themeScript}" && "${themeScript}" user`;
-
-                    exec(themeCmd, { timeout: 15000 }, (themeErr, themeOut) => {
-                        if (themeErr) {
-                            console.warn('[Holy Updater] GTK Theme update failed:', themeErr.message);
-                        } else {
-                            console.log('[Holy Updater] GTK Theme updated successfully');
-                        }
-                    });
-
-                    // NEW: Install/Update Openbox Theme (non-blocking, user mode)
-                    const openboxScript = path.join(projectRoot, 'scripts/apply-theme.sh');
-                    const openboxCmd = `chmod +x "${openboxScript}" && "${openboxScript}"`;
-
-                    exec(openboxCmd, { timeout: 15000 }, (obErr, obOut) => {
-                        if (obErr) {
-                            console.warn('[Holy Updater] Openbox Theme update failed:', obErr.message);
-                        } else {
-                            console.log('[Holy Updater] Openbox Theme updated successfully');
-                        }
-                    });
-                }
-
-                resolve({
-                    success: true,
-                    output: stdout,
-                    message: 'Update complete! Reboot to apply changes.'
-                });
             });
-        };
+        });
+    };
 
-        runUpdate();
-    });
+    try {
+        // Step 1: Git fetch
+        console.log('[Holy Updater] Step 1/4: Fetching from origin...');
+        let result = await runCmd('git fetch origin main', 60000);
+        if (!result.success) {
+            return { success: false, error: `Git fetch failed: ${result.error}`, output: result.stderr };
+        }
+
+        // Step 2: Git reset
+        console.log('[Holy Updater] Step 2/4: Resetting to origin/main...');
+        result = await runCmd('git reset --hard origin/main', 30000);
+        if (!result.success) {
+            return { success: false, error: `Git reset failed: ${result.error}`, output: result.stderr };
+        }
+
+        // Step 3: npm install
+        console.log('[Holy Updater] Step 3/4: Installing dependencies...');
+        result = await runCmd(`${npmCmd} install --ignore-optional`, 180000);
+        if (!result.success) {
+            // Try to fix permissions and retry on Linux
+            if (process.platform === 'linux' && (result.error.includes('EACCES') || result.error.includes('permission denied'))) {
+                console.log('[Holy Updater] Permission error, attempting fix...');
+                const user = process.env.USER || 'temple';
+                await runCmd(`pkexec chown -R ${user}:${user} "${projectRoot}"`, 30000);
+                result = await runCmd(`${npmCmd} install --ignore-optional`, 180000);
+                if (!result.success) {
+                    return { success: false, error: `npm install failed after permission fix: ${result.error}`, output: result.stderr };
+                }
+            } else {
+                return { success: false, error: `npm install failed: ${result.error}`, output: result.stderr };
+            }
+        }
+
+        // Step 4: Build
+        console.log('[Holy Updater] Step 4/4: Building...');
+        result = await runCmd(`${npmCmd} run build -- --base=./`, 120000);
+        if (!result.success) {
+            return { success: false, error: `Build failed: ${result.error}`, output: result.stderr };
+        }
+
+        console.log('[Holy Updater] Update completed successfully!');
+
+        // Post-update: Fix sandbox permissions (non-blocking)
+        if (process.platform === 'linux') {
+            const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
+            exec(`sudo chown root:root "${sandboxPath}" && sudo chmod 4755 "${sandboxPath}"`, { timeout: 5000 }, () => {});
+
+            // Install/Update GTK Theme (non-blocking, user mode)
+            const themeScript = path.join(projectRoot, 'scripts/install-gtk-theme.sh');
+            exec(`chmod +x "${themeScript}" && "${themeScript}" user`, { timeout: 15000 }, () => {});
+
+            // Install/Update Openbox Theme (non-blocking, user mode)
+            const openboxScript = path.join(projectRoot, 'scripts/apply-theme.sh');
+            exec(`chmod +x "${openboxScript}" && "${openboxScript}"`, { timeout: 15000 }, () => {});
+        }
+
+        return { success: true, message: 'Update complete! Restart to apply changes.' };
+
+    } catch (err) {
+        console.log('[Holy Updater] Unexpected error:', err);
+        return { success: false, error: err.message || String(err) };
+    }
 });
 
 // ============================================

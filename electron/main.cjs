@@ -7055,7 +7055,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
             }
         }
         // Return debug info that will show in renderer console
-        return { success: !spawnError, cmd: launchCmd, display: x11Env.DISPLAY, error: spawnError, bin };
+        return { success: !spawnError, cmd: fullCmd, display: x11Env.DISPLAY, error: spawnError, bin: launchBin };
     } catch (error) {
         return { success: false, error: error.message };
     }

@@ -7006,31 +7006,42 @@ ipcMain.handle('apps:launch', async (event, app) => {
 
         // Build the command string with proper escaping
         const escapeArg = (a) => a.includes(' ') || a.includes('"') ? `"${a.replace(/"/g, '\\"')}"` : a;
-        const fullCmd = [bin, ...args].map(escapeArg).join(' ');
 
-        // Use spawn with bash login shell (-l) to mimic SSH environment
-        const launchCmd = `nohup ${fullCmd} > /dev/null 2>&1 &`;
+        // For snap apps, use 'snap run' which is the official launcher and handles confinement
+        let launchBin = bin;
+        let launchArgs = args;
+        const isSnapApp = bin.includes('/snap/');
 
-        console.log('[apps:launch] Spawning bash login shell with:', launchCmd);
+        if (isSnapApp) {
+            // Extract app name from /snap/bin/firefox -> firefox
+            const snapAppName = bin.split('/').pop();
+            launchBin = 'snap';
+            launchArgs = ['run', snapAppName, ...args];
+            console.log('[apps:launch] Using snap run for:', snapAppName);
+        }
+
+        const fullCmd = [launchBin, ...launchArgs].map(escapeArg).join(' ');
+
+        // Simple command - let the app handle backgrounding
+        console.log('[apps:launch] Executing:', fullCmd);
         console.log('[apps:launch] DISPLAY:', x11Env.DISPLAY);
-        console.log('[apps:launch] bin:', bin, 'args:', args);
 
         let spawnError = null;
         try {
-            const bashProcess = spawn('/bin/bash', ['-l', '-c', launchCmd], {
+            const appProcess = spawn(launchBin, launchArgs, {
                 detached: true,
                 stdio: 'ignore',
                 cwd: cwd || undefined,
                 env: x11Env
             });
 
-            bashProcess.on('error', (err) => {
+            appProcess.on('error', (err) => {
                 console.error('[apps:launch] Spawn error event:', err.message);
                 spawnError = err.message;
             });
 
-            bashProcess.unref();
-            console.log('[apps:launch] Spawn successful, PID:', bashProcess.pid);
+            appProcess.unref();
+            console.log('[apps:launch] Spawn successful, PID:', appProcess.pid);
         } catch (spawnErr) {
             console.error('[apps:launch] Spawn threw error:', spawnErr.message);
             spawnError = spawnErr.message;

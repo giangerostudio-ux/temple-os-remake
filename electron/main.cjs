@@ -7293,19 +7293,27 @@ ipcMain.handle('updater:check', async () => {
 
 ipcMain.handle('updater:update', async () => {
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    console.log('[Holy Updater] Starting update process...');
-    console.log('[Holy Updater] projectRoot:', projectRoot);
+    const logFile = '/tmp/holy-updater.log';
+    const log = (msg) => {
+        const line = `[${new Date().toISOString()}] ${msg}\n`;
+        console.log('[Holy Updater]', msg);
+        try { fs.appendFileSync(logFile, line); } catch(e) {}
+    };
+
+    log('Starting update process...');
+    log(`projectRoot: ${projectRoot}`);
 
     // Helper to run a command with timeout
     const runCmd = (cmd, timeoutMs = 120000) => {
         return new Promise((resolve) => {
-            console.log('[Holy Updater] Running:', cmd);
+            log(`Running: ${cmd}`);
+            log(`Timeout: ${timeoutMs}ms`);
             exec(cmd, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: timeoutMs }, (error, stdout, stderr) => {
                 if (error) {
-                    console.log('[Holy Updater] Command failed:', error.message);
+                    log(`Command FAILED: ${error.message}`);
                     resolve({ success: false, error: error.message, stdout, stderr });
                 } else {
-                    console.log('[Holy Updater] Command succeeded');
+                    log('Command succeeded');
                     resolve({ success: true, stdout, stderr });
                 }
             });
@@ -7314,7 +7322,7 @@ ipcMain.handle('updater:update', async () => {
 
     try {
         // Step 1: Git fetch
-        console.log('[Holy Updater] Step 1/4: Fetching from origin...');
+        log('Step 1/4: Fetching from origin...');
         let result = await runCmd('git fetch origin main', 60000);
         if (!result.success) {
             return { success: false, error: `Git fetch failed: ${result.error}`, output: result.stderr };

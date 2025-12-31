@@ -7013,6 +7013,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const launchCmd = `nohup ${fullCmd} > /dev/null 2>&1 &`;
 
         console.log('[apps:launch] Executing via shell:', launchCmd);
+        console.log('[apps:launch] DISPLAY:', x11Env.DISPLAY);
 
         exec(launchCmd, {
             cwd: cwd || undefined,
@@ -7021,6 +7022,8 @@ ipcMain.handle('apps:launch', async (event, app) => {
         }, (err) => {
             if (err) {
                 console.error('[apps:launch] Shell exec error:', err.message);
+            } else {
+                console.log('[apps:launch] Shell exec completed successfully');
             }
         });
 
@@ -7031,7 +7034,8 @@ ipcMain.handle('apps:launch', async (event, app) => {
                 setTimeout(() => { void ewmhBridge.refreshNow().catch((e) => console.warn('[X11] Post-launch EWMH refresh failed:', e.message)); }, ms);
             }
         }
-        return { success: true };
+        // Return debug info that will show in renderer console
+        return { success: true, cmd: launchCmd, display: x11Env.DISPLAY };
     } catch (error) {
         return { success: false, error: error.message };
     }

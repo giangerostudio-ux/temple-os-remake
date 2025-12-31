@@ -7055,6 +7055,33 @@ ipcMain.handle('apps:launch', async (event, app) => {
                 setTimeout(() => { void ewmhBridge.refreshNow().catch((e) => console.warn('[X11] Post-launch EWMH refresh failed:', e.message)); }, ms);
             }
         }
+
+        // FIX: Explicitly activate newly spawned X11 app to ensure it appears above the Electron window
+        // The main window has _NET_WM_STATE_BELOW but newly launched apps may not be raised due to timing
+        if (isX11Session()) {
+            setTimeout(async () => {
+                try {
+                    const snapshot = ewmhBridge?.getSnapshot?.();
+                    // Find the newest window (likely the one we just launched)
+                    if (snapshot?.windows?.length > 0) {
+                        // Get the window that's not minimized and not the main window
+                        const candidateWindows = snapshot.windows.filter(w =>
+                            !w.minimized &&
+                            w.xidHex?.toLowerCase() !== mainWindowXid?.toLowerCase()
+                        );
+                        if (candidateWindows.length > 0) {
+                            // Activate the most recent window (last in the list typically)
+                            const targetXid = candidateWindows[candidateWindows.length - 1].xidHex;
+                            console.log('[apps:launch] Activating newly launched window:', targetXid);
+                            await execAsync(`wmctrl -ia ${targetXid}`, { timeout: 2000 });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[apps:launch] Post-launch window activation failed:', e.message);
+                }
+            }, 1200);
+        }
+
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };
@@ -7298,18 +7325,20 @@ ipcMain.handle('updater:update', async () => {
     const log = (msg) => {
         const line = `[${new Date().toISOString()}] ${msg}\n`;
         console.log('[Holy Updater]', msg);
-        try { fs.appendFileSync(logFile, line); } catch(e) {}
+        try { fs.appendFileSync(logFile, line); } catch (e) { }
     };
 
     log('Starting update process...');
     log(`projectRoot: ${projectRoot}`);
 
     // Helper to run a command with timeout
+    // FIX: Add GIT_TERMINAL_PROMPT=0 to prevent git credential prompts from freezing
     const runCmd = (cmd, timeoutMs = 120000) => {
         return new Promise((resolve) => {
             log(`Running: ${cmd}`);
             log(`Timeout: ${timeoutMs}ms`);
-            exec(cmd, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: timeoutMs }, (error, stdout, stderr) => {
+            const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
+            exec(cmd, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: timeoutMs, env }, (error, stdout, stderr) => {
                 if (error) {
                     log(`Command FAILED: ${error.message}`);
                     resolve({ success: false, error: error.message, stdout, stderr });
@@ -7324,7 +7353,8 @@ ipcMain.handle('updater:update', async () => {
     try {
         // Step 1: Git fetch
         log('Step 1/4: Fetching from origin...');
-        let result = await runCmd('git fetch origin main', 60000);
+        // FIX: Increased timeout from 60s to 120s for slow networks
+        let result = await runCmd('git fetch origin main', 120000);
         if (!result.success) {
             return { success: false, error: `Git fetch failed: ${result.error}`, output: result.stderr };
         }
@@ -7338,7 +7368,8 @@ ipcMain.handle('updater:update', async () => {
 
         // Step 3: npm install
         console.log('[Holy Updater] Step 3/4: Installing dependencies...');
-        result = await runCmd(`${npmCmd} install --ignore-optional`, 180000);
+        // FIX: Increased timeout from 180s to 300s (5 min) for slow networks/large installs
+        result = await runCmd(`${npmCmd} install --ignore-optional`, 300000);
         if (!result.success) {
             // On Linux permission errors, log a warning but don't block with pkexec
             // (pkexec opens a GUI dialog that can freeze the system if it fails)
@@ -7357,7 +7388,8 @@ ipcMain.handle('updater:update', async () => {
 
         // Step 4: Build
         console.log('[Holy Updater] Step 4/4: Building...');
-        result = await runCmd(`${npmCmd} run build -- --base=./`, 120000);
+        // FIX: Increased timeout from 120s to 180s (3 min) for slower systems
+        result = await runCmd(`${npmCmd} run build -- --base=./`, 180000);
         if (!result.success) {
             return { success: false, error: `Build failed: ${result.error}`, output: result.stderr };
         }
@@ -7376,11 +7408,11 @@ ipcMain.handle('updater:update', async () => {
 
             // Install/Update GTK Theme (non-blocking, user mode)
             const themeScript = path.join(projectRoot, 'scripts/install-gtk-theme.sh');
-            exec(`chmod +x "${themeScript}" && "${themeScript}" user`, { timeout: 15000 }, () => {});
+            exec(`chmod +x "${themeScript}" && "${themeScript}" user`, { timeout: 15000 }, () => { });
 
             // Install/Update Openbox Theme (non-blocking, user mode)
             const openboxScript = path.join(projectRoot, 'scripts/apply-theme.sh');
-            exec(`chmod +x "${openboxScript}" && "${openboxScript}"`, { timeout: 15000 }, () => {});
+            exec(`chmod +x "${openboxScript}" && "${openboxScript}"`, { timeout: 15000 }, () => { });
         }
 
         return { success: true, message: 'Update complete! Restart to apply changes.' };

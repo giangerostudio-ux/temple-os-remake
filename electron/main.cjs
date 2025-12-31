@@ -7008,24 +7008,21 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const escapeArg = (a) => a.includes(' ') || a.includes('"') ? `"${a.replace(/"/g, '\\"')}"` : a;
         const fullCmd = [bin, ...args].map(escapeArg).join(' ');
 
-        // Use nohup + & to fully detach from Electron
-        // This mimics what happens when you run the command in a terminal
+        // Use spawn with bash login shell (-l) to mimic SSH environment
+        // SSH works because it creates a login shell that sources ~/.bashrc and snap paths
         const launchCmd = `nohup ${fullCmd} > /dev/null 2>&1 &`;
 
-        console.log('[apps:launch] Executing via shell:', launchCmd);
+        console.log('[apps:launch] Spawning bash login shell with:', launchCmd);
         console.log('[apps:launch] DISPLAY:', x11Env.DISPLAY);
 
-        exec(launchCmd, {
+        // Use spawn with detached + unref to fully detach
+        const bashProcess = spawn('/bin/bash', ['-l', '-c', launchCmd], {
+            detached: true,
+            stdio: 'ignore',
             cwd: cwd || undefined,
-            env: x11Env,
-            shell: '/bin/bash'
-        }, (err) => {
-            if (err) {
-                console.error('[apps:launch] Shell exec error:', err.message);
-            } else {
-                console.log('[apps:launch] Shell exec completed successfully');
-            }
+            env: x11Env
         });
+        bashProcess.unref();
 
         // Help the unified taskbar "see" the new app quickly (avoid ~650ms poll delay).
         if (ewmhBridge?.supported && ewmhBridge.refreshNow) {

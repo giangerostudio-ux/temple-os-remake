@@ -6995,20 +6995,30 @@ ipcMain.handle('apps:launch', async (event, app) => {
         console.log('[apps:launch] Spawning:', bin, args);
         console.log('[apps:launch] DISPLAY env:', process.env.DISPLAY);
 
-        // For snap apps, use exec with nohup to properly background
+        // For snap apps, use exec with setsid+nohup to properly background and detach
         const isSnapApp = bin.includes('/snap/') || bin.startsWith('snap ');
 
         if (isSnapApp && process.platform === 'linux') {
-            // Use exec with nohup for snap apps - they need proper shell environment
+            // Use setsid + nohup for snap apps - they need COMPLETE process group separation
+            // Snap apps often fail when their parent process (Electron) controls the session
             const fullCmd = [bin, ...args].map(a => a.includes(' ') ? `"${a}"` : a).join(' ');
-            console.log('[apps:launch] Using exec for snap app:', fullCmd);
+            console.log('[apps:launch] Using setsid+exec for snap app:', fullCmd);
+            console.log('[apps:launch] DISPLAY:', process.env.DISPLAY);
 
-            // nohup + & to fully detach from Electron
-            exec(`nohup ${fullCmd} > /dev/null 2>&1 &`, {
+            // setsid creates new session, nohup ignores HUP, & backgrounds
+            // Redirect stderr to a log so we can debug if needed
+            const launchCmd = `setsid nohup ${fullCmd} > /tmp/snap-launch.log 2>&1 &`;
+
+            exec(launchCmd, {
                 cwd: cwd || undefined,
                 env: { ...process.env, ...envVars }
-            }, (err) => {
-                if (err) console.log('[apps:launch] exec error:', err.message);
+            }, (err, stdout, stderr) => {
+                if (err) {
+                    console.log('[apps:launch] exec error:', err.message);
+                    console.log('[apps:launch] stderr:', stderr);
+                } else {
+                    console.log('[apps:launch] Snap app launched successfully via setsid');
+                }
             });
 
             return { success: true };

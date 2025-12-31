@@ -18,8 +18,9 @@ async function hasCommand(bin) {
 
 async function getPrivMethod() {
     if (cachedPrivMethod !== undefined) return cachedPrivMethod;
-    if (await hasCommand('pkexec')) { cachedPrivMethod = 'pkexec'; return cachedPrivMethod; }
+    // Prefer sudo -n over pkexec to prevent GUI dialogs that can hang
     if (await hasCommand('sudo')) { cachedPrivMethod = 'sudo'; return cachedPrivMethod; }
+    if (await hasCommand('pkexec')) { cachedPrivMethod = 'pkexec'; return cachedPrivMethod; }
     cachedPrivMethod = null;
     return cachedPrivMethod;
 }
@@ -30,9 +31,10 @@ async function runPrivilegedSh(command, options = {}) {
     if (!method) {
         return { error: new Error('No privilege escalation method available'), stdout: '', stderr: '' };
     }
+    // Use sudo -n for non-interactive mode to prevent hanging on password prompt
     const wrapped = method === 'pkexec'
         ? `pkexec sh -c '${command.replace(/'/g, "'\\''")}'`
-        : `sudo sh -c '${command.replace(/'/g, "'\\''")}'`;
+        : `sudo -n sh -c '${command.replace(/'/g, "'\\''")}'`;
     return execAsync(wrapped, { timeout });
 }
 

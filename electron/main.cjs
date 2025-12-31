@@ -5210,8 +5210,9 @@ async function hasCommand(bin) {
 
 async function getPrivMethod() {
     if (cachedPrivMethod !== undefined) return cachedPrivMethod;
-    if (await hasCommand('pkexec')) { cachedPrivMethod = 'pkexec'; return cachedPrivMethod; }
+    // Prefer sudo -n over pkexec to prevent GUI dialogs that can hang
     if (await hasCommand('sudo')) { cachedPrivMethod = 'sudo'; return cachedPrivMethod; }
+    if (await hasCommand('pkexec')) { cachedPrivMethod = 'pkexec'; return cachedPrivMethod; }
     cachedPrivMethod = null;
     return cachedPrivMethod;
 }
@@ -7339,15 +7340,16 @@ ipcMain.handle('updater:update', async () => {
         console.log('[Holy Updater] Step 3/4: Installing dependencies...');
         result = await runCmd(`${npmCmd} install --ignore-optional`, 180000);
         if (!result.success) {
-            // Try to fix permissions and retry on Linux
+            // On Linux permission errors, log a warning but don't block with pkexec
+            // (pkexec opens a GUI dialog that can freeze the system if it fails)
             if (process.platform === 'linux' && (result.error.includes('EACCES') || result.error.includes('permission denied'))) {
-                console.log('[Holy Updater] Permission error, attempting fix...');
-                const user = process.env.USER || 'temple';
-                await runCmd(`pkexec chown -R ${user}:${user} "${projectRoot}"`, 30000);
-                result = await runCmd(`${npmCmd} install --ignore-optional`, 180000);
-                if (!result.success) {
-                    return { success: false, error: `npm install failed after permission fix: ${result.error}`, output: result.stderr };
-                }
+                log('Permission error detected. Skipping interactive pkexec fix to prevent freeze.');
+                log('You may need to manually run: sudo chown -R $USER:$USER ' + projectRoot);
+                return {
+                    success: false,
+                    error: `npm install failed with permission error. Please run manually:\n  sudo chown -R $USER:$USER "${projectRoot}"\nThen try updating again.`,
+                    output: result.stderr
+                };
             } else {
                 return { success: false, error: `npm install failed: ${result.error}`, output: result.stderr };
             }
@@ -7362,10 +7364,15 @@ ipcMain.handle('updater:update', async () => {
 
         console.log('[Holy Updater] Update completed successfully!');
 
-        // Post-update: Fix sandbox permissions (non-blocking)
+        // Post-update: Fix sandbox permissions (non-blocking, non-interactive)
+        // Using sudo -n to prevent hanging if password is required
         if (process.platform === 'linux') {
             const sandboxPath = path.join(projectRoot, 'node_modules/electron/dist/chrome-sandbox');
-            exec(`sudo chown root:root "${sandboxPath}" && sudo chmod 4755 "${sandboxPath}"`, { timeout: 5000 }, () => {});
+            exec(`sudo -n chown root:root "${sandboxPath}" && sudo -n chmod 4755 "${sandboxPath}"`, { timeout: 5000 }, (err) => {
+                if (err) {
+                    console.log('[Holy Updater] Sandbox fix skipped (needs manual sudo). Run: sudo chown root:root ' + sandboxPath + ' && sudo chmod 4755 ' + sandboxPath);
+                }
+            });
 
             // Install/Update GTK Theme (non-blocking, user mode)
             const themeScript = path.join(projectRoot, 'scripts/install-gtk-theme.sh');
@@ -7491,9 +7498,14 @@ ipcMain.handle('set-dns', async (event, iface, primary, secondary) => {
     const { execSync } = require('child_process');
     try {
         const servers = [primary, secondary].filter(Boolean).join(' ');
-        execSync(`sudo resolvectl dns ${iface || 'eth0'} ${servers}`, { timeout: 10000 });
+        // Use sudo -n to prevent hanging if password required
+        execSync(`sudo -n resolvectl dns ${iface || 'eth0'} ${servers}`, { timeout: 10000 });
         return { success: true };
     } catch (e) {
+        // If sudo -n failed, provide helpful error
+        if (e.message?.includes('password') || e.message?.includes('sudo')) {
+            return { success: false, error: 'DNS change requires sudo. Run: sudo resolvectl dns ' + (iface || 'eth0') + ' ' + servers };
+        }
         return { success: false, error: e.message };
     }
 });

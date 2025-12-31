@@ -6994,9 +6994,24 @@ ipcMain.handle('apps:launch', async (event, app) => {
         console.log('[apps:launch] Spawning:', bin, args);
         console.log('[apps:launch] DISPLAY env:', process.env.DISPLAY);
 
-        // For snap apps, use shell execution to ensure proper environment
+        // For snap apps, use exec with nohup to properly background
         const isSnapApp = bin.includes('/snap/') || bin.startsWith('snap ');
-        const useShell = isSnapApp && process.platform === 'linux';
+
+        if (isSnapApp && process.platform === 'linux') {
+            // Use exec with nohup for snap apps - they need proper shell environment
+            const fullCmd = [bin, ...args].map(a => a.includes(' ') ? `"${a}"` : a).join(' ');
+            console.log('[apps:launch] Using exec for snap app:', fullCmd);
+
+            // nohup + & to fully detach from Electron
+            exec(`nohup ${fullCmd} > /dev/null 2>&1 &`, {
+                cwd: cwd || undefined,
+                env: { ...process.env, ...envVars }
+            }, (err) => {
+                if (err) console.log('[apps:launch] exec error:', err.message);
+            });
+
+            return { success: true };
+        }
 
         const spawnOptions = {
             detached: true,
@@ -7005,15 +7020,7 @@ ipcMain.handle('apps:launch', async (event, app) => {
             env: { ...process.env, ...envVars }
         };
 
-        let child;
-        if (useShell) {
-            // Run through shell for snap apps
-            const fullCmd = [bin, ...args].map(a => a.includes(' ') ? `"${a}"` : a).join(' ');
-            console.log('[apps:launch] Using shell for snap app:', fullCmd);
-            child = spawn(fullCmd, [], { ...spawnOptions, shell: true });
-        } else {
-            child = spawn(bin, args, spawnOptions);
-        }
+        const child = spawn(bin, args, spawnOptions);
 
         // Capture stderr for debugging
         let stderrOutput = '';

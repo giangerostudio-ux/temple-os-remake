@@ -6955,7 +6955,6 @@ ipcMain.handle('apps:getInstalled', async () => {
 
 // Launch an application by its .desktop file or exec command
 ipcMain.handle('apps:launch', async (event, app) => {
-    console.log('[DEBUG apps:launch] Called with app:', JSON.stringify(app));
     if (process.platform !== 'linux') {
         return { success: false, unsupported: true, error: 'Launching apps is only supported on Linux' };
     }
@@ -6964,7 +6963,6 @@ ipcMain.handle('apps:launch', async (event, app) => {
         // Prefer the provided exec (it may be modified e.g. "gamemoderun ...").
         // Fallback: read Exec from the .desktop file.
         let execLine = app && typeof app.exec === 'string' ? app.exec.trim() : '';
-        console.log('[DEBUG apps:launch] Initial execLine:', execLine);
         let cwd = null;
 
         if ((!execLine || !execLine.length) && app && typeof app.desktopFile === 'string') {
@@ -6992,69 +6990,15 @@ ipcMain.handle('apps:launch', async (event, app) => {
 
         const bin = argv[0];
         const args = argv.slice(1);
-        console.log('[apps:launch] Spawning:', bin, args);
-        console.log('[apps:launch] DISPLAY env:', process.env.DISPLAY);
-
-        // For snap apps, use exec with setsid+nohup to properly background and detach
-        const isSnapApp = bin.includes('/snap/') || bin.startsWith('snap ');
-
-        if (isSnapApp && process.platform === 'linux') {
-            // Use setsid + nohup for snap apps - they need COMPLETE process group separation
-            // Snap apps often fail when their parent process (Electron) controls the session
-            const fullCmd = [bin, ...args].map(a => a.includes(' ') ? `"${a}"` : a).join(' ');
-            console.log('[apps:launch] Using setsid+exec for snap app:', fullCmd);
-            console.log('[apps:launch] DISPLAY:', process.env.DISPLAY);
-
-            // setsid creates new session, nohup ignores HUP, & backgrounds
-            // Redirect stderr to a log so we can debug if needed
-            const launchCmd = `setsid nohup ${fullCmd} > /tmp/snap-launch.log 2>&1 &`;
-
-            exec(launchCmd, {
-                cwd: cwd || undefined,
-                env: { ...process.env, ...envVars }
-            }, (err, stdout, stderr) => {
-                if (err) {
-                    console.log('[apps:launch] exec error:', err.message);
-                    console.log('[apps:launch] stderr:', stderr);
-                } else {
-                    console.log('[apps:launch] Snap app launched successfully via setsid');
-                }
-            });
-
-            return { success: true };
-        }
-
-        const spawnOptions = {
+        const child = spawn(bin, args, {
             detached: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
+            stdio: 'ignore',
             cwd: cwd || undefined,
             env: { ...process.env, ...envVars }
-        };
-
-        const child = spawn(bin, args, spawnOptions);
-
-        // Capture stderr for debugging
-        let stderrOutput = '';
-        child.stderr?.on('data', (chunk) => {
-            stderrOutput += chunk.toString();
         });
-
-        child.once('exit', (code, signal) => {
-            if (code !== 0 && code !== null) {
-                console.log('[apps:launch] Process exited early - code:', code, 'signal:', signal);
-                if (stderrOutput) console.log('[apps:launch] stderr:', stderrOutput.slice(0, 1000));
-            }
-        });
-
         await new Promise((resolve, reject) => {
-            child.once('error', (err) => {
-                console.log('[apps:launch] Spawn error:', err.message);
-                reject(err);
-            });
-            child.once('spawn', () => {
-                console.log('[apps:launch] Spawn OK, PID:', child.pid);
-                resolve();
-            });
+            child.once('error', reject);
+            child.once('spawn', resolve);
         });
         child.unref();
 
@@ -7065,33 +7009,6 @@ ipcMain.handle('apps:launch', async (event, app) => {
                 setTimeout(() => { void ewmhBridge.refreshNow().catch((e) => console.warn('[X11] Post-launch EWMH refresh failed:', e.message)); }, ms);
             }
         }
-
-        // FIX: Explicitly activate newly spawned X11 app to ensure it appears above the Electron window
-        // The main window has _NET_WM_STATE_BELOW but newly launched apps may not be raised due to timing
-        if (isX11Session()) {
-            setTimeout(async () => {
-                try {
-                    const snapshot = ewmhBridge?.getSnapshot?.();
-                    // Find the newest window (likely the one we just launched)
-                    if (snapshot?.windows?.length > 0) {
-                        // Get the window that's not minimized and not the main window
-                        const candidateWindows = snapshot.windows.filter(w =>
-                            !w.minimized &&
-                            w.xidHex?.toLowerCase() !== mainWindowXid?.toLowerCase()
-                        );
-                        if (candidateWindows.length > 0) {
-                            // Activate the most recent window (last in the list typically)
-                            const targetXid = candidateWindows[candidateWindows.length - 1].xidHex;
-                            console.log('[apps:launch] Activating newly launched window:', targetXid);
-                            await execAsync(`wmctrl -ia ${targetXid}`, { timeout: 2000 });
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[apps:launch] Post-launch window activation failed:', e.message);
-                }
-            }, 1200);
-        }
-
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };

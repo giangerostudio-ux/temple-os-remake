@@ -7252,9 +7252,12 @@ ipcMain.handle('updater:update', async () => {
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
         // Core update script (no sandbox fix - that's done separately)
         const updateScript = `git fetch origin main && git reset --hard origin/main && ${npmCmd} install --ignore-optional && ${npmCmd} run build -- --base=./`;
+        console.log('[DEBUG updater:update] Starting update with script:', updateScript);
+        console.log('[DEBUG updater:update] projectRoot:', projectRoot);
 
         const runUpdate = () => {
-            exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            exec(updateScript, { cwd: projectRoot, maxBuffer: 1024 * 1024 * 10, timeout: 300000 }, (error, stdout, stderr) => {
+                console.log('[DEBUG updater:update] exec completed. error:', error ? error.message : 'none');
                 if (error) {
                     // Self-healing: On Linux, if we get EACCES/permission denied, try to reclaim ownership via pkexec
                     if (process.platform === 'linux' && (error.message.includes('EACCES') || error.message.includes('permission denied'))) {

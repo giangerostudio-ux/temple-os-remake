@@ -6155,13 +6155,16 @@ class TempleOS {
       this.x11PendingLaunchWorkspace = this.workspaceManager.getActiveWorkspaceId();
       this.x11PendingLaunchTime = Date.now();
 
+      console.log('[DEBUG launchByKey] Calling launchApp with:', JSON.stringify(appToLaunch));
       void window.electronAPI.launchApp(appToLaunch).then(res => {
+        console.log('[DEBUG launchByKey] launchApp result:', JSON.stringify(res));
         if (!res?.success) {
           this.showNotification('Apps', res?.error || 'Failed to launch app', 'error');
           return;
         }
         this.recordAppLaunch(this.keyForInstalledApp(installed));
       }).catch(e => {
+        console.log('[DEBUG launchByKey] launchApp error:', e);
         this.showNotification('Apps', String(e), 'error');
       });
       return;

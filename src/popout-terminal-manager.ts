@@ -298,24 +298,27 @@ export class PopoutTerminalManager {
      * Show the active terminal and hide others
      */
     private showActiveTerminal(): void {
-        this.tabs.forEach((tab, index) => {
-            if (tab.container) {
-                tab.container.style.display = index === this.activeTabIndex ? 'block' : 'none';
-            }
-        });
-
         // Initialize xterm for active tab if needed
         const activeTab = this.tabs[this.activeTabIndex];
         if (activeTab && !activeTab.xterm) {
             void this.initializeXterm(activeTab);
         }
 
-        // Fit active terminal
-        if (activeTab?.fitAddon) {
-            setTimeout(() => {
-                activeTab.fitAddon?.fit();
-            }, 10);
-        }
+        // Give xterm a moment to initialize before showing
+        setTimeout(() => {
+            this.tabs.forEach((tab, index) => {
+                if (tab.container) {
+                    tab.container.style.display = index === this.activeTabIndex ? 'block' : 'none';
+                }
+            });
+
+            // Fit active terminal
+            if (activeTab?.fitAddon) {
+                setTimeout(() => {
+                    activeTab.fitAddon?.fit();
+                }, 10);
+            }
+        }, 100);
     }
 
     /**

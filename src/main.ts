@@ -20702,7 +20702,7 @@ Write-Host "Done! Restart the app to use Voice of God."`;
             action: () => window.electronAPI?.setX11WindowAlwaysOnTop?.(xid, !win.alwaysOnTop)
           });
           if (window.electronAPI?.snapX11Window) {
-            const taskbarCfg = { height: 50, position: this.taskbarPosition };
+            const taskbarCfg = { height: 83, position: this.taskbarPosition };
             // Helper to snap and track the slot
             const snapAndTrack = async (mode: string) => {
               console.log(`[Snap] Snapping ${xid} to ${mode}...`);

@@ -116,7 +116,7 @@ requestAnimationFrame(() => {
     setTimeout(performFit, 500);
 });
 
-// Resize handling  
+// Resize handling
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const safeResize = () => {
@@ -154,12 +154,13 @@ window.addEventListener('resize', debouncedResize);
 let ptyId: string | null = null;
 
 async function initializePty() {
-    console.log('[Terminal Window] Starting PTY init');
+    console.log('[Terminal] Starting PTY init...');
 
     try {
         // Check PTY availability
         if (!window.electronAPI?.isPtyAvailable || !window.electronAPI?.createPty) {
             xterm.writeln('\\x1b[31mPTY API not available.\\x1b[0m');
+            console.error('[Terminal] PTY APIs missing');
             return;
         }
 
@@ -168,6 +169,7 @@ async function initializePty() {
 
         if (!isPtyAvailable) {
             xterm.writeln('\\x1b[31mPTY not available.\\x1b[0m');
+            console.warn('[Terminal] PTY not available');
             return;
         }
 
@@ -180,17 +182,19 @@ async function initializePty() {
 
         if (!result.success || !result.id) {
             xterm.writeln('\\x1b[31mFailed to create PTY.\\x1b[0m');
+            console.error('[Terminal] PTY creation failed');
             return;
         }
 
         ptyId = result.id;
-        console.log('[Terminal Window] PTY created:', ptyId);
+        console.log('[Terminal] ✅ PTY created:', ptyId);
 
-        // Connect xterm input to PTY - THIS IS THE CRITICAL PART
+        // Connect xterm input to PTY
         xterm.onData((data) => {
-            console.log('[Terminal Window] Input:', data.length, 'chars');
+            console.log('[Terminal] 📤 onData -', data.length, 'chars, ptyId:', ptyId);
             if (ptyId && window.electronAPI?.writePty) {
                 void window.electronAPI.writePty(ptyId, data);
+                console.log('[Terminal] ✏️  Sent to PTY:', ptyId);
             }
         });
 
@@ -201,13 +205,21 @@ async function initializePty() {
             }
         });
 
-        // Listen for data FROM the PTY
+        // Listen for data FROM the PTY - CRITICAL
+        console.log('[Terminal] 🎧 Registering onTerminalData for ptyId:', ptyId);
         if (window.electronAPI?.onTerminalData) {
             window.electronAPI.onTerminalData((data) => {
+                console.log('[Terminal] 📥 onTerminalData - id:', data.id, 'ptyId:', ptyId, 'match:', data.id === ptyId, 'len:', data.data?.length);
                 if (data.id === ptyId) {
+                    console.log('[Terminal] ✅ MATCH - Writing:', data.data?.substring(0, 30));
                     xterm.write(data.data);
+                } else {
+                    console.warn('[Terminal] ❌ MISMATCH - got:', data.id, 'want:', ptyId);
                 }
             });
+            console.log('[Terminal] ✅ onTerminalData listener registered');
+        } else {
+            console.error('[Terminal] ❌ onTerminalData API missing!');
         }
 
         // Listen for PTY exit
@@ -220,10 +232,10 @@ async function initializePty() {
             });
         }
 
-        console.log('[Terminal Window] PTY fully initialized');
+        console.log('[Terminal] ✅ PTY fully initialized!');
     } catch (e) {
         xterm.writeln('\\x1b[31mError initializing PTY.\\x1b[0m');
-        console.error('[Terminal Window] PTY error:', e);
+        console.error('[Terminal] Error:', e);
     }
 }
 
@@ -241,4 +253,4 @@ setTimeout(() => {
     void initializePty();
 }, 100);
 
-console.log('[Terminal Window] Initialized');
+console.log('[Terminal] Window initialized');

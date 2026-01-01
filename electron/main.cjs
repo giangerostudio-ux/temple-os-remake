@@ -1340,6 +1340,19 @@ app.whenReady().then(() => {
                             mainWindowXid = '0x' + xid.toString(16);
                             x11IgnoreXids.add(mainWindowXid.toLowerCase());
                             console.log('[X11 Snap Layouts] Captured main window XID:', mainWindowXid);
+
+                            // FORCE FIX: Use wmctrl to remove decorations and force fullscreen geometry
+                            // This bypasses Openbox application-rule timing issues
+                            const screenW = primary.bounds.width;
+                            const screenH = primary.bounds.height;
+                            exec(`wmctrl -i -r ${mainWindowXid} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }, () => {
+                                // After removing maximize state, set exact geometry
+                                exec(`wmctrl -i -r ${mainWindowXid} -e 0,0,0,${screenW},${screenH}`, { timeout: 2000 }, (err) => {
+                                    if (err) console.warn('[X11] wmctrl geometry set failed:', err.message);
+                                    else console.log(`[X11] Forced window geometry: 0,0 ${screenW}x${screenH}`);
+                                });
+                            });
+
                             // Start the snap detector daemon now that we have the XID to protect
                             startSnapDetector();
                         }
@@ -1350,6 +1363,24 @@ app.whenReady().then(() => {
                     }
                 }
             }, 200);
+
+            // SECOND PASS: Re-apply geometry fix after Openbox has fully processed
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed() && mainWindowXid) {
+                    const primary = screen.getPrimaryDisplay();
+                    const screenW = primary.bounds.width;
+                    const screenH = primary.bounds.height;
+                    mainWindow.setBounds({
+                        x: 0,
+                        y: 0,
+                        width: screenW,
+                        height: screenH
+                    });
+                    exec(`wmctrl -i -r ${mainWindowXid} -e 0,0,0,${screenW},${screenH}`, { timeout: 2000 }, (err) => {
+                        if (!err) console.log('[X11] Second-pass geometry fix applied');
+                    });
+                }
+            }, 1500);
             void startX11EwmhBridge().catch((e) => console.warn('[X11] EWMH bridge start failed:', e.message));  // Still need this to detect Firefox, etc.
         }
     }

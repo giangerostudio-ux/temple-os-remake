@@ -160,8 +160,17 @@ async function initializePty() {
 
     try {
         // Check if PTY is available
-        const isPtyAvailable = window.electronAPI?.isPtyAvailable && await window.electronAPI.isPtyAvailable();
-        console.log('[Terminal Window] isPtyAvailable result:', isPtyAvailable);
+        if (!window.electronAPI?.isPtyAvailable) {
+            xterm.writeln('\x1b[31mPTY API not available.\x1b[0m');
+            console.error('[Terminal Window] isPtyAvailable API not found');
+            return;
+        }
+
+        const ptyCheck = await window.electronAPI.isPtyAvailable();
+        console.log('[Terminal Window] isPtyAvailable result:', ptyCheck);
+
+        // isPtyAvailable returns an object like {success: true} or just true
+        const isPtyAvailable = typeof ptyCheck === 'boolean' ? ptyCheck : ptyCheck?.success;
 
         if (!isPtyAvailable) {
             xterm.writeln('\x1b[31mPTY not available. Terminal functionality limited.\x1b[0m');

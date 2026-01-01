@@ -208,24 +208,43 @@ class KeybindDaemon:
                 result = subprocess.run(['wmctrl', '-l'], capture_output=True, text=True, timeout=2)
                 lines = result.stdout.strip().split('\n')
                 
+                # Log all windows for debugging (only first time)
+                if not hasattr(self, '_logged_windows'):
+                    self._logged_windows = True
+                    self.log(f"All windows from wmctrl -l:")
+                    for line in lines:
+                        if line.strip():
+                            self.log(f"  {line}")
+                
                 # Search for our window in the list (case-insensitive)
-                search_terms = ['templeos', 'divine operating system', 'electron']
+                # Try many possible patterns
+                search_terms = ['templeos', 'divine', 'electron', 'giangero']
                 for line in lines:
                     if not line.strip():
                         continue
-                    parts = line.split(None, 4)  # Split: WID, desktop, host, title
+                    parts = line.split(None, 3)  # Split: WID, desktop, host, title
                     if len(parts) >= 4:
                         wid = parts[0]
-                        title = parts[3].lower() if len(parts) > 3 else ''
-                        full_title = ' '.join(parts[3:]).lower() if len(parts) > 3 else ''
+                        full_title = parts[3].lower()
                         
                         for term in search_terms:
                             if term in full_title:
                                 electron_wid = wid
-                                self.log(f"Found window via wmctrl: {wid} - {' '.join(parts[3:])}")
+                                self.log(f"Found window via wmctrl: {wid} - {parts[3]}")
                                 break
                         if electron_wid:
                             break
+                    # Also try matching just the first window that's not Firefox/other known apps
+                    elif len(parts) >= 3:
+                        wid = parts[0]
+                        # Skip Firefox, terminals, etc
+                        if not electron_wid:
+                            excluded = ['firefox', 'mozilla', 'terminal', 'konsole', 'xterm']
+                            title_lower = parts[2].lower() if len(parts) > 2 else ''
+                            if not any(ex in title_lower for ex in excluded):
+                                electron_wid = wid
+                                self.log(f"Using first non-excluded window: {wid} - {parts}")
+                                break
             except Exception as e:
                 self.log(f"wmctrl search failed: {e}")
             
@@ -233,7 +252,9 @@ class KeybindDaemon:
             if not electron_wid:
                 search_patterns = [
                     ['xdotool', 'search', '--name', 'TempleOS'],
+                    ['xdotool', 'search', '--name', 'Divine'],
                     ['xdotool', 'search', '--class', 'electron'],
+                    ['xdotool', 'search', '--classname', 'electron'],
                 ]
                 for pattern in search_patterns:
                     try:
@@ -241,6 +262,7 @@ class KeybindDaemon:
                         window_ids = [wid.strip() for wid in result.stdout.strip().split('\n') if wid.strip()]
                         if window_ids:
                             electron_wid = window_ids[0]
+                            self.log(f"Found via xdotool {pattern[2:]}: {electron_wid}")
                             break
                     except:
                         continue

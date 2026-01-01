@@ -1304,6 +1304,13 @@ app.whenReady().then(() => {
         startDesktopEntryWatcher();
         void refreshInstalledAppsCache('startup').catch((e) => console.warn('[Apps] Startup cache refresh failed:', e.message));
         if (isX11Session()) {
+            // Auto-apply Openbox theme and margins on startup
+            const openboxFixScript = path.join(__dirname, '../scripts/force-fix-openbox.sh');
+            exec(`bash "${openboxFixScript}" && openbox --reconfigure`, { timeout: 10000 }, (err) => {
+                if (err) console.warn('[X11] force-fix-openbox.sh failed (not critical):', err.message);
+                else console.log('[X11] Applied Openbox theme and margins');
+            });
+
             // UNIFIED TASKBAR: Panel window is disabled. The main renderer handles X11 windows directly.
             // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
 

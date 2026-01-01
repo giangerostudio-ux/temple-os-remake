@@ -61,7 +61,7 @@ const searchInput = document.getElementById('search-input') as HTMLInputElement;
 const searchPrevBtn = document.getElementById('search-prev');
 const searchNextBtn = document.getElementById('search-next');
 const searchCloseBtn = document.getElementById('search-close');
-const searchCount = document.getElementById('search-count');
+// const searchCount = document.getElementById('search-count'); // TODO: implement match counter
 
 console.log('[Search] Elements found:', {
     searchBar: !!searchBar,

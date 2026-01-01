@@ -57,6 +57,16 @@ menu.title.text.font: shadow=n
 menu.items.font: shadow=n
 osd.label.text.font: shadow=n
 
-# Button Styles (Simple flat text-like icons)
-# We don't have XBM bitmaps here, so we rely on Openbox's built-in drawing or simple colors.
-# Openbox falls back to drawing simple shapes if no bitmaps are provided for buttons.
+# Button Images (XBM bitmaps in this directory)
+window.active.button.close.unpressed.image.color: #00FF41
+window.active.button.max.unpressed.image.color: #00FF41
+window.active.button.iconify.unpressed.image.color: #00FF41
+window.active.button.close.hover.image.color: #FF3366
+window.active.button.max.hover.image.color: #FFFFFF
+window.active.button.iconify.hover.image.color: #FFFFFF
+window.active.button.close.pressed.image.color: #FF0033
+window.active.button.max.pressed.image.color: #00FF41
+window.active.button.iconify.pressed.image.color: #00FF41
+window.inactive.button.close.unpressed.image.color: #005515
+window.inactive.button.max.unpressed.image.color: #005515
+window.inactive.button.iconify.unpressed.image.color: #005515

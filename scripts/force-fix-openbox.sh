@@ -67,6 +67,54 @@ cat > "$RC_XML" <<EOF
     <doubleClickTime>500</doubleClickTime>
     <screenEdgeWarpTime>400</screenEdgeWarpTime>
     <screenEdgeWarpMouse>false</screenEdgeWarpMouse>
+
+    <!-- TITLEBAR: Normal drag-to-move + focus/raise -->
+    <context name="Titlebar">
+      <mousebind button="Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Left" action="Drag">
+        <action name="Move"/>
+      </mousebind>
+      <mousebind button="Left" action="DoubleClick">
+        <action name="ToggleMaximize"/>
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+        <action name="ShowMenu"><menu>client-menu</menu></action>
+      </mousebind>
+    </context>
+
+    <!-- CLOSE BUTTON -->
+    <context name="Close">
+      <mousebind button="Left" action="Click">
+        <action name="Close"/>
+      </mousebind>
+    </context>
+
+    <!-- MAXIMIZE BUTTON -->
+    <context name="Maximize">
+      <mousebind button="Left" action="Click">
+        <action name="ToggleMaximize"/>
+      </mousebind>
+      <mousebind button="Middle" action="Click">
+        <action name="ToggleMaximizeVert"/>
+      </mousebind>
+      <mousebind button="Right" action="Click">
+        <action name="ToggleMaximizeHorz"/>
+      </mousebind>
+    </context>
+
+    <!-- ICONIFY (MINIMIZE) BUTTON -->
+    <context name="Iconify">
+      <mousebind button="Left" action="Click">
+        <action name="Iconify"/>
+      </mousebind>
+    </context>
+
+    <!-- FRAME: Alt+Click for move/resize anywhere -->
     <context name="Frame">
       <mousebind button="A-Left" action="Press">
         <action name="Focus"/>

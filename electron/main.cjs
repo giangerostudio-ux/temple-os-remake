@@ -1308,7 +1308,9 @@ app.whenReady().then(() => {
             // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
 
             // Create invisible strut window to reserve taskbar space for X11 apps
-            createStrutWindow();
+            // DISABLED: Strut window shrinks the main desktop too
+            // The Openbox margin (75px) should handle taskbar space for X11 apps
+            // createStrutWindow();
 
             void applyDesktopHintsToMainWindow().catch((e) => console.warn('[X11] applyDesktopHintsToMainWindow at ready failed:', e.message));
             // Maximize the main window to fill the screen (since there's no panel strut)

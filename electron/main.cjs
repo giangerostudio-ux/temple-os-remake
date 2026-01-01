@@ -6954,6 +6954,9 @@ ipcMain.handle('apps:getInstalled', async () => {
 });
 
 // Launch an application by its .desktop file or exec command
+// FIX: Use SSH to localhost as primary method - this inherits proper D-Bus/systemd session
+// that was corrupted by GNOME/Wayland installation. SSH sources ~/.bashrc and gets the
+// correct environment that snap apps need.
 ipcMain.handle('apps:launch', async (event, app) => {
     if (process.platform !== 'linux') {
         return { success: false, unsupported: true, error: 'Launching apps is only supported on Linux' };
@@ -6991,21 +6994,11 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const bin = argv[0];
         const args = argv.slice(1);
 
-        // FIX: Use shell exec with nohup instead of spawn
-        // Spawn doesn't set up proper shell environment that snap apps need
-        // SSH works because it sources ~/.bashrc - we need the same
-        const x11Env = {
-            ...process.env,
-            ...envVars,
-            XDG_SESSION_TYPE: 'x11',
-            GDK_BACKEND: 'x11',
-            QT_QPA_PLATFORM: 'xcb',
-            DISPLAY: process.env.DISPLAY || ':0',
-            WAYLAND_DISPLAY: '',
+        // Build the command string with proper escaping for shell
+        const escapeForShell = (s) => {
+            // Escape single quotes by ending quote, adding escaped quote, starting quote again
+            return "'" + String(s).replace(/'/g, "'\\''") + "'";
         };
-
-        // Build the command string with proper escaping
-        const escapeArg = (a) => a.includes(' ') || a.includes('"') ? `"${a.replace(/"/g, '\\"')}"` : a;
 
         // For snap apps, use 'snap run' which is the official launcher and handles confinement
         let launchBin = bin;
@@ -7020,31 +7013,119 @@ ipcMain.handle('apps:launch', async (event, app) => {
             console.log('[apps:launch] Using snap run for:', snapAppName);
         }
 
-        const fullCmd = [launchBin, ...launchArgs].map(escapeArg).join(' ');
+        const fullCmd = [launchBin, ...launchArgs].map(escapeForShell).join(' ');
+        const display = process.env.DISPLAY || ':0';
 
-        // Simple command - let the app handle backgrounding
-        console.log('[apps:launch] Executing:', fullCmd);
-        console.log('[apps:launch] DISPLAY:', x11Env.DISPLAY);
+        console.log('[apps:launch] Command:', fullCmd);
+        console.log('[apps:launch] DISPLAY:', display);
 
-        let spawnError = null;
-        try {
-            const appProcess = spawn(launchBin, launchArgs, {
-                detached: true,
-                stdio: 'ignore',
-                cwd: cwd || undefined,
-                env: x11Env
+        // =====================================================
+        // METHOD 1: SSH to localhost (proven to work)
+        // SSH sources ~/.bashrc and inherits D-Bus/systemd session
+        // =====================================================
+        const sshLaunch = () => {
+            return new Promise((resolve) => {
+                // Build command that will run in SSH session
+                const sshRemoteCmd = `export DISPLAY=${display}; export XDG_SESSION_TYPE=x11; export GDK_BACKEND=x11; nohup ${fullCmd} > /dev/null 2>&1 &`;
+                // Try with sshpass first (password 'temple'), then fallback to key-based
+                const sshWithPass = `sshpass -p temple ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 localhost ${escapeForShell(sshRemoteCmd)}`;
+                const sshKeyBased = `ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=3 localhost ${escapeForShell(sshRemoteCmd)}`;
+                const sshCmd = sshWithPass; // Default to sshpass, will fallback in error handler
+
+                console.log('[apps:launch] Trying SSH method with sshpass...');
+                exec(sshCmd, { timeout: 8000 }, (err, stdout, stderr) => {
+                    if (err) {
+                        console.log('[apps:launch] sshpass method failed:', err.message);
+                        // Fallback: try key-based SSH
+                        console.log('[apps:launch] Trying key-based SSH fallback...');
+                        exec(sshKeyBased, { timeout: 8000 }, (err2, stdout2, stderr2) => {
+                            if (err2) {
+                                console.log('[apps:launch] SSH key-based also failed:', err2.message);
+                                resolve({ success: false, error: err2.message });
+                            } else {
+                                console.log('[apps:launch] SSH key-based succeeded!');
+                                resolve({ success: true, method: 'ssh-key' });
+                            }
+                        });
+                    } else {
+                        console.log('[apps:launch] SSH sshpass method succeeded!');
+                        resolve({ success: true, method: 'ssh' });
+                    }
+                });
             });
+        };
 
-            appProcess.on('error', (err) => {
-                console.error('[apps:launch] Spawn error event:', err.message);
-                spawnError = err.message;
+        // =====================================================
+        // METHOD 2: Direct spawn with D-Bus discovery (fallback)
+        // Try to find D-Bus session bus from /run/user/{uid}/bus
+        // =====================================================
+        const directSpawn = () => {
+            return new Promise((resolve) => {
+                // Try to discover D-Bus session bus address
+                let dbusAddress = process.env.DBUS_SESSION_BUS_ADDRESS;
+                if (!dbusAddress) {
+                    try {
+                        const uid = process.getuid ? process.getuid() : 1000;
+                        const busPath = `/run/user/${uid}/bus`;
+                        if (fs.existsSync(busPath)) {
+                            dbusAddress = `unix:path=${busPath}`;
+                            console.log('[apps:launch] Discovered D-Bus at:', dbusAddress);
+                        }
+                    } catch (e) {
+                        console.log('[apps:launch] D-Bus discovery failed:', e.message);
+                    }
+                }
+
+                const x11Env = {
+                    ...process.env,
+                    ...envVars,
+                    XDG_SESSION_TYPE: 'x11',
+                    GDK_BACKEND: 'x11',
+                    QT_QPA_PLATFORM: 'xcb',
+                    DISPLAY: display,
+                    WAYLAND_DISPLAY: '',
+                };
+
+                // Add discovered D-Bus address if found
+                if (dbusAddress) {
+                    x11Env.DBUS_SESSION_BUS_ADDRESS = dbusAddress;
+                }
+
+                console.log('[apps:launch] Trying direct spawn (fallback)...');
+
+                try {
+                    const appProcess = spawn(launchBin, launchArgs, {
+                        detached: true,
+                        stdio: 'ignore',
+                        cwd: cwd || undefined,
+                        env: x11Env
+                    });
+
+                    let spawnError = null;
+                    appProcess.on('error', (err) => {
+                        console.error('[apps:launch] Spawn error event:', err.message);
+                        spawnError = err.message;
+                    });
+
+                    appProcess.unref();
+                    console.log('[apps:launch] Direct spawn PID:', appProcess.pid);
+
+                    // Give a moment for error events to fire
+                    setTimeout(() => {
+                        resolve({ success: !spawnError, method: 'spawn', pid: appProcess.pid, error: spawnError });
+                    }, 100);
+                } catch (spawnErr) {
+                    console.error('[apps:launch] Direct spawn threw:', spawnErr.message);
+                    resolve({ success: false, method: 'spawn', error: spawnErr.message });
+                }
             });
+        };
 
-            appProcess.unref();
-            console.log('[apps:launch] Spawn successful, PID:', appProcess.pid);
-        } catch (spawnErr) {
-            console.error('[apps:launch] Spawn threw error:', spawnErr.message);
-            spawnError = spawnErr.message;
+        // Try SSH first, fall back to direct spawn
+        let result = await sshLaunch();
+        if (!result.success) {
+            console.log('[apps:launch] SSH failed, trying direct spawn...');
+            result = await directSpawn();
         }
 
         // Help the unified taskbar "see" the new app quickly (avoid ~650ms poll delay).
@@ -7054,9 +7135,18 @@ ipcMain.handle('apps:launch', async (event, app) => {
                 setTimeout(() => { void ewmhBridge.refreshNow().catch((e) => console.warn('[X11] Post-launch EWMH refresh failed:', e.message)); }, ms);
             }
         }
+
         // Return debug info that will show in renderer console
-        return { success: !spawnError, cmd: fullCmd, display: x11Env.DISPLAY, error: spawnError, bin: launchBin };
+        return {
+            success: result.success,
+            cmd: fullCmd,
+            display: display,
+            method: result.method,
+            error: result.error,
+            bin: launchBin
+        };
     } catch (error) {
+        console.error('[apps:launch] Exception:', error.message);
         return { success: false, error: error.message };
     }
 });

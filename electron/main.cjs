@@ -1070,6 +1070,67 @@ async function applyDesktopHintsToMainWindow() {
     }
 }
 
+// ============================================
+// INVISIBLE STRUT WINDOW (X11 Workarea Reservation)
+// ============================================
+// Creates a tiny invisible window that only sets _NET_WM_STRUT_PARTIAL
+// to reserve space for the in-renderer taskbar. This allows X11 apps
+// like Firefox to respect the taskbar area when maximizing.
+let strutWindow = null;
+
+function createStrutWindow() {
+    if (!isX11Session()) return;
+    if (strutWindow && !strutWindow.isDestroyed()) return;
+
+    const primary = screen.getPrimaryDisplay();
+    const bounds = primary?.bounds || { x: 0, y: 0, width: 1280, height: 720 };
+    const strutHeight = TASKBAR_HEIGHT + 8; // Extra padding for safety
+
+    strutWindow = new BrowserWindow({
+        x: bounds.x,
+        y: bounds.y + bounds.height - 1, // Position at very bottom
+        width: bounds.width,
+        height: 1, // 1 pixel tall - invisible
+        frame: false,
+        transparent: true,
+        resizable: false,
+        movable: false,
+        focusable: false,
+        skipTaskbar: true,
+        alwaysOnTop: false,
+        show: false, // Never show this window
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+        }
+    });
+
+    // Apply the strut immediately
+    strutWindow.once('ready-to-show', async () => {
+        const xid = xidHexFromBrowserWindow(strutWindow);
+        if (!xid) return;
+
+        // Set as dock type (required for struts)
+        await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch(() => { });
+
+        // Reserve the bottom strip
+        const strut = `"0, 0, 0, ${strutHeight}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, bounds.width - 1)}"`;
+        await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch((e) => console.warn('[X11] Strut window STRUT_PARTIAL failed:', e.message));
+
+        console.log('[X11] Invisible strut window created, reserving', strutHeight, 'px at bottom');
+
+        // Add to ignore list
+        x11IgnoreXids.add(String(xid).toLowerCase());
+    });
+
+    // Load a blank page
+    strutWindow.loadURL('about:blank');
+
+    strutWindow.on('closed', () => {
+        strutWindow = null;
+    });
+}
+
 function createPanelWindow() {
     if (!isX11Session()) return;
     if (panelWindow && !panelWindow.isDestroyed()) return;
@@ -1241,6 +1302,10 @@ app.whenReady().then(() => {
         if (isX11Session()) {
             // UNIFIED TASKBAR: Panel window is disabled. The main renderer handles X11 windows directly.
             // createPanelWindow();  // Disabled - using unified in-renderer taskbar instead
+
+            // Create invisible strut window to reserve taskbar space for X11 apps
+            createStrutWindow();
+
             void applyDesktopHintsToMainWindow().catch((e) => console.warn('[X11] applyDesktopHintsToMainWindow at ready failed:', e.message));
             // Maximize the main window to fill the screen (since there's no panel strut)
             setTimeout(() => {

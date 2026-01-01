@@ -7020,112 +7020,77 @@ ipcMain.handle('apps:launch', async (event, app) => {
         console.log('[apps:launch] DISPLAY:', display);
 
         // =====================================================
-        // METHOD 1: SSH to localhost (proven to work)
-        // SSH sources ~/.bashrc and inherits D-Bus/systemd session
+        // METHOD 1: dbus-launch for snap apps (fixes D-Bus session)
+        // Snap apps require a proper D-Bus session - dbus-launch provides this
         // =====================================================
-        const sshLaunch = () => {
+        const dbusLaunch = () => {
             return new Promise((resolve) => {
-                // Build command that will run in SSH session
-                const sshRemoteCmd = `export DISPLAY=${display}; export XDG_SESSION_TYPE=x11; export GDK_BACKEND=x11; nohup ${fullCmd} > /dev/null 2>&1 &`;
-                // Try with sshpass first (password 'temple'), then fallback to key-based
-                const sshWithPass = `sshpass -p temple ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 localhost ${escapeForShell(sshRemoteCmd)}`;
-                const sshKeyBased = `ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=3 localhost ${escapeForShell(sshRemoteCmd)}`;
-                const sshCmd = sshWithPass; // Default to sshpass, will fallback in error handler
+                // Use dbus-launch to ensure D-Bus session exists
+                const dbusCmd = `dbus-launch --exit-with-session ${fullCmd}`;
 
-                console.log('[apps:launch] Trying SSH method with sshpass...');
-                exec(sshCmd, { timeout: 8000 }, (err, stdout, stderr) => {
-                    if (err) {
-                        console.log('[apps:launch] sshpass method failed:', err.message);
-                        // Fallback: try key-based SSH
-                        console.log('[apps:launch] Trying key-based SSH fallback...');
-                        exec(sshKeyBased, { timeout: 8000 }, (err2, stdout2, stderr2) => {
-                            if (err2) {
-                                console.log('[apps:launch] SSH key-based also failed:', err2.message);
-                                resolve({ success: false, error: err2.message });
-                            } else {
-                                console.log('[apps:launch] SSH key-based succeeded!');
-                                resolve({ success: true, method: 'ssh-key' });
-                            }
-                        });
-                    } else {
-                        console.log('[apps:launch] SSH sshpass method succeeded!');
-                        resolve({ success: true, method: 'ssh' });
+                console.log('[apps:launch] Trying dbus-launch method...');
+                const child = spawn('/bin/sh', ['-c', `nohup ${dbusCmd} > /dev/null 2>&1 &`], {
+                    detached: true,
+                    stdio: 'ignore',
+                    cwd: cwd || undefined,
+                    env: {
+                        ...process.env,
+                        ...envVars,
+                        DISPLAY: display,
+                        XDG_SESSION_TYPE: 'x11',
+                        GDK_BACKEND: 'x11'
                     }
                 });
+                child.unref();
+                console.log('[apps:launch] dbus-launch spawn PID:', child.pid);
+                resolve({ success: true, method: 'dbus-launch', pid: child.pid });
             });
         };
 
         // =====================================================
-        // METHOD 2: Direct spawn with D-Bus discovery (fallback)
-        // Try to find D-Bus session bus from /run/user/{uid}/bus
+        // METHOD 2: Simple spawn (matches working backup code)
+        // For non-snap apps, the simple approach from backup may work
         // =====================================================
-        const directSpawn = () => {
+        const simpleSpawn = () => {
             return new Promise((resolve) => {
-                // Try to discover D-Bus session bus address
-                let dbusAddress = process.env.DBUS_SESSION_BUS_ADDRESS;
-                if (!dbusAddress) {
-                    try {
-                        const uid = process.getuid ? process.getuid() : 1000;
-                        const busPath = `/run/user/${uid}/bus`;
-                        if (fs.existsSync(busPath)) {
-                            dbusAddress = `unix:path=${busPath}`;
-                            console.log('[apps:launch] Discovered D-Bus at:', dbusAddress);
-                        }
-                    } catch (e) {
-                        console.log('[apps:launch] D-Bus discovery failed:', e.message);
-                    }
-                }
-
-                const x11Env = {
-                    ...process.env,
-                    ...envVars,
-                    XDG_SESSION_TYPE: 'x11',
-                    GDK_BACKEND: 'x11',
-                    QT_QPA_PLATFORM: 'xcb',
-                    DISPLAY: display,
-                    WAYLAND_DISPLAY: '',
-                };
-
-                // Add discovered D-Bus address if found
-                if (dbusAddress) {
-                    x11Env.DBUS_SESSION_BUS_ADDRESS = dbusAddress;
-                }
-
-                console.log('[apps:launch] Trying direct spawn (fallback)...');
+                console.log('[apps:launch] Trying simple spawn (backup style)...');
 
                 try {
-                    const appProcess = spawn(launchBin, launchArgs, {
+                    const child = spawn(launchBin, launchArgs, {
                         detached: true,
                         stdio: 'ignore',
                         cwd: cwd || undefined,
-                        env: x11Env
+                        env: { ...process.env, ...envVars }
                     });
 
                     let spawnError = null;
-                    appProcess.on('error', (err) => {
-                        console.error('[apps:launch] Spawn error event:', err.message);
+                    child.on('error', (err) => {
+                        console.error('[apps:launch] Simple spawn error:', err.message);
                         spawnError = err.message;
                     });
 
-                    appProcess.unref();
-                    console.log('[apps:launch] Direct spawn PID:', appProcess.pid);
+                    child.unref();
+                    console.log('[apps:launch] Simple spawn PID:', child.pid);
 
-                    // Give a moment for error events to fire
                     setTimeout(() => {
-                        resolve({ success: !spawnError, method: 'spawn', pid: appProcess.pid, error: spawnError });
+                        resolve({ success: !spawnError, method: 'spawn', pid: child.pid, error: spawnError });
                     }, 100);
                 } catch (spawnErr) {
-                    console.error('[apps:launch] Direct spawn threw:', spawnErr.message);
+                    console.error('[apps:launch] Simple spawn threw:', spawnErr.message);
                     resolve({ success: false, method: 'spawn', error: spawnErr.message });
                 }
             });
         };
 
-        // Try SSH first, fall back to direct spawn
-        let result = await sshLaunch();
-        if (!result.success) {
-            console.log('[apps:launch] SSH failed, trying direct spawn...');
-            result = await directSpawn();
+
+        // For snap apps, use dbus-launch; for others, simple spawn (like backup)
+        let result;
+        if (isSnapApp) {
+            console.log('[apps:launch] Snap app detected, using dbus-launch...');
+            result = await dbusLaunch();
+        } else {
+            console.log('[apps:launch] Non-snap app, using simple spawn...');
+            result = await simpleSpawn();
         }
 
         // Help the unified taskbar "see" the new app quickly (avoid ~650ms poll delay).

@@ -11,21 +11,28 @@ interface FileEntry {
     modified?: string | null;
 }
 
-// Window controls
+// Window controls (use polling pattern for floating windows)
 const minimizeBtn = document.getElementById('minimize-btn');
 const maximizeBtn = document.getElementById('maximize-btn');
 const closeBtn = document.getElementById('close-btn');
 
+// Declare global action variable for polling
+declare global {
+    interface Window {
+        __floatingAction?: string | null;
+    }
+}
+
 minimizeBtn?.addEventListener('click', () => {
-    window.electronAPI?.minimizeWindow();
+    window.__floatingAction = 'minimize';
 });
 
 maximizeBtn?.addEventListener('click', () => {
-    window.electronAPI?.maximizeWindow();
+    window.__floatingAction = 'maximize';
 });
 
 closeBtn?.addEventListener('click', () => {
-    window.electronAPI?.closeWindow();
+    window.__floatingAction = 'close';
 });
 
 // Check if we have API access

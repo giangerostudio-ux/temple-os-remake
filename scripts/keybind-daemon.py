@@ -275,8 +275,20 @@ class KeybindDaemon:
             if electron_wid:
                 self.log(f"Found Electron window: {electron_wid}")
                 
-                # Focus the Electron window using wmctrl (better for sticky windows on desktop -1)
+                # Check if we need to switch focus (to add delay if needed)
+                try:
+                    current_focus = subprocess.getoutput('xdotool getwindowfocus').strip()
+                    needs_refocus = (str(current_focus) != str(electron_wid))
+                except:
+                    needs_refocus = True
+
+                # Focus the Electron window using wmctrl
                 subprocess.run(['wmctrl', '-ia', electron_wid], timeout=2)
+                
+                if needs_refocus:
+                    self.log("Refocusing Electron, waiting for WM...")
+                    time.sleep(0.1)  # Give WM time to switch focus
+
                 
                 # For focus-only actions, we're done - file watcher handles the rest
                 if action in focus_only_actions:

@@ -90,7 +90,7 @@ let lastNetAt = 0;
 
 // Taskbar Configuration (synced from renderer)
 let currentTaskbarPosition = 'bottom'; // 'top' | 'bottom' - Synced from renderer
-const TASKBAR_HEIGHT = 80; // CSS taskbar + margins + Openbox frame compensation
+const TASKBAR_HEIGHT = 83; // Final tuned value for X11 snap layouts
 
 
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)

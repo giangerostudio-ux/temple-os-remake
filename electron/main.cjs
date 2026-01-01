@@ -1955,28 +1955,23 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
     const m = String(mode || '').toLowerCase().trim();
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds;
-    const electronWorkArea = primary?.workArea; // Electron's work area (may account for panels)
 
     if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
         return { success: false, error: 'No display bounds' };
     }
 
     // Calculate work area accounting for taskbar (unified in-renderer taskbar doesn't set X11 struts)
-    const taskbarHeight = (taskbarConfig && typeof taskbarConfig.height === 'number') ? taskbarConfig.height : 50;
+    const taskbarHeight = (taskbarConfig && typeof taskbarConfig.height === 'number') ? taskbarConfig.height : TASKBAR_HEIGHT;
     const taskbarPosition = (taskbarConfig && (taskbarConfig.position === 'top' || taskbarConfig.position === 'bottom'))
         ? taskbarConfig.position
         : 'bottom';
 
     console.log(`[snapX11WindowCore] mode=${m}, taskbarHeight=${taskbarHeight}, taskbarPosition=${taskbarPosition}`);
     console.log(`[snapX11WindowCore] screen bounds: x=${bounds.x}, y=${bounds.y}, w=${bounds.width}, h=${bounds.height}`);
-    console.log(`[snapX11WindowCore] electron workArea: x=${electronWorkArea?.x}, y=${electronWorkArea?.y}, w=${electronWorkArea?.width}, h=${electronWorkArea?.height}`);
 
-    // Note: wmctrl with gravity 0 (Frame) sets the FRAME size.
-    // We no longer need to subtract decorations manually.
-    const decorationHeight = 0; // Was 28, set to 0 to rely on Frame gravity
-
-    // SIMPLIFIED: Always calculate work area from screen bounds since our TempleOS
-    // renderer-based taskbar does NOT set X11 struts. Ignore Electron's workArea.
+    // Calculate work area - the usable screen space excluding taskbar
+    // With wmctrl gravity 0, coordinates specify the FRAME position (title bar included)
+    // So we just need to position within the available work area
     const wa = {
         x: bounds.x,
         y: taskbarPosition === 'top' ? bounds.y + taskbarHeight : bounds.y,
@@ -1984,88 +1979,99 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         height: bounds.height - taskbarHeight
     };
 
-    console.log(`[snapX11WindowCore] final adjusted workArea: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
+    console.log(`[snapX11WindowCore] work area: x=${wa.x}, y=${wa.y}, w=${wa.width}, h=${wa.height}`);
 
-    // The actual client area height needs to account for decorations
-    const clientHeight = wa.height - decorationHeight;
-
-    // For vertically-split windows (top/bottom quarters), we need to split the work area
-    // into two equal FRAME heights, then subtract decorations from each
-    const halfFrameH = Math.max(1, Math.floor(wa.height / 2));
-    const clientHalfH = Math.max(1, halfFrameH - decorationHeight);
-
+    // Calculate half dimensions for snap zones
     const halfW = Math.max(1, Math.floor(wa.width / 2));
+    const halfH = Math.max(1, Math.floor(wa.height / 2));
 
     let x = wa.x;
     let y = wa.y;
     let w = wa.width;
-    let h = clientHeight;
+    let h = wa.height;
 
     try {
         // Ensure it's visible before snapping (also de-iconifies on most WMs).
         await ewmhBridge.activateWindow(xidHex).catch((e) => console.warn('[X11] activateWindow before snap failed:', e.message));
 
-        if (m === 'maximize') {
-            // Use manual geometry to control exact positioning
-            // With gravity 0, y coordinate is the CLIENT window (not frame)
-            // So we need y=title bar height to make room for decorations
-            const titleBarHeight = 25; // Openbox title bar decoration height
-            if (ewmhBridge.setWindowGeometry) {
-                // First remove any existing maximized state
-                await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
-                // Position client at y=titleBarHeight so title bar is visible
-                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y + titleBarHeight, wa.width, clientHeight - titleBarHeight);
-            } else {
-                await ewmhBridge.setMaximized?.(xidHex, true);
-            }
-        } else {
-            switch (m) {
-                case 'left':
-                    x = wa.x; y = wa.y; w = halfW; h = clientHeight;
-                    break;
-                case 'right':
-                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = clientHeight;
-                    break;
-                case 'top':
-                    x = wa.x; y = wa.y; w = wa.width; h = clientHalfH;
-                    break;
-                case 'bottom':
-                    // Bottom window starts at the top of the bottom half frame
-                    x = wa.x; y = wa.y + halfFrameH; w = wa.width; h = clientHalfH;
-                    break;
-                case 'topleft':
-                    x = wa.x; y = wa.y; w = halfW; h = clientHalfH;
-                    break;
-                case 'topright':
-                    x = wa.x + (wa.width - halfW); y = wa.y; w = halfW; h = clientHalfH;
-                    break;
-                case 'bottomleft':
-                    // Bottom-left: starts at the top of the bottom half frame
-                    x = wa.x; y = wa.y + halfFrameH; w = halfW; h = clientHalfH;
-                    break;
-                case 'bottomright':
-                    // Bottom-right: starts at the top of the bottom half frame
-                    x = wa.x + (wa.width - halfW); y = wa.y + halfFrameH; w = halfW; h = clientHalfH;
-                    break;
-                case 'center': {
-                    const cw = Math.max(1, Math.floor(wa.width * 0.7));
-                    const ch = Math.max(1, Math.floor(clientHeight * 0.8));
-                    x = wa.x + Math.floor((wa.width - cw) / 2);
-                    y = wa.y + Math.floor((clientHeight - ch) / 2);
-                    w = cw;
-                    h = ch;
-                    break;
-                }
-                default:
-                    return { success: false, error: 'Unknown snap mode' };
-            }
+        // Remove any existing maximized state first - required for geometry changes to work
+        await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
 
-            console.log(`[snapX11WindowCore] Setting geometry for ${xidHex}: x=${x}, y=${y}, w=${w}, h=${h}`);
-            if (ewmhBridge.setWindowGeometry) {
-                await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
-            } else {
-                return { success: false, error: 'Snap not supported' };
+        switch (m) {
+            case 'maximize':
+                // Full work area - wmctrl gravity 0 means frame position
+                x = wa.x;
+                y = wa.y;
+                w = wa.width;
+                h = wa.height;
+                break;
+            case 'left':
+                x = wa.x;
+                y = wa.y;
+                w = halfW;
+                h = wa.height;
+                break;
+            case 'right':
+                x = wa.x + halfW;
+                y = wa.y;
+                w = wa.width - halfW; // Handle odd widths
+                h = wa.height;
+                break;
+            case 'top':
+                x = wa.x;
+                y = wa.y;
+                w = wa.width;
+                h = halfH;
+                break;
+            case 'bottom':
+                x = wa.x;
+                y = wa.y + halfH;
+                w = wa.width;
+                h = wa.height - halfH; // Handle odd heights
+                break;
+            case 'topleft':
+                x = wa.x;
+                y = wa.y;
+                w = halfW;
+                h = halfH;
+                break;
+            case 'topright':
+                x = wa.x + halfW;
+                y = wa.y;
+                w = wa.width - halfW;
+                h = halfH;
+                break;
+            case 'bottomleft':
+                x = wa.x;
+                y = wa.y + halfH;
+                w = halfW;
+                h = wa.height - halfH;
+                break;
+            case 'bottomright':
+                x = wa.x + halfW;
+                y = wa.y + halfH;
+                w = wa.width - halfW;
+                h = wa.height - halfH;
+                break;
+            case 'center': {
+                const cw = Math.max(1, Math.floor(wa.width * 0.7));
+                const ch = Math.max(1, Math.floor(wa.height * 0.8));
+                x = wa.x + Math.floor((wa.width - cw) / 2);
+                y = wa.y + Math.floor((wa.height - ch) / 2);
+                w = cw;
+                h = ch;
+                break;
             }
+            default:
+                return { success: false, error: 'Unknown snap mode' };
+        }
+
+        console.log(`[snapX11WindowCore] Setting geometry for ${xidHex}: x=${x}, y=${y}, w=${w}, h=${h}`);
+
+        if (ewmhBridge.setWindowGeometry) {
+            await ewmhBridge.setWindowGeometry(xidHex, x, y, w, h);
+        } else {
+            return { success: false, error: 'Snap not supported' };
         }
 
         await ewmhBridge.refreshNow?.().catch((e) => console.warn('[X11] EWMH refresh after snap failed:', e.message));

@@ -7639,15 +7639,19 @@ ipcMain.handle('terminal:createPty', (event, options = {}) => {
             env: { ...process.env, TERM: 'xterm-256color' }
         });
 
+        // CRITICAL FIX: Store the window that created this PTY
+        const ownerWindow = event.sender;
+
         ptyProcess.onData((data) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('terminal:data', { id, data });
+            // Send to the window that created this PTY, not mainWindow!
+            if (ownerWindow && !ownerWindow.isDestroyed()) {
+                ownerWindow.send('terminal:data', { id, data });
             }
         });
 
         ptyProcess.onExit(({ exitCode }) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('terminal:exit', { id, exitCode });
+            if (ownerWindow && !ownerWindow.isDestroyed()) {
+                ownerWindow.send('terminal:exit', { id, exitCode });
             }
             ptyProcesses.delete(id);
         });

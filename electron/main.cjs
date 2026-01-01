@@ -7171,21 +7171,15 @@ ipcMain.handle('apps:launch', async (event, app) => {
 
 
         // =====================================================
-        // HYBRID APPROACH: Try simple spawn first, SSH fallback
-        // This works for BOTH:
-        // - Fresh OS users: spawn works, no SSH needed
-        // - Corrupted cgroup users: spawn fails, SSH fallback kicks in
+        // SNAP APPS: Use SSH for reliability (cgroup issues are common)
+        // NON-SNAP: Use simple spawn (works for fresh users)
+        // Note: We can't use hybrid for snaps because spawn returns 
+        // "success" (PID exists) but snap fails LATER due to cgroups.
         // =====================================================
         let result;
         if (isSnapApp) {
-            console.log('[apps:launch] Snap app detected, trying simple spawn first...');
-            result = await simpleSpawn();
-
-            // If spawn failed (common with corrupted cgroups), try SSH fallback
-            if (!result.success) {
-                console.log('[apps:launch] Simple spawn failed, trying SSH + systemd-run fallback...');
-                result = await sshLaunch();
-            }
+            console.log('[apps:launch] Snap app detected, using SSH + systemd-run...');
+            result = await sshLaunch();
         } else {
             console.log('[apps:launch] Non-snap app, using simple spawn...');
             result = await simpleSpawn();

@@ -48,23 +48,27 @@ if [[ -f "${XINITRC}" ]]; then
   cp -a "${XINITRC}" "${XINITRC}.bak.$(date +%s)"
 fi
 
+# Ensure master start script is executable
+if [ -f "${APP_DIR}/start-templeos.sh" ]; then
+    chmod +x "${APP_DIR}/start-templeos.sh"
+fi
+
 cat > "${XINITRC}" <<EOF
 #!/bin/sh
 set -e
+# Log output for debugging
+exec >"\$HOME/.xinitrc.log" 2>&1
+set -x
 
-# Start the window manager
-# Start the window manager
-openbox --sm-disable --config-file "${HOME}/.config/openbox/rc.xml" &
-
-# Start keybind daemon
-if [ -f "${APP_DIR}/scripts/keybind-daemon.py" ]; then
-    rm -f /tmp/templeos-keybind.sock
-    python3 "${APP_DIR}/scripts/keybind-daemon.py" --socket /tmp/templeos-keybind.sock > /tmp/keybind-daemon.log 2>&1 &
+# Delegate session management to the master script
+if [ -f "${APP_DIR}/start-templeos.sh" ]; then
+    exec "${APP_DIR}/start-templeos.sh"
+else
+    # Fallback if master script is missing
+    openbox --sm-disable --config-file "${HOME}/.config/openbox/rc.xml" &
+    export TEMPLE_X11_DESKTOP_HINTS=0
+    exec "${APP_DIR}/node_modules/.bin/electron" "${APP_DIR}"
 fi
-
-# Start the TempleOS Electron shell
-export TEMPLE_X11_DESKTOP_HINTS=0
-exec "${APP_DIR}/node_modules/.bin/electron" "${APP_DIR}"
 EOF
 chmod +x "${XINITRC}"
 

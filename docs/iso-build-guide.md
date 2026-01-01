@@ -437,7 +437,7 @@ Type=simple
 User=temple
 WorkingDirectory=/opt/templeos
 Environment=DISPLAY=:0
-ExecStart=/opt/templeos/node_modules/.bin/electron /opt/templeos
+ExecStart=/opt/templeos/start-templeos.sh
 Restart=always
 
 [Install]

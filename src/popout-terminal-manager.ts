@@ -80,7 +80,7 @@ export class PopoutTerminalManager {
 
         // Destroy PTY if exists
         if (tab.ptyId && window.electronAPI?.destroyPty) {
-            await window.electronAPI.destroyPty({ id: tab.ptyId });
+            await window.electronAPI.destroyPty(tab.ptyId);
         }
 
         // Dispose xterm
@@ -325,7 +325,7 @@ export class PopoutTerminalManager {
     async cleanup(): Promise<void> {
         for (const tab of this.tabs) {
             if (tab.ptyId && window.electronAPI?.destroyPty) {
-                await window.electronAPI.destroyPty({ id: tab.ptyId });
+                await window.electronAPI.destroyPty(tab.ptyId);
             }
             if (tab.xterm) {
                 tab.xterm.dispose();

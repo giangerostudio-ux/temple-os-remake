@@ -3804,6 +3804,7 @@ ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
+                preload: path.join(__dirname, 'preload.cjs')
             }
         });
 
@@ -3896,7 +3897,20 @@ ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
 </body>
 </html>`;
 
-        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        // Load from file URL for terminal/files (they need full API access)
+        // Use data URI for other apps (settings, editor, etc.)
+        if (appId === 'terminal') {
+            const terminalPath = path.join(app.getAppPath(), 'dist', 'terminal-window.html');
+            console.log('[FloatingApp-Inline] Loading terminal from:', terminalPath);
+            win.loadFile(terminalPath);
+        } else if (appId === 'files') {
+            const filesPath = path.join(app.getAppPath(), 'dist', 'files-window.html');
+            console.log('[FloatingApp-Inline] Loading files from:', filesPath);
+            win.loadFile(filesPath);
+        } else {
+            // Fallback to data URI for other apps
+            win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        }
 
         win.once('ready-to-show', () => {
             if (win && !win.isDestroyed()) {

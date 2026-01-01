@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+            color: #00ff41;
+            background: rgba(13, 17, 23, 0.98);
+        }
+
+        .app-window {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3), 0 4px 15px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        .title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(0, 255, 65, 0.15);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+            -webkit-app-region: drag;
+            cursor: move;
+        }
+
+        .title-bar-title {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .title-bar-buttons {
+            display: flex;
+            gap: 6px;
+            -webkit-app-region: no-drag;
+        }
+
+        .title-bar-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #00ff41;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.15s ease;
+        }
+
+        .title-bar-btn:hover {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: #00ff41;
+        }
+
+        .title-bar-btn.close:hover {
+            background: rgba(255, 0, 0, 0.3);
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+        }
+
+        .toolbar button {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            color: #00ff41;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.15s ease;
+        }
+
+        .toolbar button:hover {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: #00ff41;
+        }
+
+        .toolbar input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            color: #00ff41;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .breadcrumb {
+            font-size: 14px;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+
+        .breadcrumb-item:hover {
+            color: #55ff55;
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 200px;
+            border-right: 1px solid rgba(0, 255, 65, 0.2);
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .sidebar-item {
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            transition: all 0.15s ease;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .sidebar-item.active {
+            background: rgba(0, 255, 65, 0.2);
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+        }
+
+        .file-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: 2px solid transparent;
+        }
+
+        .file-item:hover {
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        .file-item.selected {
+            background: rgba(0, 255, 65, 0.15);
+            border-color: #00ff41;
+        }
+
+        .file-icon {
+            font-size: 32px;
+            margin-bottom: 6px;
+        }
+
+        .file-name {
+            font-size: 12px;
+            text-align: center;
+            word-break: break-word;
+            max-width: 100%;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 65, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-window">
+        <div class="title-bar">
+            <span class="title-bar-title">File Manager</span>
+            <div class="title-bar-buttons">
+                <button class="title-bar-btn" id="minimize-btn" title="Minimize">−</button>
+                <button class="title-bar-btn" id="maximize-btn" title="Maximize">□</button>
+                <button class="title-bar-btn close" id="close-btn" title="Close">×</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <button id="back-btn" title="Back">←</button>
+            <button id="up-btn" title="Up">↑</button>
+            <button id="home-btn" title="Home">🏠</button>
+            <div class="breadcrumb" id="breadcrumb"></div>
+            <input type="text" id="search-input" placeholder="Search files..." />
+        </div>
+
+        <div class="content-area">
+            <div class="sidebar" id="sidebar"></div>
+            <div class="file-list">
+                <div class="file-grid" id="file-grid"></div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/files-window.ts"></script>
+</body>
+
+</html>

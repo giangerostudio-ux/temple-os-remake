@@ -41,10 +41,23 @@ rc_path = '$RC_XML'
 tree = ET.parse(rc_path)
 root = tree.getroot()
 
+# Handle XML namespace if present (Openbox config usually has one)
+# We can just search with the namespace, or strip it. 
+# Let's try finding with namespace first, then without.
+namespaces = {'ob': 'http://openbox.org/3.4/rc'}
+
+def find_node(parent, tag):
+    # Try with namespace
+    node = parent.find('ob:' + tag, namespaces)
+    if node is None:
+        # Try without namespace
+        node = parent.find(tag)
+    return node
+
 # Find theme/name node
-theme_node = root.find('theme')
+theme_node = find_node(root, 'theme')
 if theme_node is not None:
-    name_node = theme_node.find('name')
+    name_node = find_node(theme_node, 'name')
     if name_node is not None:
         name_node.text = '$THEME_NAME'
         tree.write(rc_path)

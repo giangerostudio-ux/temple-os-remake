@@ -176,9 +176,9 @@ async function setWindowGeometry(xidHex, x, y, width, height) {
 
   // If a window is maximized, many WMs ignore manual geometry until maximize is cleared.
   await execFileAsync('wmctrl', ['-ir', xidHex, '-b', 'remove,maximized_vert,maximized_horz']).catch(() => { });
-  // Gravity 10 (StaticGravity) positions the frame at exact coordinates
-  // This fixes the gap at top that gravity 0 causes with Openbox
-  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `10,${xi},${yi},${wi},${hi}`]);
+  // Use gravity 0 (default) which allows title bar dragging
+  // StaticGravity (10) blocked dragging
+  await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `0,${xi},${yi},${wi},${hi}`]);
 }
 
 function fingerprintSnapshot(snap) {

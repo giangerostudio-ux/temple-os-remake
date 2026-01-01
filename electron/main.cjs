@@ -1962,13 +1962,14 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
 
         if (m === 'maximize') {
             // Use manual geometry to control exact positioning
-            // Add title bar offset (Openbox decorations ~25px) so frame starts at screen edge
+            // With gravity 0, y coordinate is the CLIENT window (not frame)
+            // So we need y=title bar height to make room for decorations
             const titleBarHeight = 25; // Openbox title bar decoration height
             if (ewmhBridge.setWindowGeometry) {
                 // First remove any existing maximized state
                 await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
-                // Position frame with negative Y to account for title bar in StaticGravity
-                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y - titleBarHeight, wa.width, clientHeight + titleBarHeight);
+                // Position client at y=titleBarHeight so title bar is visible
+                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y + titleBarHeight, wa.width, clientHeight - titleBarHeight);
             } else {
                 await ewmhBridge.setMaximized?.(xidHex, true);
             }

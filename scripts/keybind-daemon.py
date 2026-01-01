@@ -308,14 +308,14 @@ class KeybindDaemon:
                 if action in key_map:
                     # Send the key to the focused Electron window
                     subprocess.run(
-                        ['xdotool', 'key', '--window', electron_wid, key_map[action]],
+                        ['xdotool', 'key', '--clearmodifiers', '--window', electron_wid, key_map[action]],
                         timeout=2
                     )
                     self.log(f"Sent key '{key_map[action]}' to Electron for action: {action}")
                 elif action.startswith('move-to-workspace-'):
                     ws_num = action.split('-')[-1]
                     subprocess.run(
-                        ['xdotool', 'key', '--window', electron_wid, f'ctrl+shift+alt+{ws_num}'],
+                        ['xdotool', 'key', '--clearmodifiers', '--window', electron_wid, f'ctrl+shift+alt+{ws_num}'],
                         timeout=2
                     )
                     self.log(f"Sent key for: {action}")

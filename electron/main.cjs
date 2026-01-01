@@ -1961,15 +1961,9 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         await ewmhBridge.activateWindow(xidHex).catch((e) => console.warn('[X11] activateWindow before snap failed:', e.message));
 
         if (m === 'maximize') {
-            // For maximize, we need to set geometry manually instead of using WM maximize
-            // because WM maximize ignores our custom work area
-            if (ewmhBridge.setWindowGeometry) {
-                // First remove any existing maximized state
-                await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch((e) => console.warn('[X11] wmctrl unmaximize failed:', e.message));
-                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y, wa.width, clientHeight);
-            } else {
-                await ewmhBridge.setMaximized?.(xidHex, true);
-            }
+            // Use native WM maximize - it respects Openbox workarea AND shows title bar correctly
+            // Manual geometry with StaticGravity positions frame at y=0, hiding decorations
+            await ewmhBridge.setMaximized?.(xidHex, true);
         } else {
             switch (m) {
                 case 'left':

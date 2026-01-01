@@ -5,6 +5,7 @@
 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
 
 export interface TerminalTab {
     id: string;
@@ -12,6 +13,7 @@ export interface TerminalTab {
     title: string;
     xterm: Terminal | null;
     fitAddon: FitAddon | null;
+    searchAddon: SearchAddon | null;
     buffer: string[];
     cwd: string;
     container: HTMLElement | null;
@@ -44,6 +46,7 @@ export class PopoutTerminalManager {
             title: title || `Terminal ${tabNumber}`,
             xterm: null,
             fitAddon: null,
+            searchAddon: null,
             buffer: [],
             cwd: '',
             container: null
@@ -171,6 +174,10 @@ export class PopoutTerminalManager {
 
             tab.fitAddon = new FitAddon();
             tab.xterm.loadAddon(tab.fitAddon);
+
+            tab.searchAddon = new SearchAddon();
+            tab.xterm.loadAddon(tab.searchAddon);
+
             tab.xterm.open(tab.container);
 
             // Fit terminal

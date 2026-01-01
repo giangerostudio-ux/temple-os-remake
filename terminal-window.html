@@ -186,6 +186,61 @@
       box-shadow: 0 0 6px rgba(0, 255, 65, 0.2);
     }
 
+    /* Search bar */
+    .search-bar {
+      display: none;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .search-bar.visible {
+      display: flex;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(0, 255, 65, 0.3);
+      border-radius: 4px;
+      color: #00ff41;
+      font-family: 'Fira Code', monospace;
+      font-size: 13px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #00ff41;
+      box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+    }
+
+    .search-btn {
+      padding: 6px 12px;
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid rgba(0, 255, 65, 0.3);
+      border-radius: 4px;
+      color: #00ff41;
+      font-size: 12px;
+      font-family: 'Fira Code', monospace;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .search-btn:hover {
+      background: rgba(0, 255, 65, 0.2);
+      border-color: #00ff41;
+    }
+
+    .search-count {
+      color: rgba(0, 255, 65, 0.7);
+      font-size: 12px;
+      min-width: 50px;
+      text-align: center;
+    }
+
     .app-content {
       flex: 1;
       overflow: hidden;
@@ -251,6 +306,13 @@
           <button class="toolbar-btn" title="Split Horizontal">Split H</button>
           <button class="toolbar-btn" title="Settings">Settings</button>
         </div>
+      </div>
+      <div class="search-bar" id="search-bar">
+        <input class="search-input" id="search-input" type="text" placeholder="Search terminal output..." />
+        <button class="search-btn" id="search-prev">↑ Prev</button>
+        <button class="search-btn" id="search-next">↓ Next</button>
+        <span class="search-count" id="search-count"></span>
+        <button class="search-btn" id="search-close">×</button>
       </div>
       <div class="xterm-layout">
         <!-- Terminal containers will be added here -->

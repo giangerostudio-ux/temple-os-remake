@@ -179,6 +179,21 @@ async function setWindowGeometry(xidHex, x, y, width, height) {
   // Use gravity 0 (default) which allows title bar dragging
   // StaticGravity (10) blocked dragging
   await execFileAsync('wmctrl', ['-ir', xidHex, '-e', `0,${xi},${yi},${wi},${hi}`]);
+
+  // Use xdotool for more precise positioning - it handles frame decorations better
+  // Try to use xdotool if available (more reliable than wmctrl for positioning)
+  try {
+    // xdotool uses decimal window IDs, convert from hex
+    const xidDec = parseInt(xidHex, 16);
+    if (xi >= 0 && yi >= 0) {
+      await execFileAsync('xdotool', ['windowmove', '--sync', String(xidDec), String(xi), String(yi)]).catch(() => { });
+    }
+    if (wi > 0 && hi > 0) {
+      await execFileAsync('xdotool', ['windowsize', '--sync', String(xidDec), String(wi), String(hi)]).catch(() => { });
+    }
+  } catch {
+    // xdotool not available, rely on wmctrl only
+  }
 }
 
 function fingerprintSnapshot(snap) {

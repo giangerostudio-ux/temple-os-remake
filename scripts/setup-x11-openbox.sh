@@ -22,7 +22,7 @@ echo "[1/4] Installing X11/Openbox prerequisites..."
 sudo apt-get update
 sudo apt-get install -y \
   xorg xinit openbox \
-  wmctrl x11-utils x11-xserver-utils \
+  wmctrl x11-utils x11-xserver-utils xdotool \
   curl  # Needed for Ollama install
 
 # Install Ollama for Word of God AI

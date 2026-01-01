@@ -53,7 +53,14 @@ cat > "${XINITRC}" <<EOF
 set -e
 
 # Start the window manager
+# Start the window manager
 openbox --sm-disable --config-file "${HOME}/.config/openbox/rc.xml" &
+
+# Start keybind daemon
+if [ -f "${APP_DIR}/scripts/keybind-daemon.py" ]; then
+    rm -f /tmp/templeos-keybind.sock
+    python3 "${APP_DIR}/scripts/keybind-daemon.py" --socket /tmp/templeos-keybind.sock > /tmp/keybind-daemon.log 2>&1 &
+fi
 
 # Start the TempleOS Electron shell
 export TEMPLE_X11_DESKTOP_HINTS=0

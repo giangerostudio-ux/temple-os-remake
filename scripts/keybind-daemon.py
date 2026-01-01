@@ -200,25 +200,50 @@ class KeybindDaemon:
         focus_only_actions = set()
         
         try:
-            # Find the Electron window - try multiple patterns
+            # Find the Electron window using wmctrl (more reliable than xdotool)
             electron_wid = None
-            search_patterns = [
-                ['xdotool', 'search', '--name', 'TempleOS - Divine Operating System'],
-                ['xdotool', 'search', '--name', 'TempleOS'],
-                ['xdotool', 'search', '--name', 'templeos'],
-                ['xdotool', 'search', '--class', 'electron'],
-                ['xdotool', 'search', '--class', 'Electron'],
-            ]
             
-            for pattern in search_patterns:
-                try:
-                    result = subprocess.run(pattern, capture_output=True, text=True, timeout=2)
-                    window_ids = [wid.strip() for wid in result.stdout.strip().split('\n') if wid.strip()]
-                    if window_ids:
-                        electron_wid = window_ids[0]
-                        break
-                except:
-                    continue
+            # Get list of all windows from wmctrl
+            try:
+                result = subprocess.run(['wmctrl', '-l'], capture_output=True, text=True, timeout=2)
+                lines = result.stdout.strip().split('\n')
+                
+                # Search for our window in the list (case-insensitive)
+                search_terms = ['templeos', 'divine operating system', 'electron']
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    parts = line.split(None, 4)  # Split: WID, desktop, host, title
+                    if len(parts) >= 4:
+                        wid = parts[0]
+                        title = parts[3].lower() if len(parts) > 3 else ''
+                        full_title = ' '.join(parts[3:]).lower() if len(parts) > 3 else ''
+                        
+                        for term in search_terms:
+                            if term in full_title:
+                                electron_wid = wid
+                                self.log(f"Found window via wmctrl: {wid} - {' '.join(parts[3:])}")
+                                break
+                        if electron_wid:
+                            break
+            except Exception as e:
+                self.log(f"wmctrl search failed: {e}")
+            
+            # Fallback to xdotool if wmctrl didn't find anything
+            if not electron_wid:
+                search_patterns = [
+                    ['xdotool', 'search', '--name', 'TempleOS'],
+                    ['xdotool', 'search', '--class', 'electron'],
+                ]
+                for pattern in search_patterns:
+                    try:
+                        result = subprocess.run(pattern, capture_output=True, text=True, timeout=2)
+                        window_ids = [wid.strip() for wid in result.stdout.strip().split('\n') if wid.strip()]
+                        if window_ids:
+                            electron_wid = window_ids[0]
+                            break
+                    except:
+                        continue
             
             if electron_wid:
                 self.log(f"Found Electron window: {electron_wid}")

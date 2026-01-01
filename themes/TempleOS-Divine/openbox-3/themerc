@@ -5,11 +5,11 @@
 border.width: 1
 
 # Window Geometry
-padding.width: 3
-padding.height: 3
+padding.width: 5
+padding.height: 8
 window.client.padding.width: 0
 window.client.padding.height: 0
-window.handle.width: 0
+window.handle.width: 4
 
 # Menu geometry
 menu.border.width: 1

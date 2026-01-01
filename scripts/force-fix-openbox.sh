@@ -54,7 +54,7 @@ cat > "$RC_XML" <<EOF
   <theme>
     <name>$THEME</name>
     <titleLayout>NLIMC</titleLayout>
-    <keepBorder>yes</keepBorder>
+    <keepBorder>no</keepBorder>
     <animateIconify>no</animateIconify>
   </theme>
 
@@ -95,11 +95,9 @@ cat > "$RC_XML" <<EOF
 </openbox_config>
 EOF
 
-# Ensure the theme folder exists
-if [ ! -d "$HOME/.local/share/themes/$THEME" ]; then
-    echo "Theme folder missing. Re-installing theme..."
-    ./scripts/apply-theme.sh
-fi
+# Always re-install theme to apply any updates (like padding)
+echo "Re-installing theme to ensure latest geometry..."
+./scripts/apply-theme.sh
 
 echo "Reloading Openbox..."
 openbox --reconfigure

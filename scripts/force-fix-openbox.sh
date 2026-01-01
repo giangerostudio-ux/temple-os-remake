@@ -45,7 +45,7 @@ cat > "$RC_XML" <<EOF
   <!-- TASKBAR MARGIN FIX -->
   <margins>
     <top>0</top>
-    <bottom>58</bottom>
+    <bottom>0</bottom>
     <left>0</left>
     <right>0</right>
   </margins>

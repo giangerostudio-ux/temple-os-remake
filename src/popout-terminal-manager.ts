@@ -128,7 +128,6 @@ export class PopoutTerminalManager {
             tab.container = document.createElement('div');
             tab.container.className = 'xterm-container';
             tab.container.id = `xterm-container-${tab.id}`;
-            tab.container.style.display = 'none';
             this.terminalLayout.appendChild(tab.container);
         }
 

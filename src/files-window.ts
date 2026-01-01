@@ -196,10 +196,9 @@ function renderFileGrid() {
                 }
             } else if (isDir && path) {
                 void loadDirectory(path);
-            } else if (!isDir && path && window.electronAPI?.openExternal) {
-                // Open file with default app
-                void window.electronAPI.openExternal(path);
             }
+            // Note: Don't open files with openExternal (causes freeze)
+            // User can use context menu for file operations
         });
 
         // Context menu

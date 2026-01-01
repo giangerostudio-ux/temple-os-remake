@@ -154,13 +154,19 @@ window.addEventListener('resize', debouncedResize);
 let ptyId: string | null = null;
 
 async function initializePty() {
+    console.log('[Terminal Window] initializePty called');
+    console.log('[Terminal Window] window.electronAPI exists?', !!window.electronAPI);
+    console.log('[Terminal Window] isPtyAvailable exists?', !!window.electronAPI?.isPtyAvailable);
+
     try {
         // Check if PTY is available
         const isPtyAvailable = window.electronAPI?.isPtyAvailable && await window.electronAPI.isPtyAvailable();
+        console.log('[Terminal Window] isPtyAvailable result:', isPtyAvailable);
 
         if (!isPtyAvailable) {
             xterm.writeln('\x1b[31mPTY not available. Terminal functionality limited.\x1b[0m');
             xterm.writeln('Install node-pty and restart the application.');
+            console.warn('[Terminal Window] PTY not available');
             return;
         }
 
@@ -168,8 +174,10 @@ async function initializePty() {
         // Create PTY
         if (!window.electronAPI?.createPty) {
             xterm.writeln('\x1b[31mPTY API not available.\x1b[0m');
+            console.error('[Terminal Window] createPty API not found');
             return;
         }
+        console.log('[Terminal Window] Creating PTY with cols:', xterm.cols, 'rows:', xterm.rows);
 
         const result = await window.electronAPI.createPty({
             cols: xterm.cols,
@@ -234,8 +242,15 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Initialize PTY after xterm is ready
-setTimeout(() => {
-    void initializePty();
+setTimeout(async () => {
+    console.log('[Terminal Window] Starting PTY initialization...');
+    try {
+        await initializePty();
+        console.log('[Terminal Window] PTY initialization complete');
+    } catch (error) {
+        console.error('[Terminal Window] PTY initialization error:', error);
+        xterm.writeln('\x1b[31mFailed to initialize PTY: ' + String(error) + '\x1b[0m');
+    }
 }, 100);
 
-console.log('[Terminal Window] Initialized');
+console.log('[Terminal Window] Initialized successfully');

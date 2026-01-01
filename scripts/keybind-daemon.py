@@ -121,6 +121,11 @@ class KeybindDaemon:
     """
     
     def __init__(self, device_path=None, output_file=None):
+        # Ensure DISPLAY is set for xdotool/wmctrl (crucial for SSH/background runs)
+        if 'DISPLAY' not in os.environ:
+            print("[KeybindDaemon] DISPLAY not set, defaulting to :0", file=sys.stderr)
+            os.environ['DISPLAY'] = ':0'
+
         self.device_path = device_path or self._find_keyboard()
         self.output_file = output_file  # If set, write actions to this file
         self.device_fd = None
@@ -139,8 +144,17 @@ class KeybindDaemon:
     def log(self, msg):
         """Log to stderr (stdout reserved for JSON output)"""
         print(f"[KeybindDaemon] {msg}", file=sys.stderr, flush=True)
-    
-    def _find_keyboard(self):
+
+    def _ensure_display(self):
+        """Ensure DISPLAY environment variable is set (needed for xdotool/wmctrl)."""
+        if 'DISPLAY' not in os.environ:
+            self.log("DISPLAY not set, defaulting to :0")
+            os.environ['DISPLAY'] = ':0'
+
+    def __init__(self, device_path=None, output_file=None):
+        self._ensure_display()
+        self.device_path = device_path or self._find_keyboard()
+        self.output_file = output_file  # If set, write actions to this file
         """
         Find keyboard device by scanning /dev/input/event* and checking capabilities.
         Returns the path to the first keyboard found.

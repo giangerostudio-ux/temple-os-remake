@@ -42,7 +42,8 @@ cat > "$RC_XML" <<EOF
     </names>
   </desktops>
 
-  <!-- TASKBAR MARGIN FIX -->
+  <!-- TASKBAR MARGIN - We don't use Openbox margins because it affects main window too.
+       Instead, we use our snap IPC to control window geometry. -->
   <margins>
     <top>0</top>
     <bottom>0</bottom>

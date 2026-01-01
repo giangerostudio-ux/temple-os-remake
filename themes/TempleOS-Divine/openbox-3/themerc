@@ -35,12 +35,16 @@ window.inactive.button.unpressed.image.color: #005515
 
 # Menu Styling
 menu.border.color: #00FF41
+menu.title.bg: solid flat
 menu.title.bg.color: #020502
 menu.title.text.color: #00FF41
+menu.items.bg: solid flat
 menu.items.bg.color: #020502
 menu.items.text.color: #8FB39D
-menu.items.active.bg.color: #00FF41
-menu.items.active.text.color: #000000
+menu.items.active.bg: solid flat
+menu.items.active.bg.color: #0a3d1c
+menu.items.active.text.color: #00FF41
+menu.items.disabled.text.color: #445544
 
 # OSD (On Screen Display)
 osd.border.width: 1

@@ -190,6 +190,46 @@ sudo apt update
 sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool python3-xlib python3-pip
 ```
 
+### Snap Cgroup Delegation Fix (CRITICAL)
+
+Ubuntu + Openbox can have broken snap cgroups, causing "not a snap cgroup" errors. This fix ensures snap apps work correctly:
+
+```bash
+# Run the cgroup fix script (included in repo)
+sudo /opt/templeos/scripts/fix-snap-cgroup.sh
+
+# OR manually:
+sudo mkdir -p /etc/systemd/system/user@.service.d/
+sudo tee /etc/systemd/system/user@.service.d/delegate.conf > /dev/null << 'EOF'
+[Service]
+Delegate=cpu cpuset io memory pids
+EOF
+
+sudo mkdir -p /etc/systemd/system/user-.slice.d/
+sudo tee /etc/systemd/system/user-.slice.d/delegate.conf > /dev/null << 'EOF'
+[Slice]
+Delegate=cpu cpuset io memory pids
+EOF
+
+sudo systemctl daemon-reload
+# Reboot required!
+```
+
+### SSH Localhost Setup (Fallback for Corrupted Systems)
+
+For users who broke their cgroups (e.g., installed GNOME/Wayland then removed it), the app launcher has an SSH fallback. This requires:
+
+```bash
+# Install openssh-server and sshpass
+sudo apt install -y openssh-server sshpass
+
+# Ensure SSH is running
+sudo systemctl enable ssh
+sudo systemctl start ssh
+```
+
+**Note**: The launcher automatically tries simple spawn first. SSH fallback only activates if spawn fails.
+
 ### Voice of God TTS (Optional but Recommended)
 
 For the Word of God divine voice feature with audio effects (reverb, echo, chorus):

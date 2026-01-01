@@ -7020,30 +7020,25 @@ ipcMain.handle('apps:launch', async (event, app) => {
         console.log('[apps:launch] DISPLAY:', display);
 
         // =====================================================
-        // METHOD 1: dbus-launch for snap apps (fixes D-Bus session)
-        // Snap apps require a proper D-Bus session - dbus-launch provides this
+        // METHOD 1: systemd-run for snap apps (fixes cgroup issue)
+        // Uses "systemd-run --user --scope" to create proper cgroup scope
+        // This bypasses the corrupted session cgroup from GNOME/Wayland
         // =====================================================
-        const dbusLaunch = () => {
+        const systemdRunLaunch = () => {
             return new Promise((resolve) => {
-                // Use dbus-launch to ensure D-Bus session exists
-                const dbusCmd = `dbus-launch --exit-with-session ${fullCmd}`;
+                // Use systemd-run to create a proper cgroup scope for snap apps
+                const systemdCmd = `DISPLAY=${display} systemd-run --user --scope ${fullCmd}`;
 
-                console.log('[apps:launch] Trying dbus-launch method...');
-                const child = spawn('/bin/sh', ['-c', `nohup ${dbusCmd} > /dev/null 2>&1 &`], {
-                    detached: true,
-                    stdio: 'ignore',
-                    cwd: cwd || undefined,
-                    env: {
-                        ...process.env,
-                        ...envVars,
-                        DISPLAY: display,
-                        XDG_SESSION_TYPE: 'x11',
-                        GDK_BACKEND: 'x11'
+                console.log('[apps:launch] Trying systemd-run --scope method...');
+                exec(systemdCmd, { timeout: 10000, env: { ...process.env, DISPLAY: display } }, (err, stdout, stderr) => {
+                    if (err) {
+                        console.error('[apps:launch] systemd-run failed:', err.message);
+                        resolve({ success: false, method: 'systemd-run', error: err.message });
+                    } else {
+                        console.log('[apps:launch] systemd-run succeeded!');
+                        resolve({ success: true, method: 'systemd-run' });
                     }
                 });
-                child.unref();
-                console.log('[apps:launch] dbus-launch spawn PID:', child.pid);
-                resolve({ success: true, method: 'dbus-launch', pid: child.pid });
             });
         };
 
@@ -7083,11 +7078,11 @@ ipcMain.handle('apps:launch', async (event, app) => {
         };
 
 
-        // For snap apps, use dbus-launch; for others, simple spawn (like backup)
+        // For snap apps, use systemd-run --scope; for others, simple spawn (like backup)
         let result;
         if (isSnapApp) {
-            console.log('[apps:launch] Snap app detected, using dbus-launch...');
-            result = await dbusLaunch();
+            console.log('[apps:launch] Snap app detected, using systemd-run --scope...');
+            result = await systemdRunLaunch();
         } else {
             console.log('[apps:launch] Non-snap app, using simple spawn...');
             result = await simpleSpawn();

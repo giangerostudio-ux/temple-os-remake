@@ -7020,23 +7020,36 @@ ipcMain.handle('apps:launch', async (event, app) => {
         console.log('[apps:launch] DISPLAY:', display);
 
         // =====================================================
-        // METHOD 1: systemd-run for snap apps (fixes cgroup issue)
-        // Uses "systemd-run --user --scope" to create proper cgroup scope
-        // This bypasses the corrupted session cgroup from GNOME/Wayland
+        // METHOD 1: SSH to localhost for snap apps (creates fresh session)
+        // SSH creates a completely independent login session that bypasses
+        // the corrupted cgroup from GNOME/Wayland installation.
+        // This is the ONLY method that actually worked after testing.
         // =====================================================
-        const systemdRunLaunch = () => {
+        const sshLaunch = () => {
             return new Promise((resolve) => {
-                // Use systemd-run to create a proper cgroup scope for snap apps
-                const systemdCmd = `DISPLAY=${display} systemd-run --user --scope ${fullCmd}`;
+                // SSH to localhost creates a fresh session with proper cgroups
+                // The command: DISPLAY=:0 systemd-run --user --scope snap run firefox
+                const remoteCmd = `DISPLAY=${display} systemd-run --user --scope ${fullCmd}`;
+                // Use sshpass for password auth, fall back to key-based
+                const sshWithPass = `sshpass -p temple ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 localhost '${remoteCmd.replace(/'/g, "'\\''")}'`;
+                const sshKeyBased = `ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 localhost '${remoteCmd.replace(/'/g, "'\\''")}'`;
 
-                console.log('[apps:launch] Trying systemd-run --scope method...');
-                exec(systemdCmd, { timeout: 10000, env: { ...process.env, DISPLAY: display } }, (err, stdout, stderr) => {
+                console.log('[apps:launch] Trying SSH + systemd-run method...');
+                exec(sshWithPass, { timeout: 15000 }, (err, stdout, stderr) => {
                     if (err) {
-                        console.error('[apps:launch] systemd-run failed:', err.message);
-                        resolve({ success: false, method: 'systemd-run', error: err.message });
+                        console.log('[apps:launch] sshpass failed, trying key-based SSH...');
+                        exec(sshKeyBased, { timeout: 15000 }, (err2, stdout2, stderr2) => {
+                            if (err2) {
+                                console.error('[apps:launch] SSH methods failed:', err2.message);
+                                resolve({ success: false, method: 'ssh', error: err2.message });
+                            } else {
+                                console.log('[apps:launch] SSH key-based succeeded!');
+                                resolve({ success: true, method: 'ssh-key' });
+                            }
+                        });
                     } else {
-                        console.log('[apps:launch] systemd-run succeeded!');
-                        resolve({ success: true, method: 'systemd-run' });
+                        console.log('[apps:launch] SSH + systemd-run succeeded!');
+                        resolve({ success: true, method: 'ssh' });
                     }
                 });
             });
@@ -7078,11 +7091,11 @@ ipcMain.handle('apps:launch', async (event, app) => {
         };
 
 
-        // For snap apps, use systemd-run --scope; for others, simple spawn (like backup)
+        // For snap apps, use SSH + systemd-run (creates fresh session); for others, simple spawn
         let result;
         if (isSnapApp) {
-            console.log('[apps:launch] Snap app detected, using systemd-run --scope...');
-            result = await systemdRunLaunch();
+            console.log('[apps:launch] Snap app detected, using SSH + systemd-run...');
+            result = await sshLaunch();
         } else {
             console.log('[apps:launch] Non-snap app, using simple spawn...');
             result = await simpleSpawn();

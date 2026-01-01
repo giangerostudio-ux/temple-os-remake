@@ -1313,10 +1313,17 @@ app.whenReady().then(() => {
             // createStrutWindow();
 
             void applyDesktopHintsToMainWindow().catch((e) => console.warn('[X11] applyDesktopHintsToMainWindow at ready failed:', e.message));
-            // Maximize the main window to fill the screen (since there's no panel strut)
+            // Force main window to fill full screen using setBounds (not maximize which respects workarea)
             setTimeout(() => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.maximize();
+                    const primary = screen.getPrimaryDisplay();
+                    // Use bounds, not workArea, to ensure full screen coverage
+                    mainWindow.setBounds({
+                        x: primary.bounds.x,
+                        y: primary.bounds.y,
+                        width: primary.bounds.width,
+                        height: primary.bounds.height
+                    });
                     // Capture main window XID for snap layout protection
                     try {
                         const handle = mainWindow.getNativeWindowHandle();

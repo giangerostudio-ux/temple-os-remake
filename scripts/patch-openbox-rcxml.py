@@ -64,6 +64,16 @@ def ensure_templeos_app_rule(xml: str) -> str:
     <layer>below</layer>
     <raise>no</raise>
     <focus>yes</focus>
+    <decor>no</decor>
+    <position force="yes">
+      <x>0</x>
+      <y>0</y>
+    </position>
+    <size>
+      <width>100%</width>
+      <height>100%</height>
+    </size>
+    <maximized>no</maximized>
   </application>
 """
 

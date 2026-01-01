@@ -137,6 +137,16 @@ cat > "$RC_XML" <<EOF
        <layer>below</layer>
        <raise>no</raise>
        <focus>yes</focus>
+       <decor>no</decor>
+       <position force="yes">
+         <x>0</x>
+         <y>0</y>
+       </position>
+       <size>
+         <width>100%</width>
+         <height>100%</height>
+       </size>
+       <maximized>no</maximized>
     </application>
     <!-- Force Firefox to use Openbox decorations (not its own CSD) -->
     <application class="firefox" name="*">

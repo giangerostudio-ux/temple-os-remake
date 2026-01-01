@@ -90,7 +90,7 @@ let lastNetAt = 0;
 
 // Taskbar Configuration (synced from renderer)
 let currentTaskbarPosition = 'bottom'; // 'top' | 'bottom' - Synced from renderer
-const TASKBAR_HEIGHT = 58; // Actual taskbar height (CSS .taskbar = 56px + borders)
+const TASKBAR_HEIGHT = 70; // CSS: .taskbar 56px + bottom:12px offset + border
 
 
 // X11 Snap Detector Daemon (Windows 11-style drag-to-edge detection)

@@ -147,9 +147,35 @@ def main() -> int:
 
     xml = ensure_templeos_app_rule(xml)
     xml = ensure_single_desktop(xml)
+    xml = ensure_margins(xml)
 
     path.write_text(xml, encoding="utf-8")
     return 0
+
+
+def ensure_margins(xml: str) -> str:
+    """Ensure bottom margin is reserved for the taskbar."""
+    # Check if <margins> block exists
+    if re.search(r"<margins\b", xml, flags=re.IGNORECASE):
+        # Update existing bottom margin
+        if re.search(r"<bottom>\d+</bottom>", xml, flags=re.IGNORECASE):
+            xml = re.sub(r"(<bottom>)\d+(</bottom>)", r"\g<1>40\g<2>", xml, flags=re.IGNORECASE)
+        else:
+            # Add bottom margin to existing margins block
+            xml = re.sub(r"(</margins>)", r"  <bottom>40</bottom>\n    \1", xml, flags=re.IGNORECASE)
+        return xml
+
+    # Add new margins block
+    margins_block = """
+  <margins>
+    <top>0</top>
+    <bottom>40</bottom>
+    <left>0</left>
+    <right>0</right>
+  </margins>
+"""
+    # Insert before </openbox_config>
+    return re.sub(r"(</openbox_config\s*>)", margins_block + r"\1", xml, count=1, flags=re.IGNORECASE)
 
 
 if __name__ == "__main__":

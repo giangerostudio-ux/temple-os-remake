@@ -1961,9 +1961,17 @@ async function snapX11WindowCore(xidHex, mode, taskbarConfig) {
         await ewmhBridge.activateWindow(xidHex).catch((e) => console.warn('[X11] activateWindow before snap failed:', e.message));
 
         if (m === 'maximize') {
-            // Use native WM maximize - it respects Openbox workarea AND shows title bar correctly
-            // Manual geometry with StaticGravity positions frame at y=0, hiding decorations
-            await ewmhBridge.setMaximized?.(xidHex, true);
+            // Use manual geometry to control exact positioning
+            // Add title bar offset (Openbox decorations ~25px) so frame starts at screen edge
+            const titleBarHeight = 25; // Openbox title bar decoration height
+            if (ewmhBridge.setWindowGeometry) {
+                // First remove any existing maximized state
+                await execAsync(`wmctrl -ir ${xidHex} -b remove,maximized_vert,maximized_horz`, { timeout: 2000 }).catch(() => { });
+                // Position frame with negative Y to account for title bar in StaticGravity
+                await ewmhBridge.setWindowGeometry(xidHex, wa.x, wa.y - titleBarHeight, wa.width, clientHeight + titleBarHeight);
+            } else {
+                await ewmhBridge.setMaximized?.(xidHex, true);
+            }
         } else {
             switch (m) {
                 case 'left':

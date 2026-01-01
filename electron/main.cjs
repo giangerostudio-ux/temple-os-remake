@@ -1084,13 +1084,13 @@ function createStrutWindow() {
 
     const primary = screen.getPrimaryDisplay();
     const bounds = primary?.bounds || { x: 0, y: 0, width: 1280, height: 720 };
-    const strutHeight = TASKBAR_HEIGHT + 8; // Extra padding for safety
+    const strutHeight = TASKBAR_HEIGHT + 8; // Extra padding for safety (68px)
 
     strutWindow = new BrowserWindow({
         x: bounds.x,
-        y: bounds.y + bounds.height - 1, // Position at very bottom
+        y: bounds.y + bounds.height - strutHeight, // Position at bottom
         width: bounds.width,
-        height: 1, // 1 pixel tall - invisible
+        height: strutHeight, // Full height of reserved area
         frame: false,
         transparent: true,
         resizable: false,
@@ -1098,33 +1098,37 @@ function createStrutWindow() {
         focusable: false,
         skipTaskbar: true,
         alwaysOnTop: false,
-        show: false, // Never show this window
+        hasShadow: false,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
         }
     });
 
-    // Apply the strut immediately
-    strutWindow.once('ready-to-show', async () => {
+    // Apply the strut after window is loaded (did-finish-load works reliably)
+    strutWindow.webContents.on('did-finish-load', async () => {
         const xid = xidHexFromBrowserWindow(strutWindow);
-        if (!xid) return;
+        if (!xid) {
+            console.warn('[X11] Strut window has no XID');
+            return;
+        }
 
-        // Set as dock type (required for struts)
-        await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch(() => { });
+        // Set as dock type (required for struts to work)
+        await xpropSet(xid, '_NET_WM_WINDOW_TYPE', '32a', '_NET_WM_WINDOW_TYPE_DOCK').catch((e) => console.warn('[X11] Strut WINDOW_TYPE failed:', e.message));
 
-        // Reserve the bottom strip
+        // Reserve the bottom strip of the screen
+        // _NET_WM_STRUT_PARTIAL = left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x
         const strut = `"0, 0, 0, ${strutHeight}, 0, 0, 0, 0, 0, 0, 0, ${Math.max(0, bounds.width - 1)}"`;
-        await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch((e) => console.warn('[X11] Strut window STRUT_PARTIAL failed:', e.message));
+        await xpropSet(xid, '_NET_WM_STRUT_PARTIAL', '32c', strut).catch((e) => console.warn('[X11] Strut STRUT_PARTIAL failed:', e.message));
 
-        console.log('[X11] Invisible strut window created, reserving', strutHeight, 'px at bottom');
+        console.log('[X11] Strut window created, reserving', strutHeight, 'px at bottom (XID:', xid, ')');
 
-        // Add to ignore list
+        // Add to ignore list so it doesn't show in taskbar
         x11IgnoreXids.add(String(xid).toLowerCase());
     });
 
-    // Load a blank page
-    strutWindow.loadURL('about:blank');
+    // Load blank HTML (transparent)
+    strutWindow.loadURL('data:text/html,<html style="background:transparent"></html>');
 
     strutWindow.on('closed', () => {
         strutWindow = null;

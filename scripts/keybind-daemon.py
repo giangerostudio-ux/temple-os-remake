@@ -200,22 +200,25 @@ class KeybindDaemon:
         focus_only_actions = set()
         
         try:
-            # Find the Electron window (templeos)
-            result = subprocess.run(
+            # Find the Electron window - try multiple patterns
+            electron_wid = None
+            search_patterns = [
+                ['xdotool', 'search', '--name', 'TempleOS - Divine Operating System'],
+                ['xdotool', 'search', '--name', 'TempleOS'],
                 ['xdotool', 'search', '--name', 'templeos'],
-                capture_output=True, text=True, timeout=2
-            )
-            window_ids = result.stdout.strip().split('\n')
-            electron_wid = window_ids[0] if window_ids and window_ids[0] else None
+                ['xdotool', 'search', '--class', 'electron'],
+                ['xdotool', 'search', '--class', 'Electron'],
+            ]
             
-            if not electron_wid:
-                # Try alternative: search for Electron
-                result = subprocess.run(
-                    ['xdotool', 'search', '--class', 'Electron'],
-                    capture_output=True, text=True, timeout=2
-                )
-                window_ids = result.stdout.strip().split('\n')
-                electron_wid = window_ids[0] if window_ids and window_ids[0] else None
+            for pattern in search_patterns:
+                try:
+                    result = subprocess.run(pattern, capture_output=True, text=True, timeout=2)
+                    window_ids = [wid.strip() for wid in result.stdout.strip().split('\n') if wid.strip()]
+                    if window_ids:
+                        electron_wid = window_ids[0]
+                        break
+                except:
+                    continue
             
             if electron_wid:
                 self.log(f"Found Electron window: {electron_wid}")

@@ -159,17 +159,17 @@ def ensure_margins(xml: str) -> str:
     if re.search(r"<margins\b", xml, flags=re.IGNORECASE):
         # Update existing bottom margin
         if re.search(r"<bottom>\d+</bottom>", xml, flags=re.IGNORECASE):
-            xml = re.sub(r"(<bottom>)\d+(</bottom>)", r"\g<1>40\g<2>", xml, flags=re.IGNORECASE)
+            xml = re.sub(r"(<bottom>)\d+(</bottom>)", r"\g<1>67\g<2>", xml, flags=re.IGNORECASE)
         else:
             # Add bottom margin to existing margins block
-            xml = re.sub(r"(</margins>)", r"  <bottom>40</bottom>\n    \1", xml, flags=re.IGNORECASE)
+            xml = re.sub(r"(</margins>)", r"  <bottom>67</bottom>\n    \1", xml, flags=re.IGNORECASE)
         return xml
 
     # Add new margins block
     margins_block = """
   <margins>
     <top>0</top>
-    <bottom>40</bottom>
+    <bottom>67</bottom>
     <left>0</left>
     <right>0</right>
   </margins>

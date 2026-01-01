@@ -7028,8 +7028,11 @@ ipcMain.handle('apps:launch', async (event, app) => {
         const sshLaunch = () => {
             return new Promise((resolve) => {
                 // SSH to localhost creates a fresh session with proper cgroups
-                // The command: DISPLAY=:0 systemd-run --user --scope snap run firefox
-                const remoteCmd = `DISPLAY=${display} systemd-run --user --scope ${fullCmd}`;
+                // Environment vars to disable GTK CSD (Firefox draws its own decorations otherwise):
+                // - MOZ_GTK_TITLEBAR_DECORATION=none: Tells Firefox to NOT use client-side decorations
+                // - GTK_CSD=0: General GTK CSD disable (may help other GTK apps)
+                const envPrefix = `DISPLAY=${display} MOZ_GTK_TITLEBAR_DECORATION=none GTK_CSD=0`;
+                const remoteCmd = `${envPrefix} systemd-run --user --scope ${fullCmd}`;
                 // Use sshpass for password auth, fall back to key-based
                 const sshWithPass = `sshpass -p temple ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 localhost '${remoteCmd.replace(/'/g, "'\\''")}'`;
                 const sshKeyBased = `ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 localhost '${remoteCmd.replace(/'/g, "'\\''")}'`;

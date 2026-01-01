@@ -138,6 +138,16 @@ cat > "$RC_XML" <<EOF
        <raise>no</raise>
        <focus>yes</focus>
     </application>
+    <!-- Force Firefox to use Openbox decorations (not its own CSD) -->
+    <application class="firefox" name="*">
+      <decor>yes</decor>
+    </application>
+    <application class="Firefox" name="*">
+      <decor>yes</decor>
+    </application>
+    <application class="Navigator" name="*">
+      <decor>yes</decor>
+    </application>
   </applications>
   
 </openbox_config>

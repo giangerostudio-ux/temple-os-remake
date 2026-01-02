@@ -7583,7 +7583,7 @@ ipcMain.handle('updater:update', async () => {
         // Step 4: Build
         console.log('[Holy Updater] Step 4/4: Building...');
         // FIX: Increased timeout from 120s to 180s (3 min) for slower systems
-        result = await runCmd(`${npmCmd} run build -- --base=./`, 180000);
+        result = await runCmd(`${npmCmd} run build`, 180000);
         if (!result.success) {
             return { success: false, error: `Build failed: ${result.error}`, output: result.stderr };
         }

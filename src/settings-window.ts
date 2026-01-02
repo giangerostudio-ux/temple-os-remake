@@ -109,25 +109,43 @@ const categories = [
     'About'
 ];
 
-// Load settings from localStorage
-function loadSettings() {
+// Load settings from IPC config
+async function loadSettings() {
     try {
-        const saved = localStorage.getItem('templeos-settings');
-        if (saved) {
-            state = { ...state, ...JSON.parse(saved) };
+        if (!window.electronAPI?.loadConfig) {
+            console.warn('[Settings] electronAPI.loadConfig not available');
+            return;
+        }
+        const result = await window.electronAPI.loadConfig();
+        if (result.success && result.config) {
+            state = { ...state, ...result.config };
         }
     } catch (e) {
         console.error('[Settings] Failed to load settings:', e);
     }
 }
 
-// Save settings to localStorage
-function saveSettings() {
+// Save settings to IPC config (broadcasts to all windows)
+async function saveSettings() {
     try {
-        localStorage.setItem('templeos-settings', JSON.stringify(state));
+        if (!window.electronAPI?.saveConfig) {
+            console.warn('[Settings] electronAPI.saveConfig not available');
+            return;
+        }
+        await window.electronAPI.saveConfig(state);
     } catch (e) {
         console.error('[Settings] Failed to save settings:', e);
     }
+}
+
+// Listen for settings changes from other windows
+if (window.electronAPI?.onConfigChanged) {
+    window.electronAPI.onConfigChanged((config: Record<string, unknown>) => {
+        console.log('[Settings] Config changed from another window:', config);
+        state = { ...state, ...config };
+        renderContent();
+        attachContentHandlers();
+    });
 }
 
 // Render sidebar
@@ -686,13 +704,13 @@ function renderAboutSettings() {
 }
 
 // Initialize
-function init() {
-    loadSettings();
+async function init() {
+    await loadSettings();
     renderSidebar();
     renderContent();
     attachSidebarHandlers();
     attachContentHandlers();
-    console.log('[Settings Window] Initialized with interactive controls');
+    console.log('[Settings Window] Initialized with IPC config sync');
 }
 
 void init();

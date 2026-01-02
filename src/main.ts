@@ -84,6 +84,7 @@ declare global {
       // Config
       loadConfig?: () => Promise<{ success: boolean; config: TempleConfig; error?: string }>;
       saveConfig?: (config: TempleConfig) => Promise<{ success: boolean; error?: string }>;
+      onConfigChanged?: (callback: (config: Record<string, unknown>) => void) => () => void;
       // Audio devices
       listAudioDevices?: () => Promise<{ success: boolean; sinks: AudioDevice[]; sources: AudioDevice[]; defaultSink: string | null; defaultSource: string | null; error?: string }>;
       setDefaultSink?: (sinkName: string) => Promise<{ success: boolean; error?: string }>;

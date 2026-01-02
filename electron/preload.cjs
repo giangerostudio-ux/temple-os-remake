@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ============================================
     loadConfig: () => ipcRenderer.invoke('config:load'),
     saveConfig: (config) => ipcRenderer.invoke('config:save', config),
+    onConfigChanged: (callback) => {
+        const handler = (event, config) => callback(config);
+        ipcRenderer.on('config:changed', handler);
+        return () => ipcRenderer.removeListener('config:changed', handler);
+    },
 
     // ============================================
     // AUDIO DEVICES

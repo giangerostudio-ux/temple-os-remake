@@ -357,6 +357,16 @@ function registerSystemHandlers(getMainWindow) {
             const tmp = configPath + '.tmp';
             await fs.promises.writeFile(tmp, JSON.stringify(config || {}, null, 2), 'utf-8');
             await fs.promises.rename(tmp, configPath);
+
+            // Broadcast settings changes to all windows for sync
+            const { BrowserWindow } = require('electron');
+            const allWindows = BrowserWindow.getAllWindows();
+            for (const win of allWindows) {
+                if (win && !win.isDestroyed()) {
+                    win.webContents.send('config:changed', config);
+                }
+            }
+
             return ipcSuccess();
         } catch (error) {
             return ipcError(error.message);

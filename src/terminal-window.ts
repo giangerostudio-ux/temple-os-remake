@@ -54,7 +54,7 @@ interface TerminalSettings {
 function loadSettings(): TerminalSettings {
     const defaults: TerminalSettings = {
         fontSize: 14,
-        theme: 'dark',
+        theme: 'templeOS',  // TempleOS green by default!
         scrollback: 10000
     };
 

@@ -75,10 +75,7 @@ const fileIcon = `<svg viewBox="0 0 48 48" fill="none" stroke="#00ff41" stroke-w
     <path d="M30 4L30 14L40 14"/>
 </svg>`;
 
-const parentIcon = `<svg viewBox="0 0 48 48" fill="none" stroke="#00ff41" stroke-width="2">
-    <path d="M4 10L4 42L44 42L44 14L24 14L20 10L4 10Z"/>
-    <path d="M18 28L24 22L30 28M24 22L24 36"/>
-</svg>`;
+
 
 function getFileIcon(_name: string, isDir: boolean): string {
     if (isDir) return folderIcon;
@@ -177,7 +174,7 @@ function renderFileGrid() {
         html += `
         <div class="file-item" data-path="${parentPath}" data-is-dir="true" data-index="-1">
             <div class="file-checkbox"></div>
-            <div class="file-icon">${parentIcon}</div>
+            <div class="file-icon" style="font-size: 32px;">📁</div>
             <div class="file-name">..</div>
         </div>`;
     }

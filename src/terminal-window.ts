@@ -410,26 +410,80 @@ function applySettings(settings: TerminalSettings): void {
             // Apply font size
             tab.xterm.options.fontSize = settings.fontSize;
 
-            // Apply theme
+            // Apply theme - FULL theme including all ANSI colors
             const themes = {
                 dark: {
                     background: '#000000',
                     foreground: '#ffffff',
-                    cursor: '#ffffff'
+                    cursor: '#ffffff',
+                    cursorAccent: '#000000',
+                    selectionBackground: 'rgba(255, 255, 255, 0.3)',
+                    black: '#000000',
+                    red: '#ff4444',
+                    green: '#00ff00',
+                    yellow: '#ffff00',
+                    blue: '#4444ff',
+                    magenta: '#ff44ff',
+                    cyan: '#44ffff',
+                    white: '#ffffff',
+                    brightBlack: '#666666',
+                    brightRed: '#ff6666',
+                    brightGreen: '#00ff00',
+                    brightYellow: '#ffff66',
+                    brightBlue: '#6666ff',
+                    brightMagenta: '#ff66ff',
+                    brightCyan: '#66ffff',
+                    brightWhite: '#ffffff'
                 },
                 light: {
                     background: '#ffffff',
                     foreground: '#000000',
-                    cursor: '#000000'
+                    cursor: '#000000',
+                    cursorAccent: '#ffffff',
+                    selectionBackground: 'rgba(0, 0, 0, 0.3)',
+                    black: '#000000',
+                    red: '#cc0000',
+                    green: '#00aa00',
+                    yellow: '#aaaa00',
+                    blue: '#0000cc',
+                    magenta: '#aa00aa',
+                    cyan: '#00aaaa',
+                    white: '#aaaaaa',
+                    brightBlack: '#555555',
+                    brightRed: '#ff5555',
+                    brightGreen: '#55ff55',
+                    brightYellow: '#ffff55',
+                    brightBlue: '#5555ff',
+                    brightMagenta: '#ff55ff',
+                    brightCyan: '#55ffff',
+                    brightWhite: '#ffffff'
                 },
                 templeOS: {
                     background: '#0d1117',  // Original dark blue-grey
                     foreground: '#00ff00',  // Pure bright green
-                    cursor: '#00ff00'
+                    cursor: '#00ff00',
+                    cursorAccent: '#0d1117',
+                    selectionBackground: 'rgba(0, 255, 0, 0.3)',
+                    black: '#000000',
+                    red: '#ff4444',
+                    green: '#00ff00',  // Pure bright green for bash prompt
+                    yellow: '#ffff00',
+                    blue: '#4444ff',
+                    magenta: '#ff44ff',
+                    cyan: '#44ffff',
+                    white: '#ffffff',
+                    brightBlack: '#666666',
+                    brightRed: '#ff6666',
+                    brightGreen: '#00ff00',  // Same pure green
+                    brightYellow: '#ffff66',
+                    brightBlue: '#6666ff',
+                    brightMagenta: '#ff66ff',
+                    brightCyan: '#66ffff',
+                    brightWhite: '#ffffff'
                 }
             };
 
-            const theme = themes[settings.theme as keyof typeof themes] || themes.dark;
+            const theme = themes[settings.theme as keyof typeof themes] || themes.templeOS;
             tab.xterm.options.theme = theme;
 
             // Apply scrollback
@@ -450,9 +504,28 @@ if (fontSizeValue) fontSizeValue.textContent = `${uiSettings.fontSize}px`;
 themeSelect.value = uiSettings.theme;
 scrollbackInput.value = uiSettings.scrollback.toString();
 
-// Font size slider
+// Font size slider - handle both input and change events for dragging
 fontSizeInput?.addEventListener('input', () => {
     if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+});
+
+fontSizeInput?.addEventListener('change', () => {
+    if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+});
+
+// Also handle mousedown to capture
+fontSizeInput?.addEventListener('mousedown', () => {
+    const handleMove = () => {
+        if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+    };
+
+    const handleUp = () => {
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleUp);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
 });
 
 // Open settings modal

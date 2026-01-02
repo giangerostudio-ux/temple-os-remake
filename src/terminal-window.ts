@@ -247,6 +247,125 @@ splitHBtn?.addEventListener('click', (e) => {
     }
 });
 
+// Tab context menu
+let contextMenu: HTMLDivElement | null = null;
+let contextMenuTabIndex: number = -1;
+
+function createContextMenu() {
+    if (contextMenu) {
+        contextMenu.remove();
+    }
+
+    contextMenu = document.createElement('div');
+    contextMenu.style.cssText = `
+        position: fixed;
+        background: rgba(10, 20, 15, 0.98);
+        border: 2px solid #00ff41;
+        border-radius: 6px;
+        padding: 4px 0;
+        box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+        z-index: 10000;
+        min-width: 180px;
+        font-family: 'Fira Code', monospace;
+        font-size: 13px;
+        display: none;
+    `;
+
+    const menuItems = [
+        { label: 'Close Tab', action: 'close' },
+        { label: 'Close Other Tabs', action: 'close-others' },
+        { label: 'Close All Tabs', action: 'close-all' }
+    ];
+
+    menuItems.forEach(item => {
+        const menuItem = document.createElement('div');
+        menuItem.textContent = item.label;
+        menuItem.style.cssText = `
+            padding: 8px 16px;
+            color: #00ff41;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        `;
+        menuItem.addEventListener('mouseenter', () => {
+            menuItem.style.background = 'rgba(0, 255, 65, 0.2)';
+        });
+        menuItem.addEventListener('mouseleave', () => {
+            menuItem.style.background = 'transparent';
+        });
+        menuItem.addEventListener('click', () => {
+            handleContextMenuAction(item.action);
+            hideContextMenu();
+        });
+        contextMenu!.appendChild(menuItem);
+    });
+
+    document.body.appendChild(contextMenu);
+}
+
+function showContextMenu(x: number, y: number, tabIndex: number) {
+    if (!contextMenu) {
+        createContextMenu();
+    }
+
+    contextMenuTabIndex = tabIndex;
+    contextMenu!.style.left = `${x}px`;
+    contextMenu!.style.top = `${y}px`;
+    contextMenu!.style.display = 'block';
+}
+
+function hideContextMenu() {
+    if (contextMenu) {
+        contextMenu.style.display = 'none';
+    }
+}
+
+async function handleContextMenuAction(action: string) {
+    const tabs = terminalManager.getTabs();
+
+    switch (action) {
+        case 'close':
+            if (tabs.length > 1) {
+                await terminalManager.closeTab(contextMenuTabIndex);
+            }
+            break;
+        case 'close-others':
+            // Close all tabs except the one clicked
+            for (let i = tabs.length - 1; i >= 0; i--) {
+                if (i !== contextMenuTabIndex && tabs.length > 1) {
+                    await terminalManager.closeTab(i);
+                }
+            }
+            break;
+        case 'close-all':
+            // Close all but keep at least one
+            while (tabs.length > 1) {
+                await terminalManager.closeTab(tabs.length - 1);
+            }
+            break;
+    }
+}
+
+// Listen for context menu on tabs
+tabsContainer.addEventListener('contextmenu', (e) => {
+    const target = e.target as HTMLElement;
+    const tabElement = target.closest('.terminal-tab');
+
+    if (tabElement) {
+        e.preventDefault();
+        const tabIndex = parseInt(tabElement.getAttribute('data-tab-index') || '-1');
+        if (tabIndex >= 0) {
+            showContextMenu(e.clientX, e.clientY, tabIndex);
+        }
+    }
+});
+
+// Hide context menu on click outside
+document.addEventListener('click', (e) => {
+    if (contextMenu && !contextMenu.contains(e.target as Node)) {
+        hideContextMenu();
+    }
+});
+
 // Settings Modal
 const settingsModal = document.getElementById('settings-modal');
 const settingsCloseBtn = document.getElementById('settings-close');

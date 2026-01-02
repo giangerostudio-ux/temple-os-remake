@@ -41,6 +41,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener('bookmarks:changed', handler);
     },
 
+    // OPEN WITH / DEFAULT APPS
+    getMimeType: (path) => ipcRenderer.invoke('fs:getMimeType', path),
+    getAppsForMimeType: (mimeType) => ipcRenderer.invoke('apps:getAppsForMimeType', mimeType),
+    getDefaultApp: (mimeType) => ipcRenderer.invoke('apps:getDefaultApp', mimeType),
+    setDefaultApp: (mimeType, appId) => ipcRenderer.invoke('apps:setDefaultApp', mimeType, appId),
+    openWith: (filePath, appExec) => ipcRenderer.invoke('fs:openWith', filePath, appExec),
+
     // ============================================
     // SYSTEM
     // ============================================

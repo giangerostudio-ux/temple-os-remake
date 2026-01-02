@@ -6912,6 +6912,7 @@ async function scanDesktopEntries(options = {}) {
                 exec: argvToExecString(execTokens),
                 categories: splitSemicolonList(parsed.Categories),
                 keywords: splitSemicolonList(parsed.Keywords),
+                mimeTypes: splitSemicolonList(parsed.MimeType),  // For "Open With" support
                 comment: localizedValue(parsed, 'Comment', locales) || '',
                 desktopFile: filePath,
                 source
@@ -7223,6 +7224,160 @@ ipcMain.handle('apps:getInstalled', async () => {
         return { success: true, apps };
     } catch (e) {
         return { success: false, apps: [], error: e && e.message ? e.message : String(e) };
+    }
+});
+
+// Get apps that can handle a specific MIME type
+ipcMain.handle('apps:getAppsForMimeType', async (event, mimeType) => {
+    if (process.platform !== 'linux') {
+        return { success: true, apps: [] };
+    }
+
+    try {
+        const apps = installedAppsCacheReady ? installedAppsCache : await refreshInstalledAppsCache('mimeQuery');
+        const matching = apps.filter(app => {
+            if (!app.mimeTypes || !Array.isArray(app.mimeTypes)) return false;
+            return app.mimeTypes.some(mt => {
+                // Exact match or wildcard match (e.g., image/* matches image/jpeg)
+                if (mt === mimeType) return true;
+                if (mt.endsWith('/*')) {
+                    const prefix = mt.slice(0, -1);  // "image/"
+                    return mimeType.startsWith(prefix);
+                }
+                return false;
+            });
+        });
+        return { success: true, apps: matching };
+    } catch (e) {
+        return { success: false, apps: [], error: e.message };
+    }
+});
+
+// Get MIME type of a file
+ipcMain.handle('fs:getMimeType', async (event, filePath) => {
+    try {
+        // First try using file command on Linux
+        if (process.platform === 'linux') {
+            const { execSync } = require('child_process');
+            try {
+                const result = execSync(`file --mime-type -b "${filePath}"`, { encoding: 'utf8' }).trim();
+                if (result && !result.includes('cannot open')) {
+                    return { success: true, mimeType: result };
+                }
+            } catch { /* fall through */ }
+        }
+
+        // Fallback: extension-based detection
+        const ext = path.extname(filePath).toLowerCase().slice(1);
+        const mimeMap = {
+            // Images
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
+            'webp': 'image/webp', 'svg': 'image/svg+xml', 'bmp': 'image/bmp', 'ico': 'image/x-icon',
+            // Documents
+            'pdf': 'application/pdf', 'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint', 'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'odt': 'application/vnd.oasis.opendocument.text', 'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+            // Text
+            'txt': 'text/plain', 'md': 'text/markdown', 'html': 'text/html', 'htm': 'text/html',
+            'css': 'text/css', 'js': 'application/javascript', 'json': 'application/json',
+            'xml': 'application/xml', 'csv': 'text/csv',
+            // Archives
+            'zip': 'application/zip', 'tar': 'application/x-tar', 'gz': 'application/gzip',
+            '7z': 'application/x-7z-compressed', 'rar': 'application/vnd.rar',
+            // Audio
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'flac': 'audio/flac', 'm4a': 'audio/mp4',
+            // Video
+            'mp4': 'video/mp4', 'mkv': 'video/x-matroska', 'avi': 'video/x-msvideo', 'mov': 'video/quicktime',
+            'webm': 'video/webm', 'wmv': 'video/x-ms-wmv',
+            // Executables
+            'exe': 'application/x-msdownload', 'deb': 'application/vnd.debian.binary-package',
+            'rpm': 'application/x-rpm', 'appimage': 'application/x-executable',
+            // Other
+            'iso': 'application/x-iso9660-image'
+        };
+
+        const mimeType = mimeMap[ext] || 'application/octet-stream';
+        return { success: true, mimeType };
+    } catch (e) {
+        return { success: false, mimeType: 'application/octet-stream', error: e.message };
+    }
+});
+
+// Default app associations storage
+let defaultAppsConfig = {};
+
+async function loadDefaultApps() {
+    try {
+        const configPath = path.join(os.homedir(), '.templeos', 'config.json');
+        if (fs.existsSync(configPath)) {
+            const content = await fs.promises.readFile(configPath, 'utf8');
+            const config = JSON.parse(content);
+            defaultAppsConfig = config.defaultApps || {};
+        }
+    } catch { /* ignore */ }
+}
+
+async function saveDefaultApps() {
+    try {
+        const configDir = path.join(os.homedir(), '.templeos');
+        const configPath = path.join(configDir, 'config.json');
+
+        let config = {};
+        if (fs.existsSync(configPath)) {
+            config = JSON.parse(await fs.promises.readFile(configPath, 'utf8'));
+        }
+        config.defaultApps = defaultAppsConfig;
+
+        if (!fs.existsSync(configDir)) {
+            await fs.promises.mkdir(configDir, { recursive: true });
+        }
+        await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+        console.error('[DefaultApps] Save failed:', e.message);
+    }
+}
+
+// Load on startup
+loadDefaultApps();
+
+ipcMain.handle('apps:getDefaultApp', async (event, mimeType) => {
+    return { success: true, appId: defaultAppsConfig[mimeType] || null };
+});
+
+ipcMain.handle('apps:setDefaultApp', async (event, mimeType, appId) => {
+    defaultAppsConfig[mimeType] = appId;
+    await saveDefaultApps();
+    return { success: true };
+});
+
+// Open a file with a specific app
+ipcMain.handle('fs:openWith', async (event, filePath, appExec) => {
+    if (process.platform !== 'linux') {
+        return { success: false, error: 'Only supported on Linux' };
+    }
+
+    try {
+        const { spawn } = require('child_process');
+
+        // Parse the exec command and replace %f/%F/%u/%U with the file path
+        let cmd = appExec.replace(/%[fFuU]/g, `"${filePath}"`);
+        // Remove other desktop file tokens
+        cmd = cmd.replace(/%[a-zA-Z]/g, '');
+
+        console.log('[openWith] Launching:', cmd, 'with file:', filePath);
+
+        // Spawn detached
+        const proc = spawn('sh', ['-c', `${cmd} &`], {
+            detached: true,
+            stdio: 'ignore'
+        });
+        proc.unref();
+
+        return { success: true };
+    } catch (e) {
+        console.error('[openWith] Error:', e);
+        return { success: false, error: e.message };
     }
 });
 

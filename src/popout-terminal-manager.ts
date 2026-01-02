@@ -135,12 +135,30 @@ export class PopoutTerminalManager {
             this.splitSecondaryTabId = null;
         } else {
             // Split - find or create secondary tab
+            let secondaryIndex: number;
+
             if (this.tabs.length === 1) {
-                // Create a second tab for split view
-                this.createTab();
+                // Create a second tab for split view WITHOUT switching to it
+                const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                const tab: TerminalTab = {
+                    id: tabId,
+                    ptyId: null,
+                    title: `Terminal ${this.tabs.length + 1}`,
+                    xterm: null,
+                    fitAddon: null,
+                    searchAddon: null,
+                    buffer: [],
+                    cwd: '',
+                    container: null
+                };
+                this.tabs.push(tab);
+                this.renderTabs();
+                secondaryIndex = this.tabs.length - 1;
+            } else {
+                // Use the tab after active as secondary
+                secondaryIndex = (this.activeTabIndex + 1) % this.tabs.length;
             }
-            // Use the tab after active as secondary
-            const secondaryIndex = (this.activeTabIndex + 1) % this.tabs.length;
+
             this.splitSecondaryTabId = this.tabs[secondaryIndex].id;
 
             // Initialize xterm for both primary and secondary tabs immediately

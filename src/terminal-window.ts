@@ -73,7 +73,21 @@ console.log('[Terminal Window] Initialized with tab support');
 
 // Apply settings to initial tab
 const currentSettings = loadSettings();
-applySettings(currentSettings);
+
+// Initialize the first tab's xterm BEFORE applying settings
+// This ensures the correct theme is applied from the start
+const initialTab = terminalManager.getActiveTab();
+if (initialTab && !initialTab.xterm) {
+    // Force immediate initialization of first tab
+    terminalManager.initializeXterm(initialTab).then(() => {
+        applySettings(currentSettings);
+    }).catch(err => {
+        console.error('Failed to initialize first tab:', err);
+        applySettings(currentSettings);
+    });
+} else {
+    applySettings(currentSettings);
+}
 
 // Toolbar button handlers
 const findBtn = document.querySelector('.toolbar-btn[title="Find"]');

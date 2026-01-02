@@ -226,15 +226,13 @@ export class PopoutTerminalManager {
             };
 
             tab.xterm = new Terminal({
-                theme: terminalTheme,
-                fontFamily: 'Fira Code, Consolas, "Courier New", monospace',
+                theme: theme,
+                fontFamily: 'Fira Code, monospace',
                 fontSize: 14,
-                fontWeight: '500',
-                letterSpacing: 0.3,
-                lineHeight: 1.4,
                 cursorBlink: true,
+                cursorStyle: 'block',
                 scrollback: 10000,
-                allowProposedApi: true
+                allowTransparency: true
             });
 
             tab.fitAddon = new FitAddon();

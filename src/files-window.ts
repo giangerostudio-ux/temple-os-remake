@@ -517,17 +517,19 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
 
         case 'extract':
             if (window.electronAPI.extractZip) {
-                // Extract to a folder named after the zip file (without .zip)
-                const targetDir = filePath.replace(/\.zip$/i, '');
+                // Extract to current directory (parent of the zip file)
+                const targetDir = currentPath;
+                console.log('[Files] Extracting', filePath, 'to', targetDir);
                 const result = await window.electronAPI.extractZip(filePath, targetDir);
                 if (result.success) {
-                    void loadDirectory(currentPath);  // Refresh to show extracted folder
-                    customAlert(`📦 Extracted to: ${targetDir.split(/[/\\]/).pop()}`);
+                    void loadDirectory(currentPath);  // Refresh to show extracted contents
+                    customAlert(`📦 Extracted successfully`);
                 } else {
-                    customAlert('Failed to extract: ' + result.error);
+                    console.error('[Files] Extract failed:', result.error);
+                    customAlert('Failed to extract: ' + (result.error || 'Unknown error'));
                 }
             } else {
-                customAlert('Extract not available');
+                customAlert('Extract not available (electronAPI.extractZip missing)');
             }
             break;
 

@@ -4339,15 +4339,21 @@ ipcMain.handle('fs:createZip', async (event, sourcePath, targetZipPath) => {
         const zip = new AdmZip();
         const stat = await fs.promises.stat(sourcePath);
         if (stat.isDirectory()) {
-            zip.addLocalFolder(sourcePath);
+            // Include the folder name in the zip, so extracting preserves structure
+            const folderName = path.basename(sourcePath);
+            zip.addLocalFolder(sourcePath, folderName);
+            console.log('[createZip] Zipping folder', sourcePath, 'as', folderName);
         } else {
             zip.addLocalFile(sourcePath);
+            console.log('[createZip] Zipping file', sourcePath);
         }
         zip.writeZip(targetZipPath);
         // Verify creation
         await fs.promises.access(targetZipPath);
+        console.log('[createZip] Created', targetZipPath);
         return { success: true };
     } catch (error) {
+        console.error('[createZip] Error:', error);
         return { success: false, error: error.message };
     }
 });

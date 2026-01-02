@@ -10178,8 +10178,8 @@ class TempleOS {
             ...(isZip ? [{ label: '📦 Extract Here', action: () => this.extractZipHere(filePath) }] : []),
             { label: '🗜️ Compress to Zip', action: () => this.createZipFromItem(filePath) },
             { divider: true },
-            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; this.showNotification('Files', `Copied ${getBaseName(filePath)}`, 'info'); } },
-            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; this.showNotification('Files', `Cut ${getBaseName(filePath)}`, 'info'); } },
+            { label: '📋 Copy', action: () => { this.fileClipboard = { mode: 'copy', srcPath: filePath }; } },
+            { label: '✂️ Cut', action: () => { this.fileClipboard = { mode: 'cut', srcPath: filePath }; } },
             { label: '✏️ Rename', action: () => this.promptRename(filePath) },
             { label: '🗑️ Delete', action: () => this.confirmDelete(filePath) },
             { divider: true },
@@ -10461,10 +10461,9 @@ class TempleOS {
               if (window.electronAPI) {
                 const res = await this.fallbackCopyFile(srcPath, destPath);
                 if (res.success) {
-                  this.showNotification('Files', `Copied ${name}`, 'info');
                   this.loadFiles(this.currentPath);
                 } else {
-                  this.showNotification('Files', 'Copy failed', 'error');
+                  console.warn('[Files] Copy failed');
                 }
               }
             }
@@ -15510,10 +15509,8 @@ class TempleOS {
     const name = path.split(/[/\\]/).pop() || 'archive';
     const targetPath = this.joinPath(parent, `${name}.zip`);
 
-    this.showNotification('Files', 'Compressing...', 'info');
     const res = await window.electronAPI.createZip(path, targetPath);
     if (res.success) {
-      this.showNotification('Files', `Created ${name}.zip`, 'divine');
       this.loadFiles(parent);
     } else {
       await this.openAlertModal({ title: 'Compression Failed', message: res.error || 'Unknown error' });
@@ -15527,10 +15524,8 @@ class TempleOS {
     }
     const parent = path.split(/[/\\]/).slice(0, -1).join(this.getPathSeparator(path)) || this.homePath || '/';
 
-    this.showNotification('Files', 'Extracting...', 'info');
     const res = await window.electronAPI.extractZip(path, parent);
     if (res.success) {
-      this.showNotification('Files', 'Extracted successfully', 'divine');
       this.loadFiles(parent);
     } else {
       await this.openAlertModal({ title: 'Extraction Failed', message: res.error || 'Unknown error' });
@@ -20125,7 +20120,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     const newPath = parentDir + trimmed;
     const result = await window.electronAPI.rename(filePath, newPath);
     if (result.success) {
-      this.showNotification('Files', `Renamed to ${trimmed}`, 'divine');
       void this.loadFiles(this.currentPath);
     } else {
       await this.openAlertModal({ title: 'Files', message: `Rename failed: ${result.error || 'Unknown error'}` });
@@ -20147,7 +20141,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     if (window.electronAPI.trashItem) {
       const res = await window.electronAPI.trashItem(filePath);
       if (res.success) {
-        this.showNotification('Files', `Moved ${fileName} to Trash`, 'divine');
         void this.loadFiles(this.currentPath);
         return;
       }
@@ -20158,7 +20151,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     // Fallback: permanent delete
     const result = await window.electronAPI.deleteItem(filePath);
     if (result.success) {
-      this.showNotification('Files', `Deleted ${fileName}`, 'divine');
       void this.loadFiles(this.currentPath);
     } else {
       await this.openAlertModal({ title: 'Files', message: `Delete failed: ${result.error || 'Unknown error'}` });
@@ -20167,10 +20159,8 @@ Write-Host "Done! Restart the app to use Voice of God."`;
 
   private async restoreTrashItem(trashPath: string, originalPath: string): Promise<void> {
     if (!window.electronAPI?.restoreTrash) return;
-    const name = trashPath.split(/[/\\]/).pop() || 'item';
     const res = await window.electronAPI.restoreTrash(trashPath, originalPath);
     if (res.success) {
-      this.showNotification('Files', `Restored ${name}`, 'divine');
       void this.loadFiles('trash:');
     } else {
       await this.openAlertModal({ title: 'Files', message: `Restore failed: ${res.error || 'Unknown error'}` });
@@ -20222,7 +20212,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     const dest = this.joinPath(this.currentPath, trimmed);
     const result = await window.electronAPI.mkdir(dest);
     if (result.success) {
-      this.showNotification('Files', `Created folder ${trimmed}`, 'divine');
       void this.loadFiles(this.currentPath);
     } else {
       await this.openAlertModal({ title: 'Files', message: `Create folder failed: ${result.error || 'Unknown error'}` });
@@ -20255,7 +20244,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     const dest = this.joinPath(this.currentPath, trimmed);
     const result = await window.electronAPI.writeFile(dest, '');
     if (result.success) {
-      this.showNotification('Files', `Created file ${trimmed}`, 'divine');
       void this.loadFiles(this.currentPath);
     } else {
       await this.openAlertModal({ title: 'Files', message: `Create file failed: ${result.error || 'Unknown error'}` });
@@ -20288,7 +20276,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
         await this.openAlertModal({ title: 'Files', message: `Paste failed: ${res.error || 'Unknown error'}` });
         return;
       }
-      this.showNotification('Files', `Copied ${baseName}`, 'divine');
       this.loadFiles(this.currentPath);
       return;
     }
@@ -20306,12 +20293,11 @@ Write-Host "Done! Restart the app to use Voice of God."`;
       }
       const deleted = await window.electronAPI.deleteItem(src);
       if (!deleted.success) {
-        this.showNotification('Files', `Moved ${baseName}, but failed to remove source`, 'warning');
+        console.warn('[Files] Moved but failed to remove source');
       }
     }
 
     this.fileClipboard = null;
-    this.showNotification('Files', `Moved ${baseName}`, 'divine');
     this.loadFiles(this.currentPath);
   }
 

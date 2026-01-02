@@ -212,10 +212,10 @@ export class PopoutTerminalManager {
         // Create xterm if doesn't exist
         if (!tab.xterm) {
             const theme = {
-                background: '#0a0a0a',  // Darker background for more contrast
+                background: '#0d1117',  // Original dark blue-grey
                 foreground: '#00ff00',  // Pure bright green
                 cursor: '#00ff00',
-                cursorAccent: '#0a0a0a',
+                cursorAccent: '#0d1117',
                 selectionBackground: 'rgba(0, 255, 0, 0.3)',
                 black: '#000000',
                 red: '#ff4444',

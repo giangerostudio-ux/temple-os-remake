@@ -13186,10 +13186,10 @@ class TempleOS {
     // Create xterm instance
     const xterm = new Terminal({
       theme: {
-        background: '#0a0a0a',  // Darker for more contrast
+        background: '#0d1117',  // Original dark blue-grey
         foreground: fg,
         cursor: fg,
-        cursorAccent: '#0a0a0a',
+        cursorAccent: '#0d1117',
         selectionBackground: this.getTerminalThemeSelection(),
         black: '#000000',
         red: '#ff3366',

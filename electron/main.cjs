@@ -1400,8 +1400,14 @@ ipcMain.handle('close-window', () => {
     if (mainWindow) mainWindow.close();
 });
 
-ipcMain.handle('minimize-window', () => {
-    if (mainWindow) mainWindow.minimize();
+ipcMain.handle('minimize-window', (event) => {
+    // Minimize the window that sent this request (could be main or popout)
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (senderWindow) {
+        senderWindow.minimize();
+    } else if (mainWindow) {
+        mainWindow.minimize();
+    }
 });
 
 ipcMain.handle('maximize-window', () => {

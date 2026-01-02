@@ -17156,11 +17156,8 @@ class TempleOS {
     this.selectedFiles.clear();
     this.lastSelectedIndex = -1;
 
-    if (errorCount > 0) {
-      this.showNotification('Files', `Deleted ${successCount} items, ${errorCount} failed`, 'warning');
-    } else {
-      this.showNotification('Files', `Deleted ${successCount} item${successCount > 1 ? 's' : ''}`, 'divine');
-    }
+    // Silent - no notification (user requested removal of annoying notifications)
+    console.log(`[Files] Deleted ${successCount} items${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
 
     await this.loadFiles(this.currentPath);
   }

@@ -416,12 +416,15 @@ function showContextMenu(x: number, y: number, filePath: string, isDir: boolean)
     menu.style.top = `${y}px`;
 
     const count = selectedFiles.size;
+    const isZip = filePath.toLowerCase().endsWith('.zip');
+
     const items = [
         { id: 'open', label: isDir ? '📂 Open' : '📄 Open' },
         { id: 'preview', label: '👁 Preview', disabled: isDir },
         { id: 'divider1', label: '' },
         { id: 'bookmark', label: '⭐ Add Bookmark' },
-        { id: 'compress', label: '📦 Compress to Zip' },
+        ...(isZip ? [{ id: 'extract', label: '📦 Extract Here' }] : []),
+        ...(!isZip ? [{ id: 'compress', label: '📦 Compress to Zip' }] : []),
         { id: 'divider2', label: '' },
         { id: 'copy', label: '📋 Copy' },
         { id: 'cut', label: '✂️ Cut' },
@@ -498,7 +501,34 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
             break;
 
         case 'compress':
-            alert('Compress to Zip (feature not fully implemented)');
+            if (window.electronAPI.createZip) {
+                const targetPath = filePath + '.zip';
+                const result = await window.electronAPI.createZip(filePath, targetPath);
+                if (result.success) {
+                    void loadDirectory(currentPath);  // Refresh to show new zip
+                    customAlert(`📦 Created: ${targetPath.split(/[/\\]/).pop()}`);
+                } else {
+                    customAlert('Failed to compress: ' + result.error);
+                }
+            } else {
+                customAlert('Compress to Zip not available');
+            }
+            break;
+
+        case 'extract':
+            if (window.electronAPI.extractZip) {
+                // Extract to a folder named after the zip file (without .zip)
+                const targetDir = filePath.replace(/\.zip$/i, '');
+                const result = await window.electronAPI.extractZip(filePath, targetDir);
+                if (result.success) {
+                    void loadDirectory(currentPath);  // Refresh to show extracted folder
+                    customAlert(`📦 Extracted to: ${targetDir.split(/[/\\]/).pop()}`);
+                } else {
+                    customAlert('Failed to extract: ' + result.error);
+                }
+            } else {
+                customAlert('Extract not available');
+            }
             break;
 
         case 'copy':

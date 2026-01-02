@@ -253,21 +253,26 @@
     /* Xterm layout */
     .xterm-layout {
       flex: 1;
-      padding: 10px;
+      padding: 5px;
+      /* Reduced from 10px */
       position: relative;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+      /* Prevent overflow */
     }
 
     /* Split layouts */
     .xterm-layout.vertical {
       flex-direction: row;
-      gap: 10px;
+      gap: 5px;
+      /* Reduced from 10px */
     }
 
     .xterm-layout.horizontal {
       flex-direction: column;
-      gap: 10px;
+      gap: 5px;
+      /* Reduced from 10px */
     }
 
     /* Split panes */
@@ -275,12 +280,16 @@
     .xterm-layout.vertical .pane-secondary {
       flex: 1;
       width: 50%;
+      min-width: 0;
+      /* Allow flex shrink */
     }
 
     .xterm-layout.horizontal .pane-primary,
     .xterm-layout.horizontal .pane-secondary {
       flex: 1;
       height: 50%;
+      min-height: 100px;
+      /* Ensure minimum usable height */
     }
 
     .xterm-container {
@@ -289,6 +298,8 @@
       display: none;
       overflow: auto;
       position: relative;
+      min-height: 0;
+      /* Allow flex shrink */
     }
 
     .xterm-container.active {

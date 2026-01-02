@@ -199,11 +199,25 @@ document.addEventListener('keydown', (e) => {
 });
 
 splitVBtn?.addEventListener('click', () => {
-    console.log('[Terminal] Split V clicked - Phase 6.3 feature');
+    console.log('[Terminal] Split V clicked');
+    if (terminalManager.getSplitMode() === 'vertical') {
+        // Already vertical, unsplit
+        terminalManager.setSplitMode('single');
+    } else {
+        // Enable vertical split
+        terminalManager.setSplitMode('vertical');
+    }
 });
 
 splitHBtn?.addEventListener('click', () => {
-    console.log('[Terminal] Split H clicked - Phase 6.3 feature');
+    console.log('[Terminal] Split H clicked');
+    if (terminalManager.getSplitMode() === 'horizontal') {
+        // Already horizontal, unsplit
+        terminalManager.setSplitMode('single');
+    } else {
+        // Enable horizontal split
+        terminalManager.setSplitMode('horizontal');
+    }
 });
 
 settingsBtn?.addEventListener('click', () => {

@@ -255,6 +255,32 @@
       flex: 1;
       padding: 10px;
       position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Split layouts */
+    .xterm-layout.vertical {
+      flex-direction: row;
+      gap: 10px;
+    }
+
+    .xterm-layout.horizontal {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Split panes */
+    .xterm-layout.vertical .pane-primary,
+    .xterm-layout.vertical .pane-secondary {
+      flex: 1;
+      width: 50%;
+    }
+
+    .xterm-layout.horizontal .pane-primary,
+    .xterm-layout.horizontal .pane-secondary {
+      flex: 1;
+      height: 50%;
     }
 
     .xterm-container {

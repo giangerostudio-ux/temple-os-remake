@@ -24,6 +24,8 @@ export class PopoutTerminalManager {
     private activeTabIndex: number = 0;
     private readonly tabsContainer: HTMLElement;
     private readonly terminalLayout: HTMLElement;
+    private splitMode: 'single' | 'vertical' | 'horizontal' = 'single';
+    private splitSecondaryTabId: string | null = null;
 
     constructor(tabsContainer: HTMLElement, terminalLayout: HTMLElement) {
         this.tabsContainer = tabsContainer;
@@ -120,6 +122,79 @@ export class PopoutTerminalManager {
      */
     getTabs(): TerminalTab[] {
         return this.tabs;
+    }
+
+    /**
+     * Set split mode
+     */
+    setSplitMode(mode: 'single' | 'vertical' | 'horizontal'): void {
+        this.splitMode = mode;
+
+        if (mode === 'single') {
+            // Unsplit - show only active tab
+            this.splitSecondaryTabId = null;
+        } else {
+            // Split - find or create secondary tab
+            if (this.tabs.length === 1) {
+                // Create a second tab for split view
+                void this.createTab();
+            }
+            // Use the tab after active as secondary
+            const secondaryIndex = (this.activeTabIndex + 1) % this.tabs.length;
+            this.splitSecondaryTabId = this.tabs[secondaryIndex].id;
+        }
+
+        this.updateLayout();
+    }
+
+    /**
+     * Get split mode
+     */
+    getSplitMode(): 'single' | 'vertical' | 'horizontal' {
+        return this.splitMode;
+    }
+
+    /**
+     * Update layout based on split mode
+     */
+    private updateLayout(): void {
+        // Update layout class
+        this.terminalLayout.className = `xterm-layout ${this.splitMode}`;
+
+        // Show/hide containers based on split mode
+        const primaryId = this.tabs[this.activeTabIndex]?.id;
+        const secondaryId = this.splitSecondaryTabId;
+
+        this.tabs.forEach((tab) => {
+            if (!tab.container) return;
+
+            if (this.splitMode === 'single') {
+                // Single mode: show only active
+                tab.container.style.display = tab.id === primaryId ? 'block' : 'none';
+                tab.container.className = 'xterm-container';
+            } else {
+                // Split mode: show primary and secondary
+                if (tab.id === primaryId) {
+                    tab.container.style.display = 'block';
+                    tab.container.className = 'xterm-container pane-primary';
+                } else if (tab.id === secondaryId) {
+                    tab.container.style.display = 'block';
+                    tab.container.className = 'xterm-container pane-secondary';
+                } else {
+                    tab.container.style.display = 'none';
+                    tab.container.className = 'xterm-container';
+                }
+            }
+        });
+
+        // Fit both visible terminals
+        setTimeout(() => {
+            this.tabs.forEach((tab) => {
+                if (tab.container?.style.display === 'block' && tab.fitAddon) {
+                    tab.fitAddon.fit();
+                }
+            });
+        }, 50);
     }
 
     /**

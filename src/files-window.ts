@@ -68,6 +68,9 @@ let navHistoryIndex = -1;
 // View mode
 let viewMode: 'grid' | 'list' = 'grid';
 
+// Last clicked file for shift-click range selection
+let lastClickedIndex = -1;
+
 // Helper: Get file icon
 function getFileIcon(name: string, isDir: boolean): string {
     if (isDir) return '📁';
@@ -194,10 +197,14 @@ function renderFileGrid() {
     `;
     }
 
-    for (const file of sorted) {
+    for (let i = 0; i < sorted.length; i++) {
+        const file = sorted[i];
         const isSelected = selectedFiles.has(file.path);
         html += `
-      <div class="file-item ${isSelected ? 'selected' : ''}" data-path="${file.path}" data-is-dir="${file.isDirectory}">
+      <div class="file-item ${isSelected ? 'selected' : ''}" 
+           data-path="${file.path}" 
+           data-is-dir="${file.isDirectory}" 
+           data-index="${i}">
         <div class="file-icon">${getFileIcon(file.name, file.isDirectory)}</div>
         <div class="file-name">${file.name}</div>
       </div>
@@ -211,27 +218,59 @@ function renderFileGrid() {
     fileGrid.innerHTML = html;
 
     // Add click handlers
-    fileGrid.querySelectorAll('.file-item').forEach(el => {
+    fileGrid.querySelectorAll('.file-item').forEach((el) => {
         const path = el.getAttribute('data-path');
         const isDir = el.getAttribute('data-is-dir') === 'true';
+        const index = parseInt(el.getAttribute('data-index') || '0');
 
         el.addEventListener('click', (e: any) => {
-            if (e.ctrlKey || e.metaKey) {
-                // Multi-select
+            if (e.shiftKey && lastClickedIndex !== -1) {
+                // Shift-click: range selection
+                e.preventDefault();
+                const start = Math.min(lastClickedIndex, index);
+                const end = Math.max(lastClickedIndex, index);
+
+                // Get all items in range
+                const query = searchInput.value.trim().toLowerCase();
+                const filtered = fileEntries.filter(f => !query || f.name.toLowerCase().includes(query));
+                const sorted = filtered.slice().sort((a, b) => {
+                    if (a.isDirectory && !b.isDirectory) return -1;
+                    if (!a.isDirectory && b.isDirectory) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                for (let i = start; i <= end; i++) {
+                    if (sorted[i]) {
+                        selectedFiles.add(sorted[i].path);
+                    }
+                }
+                renderFileGrid();
+                updateStatusBar();
+            } else if (e.ctrlKey || e.metaKey) {
+                // Ctrl-click: toggle selection
                 if (path) {
                     if (selectedFiles.has(path)) {
                         selectedFiles.delete(path);
                     } else {
                         selectedFiles.add(path);
                     }
+                    lastClickedIndex = index;
                     renderFileGrid();
                     updateStatusBar();
                 }
-            } else if (isDir && path) {
-                void loadDirectory(path);
+            } else {
+                // Normal click
+                selectedFiles.clear();  // Clear selection
+                if (isDir && path) {
+                    void loadDirectory(path);
+                } else {
+                    // Select single file
+                    if (path) selectedFiles.add(path);
+                    lastClickedIndex = index;
+                    updateStatusBar();
+                }
+                renderFileGrid();
             }
-            // Note: Don't open files with openExternal (causes freeze)
-            // User can use context menu for file operations
         });
 
         // Context menu
@@ -292,10 +331,11 @@ function showContextMenu(x: number, y: number, filePath: string, isDir: boolean)
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
 
+    const selectedCount = selectedFiles.size;
     const items = [
         { id: 'open', label: isDir ? '📂 Open Folder' : '📄 Open' },
         { id: 'divider1', label: '' },
-        { id: 'delete', label: '🗑️ Delete' },
+        { id: 'delete', label: selectedCount > 1 ? `🗑️ Delete ${selectedCount} items` : '🗑️ Delete' },
         { id: 'rename', label: '✏️ Rename' }
     ];
 
@@ -345,14 +385,30 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
             break;
 
         case 'delete':
-            const confirmDelete = confirm(`Delete ${filePath.split(/[/\\]/).pop()}?`);
+            // Delete selected files (if multiple selected) or single file
+            const filesToDelete = selectedFiles.size > 0 ? Array.from(selectedFiles) : [filePath];
+            const fileNames = filesToDelete.map(p => p.split(/[/\\]/).pop()).join(', ');
+            const confirmDelete = confirm(`Delete ${filesToDelete.length} item(s)?\n${fileNames}`);
+
             if (confirmDelete && window.electronAPI.deleteItem) {
-                const result = await window.electronAPI.deleteItem(filePath);
-                if (result.success) {
-                    // Refresh current directory
-                    void loadDirectory(currentPath);
-                } else {
-                    alert('Failed to delete: ' + result.error);
+                let successCount = 0;
+                const errors: string[] = [];
+
+                for (const path of filesToDelete) {
+                    const result = await window.electronAPI.deleteItem(path);
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        errors.push(`${path.split(/[/\\]/).pop()}: ${result.error}`);
+                    }
+                }
+
+                // Clear selection and refresh
+                selectedFiles.clear();
+                void loadDirectory(currentPath);
+
+                if (errors.length > 0) {
+                    alert(`Deleted ${successCount} items.\nFailed to delete:\n${errors.join('\n')}`);
                 }
             }
             break;
@@ -428,11 +484,37 @@ searchInput.addEventListener('input', () => {
 });
 
 // Keyboard shortcuts
-window.addEventListener('keydown', (e) => {
+window.addEventListener('keydown', async (e) => {
     if (e.key === 'Backspace') {
         upBtn.click();
     } else if (e.key === 'F5') {
         void loadDirectory(currentPath);
+    } else if (e.key === 'Delete' && selectedFiles.size > 0) {
+        e.preventDefault();
+        const filesToDelete = Array.from(selectedFiles);
+        const fileNames = filesToDelete.map(p => p.split(/[/\\]/).pop()).join(', ');
+        const confirmDelete = confirm(`Delete ${filesToDelete.length} item(s)?\n${fileNames}`);
+
+        if (confirmDelete && window.electronAPI?.deleteItem) {
+            let successCount = 0;
+            const errors: string[] = [];
+
+            for (const path of filesToDelete) {
+                const result = await window.electronAPI.deleteItem(path);
+                if (result.success) {
+                    successCount++;
+                } else {
+                    errors.push(`${path.split(/[/\\]/).pop()}: ${result.error}`);
+                }
+            }
+
+            selectedFiles.clear();
+            void loadDirectory(currentPath);
+
+            if (errors.length > 0) {
+                alert(`Deleted ${successCount} items.\nFailed to delete:\n${errors.join('\n')}`);
+            }
+        }
     }
 });
 

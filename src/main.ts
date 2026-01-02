@@ -10173,6 +10173,7 @@ class TempleOS {
           this.showContextMenu(e.clientX, e.clientY, [
             { label: isDir ? '📂 Open' : '📄 Open', action: () => isDir ? this.loadFiles(filePath) : window.electronAPI?.openExternal(filePath) },
             { label: '👀 Preview', action: () => this.previewFileItem(filePath, isDir) },
+            ...(!isDir ? [{ label: '🚀 Open With...', action: () => this.showOpenWithDialog(filePath) }] : []),
             { divider: true },
             ...(isDir ? [{ label: isBookmarked ? '★ Remove Bookmark' : '★ Add Bookmark', action: () => { isBookmarked ? this.removeBookmark(filePath) : this.addBookmark(filePath); } }] : []),
             ...(isZip ? [{ label: '📦 Extract Here', action: () => this.extractZipHere(filePath) }] : []),
@@ -15530,6 +15531,123 @@ class TempleOS {
     } else {
       await this.openAlertModal({ title: 'Extraction Failed', message: res.error || 'Unknown error' });
     }
+  }
+
+  private async showOpenWithDialog(filePath: string): Promise<void> {
+    if (!window.electronAPI) return;
+
+    // Get MIME type of the file
+    // @ts-ignore - getMimeType is a new API
+    const mimeResult = await window.electronAPI.getMimeType?.(filePath);
+    const mimeType = mimeResult?.mimeType || 'application/octet-stream';
+
+    // Get apps that can handle this MIME type
+    // @ts-ignore - getAppsForMimeType is a new API
+    const appsResult = await window.electronAPI.getAppsForMimeType?.(mimeType);
+    const apps = appsResult?.apps || [];
+
+    // Get default app for this MIME type
+    // @ts-ignore - getDefaultApp is a new API
+    const defaultResult = await window.electronAPI.getDefaultApp?.(mimeType);
+    const defaultAppId = defaultResult?.appId;
+
+    const fileName = filePath.split(/[/\\]/).pop() || 'file';
+
+    if (apps.length === 0) {
+      await this.openAlertModal({
+        title: '🚀 Open With',
+        message: `No applications found for ${mimeType}\n\nFile: ${fileName}`
+      });
+      return;
+    }
+
+    // Create overlay dialog
+    return new Promise<void>((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'open-with-overlay';
+      overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8); z-index: 100000;
+        display: flex; align-items: center; justify-content: center;
+      `;
+
+      const dialog = document.createElement('div');
+      dialog.style.cssText = `
+        background: #0a0a0a; border: 2px solid #00ff00; border-radius: 8px;
+        padding: 20px; min-width: 350px; max-width: 500px; max-height: 70vh;
+        font-family: 'Fira Code', monospace; color: #00ff00;
+        box-shadow: 0 0 30px rgba(0,255,0,0.4);
+      `;
+
+      dialog.innerHTML = `
+        <div style="font-size: 16px; margin-bottom: 15px; font-weight: bold;">🚀 Open With</div>
+        <div style="margin-bottom: 10px; color: #888; font-size: 12px;">File: ${fileName}</div>
+        <div style="margin-bottom: 10px; color: #666; font-size: 11px;">Type: ${mimeType}</div>
+        <div class="ow-apps" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px;">
+          ${apps.map((app: { id: string; name: string; iconUrl?: string; exec: string }, i: number) => `
+            <div class="ow-app" data-index="${i}" style="
+              display: flex; align-items: center; gap: 10px; padding: 10px;
+              cursor: pointer; border: 1px solid transparent; border-radius: 4px;
+              ${app.id === defaultAppId ? 'border-color: #00ff00; background: rgba(0,255,0,0.1);' : ''}
+            ">
+              ${app.iconUrl ? `<img src="${app.iconUrl}" style="width: 24px; height: 24px;" onerror="this.style.display='none'">` : '<span style="width: 24px;">📦</span>'}
+              <span>${app.name}</span>
+              ${app.id === defaultAppId ? '<span style="margin-left: auto; font-size: 10px; color: #888;">★ default</span>' : ''}
+            </div>
+          `).join('')}
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="ow-close" style="background: transparent; border: 1px solid #666; color: #666; padding: 8px 20px; cursor: pointer; font-family: inherit; border-radius: 4px;">Cancel</button>
+        </div>
+      `;
+
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      const cleanup = () => {
+        overlay.remove();
+        resolve();
+      };
+
+      // Handle app selection
+      dialog.querySelectorAll('.ow-app').forEach(el => {
+        el.addEventListener('click', async () => {
+          const index = parseInt(el.getAttribute('data-index') || '0');
+          const app = apps[index];
+          if (app) {
+            // @ts-ignore - openWith is a new API
+            await window.electronAPI?.openWith?.(filePath, app.exec);
+
+            // Ask if should set as default
+            cleanup();
+            const setDefault = await this.openConfirmModal({
+              title: 'Set Default',
+              message: `Set "${app.name}" as default for ${mimeType} files?`,
+              confirmText: 'Yes',
+              cancelText: 'No'
+            });
+
+            if (setDefault) {
+              // @ts-ignore - setDefaultApp is a new API
+              await window.electronAPI?.setDefaultApp?.(mimeType, app.id);
+            }
+          }
+        });
+
+        // Hover effect
+        (el as HTMLElement).addEventListener('mouseenter', () => {
+          (el as HTMLElement).style.background = 'rgba(0,255,0,0.2)';
+        });
+        (el as HTMLElement).addEventListener('mouseleave', () => {
+          const index = parseInt(el.getAttribute('data-index') || '0');
+          const isDefault = apps[index]?.id === defaultAppId;
+          (el as HTMLElement).style.background = isDefault ? 'rgba(0,255,0,0.1)' : 'transparent';
+        });
+      });
+
+      dialog.querySelector('.ow-close')?.addEventListener('click', cleanup);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    });
   }
 
   private getFileBrowserContentV2(): string {

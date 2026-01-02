@@ -67,6 +67,7 @@ export type SettingsHost = {
   pinnedStart: string[];
   pinnedTaskbar: string[];
   desktopShortcuts: Array<{ key: string; label: string }>;
+  hiddenBuiltinIcons: string[];
   recentApps: string[];
   appUsage: Record<string, number>;
   fileBookmarks: string[];
@@ -347,6 +348,9 @@ export class SettingsManager {
         .slice(0, 48)
         .map(s => ({ key: s.key, label: s.label }));
     }
+    if (Array.isArray(cfg.hiddenBuiltinIcons)) {
+      this.host.hiddenBuiltinIcons = cfg.hiddenBuiltinIcons.filter(k => typeof k === 'string').slice(0, 20);
+    }
 
     if (Array.isArray(cfg.recentApps)) this.host.recentApps = cfg.recentApps.slice(0, 20).filter(x => typeof x === 'string');
     if (cfg.appUsage && typeof cfg.appUsage === 'object') this.host.appUsage = cfg.appUsage as Record<string, number>;
@@ -470,6 +474,7 @@ export class SettingsManager {
       pinnedStart: this.host.pinnedStart.slice(0, 24),
       pinnedTaskbar: this.host.pinnedTaskbar.slice(0, 20),
       desktopShortcuts: this.host.desktopShortcuts.slice(0, 48),
+      hiddenBuiltinIcons: this.host.hiddenBuiltinIcons.slice(0, 20),
       recentApps: this.host.recentApps.slice(0, 20),
       appUsage: this.host.appUsage,
       fileBookmarks: this.host.fileBookmarks,

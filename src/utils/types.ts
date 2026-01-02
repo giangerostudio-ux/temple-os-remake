@@ -209,6 +209,7 @@ export interface TempleConfig {
     pinnedStart?: string[];
     pinnedTaskbar?: string[];
     desktopShortcuts?: Array<{ key: string; label: string }>;
+    hiddenBuiltinIcons?: string[];
     recentApps?: string[];
     appUsage?: Record<string, number>;
     fileBookmarks?: string[];

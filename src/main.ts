@@ -616,8 +616,26 @@ class TempleOS {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        // If stored data exists and has entries, use it
-        if (Object.keys(parsed).length > 0) return parsed;
+        // Clean up corrupted keys with trailing spaces (legacy bug fix)
+        const cleaned: Record<string, { x: number; y: number }> = {};
+        let hasCorrupted = false;
+        for (const [key, value] of Object.entries(parsed)) {
+          const trimmedKey = key.trim();
+          if (trimmedKey !== key) {
+            hasCorrupted = true;
+            // Only keep the trimmed version if it doesn't already exist
+            if (!parsed[trimmedKey] && !cleaned[trimmedKey]) {
+              cleaned[trimmedKey] = value as { x: number; y: number };
+            }
+          } else {
+            cleaned[key] = value as { x: number; y: number };
+          }
+        }
+        // If we found corrupted keys, save the cleaned version
+        if (hasCorrupted) {
+          localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(cleaned));
+        }
+        if (Object.keys(cleaned).length > 0) return cleaned;
       } catch { /* ignore parse errors */ }
     }
     // First-time install: use default positions
@@ -774,6 +792,7 @@ class TempleOS {
   private pinnedStart: string[] = JSON.parse(localStorage.getItem('temple_pinned_start') || '["builtin:terminal", "builtin:files", "builtin:settings", "builtin:editor", "builtin:hymns"]');
   private pinnedTaskbar: string[] = JSON.parse(localStorage.getItem('temple_pinned_taskbar') || '["builtin:files", "builtin:terminal", "builtin:settings"]');
   private desktopShortcuts: Array<{ key: string; label: string }> = [];
+  private hiddenBuiltinIcons: string[] = []; // IDs of builtin icons hidden from desktop (e.g., 'terminal', 'files')
 
   // Taskbar Settings (Tier 9.1)
   private taskbarTransparent = localStorage.getItem('temple_taskbar_transparent') !== 'false'; // Default true
@@ -1498,7 +1517,9 @@ class TempleOS {
           if (key && display) {
             const pinnedStart = this.pinnedStart.includes(key);
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
-            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+            const builtinId = key.startsWith('builtin:') ? key.replace('builtin:', '') : null;
+            const isHiddenBuiltin = builtinId ? this.isBuiltinIconHidden(builtinId) : false;
+            const onDesktop = builtinId ? !isHiddenBuiltin : this.desktopShortcuts.some(s => s.key === key);
 
             // Check if this is an installed app that can be uninstalled
             const installedApp = this.findInstalledAppByKey(key);
@@ -1513,7 +1534,15 @@ class TempleOS {
               { divider: true },
               { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
               { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              {
+                label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => {
+                  if (builtinId) {
+                    onDesktop ? this.hideBuiltinDesktopIcon(builtinId) : this.showBuiltinDesktopIcon(builtinId);
+                  } else {
+                    onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key);
+                  }
+                }
+              },
             ];
 
             // Add uninstall option for user-installed apps
@@ -3269,7 +3298,9 @@ class TempleOS {
       });
 
     const allIcons = [
-      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
+      ...icons
+        .filter(icon => !this.hiddenBuiltinIcons.includes(icon.id))
+        .map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
       ...shortcutIcons
     ];
 
@@ -3572,7 +3603,7 @@ class TempleOS {
       { id: 'trash', icon: '🗑️', label: 'Trash', type: 'builtin' },
     ];
 
-    const builtinKeys = new Set(icons.map(i => `builtin:${i.id} `));
+    const builtinKeys = new Set(icons.map(i => `builtin:${i.id}`));
     const shortcutIcons = this.desktopShortcuts
       .filter(s => s && typeof s.key === 'string' && typeof s.label === 'string' && !builtinKeys.has(s.key))
       .map(s => {
@@ -3588,7 +3619,7 @@ class TempleOS {
       });
 
     const allIcons = [
-      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id} `, isShortcut: false })),
+      ...icons.map(icon => ({ ...icon, key: `builtin:${icon.id}`, isShortcut: false })),
       ...shortcutIcons
     ];
 
@@ -6229,6 +6260,23 @@ class TempleOS {
     this.desktopShortcuts = this.desktopShortcuts.filter(s => s.key !== key);
     this.queueSaveConfig();
     this.render();
+  }
+
+  private hideBuiltinDesktopIcon(id: string): void {
+    if (this.hiddenBuiltinIcons.includes(id)) return;
+    this.hiddenBuiltinIcons.push(id);
+    this.queueSaveConfig();
+    this.render();
+  }
+
+  private showBuiltinDesktopIcon(id: string): void {
+    this.hiddenBuiltinIcons = this.hiddenBuiltinIcons.filter(i => i !== id);
+    this.queueSaveConfig();
+    this.render();
+  }
+
+  private isBuiltinIconHidden(id: string): boolean {
+    return this.hiddenBuiltinIcons.includes(id);
   }
 
 
@@ -10049,7 +10097,9 @@ class TempleOS {
           if (key && display) {
             const pinnedStart = this.pinnedStart.includes(key);
             const pinnedTaskbar = this.pinnedTaskbar.includes(key);
-            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+            const builtinId = key.startsWith('builtin:') ? key.replace('builtin:', '') : null;
+            const isHiddenBuiltin = builtinId ? this.isBuiltinIconHidden(builtinId) : false;
+            const onDesktop = builtinId ? !isHiddenBuiltin : this.desktopShortcuts.some(s => s.key === key);
 
             // Check if this is an installed app that can be uninstalled
             const installedApp = this.findInstalledAppByKey(key);
@@ -10064,7 +10114,15 @@ class TempleOS {
               { divider: true },
               { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
               { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              {
+                label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => {
+                  if (builtinId) {
+                    onDesktop ? this.hideBuiltinDesktopIcon(builtinId) : this.showBuiltinDesktopIcon(builtinId);
+                  } else {
+                    onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key);
+                  }
+                }
+              },
             ];
 
             // Add uninstall option for user-installed apps (and APT apps eligible for an uninstall attempt)
@@ -10091,13 +10149,23 @@ class TempleOS {
           const windowId = taskbarItem.dataset.taskbarWindow || '';
           if (key) {
             const pinnedStart = this.pinnedStart.includes(key);
-            const onDesktop = this.desktopShortcuts.some(s => s.key === key);
+            const builtinId = key.startsWith('builtin:') ? key.replace('builtin:', '') : null;
+            const isHiddenBuiltin = builtinId ? this.isBuiltinIconHidden(builtinId) : false;
+            const onDesktop = builtinId ? !isHiddenBuiltin : this.desktopShortcuts.some(s => s.key === key);
             this.showContextMenu(e.clientX, e.clientY, [
               { label: `🚀 Open`, action: () => this.launchByKeyClosingShellUi(key) },
               { divider: true },
               { label: '📌 Unpin from Taskbar', action: () => { this.unpinTaskbar(key); this.render(); } },
               { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
-              { label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => { onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key); } },
+              {
+                label: onDesktop ? '🗑️ Remove from Desktop' : '➕ Add to Desktop', action: () => {
+                  if (builtinId) {
+                    onDesktop ? this.hideBuiltinDesktopIcon(builtinId) : this.showBuiltinDesktopIcon(builtinId);
+                  } else {
+                    onDesktop ? this.removeDesktopShortcut(key) : this.addDesktopShortcut(key);
+                  }
+                }
+              },
             ]);
             return;
           }
@@ -10134,7 +10202,16 @@ class TempleOS {
               { divider: true },
               { label: pinnedStart ? '📌 Unpin from Start' : '📌 Pin to Start', action: () => { pinnedStart ? this.unpinStart(key) : this.pinStart(key); this.render(); } },
               { label: pinnedTaskbar ? '📌 Unpin from Taskbar' : '📌 Pin to Taskbar', action: () => { pinnedTaskbar ? this.unpinTaskbar(key) : this.pinTaskbar(key); this.render(); } },
-              ...(isBuiltInDesktop ? [] : [{ label: '🗑️ Remove from Desktop', action: () => this.removeDesktopShortcut(key) }]),
+              {
+                label: '🗑️ Remove from Desktop', action: () => {
+                  if (isBuiltInDesktop) {
+                    const id = key.replace('builtin:', '');
+                    this.hideBuiltinDesktopIcon(id);
+                  } else {
+                    this.removeDesktopShortcut(key);
+                  }
+                }
+              },
             ]);
             return;
           }

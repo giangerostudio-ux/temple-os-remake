@@ -283,16 +283,42 @@ async function renderSidebar() {
             { label: 'Downloads', path: home + sep + 'Downloads', icon: '⬇️' },
             { label: 'Pictures', path: home + sep + 'Pictures', icon: '🖼️' },
             { label: 'Music', path: home + sep + 'Music', icon: '🎵' },
-            { label: 'Trash', path: '__trash__', icon: '🗑️' }
         ];
 
+        // Load bookmarks from IPC
+        let bookmarks: string[] = [];
+        // @ts-ignore - addBookmark/getBookmarks are new APIs
+        if (window.electronAPI.getBookmarks) {
+            // @ts-ignore
+            const result = await window.electronAPI.getBookmarks();
+            if (result.success) {
+                bookmarks = result.bookmarks || [];
+            }
+        }
+
+        // Add bookmarks to items
+        const bookmarkItems = bookmarks.map(path => ({
+            label: path.split(/[/\\]/).pop() || path,
+            path: path,
+            icon: '⭐',
+            isBookmark: true
+        }));
+
         sidebar.innerHTML = `
-            <div class="sidebar-header">Favorites</div>
+            <div class="sidebar-header">FAVORITES</div>
             ${items.map(item => `
                 <div class="sidebar-item ${item.path === currentPath ? 'active' : ''}" data-path="${item.path}">
                     ${item.icon} ${item.label}
                 </div>
             `).join('')}
+            ${bookmarkItems.length > 0 ? bookmarkItems.map(item => `
+                <div class="sidebar-item ${item.path === currentPath ? 'active' : ''}" data-path="${item.path}" data-bookmark="true">
+                    ${item.icon} ${item.label}
+                </div>
+            `).join('') : ''}
+            <div class="sidebar-item" data-path="__trash__">
+                🗑️ Trash
+            </div>
         `;
 
         sidebar.querySelectorAll('.sidebar-item').forEach(el => {
@@ -390,7 +416,17 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
             break;
 
         case 'bookmark':
-            alert('Bookmark added (feature not fully implemented)');
+            // @ts-ignore - addBookmark is a new API
+            if (window.electronAPI.addBookmark) {
+                // @ts-ignore
+                const result = await window.electronAPI.addBookmark(filePath);
+                if (result.success) {
+                    await renderSidebar();  // Refresh sidebar to show new bookmark
+                    customAlert(`📌 Bookmarked: ${filePath.split(/[/\\]/).pop()}`);
+                } else {
+                    customAlert('Failed to add bookmark: ' + result.error);
+                }
+            }
             break;
 
         case 'compress':

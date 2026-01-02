@@ -31,6 +31,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createZip: (sourcePath, targetZipPath) => ipcRenderer.invoke('fs:createZip', sourcePath, targetZipPath),
     extractZip: (zipPath, targetDir) => ipcRenderer.invoke('fs:extractZip', zipPath, targetDir),
 
+    // FILE BOOKMARKS (synced between inline and popout)
+    getBookmarks: () => ipcRenderer.invoke('bookmarks:get'),
+    addBookmark: (path) => ipcRenderer.invoke('bookmarks:add', path),
+    removeBookmark: (path) => ipcRenderer.invoke('bookmarks:remove', path),
+    onBookmarksChanged: (callback) => {
+        const handler = (event, bookmarks) => callback(bookmarks);
+        ipcRenderer.on('bookmarks:changed', handler);
+        return () => ipcRenderer.removeListener('bookmarks:changed', handler);
+    },
+
     // ============================================
     // SYSTEM
     // ============================================

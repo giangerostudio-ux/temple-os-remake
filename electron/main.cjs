@@ -4167,6 +4167,86 @@ ipcMain.handle('fs:mkdir', async (event, dirPath) => {
     }
 });
 
+// ============================================
+// FILE BOOKMARKS (synced between inline and popout)
+// ============================================
+let fileBookmarks = [];
+
+// Load bookmarks from config on startup
+function loadBookmarksFromConfig() {
+    try {
+        const configPath = path.join(os.homedir(), '.templeos', 'config.json');
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            fileBookmarks = config.fileBookmarks || [];
+        }
+    } catch (e) {
+        console.warn('[Bookmarks] Failed to load:', e.message);
+    }
+}
+loadBookmarksFromConfig();
+
+// Save bookmarks to config
+function saveBookmarksToConfig() {
+    try {
+        const configDir = path.join(os.homedir(), '.templeos');
+        const configPath = path.join(configDir, 'config.json');
+
+        // Ensure directory exists
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        // Load existing config or create new
+        let config = {};
+        if (fs.existsSync(configPath)) {
+            config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        }
+
+        config.fileBookmarks = fileBookmarks;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+        console.warn('[Bookmarks] Failed to save:', e.message);
+    }
+}
+
+ipcMain.handle('bookmarks:get', async () => {
+    return { success: true, bookmarks: fileBookmarks };
+});
+
+ipcMain.handle('bookmarks:add', async (event, bookmarkPath) => {
+    try {
+        if (!fileBookmarks.includes(bookmarkPath)) {
+            fileBookmarks.push(bookmarkPath);
+            saveBookmarksToConfig();
+            // Broadcast to all windows
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('bookmarks:changed', fileBookmarks);
+            });
+        }
+        return { success: true, bookmarks: fileBookmarks };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('bookmarks:remove', async (event, bookmarkPath) => {
+    try {
+        const idx = fileBookmarks.indexOf(bookmarkPath);
+        if (idx !== -1) {
+            fileBookmarks.splice(idx, 1);
+            saveBookmarksToConfig();
+            // Broadcast to all windows
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('bookmarks:changed', fileBookmarks);
+            });
+        }
+        return { success: true, bookmarks: fileBookmarks };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
 ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
     const oldCheck = isPathSafe(oldPath);
     if (!oldCheck.safe) {

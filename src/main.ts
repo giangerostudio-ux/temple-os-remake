@@ -15595,9 +15595,9 @@ class TempleOS {
       return items;
     })();
 
-    const emptyState = this.fileEntries.length === 0 && this.currentPath
+    const emptyState = this.fileEntries.length === 0 && !this.currentPath
       ? '<div style="padding: 20px; opacity: 0.6;">Loading...</div>'
-      : (files.length === 0 && this.fileEntries.length > 0 ? '<div style="padding: 20px; opacity: 0.6;">No files match your search.</div>' : '');
+      : (this.fileEntries.length === 0 && this.currentPath ? '<div style="padding: 20px; opacity: 0.6;">Empty folder</div>' : (files.length === 0 && this.fileEntries.length > 0 ? '<div style="padding: 20px; opacity: 0.6;">No files match your search.</div>' : ''));
 
     // Multi-select UI support
     const selCount = this.selectedFiles.size;

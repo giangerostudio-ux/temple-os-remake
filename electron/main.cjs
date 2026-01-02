@@ -4389,8 +4389,8 @@ ipcMain.handle('fs:extractZip', async (event, zipPath, targetDir) => {
         console.log('[extractZip] Zip has', entries.length, 'entries');
 
         if (entries.length === 0) {
-            console.warn('[extractZip] Zip file is empty');
-            return { success: false, error: 'Zip file is empty' };
+            console.warn('[extractZip] Zip file is empty (nothing to extract)');
+            return { success: true };  // Empty zip is fine, just nothing to do
         }
 
         // Log first few entries for debugging

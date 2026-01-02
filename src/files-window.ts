@@ -863,8 +863,18 @@ async function handleEmptySpaceAction(action: string) {
 
         case 'newFile':
             const fileName = await customPrompt('Enter file name:', 'new_file.txt');
-            if (fileName) {
-                customAlert('New file creation not fully implemented yet');
+            if (fileName && fileName.trim()) {
+                const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + fileName.trim();
+                if (window.electronAPI.writeFile) {
+                    const result = await window.electronAPI.writeFile(filePath, '');
+                    if (result.success) {
+                        void loadDirectory(currentPath);
+                    } else {
+                        customAlert('Failed to create file: ' + result.error);
+                    }
+                } else {
+                    customAlert('File creation not available');
+                }
             }
             break;
 

@@ -44,10 +44,36 @@ if (!window.electronAPI) {
     throw new Error('electronAPI not available in popout window');
 }
 
+// Load settings BEFORE creating terminal manager
+interface TerminalSettings {
+    fontSize: number;
+    theme: string;
+    scrollback: number;
+}
+
+function loadSettings(): TerminalSettings {
+    const defaults: TerminalSettings = {
+        fontSize: 14,
+        theme: 'dark',
+        scrollback: 10000
+    };
+
+    try {
+        const saved = localStorage.getItem('terminalSettings');
+        return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    } catch {
+        return defaults;
+    }
+}
+
 // Initialize terminal manager
 const terminalManager = new PopoutTerminalManager(tabsContainer, terminalLayout);
 
 console.log('[Terminal Window] Initialized with tab support');
+
+// Apply settings to initial tab
+const currentSettings = loadSettings();
+applySettings(currentSettings);
 
 // Toolbar button handlers
 const findBtn = document.querySelector('.toolbar-btn[title="Find"]');
@@ -238,21 +264,6 @@ interface TerminalSettings {
     scrollback: number;
 }
 
-function loadSettings(): TerminalSettings {
-    const defaults: TerminalSettings = {
-        fontSize: 14,
-        theme: 'dark',
-        scrollback: 10000
-    };
-
-    try {
-        const saved = localStorage.getItem('terminalSettings');
-        return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
-    } catch {
-        return defaults;
-    }
-}
-
 function saveSettings(settings: TerminalSettings): void {
     localStorage.setItem('terminalSettings', JSON.stringify(settings));
 }
@@ -296,56 +307,52 @@ function applySettings(settings: TerminalSettings): void {
             }
         }
     });
-}
 
-// Initialize settings
-const currentSettings = loadSettings();
-fontSizeInput.value = currentSettings.fontSize.toString();
-if (fontSizeValue) fontSizeValue.textContent = `${currentSettings.fontSize}px`;
-themeSelect.value = currentSettings.theme;
-scrollbackInput.value = currentSettings.scrollback.toString();
+    // Initialize UI with current settings
+    const uiSettings = loadSettings();
+    fontSizeInput.value = uiSettings.fontSize.toString();
+    if (fontSizeValue) fontSizeValue.textContent = `${uiSettings.fontSize}px`;
+    themeSelect.value = uiSettings.theme;
+    scrollbackInput.value = uiSettings.scrollback.toString();
 
-// Apply settings on load
-applySettings(currentSettings);
+    // Font size slider
+    fontSizeInput?.addEventListener('input', () => {
+        if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+    });
 
-// Font size slider
-fontSizeInput?.addEventListener('input', () => {
-    if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
-});
+    // Open settings modal
+    settingsBtn?.addEventListener('click', () => {
+        console.log('[Terminal] Settings clicked');
+        settingsModal?.classList.add('visible');
+    });
 
-// Open settings modal
-settingsBtn?.addEventListener('click', () => {
-    console.log('[Terminal] Settings clicked');
-    settingsModal?.classList.add('visible');
-});
+    // Close settings modal
+    settingsCloseBtn?.addEventListener('click', () => {
+        settingsModal?.classList.remove('visible');
+    });
 
-// Close settings modal
-settingsCloseBtn?.addEventListener('click', () => {
-    settingsModal?.classList.remove('visible');
-});
+    settingsCancelBtn?.addEventListener('click', () => {
+        settingsModal?.classList.remove('visible');
+    });
 
-settingsCancelBtn?.addEventListener('click', () => {
-    settingsModal?.classList.remove('visible');
-});
+    // Save settings
+    settingsSaveBtn?.addEventListener('click', () => {
+        const newSettings: TerminalSettings = {
+            fontSize: parseInt(fontSizeInput.value),
+            theme: themeSelect.value,
+            scrollback: parseInt(scrollbackInput.value)
+        };
 
-// Save settings
-settingsSaveBtn?.addEventListener('click', () => {
-    const newSettings: TerminalSettings = {
-        fontSize: parseInt(fontSizeInput.value),
-        theme: themeSelect.value,
-        scrollback: parseInt(scrollbackInput.value)
-    };
+        saveSettings(newSettings);
+        applySettings(newSettings);
+        settingsModal?.classList.remove('visible');
 
-    saveSettings(newSettings);
-    applySettings(newSettings);
-    settingsModal?.classList.remove('visible');
+        console.log('[Settings] Saved:', newSettings);
+    });
 
-    console.log('[Settings] Saved:', newSettings);
-});
+    // Cleanup on window close
+    window.addEventListener('beforeunload', async () => {
+        await terminalManager.cleanup();
+    });
 
-// Cleanup on window close
-window.addEventListener('beforeunload', async () => {
-    await terminalManager.cleanup();
-});
-
-console.log('[Terminal Window] Multi-tab terminal ready');
+    console.log('[Terminal Window] Multi-tab terminal ready');

@@ -255,11 +255,14 @@ function attachFileHandlers(files: FileEntry[]) {
             if (path) showContextMenu(evt.clientX, evt.clientY, path, isDir);
         });
 
-        el.addEventListener('dblclick', () => {
+        el.addEventListener('dblclick', async () => {
             if (isDir && path) {
                 void loadDirectory(path);
             } else if (path && window.electronAPI?.openExternal) {
-                void window.electronAPI.openExternal(path);
+                await window.electronAPI.openExternal(path);
+                // Minimize file browser so opened app is visible
+                // @ts-ignore - minimizeWindow exists in preload
+                window.electronAPI.minimizeWindow?.();
             }
         });
     });
@@ -611,12 +614,16 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
                 void loadDirectory(filePath);
             } else if (window.electronAPI.openExternal) {
                 await window.electronAPI.openExternal(filePath);
+                // @ts-ignore - minimizeWindow exists
+                window.electronAPI.minimizeWindow?.();
             }
             break;
 
         case 'preview':
             if (!isDir && window.electronAPI.openExternal) {
                 await window.electronAPI.openExternal(filePath);
+                // @ts-ignore - minimizeWindow exists
+                window.electronAPI.minimizeWindow?.();
             }
             break;
 

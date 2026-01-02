@@ -604,23 +604,27 @@ function showEmptySpaceContextMenu(x: number, y: number) {
 
     document.body.appendChild(menu);
 
-    menu.addEventListener('click', async (e) => {
-        e.stopPropagation();  // Prevent close handler from firing
-        const target = e.target as HTMLElement;
-        const action = target.getAttribute('data-action');
-        if (action) {
-            menu.remove();
-            await handleEmptySpaceAction(action);
-        }
+    // Use mousedown to capture clicks before any close handler
+    menu.querySelectorAll('.context-item').forEach(item => {
+        item.addEventListener('mousedown', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const action = (e.target as HTMLElement).getAttribute('data-action');
+            console.log('[File Browser] Empty space action:', action);
+            if (action) {
+                menu.remove();
+                await handleEmptySpaceAction(action);
+            }
+        });
     });
 
     const closeHandler = (e: MouseEvent) => {
         if (!menu.contains(e.target as Node)) {
             menu.remove();
-            document.removeEventListener('click', closeHandler);
+            document.removeEventListener('mousedown', closeHandler);
         }
     };
-    setTimeout(() => document.addEventListener('click', closeHandler), 100);
+    setTimeout(() => document.addEventListener('mousedown', closeHandler), 50);
 }
 
 async function handleEmptySpaceAction(action: string) {

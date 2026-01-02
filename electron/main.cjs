@@ -4423,7 +4423,19 @@ ipcMain.handle('fs:openExternal', async (event, filePath) => {
         if (target.startsWith('http://') || target.startsWith('https://')) {
             await shell.openExternal(target);
         } else {
-            await shell.openPath(target);
+            // On Linux, use setsid to fully detach the opened app
+            // This prevents xdg-open from blocking the Electron process
+            if (process.platform === 'linux') {
+                const { spawn } = require('child_process');
+                const proc = spawn('setsid', ['xdg-open', target], {
+                    detached: true,
+                    stdio: 'ignore',
+                    env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' }
+                });
+                proc.unref();
+            } else {
+                await shell.openPath(target);
+            }
         }
         return { success: true };
     } catch (error) {

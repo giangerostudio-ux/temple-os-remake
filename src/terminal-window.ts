@@ -290,9 +290,9 @@ function applySettings(settings: TerminalSettings): void {
                     cursor: '#000000'
                 },
                 templeOS: {
-                    background: '#0d1117',  // Dark blue-grey
-                    foreground: '#00ff41',
-                    cursor: '#00ff41'
+                    background: '#0a0a0a',  // Darker for more contrast
+                    foreground: '#00ff00',  // Pure bright green
+                    cursor: '#00ff00'
                 }
             };
 

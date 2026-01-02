@@ -212,14 +212,14 @@ export class PopoutTerminalManager {
         // Create xterm if doesn't exist
         if (!tab.xterm) {
             const theme = {
-                background: '#0d1117',  // Original dark blue-grey
-                foreground: '#00ff41',
-                cursor: '#00ff41',
-                cursorAccent: '#0d1117',
-                selectionBackground: 'rgba(0, 255, 65, 0.3)',
+                background: '#0a0a0a',  // Darker background for more contrast
+                foreground: '#00ff00',  // Pure bright green
+                cursor: '#00ff00',
+                cursorAccent: '#0a0a0a',
+                selectionBackground: 'rgba(0, 255, 0, 0.3)',
                 black: '#000000',
                 red: '#ff4444',
-                green: '#00ff41',
+                green: '#00ff00',  // Pure bright green
                 yellow: '#ffff00',
                 blue: '#4444ff',
                 magenta: '#ff44ff',
@@ -227,7 +227,7 @@ export class PopoutTerminalManager {
                 white: '#ffffff',
                 brightBlack: '#666666',
                 brightRed: '#ff6666',
-                brightGreen: '#66ff66',
+                brightGreen: '#00ff00',  // Same vibrant green
                 brightYellow: '#ffff66',
                 brightBlue: '#6666ff',
                 brightMagenta: '#ff66ff',

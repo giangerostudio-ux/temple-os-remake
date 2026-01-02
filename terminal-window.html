@@ -445,12 +445,16 @@
       cursor: pointer;
       margin: 0;
       padding: 0;
+      touch-action: none;
     }
 
     .setting-group input[type="range"]::-webkit-slider-runnable-track {
       width: 100%;
-      height: 8px;
-      background: rgba(0, 255, 65, 0.2);
+      height: 24px;
+      background: linear-gradient(to right, rgba(0, 255, 65, 0.2) 0%, rgba(0, 255, 65, 0.2) 100%);
+      background-size: 100% 8px;
+      background-position: 0 center;
+      background-repeat: no-repeat;
       border-radius: 4px;
       cursor: pointer;
     }
@@ -458,15 +462,13 @@
     .setting-group input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       background: #00ff41;
       border-radius: 50%;
       cursor: grab;
-      margin-top: -6px;
       box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
       border: 2px solid #00ff41;
-      pointer-events: all;
     }
 
     .setting-group input[type="range"]::-webkit-slider-thumb:hover {
@@ -482,21 +484,23 @@
 
     .setting-group input[type="range"]::-moz-range-track {
       width: 100%;
-      height: 8px;
-      background: rgba(0, 255, 65, 0.2);
+      height: 24px;
+      background: linear-gradient(to right, rgba(0, 255, 65, 0.2) 0%, rgba(0, 255, 65, 0.2) 100%);
+      background-size: 100% 8px;
+      background-position: 0 center;
+      background-repeat: no-repeat;
       border-radius: 4px;
       cursor: pointer;
     }
 
     .setting-group input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       background: #00ff41;
       border: 2px solid #00ff41;
       border-radius: 50%;
       cursor: grab;
       box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-      pointer-events: all;
     }
 
     .setting-group input[type="range"]::-moz-range-thumb:hover {

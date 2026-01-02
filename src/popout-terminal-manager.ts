@@ -127,7 +127,7 @@ export class PopoutTerminalManager {
     /**
      * Set split mode
      */
-    setSplitMode(mode: 'single' | 'vertical' | 'horizontal'): void {
+    async setSplitMode(mode: 'single' | 'vertical' | 'horizontal'): Promise<void> {
         this.splitMode = mode;
 
         if (mode === 'single') {
@@ -137,11 +137,24 @@ export class PopoutTerminalManager {
             // Split - find or create secondary tab
             if (this.tabs.length === 1) {
                 // Create a second tab for split view
-                void this.createTab();
+                this.createTab();
             }
             // Use the tab after active as secondary
             const secondaryIndex = (this.activeTabIndex + 1) % this.tabs.length;
             this.splitSecondaryTabId = this.tabs[secondaryIndex].id;
+
+            // Initialize xterm for both primary and secondary tabs immediately
+            // This ensures split works on first click
+            const primaryTab = this.tabs[this.activeTabIndex];
+            const secondaryTab = this.tabs[secondaryIndex];
+
+            if (primaryTab && !primaryTab.xterm) {
+                await this.initializeXterm(primaryTab);
+            }
+
+            if (secondaryTab && !secondaryTab.xterm) {
+                await this.initializeXterm(secondaryTab);
+            }
         }
 
         this.updateLayout();

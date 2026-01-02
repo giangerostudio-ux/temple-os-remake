@@ -224,26 +224,26 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-splitVBtn?.addEventListener('click', () => {
+splitVBtn?.addEventListener('click', async () => {
     console.log('[Terminal] Split V clicked');
     if (terminalManager.getSplitMode() === 'vertical') {
         // Already vertical, unsplit
-        terminalManager.setSplitMode('single');
+        await terminalManager.setSplitMode('single');
     } else {
         // Enable vertical split
-        terminalManager.setSplitMode('vertical');
+        await terminalManager.setSplitMode('vertical');
     }
 });
 
-splitHBtn?.addEventListener('click', (e) => {
+splitHBtn?.addEventListener('click', async (e) => {
     e.preventDefault();
     console.log('[Terminal] Split H clicked');
     if (terminalManager.getSplitMode() === 'horizontal') {
         // Already horizontal, unsplit
-        terminalManager.setSplitMode('single');
+        await terminalManager.setSplitMode('single');
     } else {
         // Enable horizontal split
-        terminalManager.setSplitMode('horizontal');
+        await terminalManager.setSplitMode('horizontal');
     }
 });
 

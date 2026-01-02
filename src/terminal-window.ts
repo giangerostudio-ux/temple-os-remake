@@ -220,8 +220,127 @@ splitHBtn?.addEventListener('click', () => {
     }
 });
 
+// Settings Modal
+const settingsModal = document.getElementById('settings-modal');
+const settingsCloseBtn = document.getElementById('settings-close');
+const settingsSaveBtn = document.getElementById('settings-save');
+const settingsCancelBtn = document.getElementById('settings-cancel');
+
+const fontSizeInput = document.getElementById('font-size') as HTMLInputElement;
+const fontSizeValue = document.getElementById('font-size-value');
+const themeSelect = document.getElementById('theme') as HTMLSelectElement;
+const scrollbackInput = document.getElementById('scrollback') as HTMLInputElement;
+
+// Load settings from localStorage
+interface TerminalSettings {
+    fontSize: number;
+    theme: string;
+    scrollback: number;
+}
+
+function loadSettings(): TerminalSettings {
+    const defaults: TerminalSettings = {
+        fontSize: 14,
+        theme: 'dark',
+        scrollback: 10000
+    };
+
+    try {
+        const saved = localStorage.getItem('terminalSettings');
+        return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    } catch {
+        return defaults;
+    }
+}
+
+function saveSettings(settings: TerminalSettings): void {
+    localStorage.setItem('terminalSettings', JSON.stringify(settings));
+}
+
+// Apply settings to all terminals
+function applySettings(settings: TerminalSettings): void {
+    const tabs = terminalManager.getTabs();
+    tabs.forEach(tab => {
+        if (tab.xterm) {
+            // Apply font size
+            tab.xterm.options.fontSize = settings.fontSize;
+
+            // Apply theme
+            const themes = {
+                dark: {
+                    background: '#000000',
+                    foreground: '#ffffff',
+                    cursor: '#ffffff'
+                },
+                light: {
+                    background: '#ffffff',
+                    foreground: '#000000',
+                    cursor: '#000000'
+                },
+                templeOS: {
+                    background: '#000000',
+                    foreground: '#00ff41',
+                    cursor: '#00ff41'
+                }
+            };
+
+            const theme = themes[settings.theme as keyof typeof themes] || themes.dark;
+            tab.xterm.options.theme = theme;
+
+            // Apply scrollback
+            tab.xterm.options.scrollback = settings.scrollback;
+
+            // Fit terminal after settings change
+            if (tab.fitAddon) {
+                setTimeout(() => tab.fitAddon?.fit(), 50);
+            }
+        }
+    });
+}
+
+// Initialize settings
+const currentSettings = loadSettings();
+fontSizeInput.value = currentSettings.fontSize.toString();
+if (fontSizeValue) fontSizeValue.textContent = `${currentSettings.fontSize}px`;
+themeSelect.value = currentSettings.theme;
+scrollbackInput.value = currentSettings.scrollback.toString();
+
+// Apply settings on load
+applySettings(currentSettings);
+
+// Font size slider
+fontSizeInput?.addEventListener('input', () => {
+    if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+});
+
+// Open settings modal
 settingsBtn?.addEventListener('click', () => {
-    console.log('[Terminal] Settings clicked - Phase 6.4 feature');
+    console.log('[Terminal] Settings clicked');
+    settingsModal?.classList.add('visible');
+});
+
+// Close settings modal
+settingsCloseBtn?.addEventListener('click', () => {
+    settingsModal?.classList.remove('visible');
+});
+
+settingsCancelBtn?.addEventListener('click', () => {
+    settingsModal?.classList.remove('visible');
+});
+
+// Save settings
+settingsSaveBtn?.addEventListener('click', () => {
+    const newSettings: TerminalSettings = {
+        fontSize: parseInt(fontSizeInput.value),
+        theme: themeSelect.value,
+        scrollback: parseInt(scrollbackInput.value)
+    };
+
+    saveSettings(newSettings);
+    applySettings(newSettings);
+    settingsModal?.classList.remove('visible');
+
+    console.log('[Settings] Saved:', newSettings);
 });
 
 // Cleanup on window close

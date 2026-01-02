@@ -253,7 +253,7 @@ export class PopoutTerminalManager {
 
             tab.xterm.open(tab.container);
 
-            // Fit terminal
+            // Fit terminal and wait for it to be fully ready
             setTimeout(() => {
                 if (tab.fitAddon) {
                     tab.fitAddon.fit();
@@ -263,6 +263,44 @@ export class PopoutTerminalManager {
 
         // Initialize PTY if needed
         if (!tab.ptyId && window.electronAPI?.createPty) {
+            // Set up event listeners BEFORE creating PTY to catch all data
+            // Connect input
+            tab.xterm.onData((data) => {
+                if (tab.ptyId && window.electronAPI?.writePty) {
+                    void window.electronAPI.writePty(tab.ptyId, data);
+                }
+            });
+
+            // Handle resize
+            tab.xterm.onResize(({ cols, rows }) => {
+                if (tab.ptyId && window.electronAPI?.resizePty) {
+                    void window.electronAPI.resizePty(tab.ptyId, cols, rows);
+                }
+            });
+
+            // Listen for PTY data
+            if (window.electronAPI?.onTerminalData) {
+                window.electronAPI.onTerminalData((data) => {
+                    if (data.id === tab.ptyId && tab.xterm) {
+                        tab.xterm.write(data.data);
+                    }
+                });
+            }
+
+            // Listen for PTY exit
+            if (window.electronAPI?.onTerminalExit) {
+                window.electronAPI.onTerminalExit((data) => {
+                    if (data.id === tab.ptyId && tab.xterm) {
+                        tab.xterm.writeln(`\r\n\x1b[33m[Process exited with code ${data.exitCode}]\x1b[0m`);
+                        tab.ptyId = null;
+                    }
+                });
+            }
+
+            // Wait for xterm to be fully ready before creating PTY
+            // This prevents the first line from being garbled
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const result = await window.electronAPI.createPty({
                 cols: tab.xterm.cols,
                 rows: tab.xterm.rows,
@@ -272,39 +310,6 @@ export class PopoutTerminalManager {
             if (result.success && result.id) {
                 tab.ptyId = result.id;
                 console.log('[TerminalManager] PTY created for tab:', tab.id, 'ptyId:', tab.ptyId);
-
-                // Connect input
-                tab.xterm.onData((data) => {
-                    if (tab.ptyId && window.electronAPI?.writePty) {
-                        void window.electronAPI.writePty(tab.ptyId, data);
-                    }
-                });
-
-                // Handle resize
-                tab.xterm.onResize(({ cols, rows }) => {
-                    if (tab.ptyId && window.electronAPI?.resizePty) {
-                        void window.electronAPI.resizePty(tab.ptyId, cols, rows);
-                    }
-                });
-
-                // Listen for PTY data
-                if (window.electronAPI?.onTerminalData) {
-                    window.electronAPI.onTerminalData((data) => {
-                        if (data.id === tab.ptyId && tab.xterm) {
-                            tab.xterm.write(data.data);
-                        }
-                    });
-                }
-
-                // Listen for PTY exit
-                if (window.electronAPI?.onTerminalExit) {
-                    window.electronAPI.onTerminalExit((data) => {
-                        if (data.id === tab.ptyId && tab.xterm) {
-                            tab.xterm.writeln(`\r\n\x1b[33m[Process exited with code ${data.exitCode}]\x1b[0m`);
-                            tab.ptyId = null;
-                        }
-                    });
-                }
             }
         }
     }

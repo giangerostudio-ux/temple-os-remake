@@ -422,6 +422,8 @@
       appearance: none;
       background: rgba(0, 255, 65, 0.2);
       outline: none;
+      cursor: pointer;
+      pointer-events: auto;
     }
 
     .setting-group input[type="range"]::-webkit-slider-thumb {
@@ -545,9 +547,9 @@
           <div class="setting-group">
             <label for="theme">Theme</label>
             <select id="theme">
-              <option value="dark">Dark (Default)</option>
+              <option value="templeOS">TempleOS Green (Default)</option>
+              <option value="dark">Dark</option>
               <option value="light">Light</option>
-              <option value="templeOS">TempleOS Green</option>
             </select>
           </div>
           <div class="setting-group">

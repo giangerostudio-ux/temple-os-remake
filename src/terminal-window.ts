@@ -235,7 +235,8 @@ splitVBtn?.addEventListener('click', () => {
     }
 });
 
-splitHBtn?.addEventListener('click', () => {
+splitHBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
     console.log('[Terminal] Split H clicked');
     if (terminalManager.getSplitMode() === 'horizontal') {
         // Already horizontal, unsplit

@@ -552,6 +552,31 @@ function showContextMenu(x: number, y: number, filePath: string, isDir: boolean)
 
     document.body.appendChild(menu);
 
+    // Adjust position to stay within viewport
+    const menuRect = menu.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let adjustedX = x;
+    let adjustedY = y;
+
+    // Check if menu goes off bottom
+    if (y + menuRect.height > viewportHeight - 10) {
+        adjustedY = viewportHeight - menuRect.height - 10;
+    }
+
+    // Check if menu goes off right
+    if (x + menuRect.width > viewportWidth - 10) {
+        adjustedX = viewportWidth - menuRect.width - 10;
+    }
+
+    // Ensure not negative
+    if (adjustedX < 10) adjustedX = 10;
+    if (adjustedY < 10) adjustedY = 10;
+
+    menu.style.left = `${adjustedX}px`;
+    menu.style.top = `${adjustedY}px`;
+
     menu.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
         const action = target.getAttribute('data-action');

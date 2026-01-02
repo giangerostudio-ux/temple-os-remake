@@ -15428,19 +15428,35 @@ class TempleOS {
     `;
   }
 
-  private addBookmark(path: string): void {
+  private async addBookmark(path: string): Promise<void> {
     if (!this.fileBookmarks.includes(path)) {
       this.fileBookmarks.push(path);
       this.queueSaveConfig();
+
+      // Sync to IPC for popout windows
+      // @ts-ignore - new API
+      if (window.electronAPI?.addBookmark) {
+        // @ts-ignore
+        await window.electronAPI.addBookmark(path);
+      }
+
       if (this.currentPath) this.loadFiles(this.currentPath); // Re-render to show update
     }
   }
 
-  private removeBookmark(path: string): void {
+  private async removeBookmark(path: string): Promise<void> {
     const idx = this.fileBookmarks.indexOf(path);
     if (idx !== -1) {
       this.fileBookmarks.splice(idx, 1);
       this.queueSaveConfig();
+
+      // Sync to IPC for popout windows
+      // @ts-ignore - new API
+      if (window.electronAPI?.removeBookmark) {
+        // @ts-ignore
+        await window.electronAPI.removeBookmark(path);
+      }
+
       if (this.currentPath) this.loadFiles(this.currentPath);
     }
   }

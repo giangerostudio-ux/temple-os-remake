@@ -12689,7 +12689,13 @@ class TempleOS {
         gap: 6px;
         padding: 8px 12px;
         background: rgba(0, 0, 0, 0.3);
-        border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+        border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+        flex: 1;
+        overflow-x: auto;
+        overflow-y: hidden;
+        min-width: 0;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 255, 0, 0.4) transparent;
       }
       
       .terminal-tab {
@@ -13130,7 +13136,7 @@ class TempleOS {
       case 'cyan': return '#00d4ff';
       case 'amber': return '#ffd700';
       case 'white': return '#c9d1d9';
-      default: return '#00ff41';
+      default: return '#00ff00';  // Pure bright green
     }
   }
 
@@ -13180,14 +13186,14 @@ class TempleOS {
     // Create xterm instance
     const xterm = new Terminal({
       theme: {
-        background: '#0d1117',
+        background: '#0a0a0a',  // Darker for more contrast
         foreground: fg,
         cursor: fg,
-        cursorAccent: '#0d1117',
+        cursorAccent: '#0a0a0a',
         selectionBackground: this.getTerminalThemeSelection(),
-        black: '#0a0a0f',
+        black: '#000000',
         red: '#ff3366',
-        green: '#00ff41',
+        green: '#00ff00',  // Pure bright green
         yellow: '#ffff00',
         blue: '#4a9eff',
         magenta: '#ff00ff',
@@ -13195,7 +13201,7 @@ class TempleOS {
         white: '#c9d1d9',
         brightBlack: '#2a2a3a',
         brightRed: '#ff6b6b',
-        brightGreen: '#55ff55',
+        brightGreen: '#00ff00',  // Same vibrant green
         brightYellow: '#ffff00',
         brightBlue: '#4a9eff',
         brightMagenta: '#ff88ff',

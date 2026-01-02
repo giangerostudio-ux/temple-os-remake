@@ -139,6 +139,13 @@ function shEscape(value) {
 const SAFE_BASE_PATHS = [
     os.homedir(),
     '/tmp',
+    '/',  // Linux root - allow browsing (blocked paths still protected)
+    '/home',  // All home directories
+    '/media',  // Mount points
+    '/mnt',    // Mount points
+    'C:\\',    // Windows root
+    'D:\\',    // Windows drives
+    'E:\\',
     path.join(os.homedir(), 'Documents'),
     path.join(os.homedir(), 'Downloads'),
     path.join(os.homedir(), 'Desktop'),

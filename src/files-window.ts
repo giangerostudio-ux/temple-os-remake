@@ -627,12 +627,92 @@ function showEmptySpaceContextMenu(x: number, y: number) {
     setTimeout(() => document.addEventListener('mousedown', closeHandler), 50);
 }
 
+// Custom prompt dialog (since native prompt() isn't supported in Electron popouts)
+function customPrompt(message: string, defaultValue: string): Promise<string | null> {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7); z-index: 10000;
+            display: flex; align-items: center; justify-content: center;
+        `;
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: rgba(8, 20, 12, 0.98); border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 8px; padding: 20px; min-width: 300px;
+            font-family: 'Fira Code', monospace; color: #00ff41;
+        `;
+
+        dialog.innerHTML = `
+            <div style="margin-bottom: 15px;">${message}</div>
+            <input type="text" id="prompt-input" value="${defaultValue}" style="
+                width: 100%; padding: 8px; background: rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(0, 255, 65, 0.3); border-radius: 4px;
+                color: #00ff41; font-family: inherit; font-size: 14px;
+                box-sizing: border-box;
+            " />
+            <div style="display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end;">
+                <button id="prompt-cancel" style="
+                    padding: 8px 16px; background: rgba(255, 60, 60, 0.2);
+                    border: 1px solid rgba(255, 60, 60, 0.4); border-radius: 4px;
+                    color: #ff6b6b; cursor: pointer; font-family: inherit;
+                ">Cancel</button>
+                <button id="prompt-ok" style="
+                    padding: 8px 16px; background: rgba(0, 255, 65, 0.2);
+                    border: 1px solid rgba(0, 255, 65, 0.4); border-radius: 4px;
+                    color: #00ff41; cursor: pointer; font-family: inherit;
+                ">OK</button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const input = dialog.querySelector('#prompt-input') as HTMLInputElement;
+        const okBtn = dialog.querySelector('#prompt-ok') as HTMLButtonElement;
+        const cancelBtn = dialog.querySelector('#prompt-cancel') as HTMLButtonElement;
+
+        input.focus();
+        input.select();
+
+        const cleanup = () => overlay.remove();
+
+        okBtn.addEventListener('click', () => {
+            cleanup();
+            resolve(input.value || null);
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            cleanup();
+            resolve(null);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                cleanup();
+                resolve(input.value || null);
+            } else if (e.key === 'Escape') {
+                cleanup();
+                resolve(null);
+            }
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                cleanup();
+                resolve(null);
+            }
+        });
+    });
+}
+
 async function handleEmptySpaceAction(action: string) {
     if (!window.electronAPI) return;
 
     switch (action) {
         case 'newFolder':
-            const folderName = prompt('Enter folder name:', 'New Folder');
+            const folderName = await customPrompt('Enter folder name:', 'New Folder');
             if (folderName && window.electronAPI.mkdir) {
                 const sep = currentPath.includes('\\') ? '\\' : '/';
                 const newPath = currentPath + sep + folderName;
@@ -640,16 +720,15 @@ async function handleEmptySpaceAction(action: string) {
                 if (result.success) {
                     void loadDirectory(currentPath);
                 } else {
-                    alert('Failed to create folder: ' + result.error);
+                    customAlert('Failed to create folder: ' + result.error);
                 }
             }
             break;
 
         case 'newFile':
-            const fileName = prompt('Enter file name:', 'new_file.txt');
+            const fileName = await customPrompt('Enter file name:', 'new_file.txt');
             if (fileName) {
-                // Create empty file via touch or write
-                alert('New file creation not fully implemented yet');
+                customAlert('New file creation not fully implemented yet');
             }
             break;
 
@@ -657,6 +736,44 @@ async function handleEmptySpaceAction(action: string) {
             void loadDirectory(currentPath);
             break;
     }
+}
+
+// Custom alert (for consistency)
+function customAlert(message: string): void {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.7); z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+    `;
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        background: rgba(8, 20, 12, 0.98); border: 1px solid rgba(0, 255, 65, 0.4);
+        border-radius: 8px; padding: 20px; min-width: 280px; max-width: 400px;
+        font-family: 'Fira Code', monospace; color: #00ff41;
+    `;
+
+    dialog.innerHTML = `
+        <div style="margin-bottom: 15px; word-wrap: break-word;">${message}</div>
+        <div style="text-align: right;">
+            <button id="alert-ok" style="
+                padding: 8px 20px; background: rgba(0, 255, 65, 0.2);
+                border: 1px solid rgba(0, 255, 65, 0.4); border-radius: 4px;
+                color: #00ff41; cursor: pointer; font-family: inherit;
+            ">OK</button>
+        </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const okBtn = dialog.querySelector('#alert-ok') as HTMLButtonElement;
+    okBtn.focus();
+
+    const cleanup = () => overlay.remove();
+    okBtn.addEventListener('click', cleanup);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
 }
 
 // Add right-click handler for empty space in file grid

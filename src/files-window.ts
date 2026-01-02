@@ -605,11 +605,12 @@ function showEmptySpaceContextMenu(x: number, y: number) {
     document.body.appendChild(menu);
 
     menu.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent close handler from firing
         const target = e.target as HTMLElement;
         const action = target.getAttribute('data-action');
         if (action) {
-            await handleEmptySpaceAction(action);
             menu.remove();
+            await handleEmptySpaceAction(action);
         }
     });
 
@@ -619,7 +620,7 @@ function showEmptySpaceContextMenu(x: number, y: number) {
             document.removeEventListener('click', closeHandler);
         }
     };
-    setTimeout(() => document.addEventListener('click', closeHandler), 10);
+    setTimeout(() => document.addEventListener('click', closeHandler), 100);
 }
 
 async function handleEmptySpaceAction(action: string) {

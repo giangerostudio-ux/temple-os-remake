@@ -261,167 +261,145 @@ export class PopoutTerminalManager {
             }, 10);
         }
 
-        // Initialize PTY if needed
+        // Initialize PTY AFTER xterm is fully opened and rendered
         if (!tab.ptyId && window.electronAPI?.createPty) {
-            const result = await window.electronAPI.createPty({
-                cols: tab.xterm.cols,
-                rows: tab.xterm.rows,
-                cwd: undefined
+        });
+
+        // Listen for PTY data
+        if (window.electronAPI?.onTerminalData) {
+            window.electronAPI.onTerminalData((data) => {
+                if (data.id === tab.ptyId && tab.xterm) {
+                    tab.xterm.write(data.data);
+                }
             });
-
-            if (result.success && result.id) {
-                tab.ptyId = result.id;
-                console.log('[TerminalManager] PTY created for tab:', tab.id, 'ptyId:', tab.ptyId);
-
-                // Connect input
-                tab.xterm.onData((data) => {
-                    if (tab.ptyId && window.electronAPI?.writePty) {
-                        void window.electronAPI.writePty(tab.ptyId, data);
-                    }
-                });
-
-                // Handle resize
-                tab.xterm.onResize(({ cols, rows }) => {
-                    if (tab.ptyId && window.electronAPI?.resizePty) {
-                        void window.electronAPI.resizePty(tab.ptyId, cols, rows);
-                    }
-                });
-
-                // Listen for PTY data
-                if (window.electronAPI?.onTerminalData) {
-                    window.electronAPI.onTerminalData((data) => {
-                        if (data.id === tab.ptyId && tab.xterm) {
-                            tab.xterm.write(data.data);
-                        }
-                    });
-                }
-
-                // Listen for PTY exit
-                if (window.electronAPI?.onTerminalExit) {
-                    window.electronAPI.onTerminalExit((data) => {
-                        if (data.id === tab.ptyId && tab.xterm) {
-                            tab.xterm.writeln(`\r\n\x1b[33m[Process exited with code ${data.exitCode}]\x1b[0m`);
-                            tab.ptyId = null;
-                        }
-                    });
-                }
-            }
         }
+
+        // Listen for PTY exit
+        if (window.electronAPI?.onTerminalExit) {
+            window.electronAPI.onTerminalExit((data) => {
+                if (data.id === tab.ptyId && tab.xterm) {
+                    tab.xterm.writeln(`\r\n\x1b[33m[Process exited with code ${data.exitCode}]\x1b[0m`);
+                    tab.ptyId = null;
+                }
+            });
+        }
+    }
+}
     }
 
     /**
      * Render the tabs UI
      */
     private renderTabs(): void {
-        const tabsHtml = this.tabs.map((tab, index) => {
-            const isActive = index === this.activeTabIndex;
-            const closeButton = this.tabs.length > 1
-                ? `<span class="terminal-tab-close" data-tab-close="${index}">×</span>`
-                : '';
+    const tabsHtml = this.tabs.map((tab, index) => {
+        const isActive = index === this.activeTabIndex;
+        const closeButton = this.tabs.length > 1
+            ? `<span class="terminal-tab-close" data-tab-close="${index}">×</span>`
+            : '';
 
-            return `
+        return `
         <div class="terminal-tab ${isActive ? 'active' : ''}" data-tab-index="${index}">
           ${this.escapeHtml(tab.title)}
           ${closeButton}
         </div>
       `;
-        }).join('');
+    }).join('');
 
-        // Find or create tabs container
-        let tabsBar = this.tabsContainer.querySelector('.terminal-tabs-bar');
-        if (!tabsBar) {
-            tabsBar = document.createElement('div');
-            tabsBar.className = 'terminal-tabs-bar';
-            this.tabsContainer.appendChild(tabsBar);
-        }
+    // Find or create tabs container
+    let tabsBar = this.tabsContainer.querySelector('.terminal-tabs-bar');
+    if(!tabsBar) {
+        tabsBar = document.createElement('div');
+        tabsBar.className = 'terminal-tabs-bar';
+        this.tabsContainer.appendChild(tabsBar);
+    }
 
         tabsBar.innerHTML = `
       ${tabsHtml}
       <div class="terminal-tab-add" data-tab-new>+</div>
     `;
 
-        // Add event listeners
-        this.attachTabListeners();
-    }
+    // Add event listeners
+    this.attachTabListeners();
+}
 
     /**
      * Attach event listeners to tabs
      */
     private attachTabListeners(): void {
-        // Tab click
-        this.tabsContainer.querySelectorAll('[data-tab-index]').forEach(el => {
-            el.addEventListener('click', (e) => {
-                const target = e.currentTarget as HTMLElement;
-                const index = parseInt(target.dataset.tabIndex || '0', 10);
-                this.switchTab(index);
-            });
+    // Tab click
+    this.tabsContainer.querySelectorAll('[data-tab-index]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            const target = e.currentTarget as HTMLElement;
+            const index = parseInt(target.dataset.tabIndex || '0', 10);
+            this.switchTab(index);
         });
+    });
 
-        // Close button click
-        this.tabsContainer.querySelectorAll('[data-tab-close]').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const target = e.currentTarget as HTMLElement;
-                const index = parseInt(target.dataset.tabClose || '0', 10);
-                void this.closeTab(index);
-            });
+    // Close button click
+    this.tabsContainer.querySelectorAll('[data-tab-close]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const target = e.currentTarget as HTMLElement;
+            const index = parseInt(target.dataset.tabClose || '0', 10);
+            void this.closeTab(index);
         });
+    });
 
-        // New tab button
-        const newTabBtn = this.tabsContainer.querySelector('[data-tab-new]');
-        newTabBtn?.addEventListener('click', () => {
-            this.createTab();
-        });
+    // New tab button
+    const newTabBtn = this.tabsContainer.querySelector('[data-tab-new]');
+    newTabBtn?.addEventListener('click', () => {
+    this.createTab();
+});
     }
 
     /**
      * Show the active terminal and hide others
      */
     private showActiveTerminal(): void {
-        // Initialize xterm for active tab if needed
-        const activeTab = this.tabs[this.activeTabIndex];
-        if (activeTab && !activeTab.xterm) {
-            void this.initializeXterm(activeTab);
+    // Initialize xterm for active tab if needed
+    const activeTab = this.tabs[this.activeTabIndex];
+    if(activeTab && !activeTab.xterm) {
+    void this.initializeXterm(activeTab);
+}
+
+// Give xterm a moment to initialize before showing
+setTimeout(() => {
+    this.tabs.forEach((tab, index) => {
+        if (tab.container) {
+            tab.container.style.display = index === this.activeTabIndex ? 'block' : 'none';
         }
+    });
 
-        // Give xterm a moment to initialize before showing
+    // Fit active terminal
+    if (activeTab?.fitAddon) {
         setTimeout(() => {
-            this.tabs.forEach((tab, index) => {
-                if (tab.container) {
-                    tab.container.style.display = index === this.activeTabIndex ? 'block' : 'none';
-                }
-            });
-
-            // Fit active terminal
-            if (activeTab?.fitAddon) {
-                setTimeout(() => {
-                    activeTab.fitAddon?.fit();
-                }, 10);
-            }
-        }, 100);
+            activeTab.fitAddon?.fit();
+        }, 10);
+    }
+}, 100);
     }
 
     /**
      * Cleanup all tabs
      */
-    async cleanup(): Promise<void> {
-        for (const tab of this.tabs) {
-            if (tab.ptyId && window.electronAPI?.destroyPty) {
-                await window.electronAPI.destroyPty(tab.ptyId);
-            }
-            if (tab.xterm) {
-                tab.xterm.dispose();
-            }
-        }
-        this.tabs = [];
+    async cleanup(): Promise < void> {
+    for(const tab of this.tabs) {
+    if (tab.ptyId && window.electronAPI?.destroyPty) {
+        await window.electronAPI.destroyPty(tab.ptyId);
+    }
+    if (tab.xterm) {
+        tab.xterm.dispose();
+    }
+}
+this.tabs = [];
     }
 
     /**
      * Escape HTML for safe rendering
      */
     private escapeHtml(text: string): string {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 }

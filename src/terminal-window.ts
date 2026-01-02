@@ -61,7 +61,41 @@ const searchInput = document.getElementById('search-input') as HTMLInputElement;
 const searchPrevBtn = document.getElementById('search-prev');
 const searchNextBtn = document.getElementById('search-next');
 const searchCloseBtn = document.getElementById('search-close');
-// const searchCount = document.getElementById('search-count'); // TODO: implement match counter
+const searchCount = document.getElementById('search-count');
+
+// Track search state
+let currentMatchIndex = 0;
+let totalMatches = 0;
+
+// Helper to count matches in terminal buffer
+function updateSearchCount(query: string) {
+    const activeTab = terminalManager.getActiveTab();
+    if (!activeTab?.xterm || !query) {
+        if (searchCount) searchCount.textContent = '';
+        return;
+    }
+
+    // Get all terminal buffer content
+    const buffer = activeTab.xterm.buffer.active;
+    let content = '';
+    for (let i = 0; i < buffer.length; i++) {
+        content += buffer.getLine(i)?.translateToString() || '';
+    }
+
+    // Count matches (case-insensitive)
+    const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const matches = content.match(regex);
+    totalMatches = matches ? matches.length : 0;
+
+    // Update display
+    if (searchCount) {
+        if (totalMatches > 0) {
+            searchCount.textContent = `${currentMatchIndex + 1}/${totalMatches}`;
+        } else {
+            searchCount.textContent = '0/0';
+        }
+    }
+}
 
 console.log('[Search] Elements found:', {
     searchBar: !!searchBar,
@@ -88,7 +122,11 @@ searchInput?.addEventListener('input', () => {
     const activeTab = terminalManager.getActiveTab();
     console.log('[Search] Input changed:', searchInput.value, 'activeTab:', !!activeTab, 'searchAddon:', !!activeTab?.searchAddon);
     if (activeTab?.searchAddon && searchInput.value) {
+        currentMatchIndex = 0; // Reset to first match
         activeTab.searchAddon.findNext(searchInput.value);
+        updateSearchCount(searchInput.value);
+    } else {
+        updateSearchCount('');
     }
 });
 
@@ -98,6 +136,8 @@ searchPrevBtn?.addEventListener('click', () => {
     console.log('[Search] Prev clicked, value:', searchInput?.value);
     if (activeTab?.searchAddon && searchInput?.value) {
         activeTab.searchAddon.findPrevious(searchInput.value);
+        currentMatchIndex = Math.max(0, currentMatchIndex - 1);
+        updateSearchCount(searchInput.value);
     }
 });
 
@@ -107,6 +147,8 @@ searchNextBtn?.addEventListener('click', () => {
     console.log('[Search] Next clicked, value:', searchInput?.value);
     if (activeTab?.searchAddon && searchInput?.value) {
         activeTab.searchAddon.findNext(searchInput.value);
+        currentMatchIndex = Math.min(totalMatches - 1, currentMatchIndex + 1);
+        updateSearchCount(searchInput.value);
     }
 });
 
@@ -115,6 +157,7 @@ searchCloseBtn?.addEventListener('click', () => {
     console.log('[Search] Close clicked');
     searchBar?.classList.remove('visible');
     if (searchInput) searchInput.value = '';
+    updateSearchCount('');
 });
 
 // Keyboard shortcuts
@@ -132,6 +175,7 @@ document.addEventListener('keydown', (e) => {
         console.log('[Search] Escape pressed');
         searchBar.classList.remove('visible');
         if (searchInput) searchInput.value = '';
+        updateSearchCount('');
     }
 
     // Enter for next, Shift+Enter for previous (when search is focused)
@@ -143,9 +187,12 @@ document.addEventListener('keydown', (e) => {
             if (activeTab?.searchAddon && searchInput.value) {
                 if (e.shiftKey) {
                     activeTab.searchAddon.findPrevious(searchInput.value);
+                    currentMatchIndex = Math.max(0, currentMatchIndex - 1);
                 } else {
                     activeTab.searchAddon.findNext(searchInput.value);
+                    currentMatchIndex = Math.min(totalMatches - 1, currentMatchIndex + 1);
                 }
+                updateSearchCount(searchInput.value);
             }
         }
     }

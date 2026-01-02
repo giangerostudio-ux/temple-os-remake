@@ -307,52 +307,53 @@ function applySettings(settings: TerminalSettings): void {
             }
         }
     });
+}
 
-    // Initialize UI with current settings
-    const uiSettings = loadSettings();
-    fontSizeInput.value = uiSettings.fontSize.toString();
-    if (fontSizeValue) fontSizeValue.textContent = `${uiSettings.fontSize}px`;
-    themeSelect.value = uiSettings.theme;
-    scrollbackInput.value = uiSettings.scrollback.toString();
+// Initialize UI with current settings
+const uiSettings = loadSettings();
+fontSizeInput.value = uiSettings.fontSize.toString();
+if (fontSizeValue) fontSizeValue.textContent = `${uiSettings.fontSize}px`;
+themeSelect.value = uiSettings.theme;
+scrollbackInput.value = uiSettings.scrollback.toString();
 
-    // Font size slider
-    fontSizeInput?.addEventListener('input', () => {
-        if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
-    });
+// Font size slider
+fontSizeInput?.addEventListener('input', () => {
+    if (fontSizeValue) fontSizeValue.textContent = `${fontSizeInput.value}px`;
+});
 
-    // Open settings modal
-    settingsBtn?.addEventListener('click', () => {
-        console.log('[Terminal] Settings clicked');
-        settingsModal?.classList.add('visible');
-    });
+// Open settings modal
+settingsBtn?.addEventListener('click', () => {
+    console.log('[Terminal] Settings clicked');
+    settingsModal?.classList.add('visible');
+});
 
-    // Close settings modal
-    settingsCloseBtn?.addEventListener('click', () => {
-        settingsModal?.classList.remove('visible');
-    });
+// Close settings modal
+settingsCloseBtn?.addEventListener('click', () => {
+    settingsModal?.classList.remove('visible');
+});
 
-    settingsCancelBtn?.addEventListener('click', () => {
-        settingsModal?.classList.remove('visible');
-    });
+settingsCancelBtn?.addEventListener('click', () => {
+    settingsModal?.classList.remove('visible');
+});
 
-    // Save settings
-    settingsSaveBtn?.addEventListener('click', () => {
-        const newSettings: TerminalSettings = {
-            fontSize: parseInt(fontSizeInput.value),
-            theme: themeSelect.value,
-            scrollback: parseInt(scrollbackInput.value)
-        };
+// Save settings
+settingsSaveBtn?.addEventListener('click', () => {
+    const newSettings: TerminalSettings = {
+        fontSize: parseInt(fontSizeInput.value),
+        theme: themeSelect.value,
+        scrollback: parseInt(scrollbackInput.value)
+    };
 
-        saveSettings(newSettings);
-        applySettings(newSettings);
-        settingsModal?.classList.remove('visible');
+    saveSettings(newSettings);
+    applySettings(newSettings);
+    settingsModal?.classList.remove('visible');
 
-        console.log('[Settings] Saved:', newSettings);
-    });
+    console.log('[Settings] Saved:', newSettings);
+});
 
-    // Cleanup on window close
-    window.addEventListener('beforeunload', async () => {
-        await terminalManager.cleanup();
-    });
+// Cleanup on window close
+window.addEventListener('beforeunload', async () => {
+    await terminalManager.cleanup();
+});
 
-    console.log('[Terminal Window] Multi-tab terminal ready');
+console.log('[Terminal Window] Multi-tab terminal ready');

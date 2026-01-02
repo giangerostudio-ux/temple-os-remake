@@ -15329,7 +15329,7 @@ class TempleOS {
     // Build file list HTML
     let filesHtml = '';
 
-    if (this.fileEntries.length === 0 && this.currentPath) {
+    if (this.fileEntries.length === 0 && !this.currentPath) {
       filesHtml = '<div style="padding: 20px; opacity: 0.5;">Loading...</div>';
     } else if (this.fileEntries.length === 0) {
       filesHtml = '<div style="padding: 20px; opacity: 0.5;">Empty folder</div>';

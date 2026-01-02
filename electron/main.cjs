@@ -4353,20 +4353,57 @@ ipcMain.handle('fs:createZip', async (event, sourcePath, targetZipPath) => {
 });
 
 ipcMain.handle('fs:extractZip', async (event, zipPath, targetDir) => {
-    if (!AdmZip) return { success: false, error: 'adm-zip dependency missing' };
+    console.log('[extractZip] Called with:', { zipPath, targetDir });
+
+    if (!AdmZip) {
+        console.error('[extractZip] adm-zip not loaded');
+        return { success: false, error: 'adm-zip dependency missing' };
+    }
+
     const zipCheck = isPathSafe(zipPath);
     if (!zipCheck.safe) {
+        console.error('[extractZip] Zip path not safe:', zipCheck.reason);
         return { success: false, error: zipCheck.reason };
     }
     const destCheck = isPathSafe(targetDir);
     if (!destCheck.safe) {
+        console.error('[extractZip] Target dir not safe:', destCheck.reason);
         return { success: false, error: destCheck.reason };
     }
+
     try {
+        // Check if zip file exists
+        if (!fs.existsSync(zipPath)) {
+            console.error('[extractZip] Zip file does not exist:', zipPath);
+            return { success: false, error: 'Zip file does not exist' };
+        }
+
+        // Ensure target directory exists
+        if (!fs.existsSync(targetDir)) {
+            console.log('[extractZip] Creating target directory:', targetDir);
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+
         const zip = new AdmZip(zipPath);
+        const entries = zip.getEntries();
+        console.log('[extractZip] Zip has', entries.length, 'entries');
+
+        if (entries.length === 0) {
+            console.warn('[extractZip] Zip file is empty');
+            return { success: false, error: 'Zip file is empty' };
+        }
+
+        // Log first few entries for debugging
+        entries.slice(0, 5).forEach(e => {
+            console.log('[extractZip] Entry:', e.entryName, e.isDirectory ? '(dir)' : `(${e.header.size} bytes)`);
+        });
+
         zip.extractAllTo(targetDir, true); // true = overwrite
+        console.log('[extractZip] Extracted successfully to:', targetDir);
+
         return { success: true };
     } catch (error) {
+        console.error('[extractZip] Error:', error);
         return { success: false, error: error.message };
     }
 });

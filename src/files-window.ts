@@ -326,15 +326,83 @@ async function renderSidebar() {
                 const path = el.getAttribute('data-path');
                 if (path === '__trash__') {
                     // TODO: Load trash
-                    alert('Trash view not yet implemented');
+                    customAlert('Trash view not yet implemented');
                 } else if (path) {
                     void loadDirectory(path);
                 }
             });
+
+            // Right-click context menu for bookmarks
+            const isBookmark = el.getAttribute('data-bookmark') === 'true';
+            if (isBookmark) {
+                el.addEventListener('contextmenu', (e: Event) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const path = el.getAttribute('data-path');
+                    if (path) {
+                        const mouseEvent = e as MouseEvent;
+                        showBookmarkContextMenu(mouseEvent.clientX, mouseEvent.clientY, path);
+                    }
+                });
+            }
         });
     } catch (e) {
         console.error('[File Browser] Sidebar error:', e);
     }
+}
+
+// Bookmark context menu (for sidebar bookmarks)
+function showBookmarkContextMenu(x: number, y: number, bookmarkPath: string) {
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    const items = [
+        { id: 'open', label: '📂 Open' },
+        { id: 'remove', label: '⭐ Remove Bookmark' }
+    ];
+
+    menu.innerHTML = items.map(item => `
+        <div class="context-menu-item" data-action="${item.id}">${item.label}</div>
+    `).join('');
+
+    document.body.appendChild(menu);
+
+    menu.querySelectorAll('.context-menu-item').forEach(item => {
+        item.addEventListener('mousedown', async (e) => {
+            e.stopPropagation();
+            const action = item.getAttribute('data-action');
+            menu.remove();
+
+            if (action === 'open') {
+                void loadDirectory(bookmarkPath);
+            } else if (action === 'remove') {
+                // @ts-ignore - removeBookmark is new API
+                if (window.electronAPI?.removeBookmark) {
+                    // @ts-ignore
+                    const result = await window.electronAPI.removeBookmark(bookmarkPath);
+                    if (result.success) {
+                        await renderSidebar();  // Refresh sidebar
+                        customAlert(`📌 Bookmark removed: ${bookmarkPath.split(/[/\\]/).pop()}`);
+                    } else {
+                        customAlert('Failed to remove bookmark: ' + result.error);
+                    }
+                }
+            }
+        });
+    });
+
+    const closeHandler = (e: Event) => {
+        if (!menu.contains(e.target as Node)) {
+            menu.remove();
+            document.removeEventListener('mousedown', closeHandler);
+        }
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeHandler), 50);
 }
 
 // Context menu

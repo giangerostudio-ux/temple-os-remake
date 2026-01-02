@@ -4,10 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>File Manager</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <title>File Browser</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap">
     <style>
         * {
             margin: 0;
@@ -15,201 +13,444 @@
             box-sizing: border-box;
         }
 
-        html,
         body {
-            height: 100%;
-            overflow: hidden;
-            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+            font-family: 'Fira Code', monospace;
+            background: rgba(0, 10, 5, 0.95);
             color: #00ff41;
-            background: #020502;
+            height: 100vh;
+            overflow: hidden;
         }
 
         .app-window {
             display: flex;
             flex-direction: column;
-            height: 100%;
-            border: 2px solid #00ff41;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3), 0 4px 15px rgba(0, 0, 0, 0.6);
-            overflow: hidden;
+            height: 100vh;
+            background: linear-gradient(180deg, rgba(0, 20, 10, 0.98) 0%, rgba(0, 10, 5, 0.98) 100%);
+            border: 1px solid rgba(0, 255, 65, 0.3);
         }
 
+        /* Title Bar */
         .title-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 8px 12px;
-            background: rgba(0, 255, 65, 0.15);
+            background: linear-gradient(180deg, rgba(0, 255, 65, 0.15) 0%, rgba(0, 255, 65, 0.05) 100%);
             border-bottom: 1px solid rgba(0, 255, 65, 0.3);
             -webkit-app-region: drag;
-            cursor: move;
         }
 
         .title-bar-title {
-            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 14px;
-            font-family: 'Fira Code', monospace;
+            font-weight: 500;
+            color: #00ff41;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
         }
 
         .title-bar-buttons {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             -webkit-app-region: no-drag;
         }
 
         .title-bar-btn {
-            width: 24px;
-            height: 24px;
-            border: 1px solid rgba(0, 255, 65, 0.4);
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.3);
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            background: rgba(0, 255, 65, 0.1);
             color: #00ff41;
+            border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-            transition: all 0.15s ease;
+            transition: all 0.2s;
         }
 
         .title-bar-btn:hover {
             background: rgba(0, 255, 65, 0.2);
-            border-color: #00ff41;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
         }
 
         .title-bar-btn.close:hover {
-            background: rgba(255, 0, 0, 0.3);
-            border-color: #ff4444;
+            background: rgba(255, 60, 60, 0.3);
+            border-color: rgba(255, 60, 60, 0.5);
             color: #ff4444;
         }
 
+        /* Toolbar */
         .toolbar {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.2);
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(0, 20, 10, 0.8);
             border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+            flex-wrap: wrap;
         }
 
-        .toolbar button {
+        .toolbar-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
             background: rgba(0, 255, 65, 0.1);
-            border: 1px solid rgba(0, 255, 65, 0.4);
             color: #00ff41;
-            padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: inherit;
-            font-size: 14px;
-            transition: all 0.15s ease;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
         }
 
-        .toolbar button:hover {
+        .toolbar-btn:hover {
             background: rgba(0, 255, 65, 0.2);
-            border-color: #00ff41;
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
         }
 
-        .toolbar input {
+        .toolbar-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Selection badge */
+        .selection-badge {
+            padding: 6px 12px;
+            background: rgba(0, 255, 65, 0.2);
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 4px;
+            font-size: 12px;
+            color: #00ff41;
+            font-weight: 500;
+        }
+
+        /* Delete button (red) */
+        .btn-delete {
+            padding: 6px 12px;
+            background: rgba(255, 60, 60, 0.2);
+            border: 1px solid rgba(255, 60, 60, 0.4);
+            border-radius: 4px;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-delete:hover {
+            background: rgba(255, 60, 60, 0.3);
+            box-shadow: 0 0 8px rgba(255, 60, 60, 0.3);
+        }
+
+        .btn-delete:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Clear button */
+        .btn-clear {
+            padding: 6px 12px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+            color: #00ff41;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn-clear:hover {
+            background: rgba(0, 255, 65, 0.2);
+        }
+
+        /* Search input */
+        .search-input {
             flex: 1;
+            min-width: 150px;
+            padding: 6px 12px;
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(0, 255, 65, 0.3);
-            color: #00ff41;
-            padding: 6px 10px;
             border-radius: 4px;
+            color: #00ff41;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 12px;
         }
 
+        .search-input::placeholder {
+            color: rgba(0, 255, 65, 0.5);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: rgba(0, 255, 65, 0.6);
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.2);
+        }
+
+        /* Dropdowns */
+        .dropdown {
+            padding: 6px 10px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 4px;
+            color: #00ff41;
+            font-family: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .dropdown:focus {
+            outline: none;
+            border-color: rgba(0, 255, 65, 0.6);
+        }
+
+        /* Options row */
+        .options-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 6px 12px;
+            background: rgba(0, 15, 8, 0.5);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+            font-size: 12px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            accent-color: #00ff41;
+        }
+
+        /* Breadcrumb */
         .breadcrumb {
-            font-size: 14px;
-            opacity: 0.8;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: rgba(0, 255, 65, 0.8);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.15);
         }
 
         .breadcrumb-item {
             cursor: pointer;
-            transition: color 0.15s;
+            transition: color 0.2s;
         }
 
         .breadcrumb-item:hover {
-            color: #55ff55;
+            color: #00ff41;
+            text-decoration: underline;
         }
 
+        .breadcrumb-sep {
+            margin: 0 6px;
+            opacity: 0.5;
+        }
+
+        /* Content area */
         .content-area {
-            flex: 1;
             display: flex;
+            flex: 1;
             overflow: hidden;
         }
 
+        /* Sidebar */
         .sidebar {
-            width: 200px;
+            width: 160px;
+            background: rgba(0, 15, 8, 0.5);
             border-right: 1px solid rgba(0, 255, 65, 0.2);
             overflow-y: auto;
-            padding: 10px;
+            padding: 8px 0;
+        }
+
+        .sidebar-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: rgba(0, 255, 65, 0.6);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .sidebar-item {
-            padding: 8px;
+            padding: 8px 12px;
             cursor: pointer;
-            border-radius: 4px;
-            margin-bottom: 4px;
-            transition: all 0.15s ease;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .sidebar-item:hover {
-            background: rgba(0, 255, 65, 0.15);
+            background: rgba(0, 255, 65, 0.1);
         }
 
         .sidebar-item.active {
             background: rgba(0, 255, 65, 0.2);
+            border-left: 3px solid #00ff41;
         }
 
+        /* File grid */
         .file-list {
             flex: 1;
             overflow-y: auto;
-            padding: 15px;
+            padding: 12px;
         }
 
         .file-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 15px;
+            gap: 12px;
+        }
+
+        .file-grid.list-view {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .file-grid.list-view .file-item {
+            flex-direction: row;
+            padding: 8px 12px;
+            gap: 12px;
+        }
+
+        .file-grid.list-view .file-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .file-grid.list-view .file-icon svg {
+            width: 24px;
+            height: 24px;
         }
 
         .file-item {
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 10px;
+            padding: 12px 8px;
+            border: 1px solid transparent;
             border-radius: 6px;
             cursor: pointer;
-            transition: all 0.15s ease;
-            border: 2px solid transparent;
+            transition: all 0.2s;
+            position: relative;
+            background: rgba(0, 255, 65, 0.02);
         }
 
         .file-item:hover {
-            background: rgba(0, 255, 65, 0.1);
+            background: rgba(0, 255, 65, 0.08);
+            border-color: rgba(0, 255, 65, 0.2);
         }
 
         .file-item.selected {
             background: rgba(0, 255, 65, 0.15);
-            border-color: #00ff41;
+            border-color: rgba(0, 255, 65, 0.4);
+        }
+
+        /* Checkbox indicator */
+        .file-checkbox {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 18px;
+            height: 18px;
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-checkbox,
+        .file-item.selected .file-checkbox {
+            opacity: 1;
+        }
+
+        .file-item.selected .file-checkbox {
+            background: rgba(0, 255, 65, 0.3);
+            color: #00ff41;
         }
 
         .file-icon {
-            font-size: 32px;
-            margin-bottom: 6px;
+            width: 48px;
+            height: 48px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-icon svg {
+            width: 48px;
+            height: 48px;
         }
 
         .file-name {
-            font-size: 12px;
+            font-size: 11px;
             text-align: center;
             word-break: break-word;
             max-width: 100%;
+            line-height: 1.3;
         }
 
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: rgba(0, 15, 8, 0.8);
+            border-top: 1px solid rgba(0, 255, 65, 0.2);
+            font-size: 11px;
+            color: rgba(0, 255, 65, 0.7);
+        }
+
+        /* Context menu */
+        .context-menu {
+            position: fixed;
+            background: rgba(8, 20, 12, 0.98);
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 6px;
+            padding: 5px 0;
+            z-index: 10000;
+            min-width: 180px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        }
+
+        .context-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s;
+            color: #00ff41;
+        }
+
+        .context-item:hover {
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .context-divider {
+            height: 1px;
+            background: rgba(0, 255, 65, 0.2);
+            margin: 5px 0;
+        }
+
+        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -226,47 +467,18 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 255, 65, 0.5);
         }
-
-        .file-item.selected {
-            background: rgba(0, 255, 65, 0.2);
-            border-color: rgba(0, 255, 65, 0.6);
-        }
-
-        .context-menu {
-            position: fixed;
-            background: rgba(8, 20, 12, 0.98);
-            border: 1px solid rgba(0, 255, 65, 0.4);
-            border-radius: 6px;
-            padding: 5px 0;
-            z-index: 10000;
-            min-width: 180px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-        }
-
-        .context-item {
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.15s ease;
-            color: #00ff41;
-        }
-
-        .context-item:hover {
-            background: rgba(0, 255, 65, 0.15);
-        }
-
-        .context-divider {
-            height: 1px;
-            background: rgba(0, 255, 65, 0.2);
-            margin: 5px 0;
-        }
     </style>
 </head>
 
 <body>
     <div class="app-window">
         <div class="title-bar">
-            <span class="title-bar-title">File Manager</span>
+            <span class="title-bar-title">
+                <svg width="16" height="16" viewBox="0 0 48 48" fill="none" stroke="#00ff41" stroke-width="2">
+                    <path d="M4 10L4 42L44 42L44 14L24 14L20 10L4 10Z" />
+                </svg>
+                FILE BROWSER
+            </span>
             <div class="title-bar-buttons">
                 <button class="title-bar-btn" id="minimize-btn" title="Minimize">−</button>
                 <button class="title-bar-btn" id="maximize-btn" title="Maximize">□</button>
@@ -275,30 +487,56 @@
         </div>
 
         <div class="toolbar">
-            <button id="back-btn" title="Back">←</button>
-            <button id="forward-btn" title="Forward">→</button>
-            <button id="up-btn" title="Up">↑</button>
-            <button id="home-btn" title="Home">🏠</button>
-            <div class="breadcrumb" id="breadcrumb"></div>
-            <input type="text" id="search-input" placeholder="Search files..." />
-            <button id="view-toggle-btn" title="Toggle View">⊞</button>
-            <button id="new-folder-btn" title="New Folder">📁+</button>
+            <button class="toolbar-btn" id="back-btn" title="Back">←</button>
+            <button class="toolbar-btn" id="up-btn" title="Up">↑</button>
+            <button class="toolbar-btn" id="refresh-btn" title="Refresh">↻</button>
+
+            <div class="selection-badge" id="selection-badge">0 selected</div>
+
+            <button class="btn-delete" id="delete-btn" disabled>🗑 Delete</button>
+            <button class="btn-clear" id="clear-btn">Clear</button>
+
+            <input type="text" class="search-input" id="search-input" placeholder="Search this folder" />
+
+            <select class="dropdown" id="sort-select">
+                <option value="name">Name</option>
+                <option value="date">Date</option>
+                <option value="size">Size</option>
+            </select>
+
+            <select class="dropdown" id="view-select">
+                <option value="grid">Grid</option>
+                <option value="list">List</option>
+            </select>
+        </div>
+
+        <div class="options-row">
+            <label class="checkbox-label">
+                <input type="checkbox" id="show-hidden" />
+                Hidden
+            </label>
+        </div>
+
+        <div class="breadcrumb" id="breadcrumb">
+            This PC
         </div>
 
         <div class="content-area">
-            <div class="sidebar" id="sidebar"></div>
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-header">Favorites</div>
+            </div>
             <div class="file-list">
                 <div class="file-grid" id="file-grid"></div>
             </div>
         </div>
 
-        <div class="status-bar" id="status-bar"
-            style="padding: 6px 12px; background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(0, 255, 65, 0.2); font-size: 12px; display: flex; justify-content: space-between;">
-            <span id="status-text">Ready</span>
+        <div class="status-bar">
+            <span id="status-text">0 items</span>
             <span id="status-path"></span>
         </div>
     </div>
-    <script type="module" src="/src/files-window.ts"></script>
+
+    <script type="module" src="./src/files-window.ts"></script>
 </body>
 
 </html>

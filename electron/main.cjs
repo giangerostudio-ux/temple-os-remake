@@ -7361,16 +7361,27 @@ ipcMain.handle('fs:openWith', async (event, filePath, appExec) => {
         const { spawn } = require('child_process');
 
         // Parse the exec command and replace %f/%F/%u/%U with the file path
-        let cmd = appExec.replace(/%[fFuU]/g, `"${filePath}"`);
-        // Remove other desktop file tokens
-        cmd = cmd.replace(/%[a-zA-Z]/g, '');
+        let cmd = appExec;
+        const hasPlaceholder = /%[fFuU]/.test(cmd);
 
-        console.log('[openWith] Launching:', cmd, 'with file:', filePath);
+        if (hasPlaceholder) {
+            cmd = cmd.replace(/%[fFuU]/g, `"${filePath}"`);
+        } else {
+            // No placeholder - append file path at the end
+            cmd = `${cmd} "${filePath}"`;
+        }
 
-        // Spawn detached
-        const proc = spawn('sh', ['-c', `${cmd} &`], {
+        // Remove other desktop file tokens (%i, %c, %k, etc.)
+        cmd = cmd.replace(/%[a-zA-Z]/g, '').trim();
+
+        console.log('[openWith] Launching:', cmd);
+
+        // Use setsid to fully detach and prevent blocking
+        // nohup ensures it survives parent exit
+        const proc = spawn('setsid', ['sh', '-c', `${cmd}`], {
             detached: true,
-            stdio: 'ignore'
+            stdio: 'ignore',
+            env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' }
         });
         proc.unref();
 

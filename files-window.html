@@ -7,7 +7,7 @@
     <title>File Manager</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -19,9 +19,9 @@
         body {
             height: 100%;
             overflow: hidden;
-            font-family: 'VT323', monospace;
+            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
             color: #00ff41;
-            background: rgba(13, 17, 23, 0.98);
+            background: #020502;
         }
 
         .app-window {
@@ -46,8 +46,9 @@
         }
 
         .title-bar-title {
-            font-weight: bold;
-            font-size: 16px;
+            font-weight: 500;
+            font-size: 14px;
+            font-family: 'Fira Code', monospace;
         }
 
         .title-bar-buttons {
@@ -225,6 +226,40 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 255, 65, 0.5);
         }
+
+        .file-item.selected {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: rgba(0, 255, 65, 0.6);
+        }
+
+        .context-menu {
+            position: fixed;
+            background: rgba(8, 20, 12, 0.98);
+            border: 1px solid rgba(0, 255, 65, 0.4);
+            border-radius: 6px;
+            padding: 5px 0;
+            z-index: 10000;
+            min-width: 180px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        }
+
+        .context-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s ease;
+            color: #00ff41;
+        }
+
+        .context-item:hover {
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .context-divider {
+            height: 1px;
+            background: rgba(0, 255, 65, 0.2);
+            margin: 5px 0;
+        }
     </style>
 </head>
 
@@ -241,10 +276,13 @@
 
         <div class="toolbar">
             <button id="back-btn" title="Back">←</button>
+            <button id="forward-btn" title="Forward">→</button>
             <button id="up-btn" title="Up">↑</button>
             <button id="home-btn" title="Home">🏠</button>
             <div class="breadcrumb" id="breadcrumb"></div>
             <input type="text" id="search-input" placeholder="Search files..." />
+            <button id="view-toggle-btn" title="Toggle View">⊞</button>
+            <button id="new-folder-btn" title="New Folder">📁+</button>
         </div>
 
         <div class="content-area">
@@ -252,6 +290,12 @@
             <div class="file-list">
                 <div class="file-grid" id="file-grid"></div>
             </div>
+        </div>
+
+        <div class="status-bar" id="status-bar"
+            style="padding: 6px 12px; background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(0, 255, 65, 0.2); font-size: 12px; display: flex; justify-content: space-between;">
+            <span id="status-text">Ready</span>
+            <span id="status-path"></span>
         </div>
     </div>
     <script type="module" src="/src/files-window.ts"></script>

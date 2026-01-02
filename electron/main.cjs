@@ -3897,8 +3897,8 @@ ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
 </body>
 </html>`;
 
-        // Load from file URL for terminal/files (they need full API access)
-        // Use data URI for other apps (settings, editor, etc.)
+        // Load from file URL for terminal/files/settings (they need full API access)
+        // Use data URI for other apps (editor, etc.)
         if (appId === 'terminal') {
             const terminalPath = path.join(app.getAppPath(), 'dist', 'terminal-window.html');
             console.log('[FloatingApp-Inline] Loading terminal from:', terminalPath);
@@ -3907,6 +3907,10 @@ ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
             const filesPath = path.join(app.getAppPath(), 'dist', 'files-window.html');
             console.log('[FloatingApp-Inline] Loading files from:', filesPath);
             win.loadFile(filesPath);
+        } else if (appId === 'settings') {
+            const settingsPath = path.join(app.getAppPath(), 'dist', 'settings-window.html');
+            console.log('[FloatingApp-Inline] Loading settings from:', settingsPath);
+            win.loadFile(settingsPath);
         } else {
             // Fallback to data URI for other apps
             win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);

@@ -52,13 +52,21 @@ const breadcrumb = document.getElementById('breadcrumb')!;
 const fileGrid = document.getElementById('file-grid')!;
 const sidebar = document.getElementById('sidebar')!;
 const searchInput = document.getElementById('search-input') as HTMLInputElement;
-const backBtn = document.getElementById('back-btn')!;
-const upBtn = document.getElementById('up-btn')!;
-const homeBtn = document.getElementById('home-btn')!;
+const backBtn = document.getElementById('back-btn') as HTMLButtonElement;
+const forwardBtn = document.getElementById('forward-btn') as HTMLButtonElement;
+const upBtn = document.getElementById('up-btn') as HTMLButtonElement;
+const homeBtn = document.getElementById('home-btn') as HTMLButtonElement;
+const viewToggleBtn = document.getElementById('view-toggle-btn') as HTMLButtonElement;
+const newFolderBtn = document.getElementById('new-folder-btn') as HTMLButtonElement;
+const statusText = document.getElementById('status-text')!;
+const statusPath = document.getElementById('status-path')!;
 
 // Navigation history
 const navHistory: string[] = [];
 let navHistoryIndex = -1;
+
+// View mode
+let viewMode: 'grid' | 'list' = 'grid';
 
 // Helper: Get file icon
 function getFileIcon(name: string, isDir: boolean): string {
@@ -104,10 +112,34 @@ async function loadDirectory(path: string) {
 
         renderBreadcrumb();
         renderFileGrid();
+        updateStatusBar();
+        updateNavigationButtons();
     } catch (e) {
         console.error('[Files Window] Load error:', e);
         fileGrid.innerHTML = '<div style="padding: 20px; color: #ff4444;">Error loading directory</div>';
     }
+}
+
+// Update navigation button states
+function updateNavigationButtons() {
+    backBtn.disabled = navHistoryIndex <= 0;
+    forwardBtn.disabled = navHistoryIndex >= navHistory.length - 1;
+    backBtn.style.opacity = navHistoryIndex <= 0 ? '0.5' : '1';
+    forwardBtn.style.opacity = navHistoryIndex >= navHistory.length - 1 ? '0.5' : '1';
+}
+
+// Update status bar
+function updateStatusBar() {
+    const selectedCount = selectedFiles.size;
+    const totalCount = fileEntries.length;
+
+    if (selectedCount > 0) {
+        statusText.textContent = `${selectedCount} selected of ${totalCount} items`;
+    } else {
+        statusText.textContent = `${totalCount} items`;
+    }
+
+    statusPath.textContent = currentPath;
 }
 
 // Render breadcrumb navigation
@@ -193,6 +225,7 @@ function renderFileGrid() {
                         selectedFiles.add(path);
                     }
                     renderFileGrid();
+                    updateStatusBar();
                 }
             } else if (isDir && path) {
                 void loadDirectory(path);
@@ -248,20 +281,95 @@ async function renderSidebar() {
 }
 
 // Context menu
-async function showContextMenu(x: number, y: number, _filePath: string, isDir: boolean) {
-    if (!window.electronAPI?.showContextMenuPopup) return;
+function showContextMenu(x: number, y: number, filePath: string, isDir: boolean) {
+    // Remove existing context menu
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
 
     const items = [
-        { id: 'open', label: isDir ? 'Open' : 'Open with default app' },
-        { id: 'delete', label: 'Delete' },
-        { id: 'rename', label: 'Rename' }
+        { id: 'open', label: isDir ? '📂 Open Folder' : '📄 Open' },
+        { id: 'divider1', label: '' },
+        { id: 'delete', label: '🗑️ Delete' },
+        { id: 'rename', label: '✏️ Rename' }
     ];
 
-    try {
-        await window.electronAPI.showContextMenuPopup(x, y, items);
-        // Note: Actions would be handled by electron backend
-    } catch (e) {
-        console.error('[Files Window] Context menu error:', e);
+    menu.innerHTML = items.map(item => {
+        if (item.id.startsWith('divider')) {
+            return '<div class="context-divider"></div>';
+        }
+        return `<div class="context-item" data-action="${item.id}">${item.label}</div>`;
+    }).join('');
+
+    document.body.appendChild(menu);
+
+    // Handle clicks
+    menu.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement;
+        const action = target.getAttribute('data-action');
+        if (action) {
+            await handleContextAction(action, filePath, isDir);
+            menu.remove();
+        }
+    });
+
+    // Close on outside click
+    const closeHandler = (e: MouseEvent) => {
+        if (!menu.contains(e.target as Node)) {
+            menu.remove();
+            document.removeEventListener('click', closeHandler);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 10);
+}
+
+// Handle context menu actions
+async function handleContextAction(action: string, filePath: string, isDir: boolean) {
+    if (!window.electronAPI) return;
+
+    switch (action) {
+        case 'open':
+            if (isDir) {
+                void loadDirectory(filePath);
+            } else {
+                // Open file with default application
+                if (window.electronAPI.openExternal) {
+                    await window.electronAPI.openExternal(filePath);
+                }
+            }
+            break;
+
+        case 'delete':
+            const confirmDelete = confirm(`Delete ${filePath.split(/[/\\]/).pop()}?`);
+            if (confirmDelete && window.electronAPI.deleteItem) {
+                const result = await window.electronAPI.deleteItem(filePath);
+                if (result.success) {
+                    // Refresh current directory
+                    void loadDirectory(currentPath);
+                } else {
+                    alert('Failed to delete: ' + result.error);
+                }
+            }
+            break;
+
+        case 'rename':
+            const newName = prompt('Enter new name:', filePath.split(/[/\\]/).pop());
+            if (newName && window.electronAPI.rename) {
+                const parent = filePath.split(/[/\\]/).slice(0, -1).join(filePath.includes('\\') ? '\\' : '/');
+                const newPath = parent + (parent.endsWith('/') || parent.endsWith('\\') ? '' : (filePath.includes('\\') ? '\\' : '/')) + newName;
+                const result = await window.electronAPI.rename(filePath, newPath);
+                if (result.success) {
+                    void loadDirectory(currentPath);
+                } else {
+                    alert('Failed to rename: ' + result.error);
+                }
+            }
+            break;
     }
 }
 
@@ -269,6 +377,13 @@ async function showContextMenu(x: number, y: number, _filePath: string, isDir: b
 backBtn.addEventListener('click', () => {
     if (navHistoryIndex > 0) {
         navHistoryIndex--;
+        void loadDirectory(navHistory[navHistoryIndex]);
+    }
+});
+
+forwardBtn.addEventListener('click', () => {
+    if (navHistoryIndex < navHistory.length - 1) {
+        navHistoryIndex++;
         void loadDirectory(navHistory[navHistoryIndex]);
     }
 });
@@ -285,8 +400,31 @@ homeBtn.addEventListener('click', () => {
     void loadDirectory(homeDir);
 });
 
+viewToggleBtn.addEventListener('click', () => {
+    viewMode = viewMode === 'grid' ? 'list' : 'grid';
+    viewToggleBtn.textContent = viewMode === 'grid' ? '⊞' : '☰';
+    renderFileGrid();
+});
+
+newFolderBtn.addEventListener('click', async () => {
+    const name = prompt('Enter folder name:');
+    if (!name) return;
+
+    const newPath = currentPath + (currentPath.endsWith('/') || currentPath.endsWith('\\') ? '' : '/') + name;
+
+    if (window.electronAPI?.mkdir) {
+        const result = await window.electronAPI.mkdir(newPath);
+        if (result.success) {
+            void loadDirectory(currentPath);
+        } else {
+            alert('Failed to create folder: ' + result.error);
+        }
+    }
+});
+
 searchInput.addEventListener('input', () => {
     renderFileGrid();
+    updateStatusBar();
 });
 
 // Keyboard shortcuts

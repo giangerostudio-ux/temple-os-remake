@@ -12,6 +12,7 @@ export default defineConfig({
                 panel: resolve(__dirname, 'panel.html'),
                 terminal: resolve(__dirname, 'terminal-window.html'),
                 files: resolve(__dirname, 'files-window.html'),
+                settings: resolve(__dirname, 'settings-window.html'),
             },
         },
     }

@@ -324,9 +324,17 @@ function showContextMenu(x: number, y: number, filePath: string, isDir: boolean)
     const count = selectedFiles.size;
     const items = [
         { id: 'open', label: isDir ? '📂 Open' : '📄 Open' },
+        { id: 'preview', label: '👁 Preview', disabled: isDir },
         { id: 'divider1', label: '' },
+        { id: 'bookmark', label: '⭐ Add Bookmark' },
+        { id: 'compress', label: '📦 Compress to Zip' },
+        { id: 'divider2', label: '' },
+        { id: 'copy', label: '📋 Copy' },
+        { id: 'cut', label: '✂️ Cut' },
+        { id: 'rename', label: '✏️ Rename' },
         { id: 'delete', label: count > 1 ? `🗑️ Delete ${count} items` : '🗑️ Delete' },
-        { id: 'rename', label: '✏️ Rename' }
+        { id: 'divider3', label: '' },
+        { id: 'copypath', label: '📝 Copy Path' }
     ];
 
     menu.innerHTML = items.map(item => {
@@ -356,6 +364,12 @@ function showContextMenu(x: number, y: number, filePath: string, isDir: boolean)
     setTimeout(() => document.addEventListener('click', closeHandler), 10);
 }
 
+// Clipboard for copy/cut (will be used for paste functionality)
+// @ts-ignore - used in copy/cut handlers
+let clipboardPaths: string[] = [];
+// @ts-ignore - used in copy/cut handlers
+let clipboardMode: 'copy' | 'cut' | null = null;
+
 // Handle context actions
 async function handleContextAction(action: string, filePath: string, isDir: boolean) {
     if (!window.electronAPI) return;
@@ -366,6 +380,49 @@ async function handleContextAction(action: string, filePath: string, isDir: bool
                 void loadDirectory(filePath);
             } else if (window.electronAPI.openExternal) {
                 await window.electronAPI.openExternal(filePath);
+            }
+            break;
+
+        case 'preview':
+            if (!isDir && window.electronAPI.openExternal) {
+                await window.electronAPI.openExternal(filePath);
+            }
+            break;
+
+        case 'bookmark':
+            alert('Bookmark added (feature not fully implemented)');
+            break;
+
+        case 'compress':
+            alert('Compress to Zip (feature not fully implemented)');
+            break;
+
+        case 'copy':
+            clipboardPaths = selectedFiles.size > 0 ? Array.from(selectedFiles) : [filePath];
+            clipboardMode = 'copy';
+            updateUI();
+            break;
+
+        case 'cut':
+            clipboardPaths = selectedFiles.size > 0 ? Array.from(selectedFiles) : [filePath];
+            clipboardMode = 'cut';
+            updateUI();
+            break;
+
+        case 'copypath':
+            const pathsToCopy = selectedFiles.size > 0 ? Array.from(selectedFiles) : [filePath];
+            const pathText = pathsToCopy.join('\n');
+            try {
+                await navigator.clipboard.writeText(pathText);
+                console.log('[File Browser] Path copied to clipboard');
+            } catch (e) {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = pathText;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
             }
             break;
 

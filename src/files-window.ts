@@ -578,6 +578,95 @@ window.addEventListener('keydown', async (e) => {
     }
 });
 
+// Empty space context menu (New Folder, New File, Refresh)
+function showEmptySpaceContextMenu(x: number, y: number) {
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    const items = [
+        { id: 'newFolder', label: '📁 New Folder' },
+        { id: 'newFile', label: '📄 New File' },
+        { id: 'divider1', label: '' },
+        { id: 'refresh', label: '🔄 Refresh' }
+    ];
+
+    menu.innerHTML = items.map(item => {
+        if (item.id.startsWith('divider')) {
+            return '<div class="context-divider"></div>';
+        }
+        return `<div class="context-item" data-action="${item.id}">${item.label}</div>`;
+    }).join('');
+
+    document.body.appendChild(menu);
+
+    menu.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement;
+        const action = target.getAttribute('data-action');
+        if (action) {
+            await handleEmptySpaceAction(action);
+            menu.remove();
+        }
+    });
+
+    const closeHandler = (e: MouseEvent) => {
+        if (!menu.contains(e.target as Node)) {
+            menu.remove();
+            document.removeEventListener('click', closeHandler);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 10);
+}
+
+async function handleEmptySpaceAction(action: string) {
+    if (!window.electronAPI) return;
+
+    switch (action) {
+        case 'newFolder':
+            const folderName = prompt('Enter folder name:', 'New Folder');
+            if (folderName && window.electronAPI.mkdir) {
+                const sep = currentPath.includes('\\') ? '\\' : '/';
+                const newPath = currentPath + sep + folderName;
+                const result = await window.electronAPI.mkdir(newPath);
+                if (result.success) {
+                    void loadDirectory(currentPath);
+                } else {
+                    alert('Failed to create folder: ' + result.error);
+                }
+            }
+            break;
+
+        case 'newFile':
+            const fileName = prompt('Enter file name:', 'new_file.txt');
+            if (fileName) {
+                // Create empty file via touch or write
+                alert('New file creation not fully implemented yet');
+            }
+            break;
+
+        case 'refresh':
+            void loadDirectory(currentPath);
+            break;
+    }
+}
+
+// Add right-click handler for empty space in file grid
+const fileListContainer = fileGrid.parentElement;
+if (fileListContainer) {
+    fileListContainer.addEventListener('contextmenu', (e: MouseEvent) => {
+        // Only show empty space menu if clicking on the container, not on a file
+        const target = e.target as HTMLElement;
+        if (target === fileListContainer || target === fileGrid || target.classList.contains('file-grid')) {
+            e.preventDefault();
+            showEmptySpaceContextMenu(e.clientX, e.clientY);
+        }
+    });
+}
+
 // Initialize
 async function init() {
     if (!window.electronAPI?.getHome) {

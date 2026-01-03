@@ -81,6 +81,9 @@ interface SettingsState {
     vpnKillSwitch: boolean;
     hotspotEnabled: boolean;
     sshEnabled: boolean;
+    // Display
+    activeDisplayOutput: string;
+    windowAnimations: boolean;
 }
 
 let state: SettingsState = {
@@ -116,7 +119,9 @@ let state: SettingsState = {
     flightMode: false,
     vpnKillSwitch: false,
     hotspotEnabled: false,
-    sshEnabled: false
+    sshEnabled: false,
+    activeDisplayOutput: '',
+    windowAnimations: true
 };
 
 // Categories
@@ -355,34 +360,60 @@ function attachContentHandlers() {
         });
     }
 
-    // Display refresh button
+    // Display refresh button - populates display outputs
     const displayRefreshBtn = content.querySelector('.display-refresh-btn');
     if (displayRefreshBtn) {
         displayRefreshBtn.addEventListener('click', async () => {
             if (window.electronAPI?.getDisplayOutputs) {
                 const result = await window.electronAPI.getDisplayOutputs();
-                // Could update display dropdowns here if we want live refresh
-                console.log('[Settings] Display outputs:', result);
+                if (result?.outputs && Array.isArray(result.outputs)) {
+                    // Store first output as active
+                    if (result.outputs.length > 0) {
+                        state.activeDisplayOutput = result.outputs[0].name;
+                    }
+                    // Populate display dropdown if exists
+                    const displaySelect = content.querySelector('.display-output-select') as HTMLSelectElement;
+                    if (displaySelect) {
+                        displaySelect.innerHTML = result.outputs.map((o: { name: string; current?: string }) =>
+                            `<option value="${o.name}">${o.name}${o.current ? ` (${o.current})` : ''}</option>`
+                        ).join('');
+                    }
+                }
             }
         });
     }
 
-    // Display scale slider
+    // Display scale slider with debounced IPC call
     const displayScaleSlider = content.querySelector('.display-scale-slider') as HTMLInputElement;
     const displayScaleValue = content.querySelector('.display-scale-value');
+    let scaleChangeTimer: number | null = null;
     if (displayScaleSlider && displayScaleValue) {
         displayScaleSlider.addEventListener('input', (e) => {
-            const value = parseFloat((e.target as HTMLInputElement).value);
-            displayScaleValue.textContent = Math.round(value * 100) + '%';
+            const scale = parseFloat((e.target as HTMLInputElement).value);
+            displayScaleValue.textContent = Math.round(scale * 100) + '%';
+
+            // Debounce the IPC call
+            if (scaleChangeTimer) clearTimeout(scaleChangeTimer);
+            scaleChangeTimer = window.setTimeout(async () => {
+                if (window.electronAPI?.setDisplayScale) {
+                    // Use first display output or default
+                    const outputName = state.activeDisplayOutput || 'default';
+                    await window.electronAPI.setDisplayScale(outputName, scale);
+                }
+            }, 300);
         });
     }
 
     // Display scale reset button
     const displayScaleResetBtn = content.querySelector('.display-scale-reset-btn');
     if (displayScaleResetBtn && displayScaleSlider) {
-        displayScaleResetBtn.addEventListener('click', () => {
+        displayScaleResetBtn.addEventListener('click', async () => {
             displayScaleSlider.value = '1';
             if (displayScaleValue) displayScaleValue.textContent = '100%';
+            if (window.electronAPI?.setDisplayScale) {
+                const outputName = state.activeDisplayOutput || 'default';
+                await window.electronAPI.setDisplayScale(outputName, 1);
+            }
         });
     }
 

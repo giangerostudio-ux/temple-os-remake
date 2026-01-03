@@ -2166,7 +2166,8 @@ class TempleOS {
         console.log('[Main] Config changed from another window, applying...');
         // Reload config from file to get the full merged state
         await this.settingsManager.loadConfig();
-        // If visual effects specifically changed, also apply immediately
+
+        // If visual effects changed, apply immediately
         const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number } | undefined;
         if (effects !== undefined) {
           if (typeof effects.heavenlyPulse === 'boolean') {
@@ -2177,6 +2178,26 @@ class TempleOS {
             document.documentElement.style.setProperty('--pulse-intensity', String(effects.heavenlyPulseIntensity));
           }
           this.settingsManager.applyTheme();
+        }
+
+        // If security settings changed, update inline state
+        const security = config.security as {
+          firewallEnabled?: boolean;
+          encryptionEnabled?: boolean;
+          macRandomization?: boolean;
+          secureDelete?: boolean;
+          secureWipeOnShutdown?: boolean;
+          trackerBlockingEnabled?: boolean;
+        } | undefined;
+        if (security !== undefined) {
+          if (typeof security.firewallEnabled === 'boolean') this.firewallEnabled = security.firewallEnabled;
+          if (typeof security.encryptionEnabled === 'boolean') this.encryptionEnabled = security.encryptionEnabled;
+          if (typeof security.macRandomization === 'boolean') this.macRandomization = security.macRandomization;
+          if (typeof security.secureDelete === 'boolean') this.secureDelete = security.secureDelete;
+          if (typeof security.secureWipeOnShutdown === 'boolean') this.secureWipeOnShutdown = security.secureWipeOnShutdown;
+          if (typeof security.trackerBlockingEnabled === 'boolean') this.trackerBlockingEnabled = security.trackerBlockingEnabled;
+          // Refresh Security settings UI if it's currently active
+          if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
         }
       });
     }

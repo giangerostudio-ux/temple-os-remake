@@ -131,6 +131,22 @@ cat > "$RC_XML" <<EOF
         <action name="Resize"/>
       </mousebind> 
     </context>
+
+    <!-- CLIENT: Click anywhere in window content to focus (CRITICAL for click-to-focus) -->
+    <context name="Client">
+      <mousebind button="Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Middle" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+    </context>
   </mouse>
 
   <applications>

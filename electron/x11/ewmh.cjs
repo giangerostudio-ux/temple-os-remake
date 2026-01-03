@@ -136,7 +136,20 @@ async function listClientWindows() {
 }
 
 async function activateWindow(xidHex) {
+  // Step 1: Use wmctrl to raise and activate the window
   await execFileAsync('wmctrl', ['-ia', xidHex]);
+
+  // Step 2: Use xdotool for explicit input focus (fixes click-to-focus issues)
+  // xdotool uses decimal window IDs, convert from hex
+  try {
+    const xidDec = parseInt(xidHex, 16);
+    // windowactivate: raise and focus the window (EWMH-compliant)
+    await execFileAsync('xdotool', ['windowactivate', '--sync', String(xidDec)]).catch(() => { });
+    // windowfocus: explicitly set keyboard input focus
+    await execFileAsync('xdotool', ['windowfocus', '--sync', String(xidDec)]).catch(() => { });
+  } catch {
+    // xdotool not available, wmctrl alone may be enough for some WMs
+  }
 }
 
 async function closeWindow(xidHex) {

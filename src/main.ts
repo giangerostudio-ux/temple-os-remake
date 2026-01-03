@@ -2157,6 +2157,9 @@ class TempleOS {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
 
+    // Persist current security state to ensure popout can load it
+    this.saveSecurityToConfig();
+
     // Listen for config changes from other windows (e.g., popout settings)
     if (window.electronAPI?.onConfigChanged) {
       window.electronAPI.onConfigChanged(async (config: Record<string, unknown>) => {

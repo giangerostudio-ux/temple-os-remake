@@ -148,11 +148,25 @@ if (window.electronAPI?.onConfigChanged) {
     });
 }
 
-// Render sidebar
+// SVG Icons for categories
+const svgIcons: Record<string, string> = {
+    System: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
+    Personalization: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="19" cy="17" r="2"></circle></svg>',
+    Network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>',
+    Gaming: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>',
+    Security: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+    Accessibility: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+    Devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="6"></rect><line x1="12" y1="7" x2="12" y2="11"></line></svg>',
+    Bluetooth: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline></svg>',
+    About: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+};
+
+// Render sidebar with icons
 function renderSidebar() {
     sidebar.innerHTML = categories.map(cat => `
         <div class="settings-category ${cat === state.activeCategory ? 'active' : ''}" data-category="${cat}">
-            ${cat}
+            <span class="icon">${svgIcons[cat] || ''}</span>
+            <span class="label">${cat}</span>
         </div>
     `).join('');
 }
@@ -362,43 +376,120 @@ function handleButtonClick(id: string) {
     }
 }
 
+// Card helper for consistent styling
+function card(title: string, inner: string): string {
+    return `
+        <div style="border: 1px solid rgba(0,255,65,0.25); border-radius: 10px; padding: 14px; margin-bottom: 14px; background: rgba(0,0,0,0.18);">
+            <div style="font-size: 16px; color: #ffd700; margin-bottom: 10px;">${title}</div>
+            ${inner}
+        </div>
+    `;
+}
+
 function renderSystemSettings() {
     return `
-        <div class="settings-card">
-            <h3>Display</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Resolution
-                    <small>Current display resolution</small>
-                </div>
-                <select id="resolution-select">
-                    <option>1920x1080</option>
-                    <option>1366x768</option>
-                    <option>2560x1440</option>
-                </select>
-            </div>
-        </div>
+        ${card('Sound', `
+            <div style="display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; align-items: center;">
+                <div>Volume</div>
+                <input type="range" class="volume-slider" min="0" max="100" value="50" style="width: 100%; accent-color: #00ff41;">
 
-        <div class="settings-card">
-            <h3>Taskbar</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Position
-                    <small>Where to show the taskbar</small>
-                </div>
-                <select id="taskbar-position">
-                    <option ${state.taskbarPosition === 'Bottom' ? 'selected' : ''}>Bottom</option>
-                    <option ${state.taskbarPosition === 'Top' ? 'selected' : ''}>Top</option>
+                <div>Output</div>
+                <select class="audio-output-select" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                    <option value="default">Default</option>
+                </select>
+
+                <div>Input</div>
+                <select class="audio-input-select" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                    <option value="default">Default</option>
                 </select>
             </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Auto-hide taskbar
-                    <small>Hide when not in use</small>
-                </div>
-                <input type="checkbox" id="taskbar-autohide" ${state.taskbarAutohide ? 'checked' : ''} />
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                <button class="audio-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh devices</button>
             </div>
-        </div>
+        `)}
+
+        ${card('Time & Date', `
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: bold;">Set time automatically</span>
+                        <span style="font-size: 12px; opacity: 0.7;">Sync with God's NTP servers</span>
+                    </div>
+                    <input type="checkbox" class="auto-time-toggle" checked style="transform: scale(1.2); accent-color: #00ff41;">
+                </label>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                    <span style="font-weight: bold;">Timezone</span>
+                    <select class="timezone-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                        <option value="UTC">UTC</option>
+                        <option value="Local" selected>Local</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        <option value="Europe/London">Europe/London</option>
+                    </select>
+                </div>
+            </div>
+        `)}
+
+        ${card('Memory Optimization', `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-weight: bold;">Manual Cleanup</span>
+                    <span style="font-size: 12px; opacity: 0.7;">Flush system caches and optimize RAM usage</span>
+                </div>
+                <button class="clean-memory-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit;">Clean RAM</button>
+            </div>
+        `)}
+
+        ${card('Display', `
+            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
+                <div>Monitor</div>
+                <div style="display: flex; gap: 8px;">
+                    <select class="display-output-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                        <option value="default">default</option>
+                    </select>
+                    <button class="display-move-btn" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Move Here</button>
+                </div>
+
+                <div>Mode</div>
+                <select class="display-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                    <option value="1024x768@60Hz">1024 x 768 @ 60Hz</option>
+                    <option value="1920x1080@60Hz" selected>1920 x 1080 @ 60Hz</option>
+                    <option value="2560x1440@60Hz">2560 x 1440 @ 60Hz</option>
+                </select>
+
+                <div>Scale</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="range" class="display-scale-slider" min="0.75" max="2" step="0.05" value="1" style="flex: 1; accent-color: #00ff41;">
+                    <span class="display-scale-value" style="min-width: 50px; text-align: center; color: #00ff41; font-weight: bold;">100%</span>
+                    <button class="display-scale-reset-btn" style="background: rgba(255,100,100,0.1); border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">Reset</button>
+                </div>
+
+                <div>Orientation</div>
+                <select class="display-transform-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                    <option value="normal" selected>Landscape</option>
+                    <option value="90">Rotate 90°</option>
+                    <option value="180">Rotate 180°</option>
+                    <option value="270">Rotate 270°</option>
+                </select>
+            </div>
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="display-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh displays</button>
+            </div>
+            <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Tip: scale works best on Wayland/Sway; on X11 some options may be limited.</div>
+        `)}
+
+        ${card('Lock Screen', `
+            <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed ("temple").</div>
+        `)}
+
+        ${card('Gaming', `
+            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                <span>Gaming Mode (Disable Hotkeys)</span>
+                <input type="checkbox" class="gaming-mode-toggle" ${state.gamingMode ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
+            </label>
+            <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Prevents Accidental Win/Meta Key presses.</div>
+        `)}
     `;
 }
 

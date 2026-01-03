@@ -190,6 +190,37 @@ sudo apt update
 sudo apt install -y xorg xinit openbox wmctrl x11-utils x11-xserver-utils xdotool python3-xlib python3-pip
 ```
 
+### Openbox Configuration (CRITICAL for Click-to-Focus)
+
+After installing X11 packages, you **must** configure Openbox with proper click-to-focus settings. Run the setup script:
+
+```bash
+# Configure Openbox with click-to-focus and TempleOS integration
+bash /opt/templeos/scripts/setup-x11-openbox.sh /opt/templeos
+```
+
+This script:
+- Installs required X11/Openbox packages
+- Creates `~/.xinitrc` for proper X11 session startup
+- Patches Openbox `rc.xml` with critical mouse bindings including the `Client` context (required for clicking inside X11 window content to focus them)
+- Removes conflicting keybinds that interfere with TempleOS shell
+
+**What it fixes:**
+- Clicking anywhere inside an X11 window (like Firefox's search bar) now properly focuses the window
+- Prevents "must click title bar to focus" issue
+
+**For ISO builds**, add this to your `/etc/skel/` setup to ensure all new users get the correct config:
+
+```bash
+# Run setup for skeleton user
+sudo -u skeleton bash /opt/templeos/scripts/setup-x11-openbox.sh /opt/templeos
+
+# Copy skeleton config to all user templates
+sudo cp -r /home/skeleton/.xinitrc /etc/skel/
+sudo cp -r /home/skeleton/.config/openbox /etc/skel/.config/
+```
+
+
 ### Snap Cgroup Delegation Fix (CRITICAL)
 
 Ubuntu + Openbox can have broken snap cgroups, causing "not a snap cgroup" errors. This fix ensures snap apps work correctly:

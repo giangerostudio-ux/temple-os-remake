@@ -617,22 +617,42 @@ class TempleOS {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        // Clean up corrupted keys with trailing spaces (legacy bug fix)
+        // Clean up corrupted keys and invalid positions
         const cleaned: Record<string, { x: number; y: number }> = {};
         let hasCorrupted = false;
+
+        // Reasonable bounds - we'll validate positions are within a reasonable range
+        // Allow negative Y up to -50 for taskbar-at-top scenarios
+        const MIN_Y = -50;
+        const MAX_Y = 2000; // Reasonable max for desktop height
+        const MIN_X = 0;
+        const MAX_X = 3000; // Reasonable max for desktop width
+
         for (const [key, value] of Object.entries(parsed)) {
           const trimmedKey = key.trim();
+          const pos = value as { x: number; y: number };
+
+          // Skip if position values are invalid or extreme
+          if (typeof pos?.x !== 'number' || typeof pos?.y !== 'number' ||
+            pos.x < MIN_X || pos.x > MAX_X ||
+            pos.y < MIN_Y || pos.y > MAX_Y) {
+            hasCorrupted = true;
+            continue; // Skip this entry entirely
+          }
+
+          // Handle key cleanup (trailing spaces)
           if (trimmedKey !== key) {
             hasCorrupted = true;
             // Only keep the trimmed version if it doesn't already exist
             if (!parsed[trimmedKey] && !cleaned[trimmedKey]) {
-              cleaned[trimmedKey] = value as { x: number; y: number };
+              cleaned[trimmedKey] = pos;
             }
           } else {
-            cleaned[key] = value as { x: number; y: number };
+            cleaned[key] = pos;
           }
         }
-        // If we found corrupted keys, save the cleaned version
+
+        // If we found corrupted data, save the cleaned version
         if (hasCorrupted) {
           localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(cleaned));
         }
@@ -3561,6 +3581,16 @@ class TempleOS {
             }
           }
         }
+
+        // Bounds check after collision resolution - prevent extreme negative values
+        // Allow some negative Y for taskbar-at-top, but cap it reasonably
+        const minY = this.taskbarPosition === 'top' ? -50 : 0;
+        const desktopEl = document.getElementById('desktop');
+        const maxX = desktopEl ? desktopEl.clientWidth - CELL_W : 1000;
+        const maxY = desktopEl ? desktopEl.clientHeight - CELL_H : 800;
+
+        x = Math.max(0, Math.min(x, maxX));
+        y = Math.max(minY, Math.min(y, maxY));
 
         this.desktopIconPositions[key] = { x, y };
         localStorage.setItem('temple_desktop_icon_positions', JSON.stringify(this.desktopIconPositions));

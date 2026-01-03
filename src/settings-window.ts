@@ -58,6 +58,13 @@ interface SettingsState {
     macRandomization: boolean;
     lockPassword: string;
     lockPin: string;
+    secureDelete: boolean;
+    secureWipeOnShutdown: boolean;
+    trackerBlockingEnabled: boolean;
+    torMode: 'off' | 'browser-only' | 'system-wide';
+    torRunning: boolean;
+    torInstalled: boolean;
+    duressPassword: string;
     // Accessibility
     highContrast: boolean;
     largeText: boolean;
@@ -101,6 +108,13 @@ let state: SettingsState = {
     macRandomization: false,
     lockPassword: '',
     lockPin: '',
+    secureDelete: false,
+    secureWipeOnShutdown: false,
+    trackerBlockingEnabled: false,
+    torMode: 'off' as const,
+    torRunning: false,
+    torInstalled: false,
+    duressPassword: '',
     highContrast: false,
     largeText: false,
     reduceMotion: false,
@@ -206,6 +220,18 @@ async function saveSettings() {
             // Network
             network: {
                 vpnKillSwitchEnabled: state.vpnKillSwitch
+            },
+
+            // Security
+            security: {
+                firewallEnabled: state.firewallEnabled,
+                encryptionEnabled: state.encryptionEnabled,
+                macRandomization: state.macRandomization,
+                secureDelete: state.secureDelete,
+                secureWipeOnShutdown: state.secureWipeOnShutdown,
+                trackerBlockingEnabled: state.trackerBlockingEnabled,
+                torMode: state.torMode,
+                duressPassword: state.duressPassword
             }
         };
 
@@ -825,8 +851,161 @@ function attachContentHandlers() {
         macRandomizationToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
             state.macRandomization = checked;
-            // MAC randomization is applied via config - main window's applyMacRandomization reads it
             await saveSettings();
+        });
+    }
+
+    // Secure Delete toggle
+    const secureDeleteToggle = content.querySelector('#secure-delete') as HTMLInputElement;
+    if (secureDeleteToggle) {
+        secureDeleteToggle.addEventListener('change', async (e) => {
+            state.secureDelete = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Secure Wipe on Shutdown toggle
+    const secureWipeToggle = content.querySelector('#secure-wipe-shutdown') as HTMLInputElement;
+    if (secureWipeToggle) {
+        secureWipeToggle.addEventListener('change', async (e) => {
+            state.secureWipeOnShutdown = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Tracker Blocking toggle
+    const trackerBlockingToggle = content.querySelector('#tracker-blocking') as HTMLInputElement;
+    if (trackerBlockingToggle) {
+        trackerBlockingToggle.addEventListener('change', async (e) => {
+            state.trackerBlockingEnabled = (e.target as HTMLInputElement).checked;
+            if (window.electronAPI?.setTrackerBlocking) {
+                await window.electronAPI.setTrackerBlocking(state.trackerBlockingEnabled);
+            }
+            await saveSettings();
+        });
+    }
+
+    // Tor Mode select
+    const torModeSelect = content.querySelector('.tor-mode-select') as HTMLSelectElement;
+    if (torModeSelect) {
+        torModeSelect.addEventListener('change', async (e) => {
+            state.torMode = (e.target as HTMLSelectElement).value as 'off' | 'browser-only' | 'system-wide';
+            await saveSettings();
+            renderContent(); // Re-render to show/hide start/stop buttons
+        });
+    }
+
+    // Tor Install button
+    const torInstallBtn = content.querySelector('.tor-install-btn');
+    if (torInstallBtn) {
+        torInstallBtn.addEventListener('click', async () => {
+            if (window.electronAPI?.installTor) {
+                await window.electronAPI.installTor();
+                state.torInstalled = true;
+                renderContent();
+            }
+        });
+    }
+
+    // Tor Start button
+    const torStartBtn = content.querySelector('.tor-start-btn');
+    if (torStartBtn) {
+        torStartBtn.addEventListener('click', async () => {
+            if ((window.electronAPI as any)?.startTor) {
+                await (window.electronAPI as any).startTor();
+                state.torRunning = true;
+                renderContent();
+            }
+        });
+    }
+
+    // Tor Stop button
+    const torStopBtn = content.querySelector('.tor-stop-btn');
+    if (torStopBtn) {
+        torStopBtn.addEventListener('click', async () => {
+            if ((window.electronAPI as any)?.stopTor) {
+                await (window.electronAPI as any).stopTor();
+                state.torRunning = false;
+                renderContent();
+            }
+        });
+    }
+
+    // Emergency Lockdown / Panic button
+    const panicLockdownBtn = content.querySelector('.panic-lockdown-btn');
+    if (panicLockdownBtn) {
+        panicLockdownBtn.addEventListener('click', async () => {
+            if ((window.electronAPI as any)?.emergencyLockdown) {
+                await (window.electronAPI as any).emergencyLockdown();
+            }
+        });
+    }
+
+    // Save Password button
+    const savePasswordBtn = content.querySelector('.save-password-btn');
+    if (savePasswordBtn) {
+        savePasswordBtn.addEventListener('click', async () => {
+            const passwordInput = content.querySelector('#lock-password') as HTMLInputElement;
+            const confirmInput = content.querySelector('.lock-password-confirm') as HTMLInputElement;
+            if (passwordInput && confirmInput) {
+                if (passwordInput.value !== confirmInput.value) {
+                    alert('Passwords do not match');
+                    return;
+                }
+                state.lockPassword = passwordInput.value;
+                await saveSettings();
+                confirmInput.value = '';
+            }
+        });
+    }
+
+    // Save Duress Password button
+    const saveDuressBtn = content.querySelector('.save-duress-btn');
+    if (saveDuressBtn) {
+        saveDuressBtn.addEventListener('click', async () => {
+            const duressInput = content.querySelector('.duress-input') as HTMLInputElement;
+            const confirmInput = content.querySelector('.duress-confirm') as HTMLInputElement;
+            if (duressInput && confirmInput) {
+                if (duressInput.value !== confirmInput.value) {
+                    alert('Duress passwords do not match');
+                    return;
+                }
+                if (duressInput.value === state.lockPassword || duressInput.value === state.lockPin) {
+                    alert('Duress password cannot be the same as your real password or PIN!');
+                    return;
+                }
+                state.duressPassword = duressInput.value;
+                await saveSettings();
+                confirmInput.value = '';
+            }
+        });
+    }
+
+    // Save PIN button
+    const savePinBtn = content.querySelector('.save-pin-btn');
+    if (savePinBtn) {
+        savePinBtn.addEventListener('click', async () => {
+            const pinInput = content.querySelector('#lock-pin') as HTMLInputElement;
+            const confirmInput = content.querySelector('.lock-pin-confirm') as HTMLInputElement;
+            if (pinInput && confirmInput) {
+                if (pinInput.value !== confirmInput.value) {
+                    alert('PINs do not match');
+                    return;
+                }
+                state.lockPin = pinInput.value;
+                await saveSettings();
+                confirmInput.value = '';
+            }
+        });
+    }
+
+    // Test Lock Screen button
+    const testLockBtn = content.querySelector('.test-lock-btn');
+    if (testLockBtn) {
+        testLockBtn.addEventListener('click', async () => {
+            if ((window.electronAPI as any)?.lockScreen) {
+                await (window.electronAPI as any).lockScreen();
+            }
         });
     }
 
@@ -1299,57 +1478,210 @@ function renderGamingSettings() {
 }
 
 function renderSecuritySettings() {
+    // Security score calculation
+    const checks = [
+        { name: 'Encryption', enabled: state.encryptionEnabled, weight: 23 },
+        { name: 'Firewall', enabled: state.firewallEnabled, weight: 18 },
+        { name: 'SSH Disabled', enabled: !state.sshEnabled, weight: 13 },
+        { name: 'Tracker Blocking', enabled: state.trackerBlockingEnabled, weight: 12 },
+        { name: 'Tor Mode', enabled: state.torMode !== 'off' && state.torRunning, weight: 12 },
+        { name: 'MAC Randomization', enabled: state.macRandomization, weight: 10 },
+        { name: 'Secure Wipe', enabled: state.secureWipeOnShutdown, weight: 8 },
+        { name: 'Lock Screen', enabled: state.lockPassword !== '', weight: 4 },
+    ];
+    const score = checks.reduce((sum, c) => sum + (c.enabled ? c.weight : 0), 0);
+    const maxScore = checks.reduce((sum, c) => sum + c.weight, 0);
+    const percentage = Math.round((score / maxScore) * 100);
+    let scoreColor = '#ff6464';
+    let scoreLabel = 'Poor';
+    if (percentage >= 80) { scoreColor = '#00ff41'; scoreLabel = 'Excellent'; }
+    else if (percentage >= 60) { scoreColor = '#ffd700'; scoreLabel = 'Good'; }
+    else if (percentage >= 40) { scoreColor = '#ffb000'; scoreLabel = 'Fair'; }
+
     return `
-        <div class="settings-card">
-            <h3>Firewall</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Firewall Enabled
-                    <small>Block unauthorized network access</small>
+        ${card('Encryption (LUKS)', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: ${state.encryptionEnabled ? '#00ff41' : '#ff6464'};">${state.encryptionEnabled ? 'Encrypted' : 'Not Encrypted'}</div>
+                    <div style="font-size: 12px; opacity: 0.7;">God's temple is sealed against heathens.</div>
                 </div>
-                <input type="checkbox" id="firewall-enabled" ${state.firewallEnabled ? 'checked' : ''} />
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="encryption-enabled" ${state.encryptionEnabled ? 'checked' : ''}>
+                    <span>${state.encryptionEnabled ? 'On' : 'Off'}</span>
+                </label>
             </div>
-        </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="encryption-change-key-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer;">Change Key</button>
+                <button class="encryption-backup-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer;">Backup Header</button>
+            </div>
+        `)}
 
-        <div class="settings-card">
-            <h3>Encryption</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Disk Encryption
-                    <small>Encrypt your data with VeraCrypt</small>
+        ${card('Divine Firewall', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <div style="font-weight: bold; color: ${state.firewallEnabled ? '#00ff41' : '#ff6464'};">${state.firewallEnabled ? 'Active' : 'Disabled'}</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Block unwanted spirits and connections.</div>
                 </div>
-                <input type="checkbox" id="encryption-enabled" ${state.encryptionEnabled ? 'checked' : ''} />
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="firewall-enabled" ${state.firewallEnabled ? 'checked' : ''}>
+                    <span>${state.firewallEnabled ? 'On' : 'Off'}</span>
+                </label>
             </div>
-        </div>
+            <div style="border: 1px solid rgba(0,255,65,0.2); border-radius: 6px; padding: 10px; background: rgba(0,0,0,0.2); margin-bottom: 15px;">
+                <div style="font-weight: bold; margin-bottom: 8px; font-size: 13px;">Add New Rule</div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <input type="number" class="fw-port-input" placeholder="Port" style="width: 70px; background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px;">
+                    <select class="fw-proto-select" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px;">
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                    </select>
+                    <select class="fw-action-select" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px;">
+                        <option value="ALLOW">ALLOW</option>
+                        <option value="DENY">DENY</option>
+                    </select>
+                    <button class="fw-add-btn" style="background: #00ff41; color: #000; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Add</button>
+                </div>
+            </div>
+            <div style="font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <span>Active Rules</span>
+                <button class="fw-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 2px 6px; border-radius: 4px; font-size: 11px; cursor: pointer;">↻ Refresh</button>
+            </div>
+            <div style="opacity: 0.6; font-size: 12px;">No custom rules defined.</div>
+        `)}
 
-        <div class="settings-card">
-            <h3>Lock Screen</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Lock Screen Password
-                    <small>Password to unlock screen</small>
-                </div>
-                <input type="password" placeholder="Enter password" id="lock-password" value="${state.lockPassword}" />
+        ${card('Privacy & Anonymity', `
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>MAC Address Randomization</span>
+                    <input type="checkbox" id="mac-randomization" ${state.macRandomization ? 'checked' : ''}>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Secure Delete (Overwrite)</span>
+                    <input type="checkbox" id="secure-delete" ${state.secureDelete ? 'checked' : ''}>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span>Clear RAM on Shutdown</span>
+                        <span style="font-size: 10px; opacity: 0.6;">Resets session state. Safe for files.</span>
+                    </div>
+                    <input type="checkbox" id="secure-wipe-shutdown" ${state.secureWipeOnShutdown ? 'checked' : ''}>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span>Tracker Blocking</span>
+                        <span style="font-size: 10px; opacity: 0.6;">Block ads, trackers, and analytics</span>
+                    </div>
+                    <input type="checkbox" id="tracker-blocking" ${state.trackerBlockingEnabled ? 'checked' : ''}>
+                </label>
             </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Lock Screen PIN
-                    <small>Quick unlock with PIN</small>
-                </div>
-                <input type="password" placeholder="Enter PIN" id="lock-pin" value="${state.lockPin}" />
-            </div>
-        </div>
+        `)}
 
-        <div class="settings-card">
-            <h3>Privacy</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    MAC Randomization
-                    <small>Randomize network hardware address</small>
+        ${card('Tor Integration', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: ${state.torRunning ? '#00ff41' : '#888'};">
+                        🧅 ${state.torRunning ? 'Tor Running' : 'Tor Off'}
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.7;">Route traffic through Tor network for anonymity</div>
                 </div>
-                <input type="checkbox" id="mac-randomization" ${state.macRandomization ? 'checked' : ''} />
             </div>
-        </div>
+            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                <div style="opacity: 0.7;">Mode</div>
+                <select class="tor-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px;">
+                    <option value="off" ${state.torMode === 'off' ? 'selected' : ''}>Off - Normal Internet</option>
+                    <option value="browser-only" ${state.torMode === 'browser-only' ? 'selected' : ''}>Browser Only</option>
+                    <option value="system-wide" ${state.torMode === 'system-wide' ? 'selected' : ''}>System-wide (slow)</option>
+                </select>
+                <div style="opacity: 0.7;">Installed</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: ${state.torInstalled ? '#00ff41' : '#ff6464'};">${state.torInstalled ? '✓ Yes' : '✗ No'}</span>
+                    ${!state.torInstalled ? '<button class="tor-install-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Install Tor</button>' : ''}
+                </div>
+            </div>
+            ${state.torMode !== 'off' && !state.torRunning ? '<button class="tor-start-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Start Tor</button>' : ''}
+            ${state.torRunning ? '<button class="tor-stop-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Stop Tor</button>' : ''}
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+                ⚠️ System-wide Tor routes ALL traffic through Tor. Very slow, may break some apps.
+            </div>
+        `)}
+
+        ${card('Emergency Lockdown', `
+            <div style="text-align: center;">
+                <button class="panic-lockdown-btn" style="background: linear-gradient(135deg, #ff3333, #cc0000); color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                    🚨 PANIC: Lock & Disconnect
+                </button>
+                <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">
+                    Immediately locks screen and disables all network connections.
+                </div>
+            </div>
+        `)}
+
+        ${card('🛡️ Security Audit', `
+            <div style="text-align: center; margin-bottom: 15px;">
+                <div style="font-size: 48px; font-weight: bold; color: ${scoreColor}; margin-bottom: 5px;">${percentage}%</div>
+                <div style="font-size: 14px; color: ${scoreColor}; font-weight: bold;">${scoreLabel}</div>
+                <div style="font-size: 11px; opacity: 0.6; margin-top: 3px;">Security Score</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; margin-bottom: 15px;">
+                <div style="height: 8px; background: ${scoreColor}; width: ${percentage}%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+                ${checks.map(c => `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: ${c.enabled ? 'rgba(0,255,65,0.1)' : 'rgba(255,100,100,0.05)'}; border-left: 3px solid ${c.enabled ? '#00ff41' : '#ff6464'}; border-radius: 4px;">
+                        <span>${c.enabled ? '✅' : '❌'} ${c.name}</span>
+                        <span style="opacity: 0.6; font-size: 11px;">${c.weight}pts</span>
+                    </div>
+                `).join('')}
+            </div>
+        `)}
+
+        ${card('Lock Screen Password', `
+            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 12px; align-items: center;">
+                <div>Password</div>
+                <input type="password" id="lock-password" value="${state.lockPassword}" placeholder="Password" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; box-sizing: border-box;">
+                <div>Confirm</div>
+                <input type="password" class="lock-password-confirm" placeholder="Confirm password" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; box-sizing: border-box;">
+                <div></div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="save-password-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+                    <span style="font-size: 11px; opacity: 0.6;">Sets the password required to unlock the screen.</span>
+                </div>
+            </div>
+        `)}
+
+        ${card('Duress Password (Panic Login)', `
+            <div style="background: rgba(255,200,0,0.1); border: 1px solid rgba(255,200,0,0.3); border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; line-height: 1.5;">
+                <div style="margin-bottom: 8px;">If someone forces you to unlock your computer, enter this password instead of your real one.</div>
+                <div style="margin-bottom: 8px;">The system will appear to unlock normally, but shows a <strong style="color: #ffd700;">fake empty desktop</strong> - hiding all your real files.</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: center;">
+                <div style="font-size: 12px;">Password</div>
+                <input type="password" class="duress-input" placeholder="Set duress password..." value="${state.duressPassword}" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px;">
+                <div style="font-size: 12px;">Confirm</div>
+                <input type="password" class="duress-confirm" placeholder="Confirm duress password..." style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px;">
+                <div></div>
+                <button class="save-duress-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+            </div>
+        `)}
+
+        ${card('Lock Screen PIN', `
+            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 12px; align-items: center;">
+                <div>PIN</div>
+                <input type="password" id="lock-pin" value="${state.lockPin}" placeholder="PIN (numbers only)" inputmode="numeric" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; box-sizing: border-box;">
+                <div>Confirm</div>
+                <input type="password" class="lock-pin-confirm" placeholder="Confirm PIN" inputmode="numeric" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 8px 12px; border-radius: 6px; box-sizing: border-box;">
+                <div></div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="save-pin-btn" style="background: #00ff41; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Save</button>
+                    <span style="font-size: 11px; opacity: 0.6;">PIN for lock screen (default: 7777). Leave empty to disable.</span>
+                </div>
+            </div>
+        `)}
+
+        ${card('Lock Screen', `
+            <button class="test-lock-btn" style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Test Lock Screen</button>
+            <div style="font-size: 12px; opacity: 0.65; margin-top: 8px;">Test the lock screen with your current password/PIN settings.</div>
+        `)}
     `;
 }
 

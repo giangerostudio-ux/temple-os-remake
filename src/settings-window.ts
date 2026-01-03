@@ -675,10 +675,8 @@ function attachContentHandlers() {
     const customThemeCreateBtn = content.querySelector('.custom-theme-create-btn');
     if (customThemeCreateBtn) {
         customThemeCreateBtn.addEventListener('click', () => {
-            const btn = customThemeCreateBtn as HTMLButtonElement;
-            const originalText = btn.textContent;
-            btn.textContent = 'Coming Soon...';
-            setTimeout(() => btn.textContent = originalText, 1500);
+            // Theme editor requires inline UI - notify user
+            alert('Theme Editor is only available in the main Settings window.\n\nOpen Settings from the taskbar to create custom themes.');
         });
     }
 
@@ -686,10 +684,8 @@ function attachContentHandlers() {
     const customThemeImportBtn = content.querySelector('.custom-theme-import-btn');
     if (customThemeImportBtn) {
         customThemeImportBtn.addEventListener('click', () => {
-            const btn = customThemeImportBtn as HTMLButtonElement;
-            const originalText = btn.textContent;
-            btn.textContent = 'Coming Soon...';
-            setTimeout(() => btn.textContent = originalText, 1500);
+            // Theme import requires inline UI - notify user
+            alert('Theme Import is only available in the main Settings window.\n\nOpen Settings from the taskbar to import themes.');
         });
     }
 
@@ -732,17 +728,32 @@ function attachContentHandlers() {
         });
     }
 
-    // Wallpaper browse button
+    // Wallpaper browse button - use IPC to select file
     const wallpaperBrowseBtn = content.querySelector('.wallpaper-browse-btn');
     if (wallpaperBrowseBtn) {
-        wallpaperBrowseBtn.addEventListener('click', () => {
-            // TODO: Implement file picker dialog for wallpaper selection
-            const btn = wallpaperBrowseBtn as HTMLButtonElement;
-            const originalText = btn.textContent;
-            btn.textContent = 'Coming Soon...';
-            setTimeout(() => {
-                btn.textContent = originalText;
-            }, 1500);
+        wallpaperBrowseBtn.addEventListener('click', async () => {
+            if ((window.electronAPI as any)?.selectWallpaper) {
+                const result = await (window.electronAPI as any).selectWallpaper();
+                if (result?.success && result.path) {
+                    await saveSettings();
+                    renderContent();
+                }
+            } else {
+                alert('Wallpaper selection requires the main Settings window.');
+            }
+        });
+    }
+
+    // Default wallpaper button
+    const wallpaperBtn = content.querySelector('.wallpaper-btn');
+    if (wallpaperBtn) {
+        wallpaperBtn.addEventListener('click', async () => {
+            // Reset to default wallpaper via IPC
+            if ((window.electronAPI as any)?.setWallpaper) {
+                await (window.electronAPI as any).setWallpaper('default');
+            }
+            await saveSettings();
+            renderContent();
         });
     }
 

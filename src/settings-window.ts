@@ -1368,18 +1368,12 @@ function renderPersonalizationSettings() {
             </div>
         `)}
 
-        ${card('Color Scheme', `
-            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                ${['green', 'amber', 'cyan', 'white'].map(c => `
-                    <button class="theme-color-btn" data-color="${c}" style="
-                        width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
-                        background: ${c === 'green' ? '#00ff41' : c === 'amber' ? '#ffb000' : c === 'cyan' ? '#00ffff' : '#ffffff'};
-                        border: ${state.colorScheme === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.3)'};
-                        box-shadow: ${state.colorScheme === c ? '0 0 10px rgba(255,255,255,0.5)' : 'none'};
-                    " title="${c.charAt(0).toUpperCase() + c.slice(1)}"></button>
-                `).join('')}
+        ${card('Wallpaper', `
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                <button class="wallpaper-btn" data-wallpaper="default" style="aspect-ratio: 16/9; border: 2px solid #00ff41; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">Default</button>
+                <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">📂 Select File...</button>
             </div>
-            <div style="opacity: 0.65; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
+            <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">Format: JPG, PNG, GIF, WEBP</div>
         `)}
 
         ${card('Divine Settings', `

@@ -2355,6 +2355,23 @@ function showSnapLayoutsPopup(xidHex) {
             snapPopupWindow.show();
             // Re-assert z-order after show (X11 sometimes loses it)
             snapPopupWindow.setAlwaysOnTop(true, 'screen-saver', 100);
+
+            // CRITICAL: On X11, use wmctrl to explicitly raise above ALL windows
+            // This is needed because Electron's alwaysOnTop doesn't work properly
+            // between different Electron BrowserWindows on X11
+            if (process.platform === 'linux') {
+                // Get the native window handle and use wmctrl to raise it
+                const nativeHandle = snapPopupWindow.getNativeWindowHandle();
+                if (nativeHandle && nativeHandle.length >= 4) {
+                    // Convert buffer to X11 window ID (little-endian 32-bit)
+                    const xid = nativeHandle.readUInt32LE(0);
+                    const xidHex = '0x' + xid.toString(16);
+                    console.log('[SnapPopup] Raising with wmctrl, XID:', xidHex);
+
+                    // Use wmctrl to raise the window
+                    spawn('wmctrl', ['-i', '-a', xidHex], { stdio: 'ignore' });
+                }
+            }
         }
     });
 

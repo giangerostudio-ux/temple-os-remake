@@ -268,8 +268,42 @@ if (window.electronAPI?.onConfigChanged) {
         if (accessibility) {
             if (typeof accessibility.reduceMotion === 'boolean') {
                 state.liteMode = accessibility.reduceMotion;
+                state.reduceMotion = accessibility.reduceMotion;
+            }
+            if (typeof accessibility.largeText === 'boolean') {
+                state.largeText = accessibility.largeText;
+            }
+            if (typeof accessibility.highContrast === 'boolean') {
+                state.highContrast = accessibility.highContrast;
             }
         }
+
+        // Parse security section
+        const security = config.security as {
+            firewallEnabled?: boolean;
+            encryptionEnabled?: boolean;
+            macRandomization?: boolean;
+            secureDelete?: boolean;
+            secureWipeOnShutdown?: boolean;
+            trackerBlockingEnabled?: boolean;
+            torMode?: 'off' | 'browser-only' | 'system-wide';
+            duressPassword?: string;
+        } | undefined;
+        if (security) {
+            if (typeof security.firewallEnabled === 'boolean') state.firewallEnabled = security.firewallEnabled;
+            if (typeof security.encryptionEnabled === 'boolean') state.encryptionEnabled = security.encryptionEnabled;
+            if (typeof security.macRandomization === 'boolean') state.macRandomization = security.macRandomization;
+            if (typeof security.secureDelete === 'boolean') state.secureDelete = security.secureDelete;
+            if (typeof security.secureWipeOnShutdown === 'boolean') state.secureWipeOnShutdown = security.secureWipeOnShutdown;
+            if (typeof security.trackerBlockingEnabled === 'boolean') state.trackerBlockingEnabled = security.trackerBlockingEnabled;
+            if (security.torMode) state.torMode = security.torMode;
+            if (typeof security.duressPassword === 'string') state.duressPassword = security.duressPassword;
+        }
+
+        // Parse lock screen credentials (top-level)
+        if (typeof config.lockPassword === 'string') state.lockPassword = config.lockPassword;
+        if (typeof config.lockPin === 'string') state.lockPin = config.lockPin;
+        if (typeof config.sshEnabled === 'boolean') state.sshEnabled = config.sshEnabled;
 
         renderContent(); // This now calls attachContentHandlers() internally
     });

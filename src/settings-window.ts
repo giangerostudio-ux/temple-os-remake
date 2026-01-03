@@ -501,12 +501,13 @@ function attachContentHandlers() {
     const pulseIntensitySlider = content.querySelector('.pulse-intensity-slider') as HTMLInputElement;
     if (pulseIntensitySlider) {
         pulseIntensitySlider.addEventListener('input', async (e) => {
-            const value = parseInt((e.target as HTMLInputElement).value);
+            const sliderValue = parseInt((e.target as HTMLInputElement).value); // 3-70
+            const intensity = sliderValue / 100; // Convert to 0.03-0.70
             const valueSpan = (e.target as HTMLElement).parentElement?.querySelector('span:last-child');
-            if (valueSpan) valueSpan.textContent = value + '%';
-            state.pulseIntensity = value;
+            if (valueSpan) valueSpan.textContent = sliderValue + '%';
+            state.pulseIntensity = intensity;
             // Apply intensity to local window
-            document.documentElement.style.setProperty('--pulse-intensity', String(value / 100));
+            document.documentElement.style.setProperty('--pulse-intensity', String(intensity));
             await saveSettings();
         });
     }

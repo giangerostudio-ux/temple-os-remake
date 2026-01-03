@@ -2501,6 +2501,7 @@ function handleSnapDetectorEvent(event) {
         case 'zone_leave':
             console.log('[SnapDetector] Zone leave');
             closeSnapPreview();
+            closeSnapLayoutsPopup();
             break;
 
         case 'drag_position':
@@ -2617,6 +2618,7 @@ function handleSnapDetectorEvent(event) {
         case 'drag_end':
             console.log('[SnapDetector] Drag ended (no zone)');
             closeSnapPreview();
+            closeSnapLayoutsPopup();
             break;
 
         case 'error':

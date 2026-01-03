@@ -2130,6 +2130,26 @@ class TempleOS {
     // Phase 1: Load critical config first (needed by other operations)
     await this.loadConfig();
 
+    // Listen for config changes from other windows (e.g., popout settings)
+    if (window.electronAPI?.onConfigChanged) {
+      window.electronAPI.onConfigChanged(async (config: Record<string, unknown>) => {
+        console.log('[Main] Config changed from another window, applying...');
+        // Reload config from file to get the full merged state
+        await this.settingsManager.loadConfig();
+        // If visual effects specifically changed, also apply immediately
+        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number } | undefined;
+        if (effects !== undefined) {
+          if (typeof effects.heavenlyPulse === 'boolean') {
+            this.heavenlyPulse = effects.heavenlyPulse;
+          }
+          if (typeof effects.heavenlyPulseIntensity === 'number') {
+            this.heavenlyPulseIntensity = effects.heavenlyPulseIntensity;
+            document.documentElement.style.setProperty('--pulse-intensity', String(effects.heavenlyPulseIntensity));
+          }
+          this.settingsManager.applyTheme();
+        }
+      });
+    }
     // Sync Voice of God TTS settings to backend
     await this.syncTTSSettings();
 

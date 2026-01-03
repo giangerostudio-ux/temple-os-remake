@@ -4843,6 +4843,19 @@ ipcMain.handle('config:save', async (event, config) => {
         const tmp = configPath + '.tmp';
         await fs.promises.writeFile(tmp, JSON.stringify(config || {}, null, 2), 'utf-8');
         await fs.promises.rename(tmp, configPath);
+
+        // Broadcast config change to all windows for real-time sync
+        const { BrowserWindow } = require('electron');
+        const allWindows = BrowserWindow.getAllWindows();
+        for (const win of allWindows) {
+            if (win && !win.isDestroyed() && win.webContents) {
+                // Don't send back to the sender to avoid loops
+                if (win.webContents.id !== event.sender.id) {
+                    win.webContents.send('config:changed', config);
+                }
+            }
+        }
+
         return { success: true };
     } catch (error) {
         return { success: false, error: error.message };

@@ -1317,10 +1317,6 @@ function renderSystemSettings() {
 }
 
 function renderPersonalizationSettings() {
-    const wallpapers = [
-        { id: 'default', label: 'Default', path: './images/wallpaper.png' },
-    ];
-
     return `
         ${card('Theme', `
             <div style="display: flex; gap: 10px; margin-bottom: 12px;">
@@ -1359,12 +1355,8 @@ function renderPersonalizationSettings() {
                     <input type="checkbox" disabled checked title="Cannot disable animations in this version (use Lite Mode)">
                 </label>
                 <label style="display: flex; align-items: center; justify-content: space-between;">
-                    <span>Auto-hide Taskbar</span>
-                    <input type="checkbox" class="taskbar-autohide-toggle" style="cursor: pointer;">
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between;">
                     <span>Heavenly Pulse</span>
-                    <input type="checkbox" class="heavenly-pulse-toggle" checked style="cursor: pointer;">
+                    <input type="checkbox" class="heavenly-pulse-toggle" ${state.heavenlyPulse ? 'checked' : ''} style="cursor: pointer;">
                 </label>
                 <label style="display: flex; align-items: center; justify-content: space-between;">
                     <span>Pulse Intensity</span>
@@ -1376,27 +1368,31 @@ function renderPersonalizationSettings() {
             </div>
         `)}
 
-        ${card('Wallpaper', `
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                ${wallpapers.map(w => `
-                    <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: 2px solid #00ff41; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
+        ${card('Color Scheme', `
+            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                ${['green', 'amber', 'cyan', 'white'].map(c => `
+                    <button class="theme-color-btn" data-color="${c}" style="
+                        width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+                        background: ${c === 'green' ? '#00ff41' : c === 'amber' ? '#ffb000' : c === 'cyan' ? '#00ffff' : '#ffffff'};
+                        border: ${state.colorScheme === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.3)'};
+                        box-shadow: ${state.colorScheme === c ? '0 0 10px rgba(255,255,255,0.5)' : 'none'};
+                    " title="${c.charAt(0).toUpperCase() + c.slice(1)}"></button>
                 `).join('')}
-                <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">📂 Select File...</button>
             </div>
-            <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">Format: JPG, PNG, GIF, WEBP</div>
+            <div style="opacity: 0.65; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
         `)}
 
         ${card('Divine Settings', `
             <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 10px;">
                 <span>Random Terry Quotes</span>
-                <input type="checkbox" class="quote-notifications-toggle" checked style="transform: scale(1.2); accent-color: #00ff41;">
+                <input type="checkbox" class="quote-notifications-toggle" ${state.terryQuotes ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
             </label>
         `)}
 
         ${card('Performance', `
             <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
                 <span>Lite Mode (No Animations)</span>
-                <input type="checkbox" class="lite-mode-toggle" style="transform: scale(1.2); accent-color: #00ff41;">
+                <input type="checkbox" class="lite-mode-toggle" ${state.liteMode ? 'checked' : ''} style="transform: scale(1.2); accent-color: #00ff41;">
             </label>
         `)}
     `;

@@ -16377,10 +16377,6 @@ class TempleOS {
                       <input type="checkbox" disabled checked title="Cannot disable animations in this version (use Lite Mode)">
                   </label>
                   <label style="display: flex; align-items: center; justify-content: space-between;">
-                      <span>Auto-hide Taskbar</span>
-                      <input type="checkbox" class="taskbar-autohide-toggle" ${this.autoHideTaskbar ? 'checked' : ''} style="cursor: pointer;">
-                  </label>
-                  <label style="display: flex; align-items: center; justify-content: space-between;">
                       <span>Heavenly Pulse</span>
                       <input type="checkbox" class="heavenly-pulse-toggle" ${this.heavenlyPulse ? 'checked' : ''} style="cursor: pointer;">
                   </label>

@@ -160,7 +160,68 @@ async function loadSettings() {
         }
         const result = await window.electronAPI.loadConfig();
         if (result.success && result.config) {
-            state = { ...state, ...result.config };
+            const config = result.config as Record<string, unknown>;
+
+            // Parse effects
+            const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number; jellyMode?: boolean } | undefined;
+            if (effects) {
+                if (typeof effects.heavenlyPulse === 'boolean') state.heavenlyPulse = effects.heavenlyPulse;
+                if (typeof effects.heavenlyPulseIntensity === 'number') state.pulseIntensity = effects.heavenlyPulseIntensity;
+                if (typeof effects.jellyMode === 'boolean') state.jellyMode = effects.jellyMode;
+            }
+
+            // Parse theme
+            if (config.themeMode === 'light' || config.themeMode === 'dark') {
+                state.theme = config.themeMode as string;
+            }
+            if (typeof config.themeColor === 'string') {
+                state.colorScheme = config.themeColor;
+            }
+
+            // Parse accessibility
+            const accessibility = config.accessibility as { reduceMotion?: boolean; largeText?: boolean; highContrast?: boolean } | undefined;
+            if (accessibility) {
+                if (typeof accessibility.reduceMotion === 'boolean') {
+                    state.liteMode = accessibility.reduceMotion;
+                    state.reduceMotion = accessibility.reduceMotion;
+                }
+                if (typeof accessibility.largeText === 'boolean') state.largeText = accessibility.largeText;
+                if (typeof accessibility.highContrast === 'boolean') state.highContrast = accessibility.highContrast;
+            }
+
+            // Parse security
+            const security = config.security as {
+                firewallEnabled?: boolean;
+                encryptionEnabled?: boolean;
+                macRandomization?: boolean;
+                secureDelete?: boolean;
+                secureWipeOnShutdown?: boolean;
+                trackerBlockingEnabled?: boolean;
+                torMode?: 'off' | 'browser-only' | 'system-wide';
+                duressPassword?: string;
+            } | undefined;
+            if (security) {
+                if (typeof security.firewallEnabled === 'boolean') state.firewallEnabled = security.firewallEnabled;
+                if (typeof security.encryptionEnabled === 'boolean') state.encryptionEnabled = security.encryptionEnabled;
+                if (typeof security.macRandomization === 'boolean') state.macRandomization = security.macRandomization;
+                if (typeof security.secureDelete === 'boolean') state.secureDelete = security.secureDelete;
+                if (typeof security.secureWipeOnShutdown === 'boolean') state.secureWipeOnShutdown = security.secureWipeOnShutdown;
+                if (typeof security.trackerBlockingEnabled === 'boolean') state.trackerBlockingEnabled = security.trackerBlockingEnabled;
+                if (security.torMode) state.torMode = security.torMode;
+                if (typeof security.duressPassword === 'string') state.duressPassword = security.duressPassword;
+            }
+
+            // Parse lock screen and network (top-level)
+            if (typeof config.lockPassword === 'string') state.lockPassword = config.lockPassword;
+            if (typeof config.lockPin === 'string') state.lockPin = config.lockPin;
+            if (typeof config.sshEnabled === 'boolean') state.sshEnabled = config.sshEnabled;
+
+            console.log('[Settings] Loaded config, security state:', {
+                firewallEnabled: state.firewallEnabled,
+                encryptionEnabled: state.encryptionEnabled,
+                trackerBlockingEnabled: state.trackerBlockingEnabled,
+                macRandomization: state.macRandomization
+            });
         }
     } catch (e) {
         console.error('[Settings] Failed to load settings:', e);

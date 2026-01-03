@@ -3827,8 +3827,9 @@ ipcMain.handle('floatingApp:open', async (event, { appId, config }) => {
             }
         });
 
-        // CRITICAL: Set highest z-order for X11 compatibility (same as Start Menu)
-        win.setAlwaysOnTop(true, 'screen-saver');
+        // CRITICAL: Set z-order for X11 compatibility
+        // Use relativeLevel 1 so snap layout popup (level 100) appears above
+        win.setAlwaysOnTop(true, 'screen-saver', 1);
 
         floatingAppWindows.set(windowId, win);
 

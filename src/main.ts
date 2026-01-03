@@ -18586,45 +18586,38 @@ class TempleOS {
   }
 
   private async importCustomTheme(): Promise<void> {
-    const path = await this.openPromptModal({
-      title: 'Import Theme',
-      message: 'Enter the path to the theme JSON file:',
-      inputLabel: 'File Path'
-    });
+    // Use file input for JSON import (same as popout)
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
 
-    if (!path) return;
+      try {
+        const text = await file.text();
+        const theme = JSON.parse(text);
 
-    if (!window.electronAPI?.readFile) {
-      this.showNotification('Import Failed', 'File access required', 'error');
-      return;
-    }
-
-    const res = await window.electronAPI.readFile(path);
-    if (!res.success || !res.content) {
-      this.showNotification('Import Failed', 'Could not read file', 'error');
-      return;
-    }
-
-    try {
-      const theme = JSON.parse(res.content);
-      if (theme.name && theme.mainColor && theme.bgColor && theme.textColor) {
-        // Check for duplicates
-        const existing = this.customThemes.findIndex(t => t.name === theme.name);
-        if (existing >= 0) {
-          this.customThemes[existing] = theme;
-          this.showNotification('Theme Updated', `Updated ${theme.name}`, 'divine');
+        if (theme.name && theme.mainColor && theme.bgColor && theme.textColor) {
+          // Check for duplicates
+          const existing = this.customThemes.findIndex(t => t.name === theme.name);
+          if (existing >= 0) {
+            this.customThemes[existing] = theme;
+            this.showNotification('Theme Updated', `Updated ${theme.name}`, 'divine');
+          } else {
+            this.customThemes.push(theme);
+            this.showNotification('Theme Imported', `Imported ${theme.name}`, 'divine');
+          }
+          this.queueSaveConfig();
+          this.refreshSettingsWindow();
         } else {
-          this.customThemes.push(theme);
-          this.showNotification('Theme Imported', `Imported ${theme.name}`, 'divine');
+          throw new Error('Invalid format');
         }
-        this.queueSaveConfig();
-        this.refreshSettingsWindow();
-      } else {
-        throw new Error('Invalid format');
+      } catch {
+        this.showNotification('Import Failed', 'Invalid JSON theme file', 'error');
       }
-    } catch (e) {
-      this.showNotification('Import Failed', 'Invalid JSON theme file', 'error');
-    }
+    };
+    input.click();
   }
 
   private async changeResolution(res: string): Promise<void> {

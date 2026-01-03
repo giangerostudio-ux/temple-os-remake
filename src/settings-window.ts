@@ -170,6 +170,11 @@ async function saveSettings() {
             // Theme
             themeMode: (state.theme === 'light' ? 'light' : 'dark') as 'light' | 'dark',
             themeColor: (state.colorScheme || 'green') as 'green' | 'amber' | 'cyan' | 'white',
+            highContrast: state.highContrast || false,
+
+            // Lock screen
+            lockPassword: state.lockPassword || '',
+            lockPin: state.lockPin || '',
 
             // Effects (this is what main window uses for pulse)
             effects: {
@@ -186,9 +191,16 @@ async function saveSettings() {
 
             // Accessibility  
             accessibility: {
-                reduceMotion: state.liteMode,
+                reduceMotion: state.reduceMotion || state.liteMode,
                 largeText: state.largeText || false,
                 highContrast: state.highContrast || false
+            },
+
+            // Mouse
+            mouse: {
+                speed: state.mouseSpeed ? state.mouseSpeed / 10 : 0.5,
+                raw: false,
+                naturalScroll: false
             },
 
             // Network
@@ -736,6 +748,177 @@ function attachContentHandlers() {
             state.sshEnabled = checked;
             if (window.electronAPI?.sshControl) {
                 await window.electronAPI.sshControl(checked ? 'start' : 'stop');
+            }
+            await saveSettings();
+        });
+    }
+
+    // ===== GAMING CATEGORY =====
+
+    // Gaming mode toggle
+    const gamingModeToggle2 = content.querySelector('#gaming-mode') as HTMLInputElement;
+    if (gamingModeToggle2) {
+        gamingModeToggle2.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            state.gamingMode = checked;
+            if (window.electronAPI?.setGamingMode) {
+                await window.electronAPI.setGamingMode(checked);
+            }
+            await saveSettings();
+        });
+    }
+
+    // Hide taskbar in fullscreen toggle
+    const hideTaskbarFullscreenToggle = content.querySelector('#hide-taskbar-fullscreen') as HTMLInputElement;
+    if (hideTaskbarFullscreenToggle) {
+        hideTaskbarFullscreenToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            state.hideBarOnFullscreen = checked;
+            if (window.electronAPI?.setHideBarOnFullscreen) {
+                await window.electronAPI.setHideBarOnFullscreen(checked);
+            }
+            await saveSettings();
+        });
+    }
+
+    // ===== SECURITY CATEGORY =====
+
+    // Firewall toggle (config only - no IPC)
+    const firewallToggle = content.querySelector('#firewall-enabled') as HTMLInputElement;
+    if (firewallToggle) {
+        firewallToggle.addEventListener('change', async (e) => {
+            state.firewallEnabled = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Encryption toggle (config only - no IPC)
+    const encryptionToggle = content.querySelector('#encryption-enabled') as HTMLInputElement;
+    if (encryptionToggle) {
+        encryptionToggle.addEventListener('change', async (e) => {
+            state.encryptionEnabled = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Lock password input
+    const lockPasswordInput = content.querySelector('#lock-password') as HTMLInputElement;
+    if (lockPasswordInput) {
+        lockPasswordInput.addEventListener('change', async (e) => {
+            state.lockPassword = (e.target as HTMLInputElement).value;
+            await saveSettings();
+        });
+    }
+
+    // Lock PIN input
+    const lockPinInput = content.querySelector('#lock-pin') as HTMLInputElement;
+    if (lockPinInput) {
+        lockPinInput.addEventListener('change', async (e) => {
+            state.lockPin = (e.target as HTMLInputElement).value;
+            await saveSettings();
+        });
+    }
+
+    // MAC Randomization toggle
+    const macRandomizationToggle = content.querySelector('#mac-randomization') as HTMLInputElement;
+    if (macRandomizationToggle) {
+        macRandomizationToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            state.macRandomization = checked;
+            // MAC randomization is applied via config - main window's applyMacRandomization reads it
+            await saveSettings();
+        });
+    }
+
+    // ===== ACCESSIBILITY CATEGORY =====
+
+    // High contrast toggle
+    const highContrastToggle = content.querySelector('#high-contrast') as HTMLInputElement;
+    if (highContrastToggle) {
+        highContrastToggle.addEventListener('change', async (e) => {
+            state.highContrast = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Large text toggle
+    const largeTextToggle = content.querySelector('#large-text') as HTMLInputElement;
+    if (largeTextToggle) {
+        largeTextToggle.addEventListener('change', async (e) => {
+            state.largeText = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Reduce motion toggle
+    const reduceMotionToggle = content.querySelector('#reduce-motion') as HTMLInputElement;
+    if (reduceMotionToggle) {
+        reduceMotionToggle.addEventListener('change', async (e) => {
+            state.reduceMotion = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // Jelly mode toggle
+    const jellyModeToggle = content.querySelector('#jelly-mode') as HTMLInputElement;
+    if (jellyModeToggle) {
+        jellyModeToggle.addEventListener('change', async (e) => {
+            state.jellyMode = (e.target as HTMLInputElement).checked;
+            await saveSettings();
+        });
+    }
+
+    // ===== DEVICES CATEGORY =====
+
+    // Audio output select
+    const audioOutputSelectDev = content.querySelector('#audio-output') as HTMLSelectElement;
+    if (audioOutputSelectDev) {
+        audioOutputSelectDev.addEventListener('change', async (e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            state.audioOutput = value;
+            if (window.electronAPI?.setDefaultSink) {
+                await window.electronAPI.setDefaultSink(value);
+            }
+            await saveSettings();
+        });
+    }
+
+    // Audio input select
+    const audioInputSelectDev = content.querySelector('#audio-input') as HTMLSelectElement;
+    if (audioInputSelectDev) {
+        audioInputSelectDev.addEventListener('change', async (e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            state.audioInput = value;
+            if (window.electronAPI?.setDefaultSource) {
+                await window.electronAPI.setDefaultSource(value);
+            }
+            await saveSettings();
+        });
+    }
+
+    // Mouse speed input
+    const mouseSpeedInput = content.querySelector('#mouse-speed') as HTMLInputElement;
+    if (mouseSpeedInput) {
+        mouseSpeedInput.addEventListener('change', async (e) => {
+            const value = parseInt((e.target as HTMLInputElement).value) || 5;
+            state.mouseSpeed = Math.max(1, Math.min(10, value));
+            if (window.electronAPI?.applyMouseSettings) {
+                await window.electronAPI.applyMouseSettings({ speed: state.mouseSpeed / 10, raw: false, naturalScroll: false });
+            }
+            await saveSettings();
+        });
+    }
+
+    // ===== BLUETOOTH CATEGORY =====
+
+    // Bluetooth enabled toggle
+    const bluetoothToggle = content.querySelector('#bluetooth-enabled') as HTMLInputElement;
+    if (bluetoothToggle) {
+        bluetoothToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            state.bluetoothEnabled = checked;
+            if (window.electronAPI?.setBluetoothEnabled) {
+                await window.electronAPI.setBluetoothEnabled(checked);
             }
             await saveSettings();
         });

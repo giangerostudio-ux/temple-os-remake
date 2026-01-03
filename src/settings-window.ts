@@ -233,6 +233,46 @@ async function loadSettings() {
     }
 }
 
+// Dynamic device data (fetched on init)
+let audioDevices: { sinks: Array<{ name: string; description?: string }>; sources: Array<{ name: string; description?: string }>; defaultSink?: string; defaultSource?: string } = { sinks: [], sources: [] };
+let displayOutputs: Array<{ name: string; current?: string; active?: boolean; scale?: number; modes?: Array<{ width: number; height: number; refreshHz?: number | null }> }> = [];
+
+// Fetch audio devices for dropdown population
+async function fetchAudioDevices() {
+    try {
+        if (window.electronAPI?.listAudioDevices) {
+            const result = await window.electronAPI.listAudioDevices();
+            if (result?.sinks && result?.sources) {
+                audioDevices = {
+                    sinks: result.sinks,
+                    sources: result.sources,
+                    defaultSink: result.defaultSink ?? undefined,
+                    defaultSource: result.defaultSource ?? undefined
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('[Settings] Failed to fetch audio devices:', e);
+    }
+}
+
+// Fetch display outputs for dropdown population
+async function fetchDisplayOutputs() {
+    try {
+        if (window.electronAPI?.getDisplayOutputs) {
+            const result = await window.electronAPI.getDisplayOutputs();
+            if (result?.outputs && Array.isArray(result.outputs)) {
+                displayOutputs = result.outputs as typeof displayOutputs;
+                if (displayOutputs.length > 0) {
+                    state.activeDisplayOutput = displayOutputs[0].name;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[Settings] Failed to fetch display outputs:', e);
+    }
+}
+
 // Note: Popout settings only saves to config and broadcasts changes.
 // Visual effects (pulse, theme, colors) are applied by the main window when it receives the config.
 
@@ -1316,12 +1356,16 @@ function renderSystemSettings() {
 
                 <div>Output</div>
                 <select class="audio-output-select" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-                    <option value="default">Default</option>
+                    ${audioDevices.sinks.length > 0
+            ? audioDevices.sinks.map(s => `<option value="${s.name}" ${s.name === audioDevices.defaultSink ? 'selected' : ''}>${s.description || s.name}</option>`).join('')
+            : '<option value="default">Default</option>'}
                 </select>
 
                 <div>Input</div>
                 <select class="audio-input-select" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-                    <option value="default">Default</option>
+                    ${audioDevices.sources.length > 0
+            ? audioDevices.sources.map(s => `<option value="${s.name}" ${s.name === audioDevices.defaultSource ? 'selected' : ''}>${s.description || s.name}</option>`).join('')
+            : '<option value="default">Default</option>'}
                 </select>
             </div>
             <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
@@ -1362,27 +1406,36 @@ function renderSystemSettings() {
             </div>
         `)}
 
-        ${card('Display', `
+        ${card('Display', (() => {
+                const selectedOutput = displayOutputs.find(o => o.name === state.activeDisplayOutput) || displayOutputs[0] || null;
+                const modes = selectedOutput?.modes || [];
+                return `
             <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
                 <div>Monitor</div>
                 <div style="display: flex; gap: 8px;">
                     <select class="display-output-select" style="flex: 1; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-                        <option value="default">default</option>
+                        ${displayOutputs.length > 0
+                        ? displayOutputs.map(o => `<option value="${o.name}" ${o.name === (selectedOutput?.name || '') ? 'selected' : ''}>${o.name}${o.active ? '' : ' (off)'}</option>`).join('')
+                        : '<option value="default">Display</option>'}
                     </select>
                     <button class="display-move-btn" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Move Here</button>
                 </div>
 
                 <div>Mode</div>
                 <select class="display-mode-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
-                    <option value="1024x768@60Hz">1024 x 768 @ 60Hz</option>
-                    <option value="1920x1080@60Hz" selected>1920 x 1080 @ 60Hz</option>
-                    <option value="2560x1440@60Hz">2560 x 1440 @ 60Hz</option>
+                    ${modes.length > 0
+                        ? modes.map(m => {
+                            const key = `${m.width}x${m.height}${m.refreshHz ? `@${m.refreshHz}Hz` : ''}`;
+                            const label = `${m.width} x ${m.height}${m.refreshHz ? ` @ ${m.refreshHz}Hz` : ''}`;
+                            return `<option value="${key}">${label}</option>`;
+                        }).join('')
+                        : '<option value="1920x1080@60Hz" selected>1920 x 1080 @ 60Hz</option>'}
                 </select>
 
                 <div>Scale</div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="range" class="display-scale-slider" min="0.75" max="2" step="0.05" value="1" style="flex: 1; accent-color: #00ff41;">
-                    <span class="display-scale-value" style="min-width: 50px; text-align: center; color: #00ff41; font-weight: bold;">100%</span>
+                    <input type="range" class="display-scale-slider" min="0.75" max="2" step="0.05" value="${selectedOutput?.scale ?? 1}" style="flex: 1; accent-color: #00ff41;">
+                    <span class="display-scale-value" style="min-width: 50px; text-align: center; color: #00ff41; font-weight: bold;">${Math.round((selectedOutput?.scale ?? 1) * 100)}%</span>
                     <button class="display-scale-reset-btn" style="background: rgba(255,100,100,0.1); border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">Reset</button>
                 </div>
 
@@ -1398,7 +1451,7 @@ function renderSystemSettings() {
                 <button class="display-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh displays</button>
             </div>
             <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Tip: scale works best on Wayland/Sway; on X11 some options may be limited.</div>
-        `)}
+        `})())}
 
         ${card('Lock Screen', `
             <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Win+L locks immediately. Password is currently fixed ("temple").</div>
@@ -2052,6 +2105,8 @@ function renderAboutSettings() {
 // Initialize
 async function init() {
     await loadSettings();
+    // Fetch dynamic device data for dropdowns
+    await Promise.all([fetchAudioDevices(), fetchDisplayOutputs()]);
     renderSidebar();
     renderContent(); // This now calls attachContentHandlers() internally
     attachSidebarHandlers();

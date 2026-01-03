@@ -157,13 +157,47 @@ async function loadSettings() {
 // Visual effects (pulse, theme, colors) are applied by the main window when it receives the config.
 
 // Save settings to IPC config (broadcasts to all windows)
+// Converts flat state to nested format expected by SettingsManager
 async function saveSettings() {
     try {
         if (!window.electronAPI?.saveConfig) {
             console.warn('[Settings] electronAPI.saveConfig not available');
             return;
         }
-        await window.electronAPI.saveConfig(state);
+
+        // Convert flat state to nested format expected by main window's SettingsManager
+        const nestedConfig = {
+            // Theme
+            themeMode: (state.theme === 'light' ? 'light' : 'dark') as 'light' | 'dark',
+            themeColor: (state.colorScheme || 'green') as 'green' | 'amber' | 'cyan' | 'white',
+
+            // Effects (this is what main window uses for pulse)
+            effects: {
+                heavenlyPulse: state.heavenlyPulse,
+                heavenlyPulseIntensity: state.pulseIntensity,
+                jellyMode: state.jellyMode || false
+            },
+
+            // Time
+            time: {
+                timezone: state.timezone,
+                autoTime: state.autoTime
+            },
+
+            // Accessibility  
+            accessibility: {
+                reduceMotion: state.liteMode,
+                largeText: state.largeText || false,
+                highContrast: state.highContrast || false
+            },
+
+            // Network
+            network: {
+                vpnKillSwitchEnabled: state.vpnKillSwitch
+            }
+        };
+
+        await window.electronAPI.saveConfig(nestedConfig);
     } catch (e) {
         console.error('[Settings] Failed to save settings:', e);
     }

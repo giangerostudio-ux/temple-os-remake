@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createZip: (sourcePath, targetZipPath) => ipcRenderer.invoke('fs:createZip', sourcePath, targetZipPath),
     extractZip: (zipPath, targetDir) => ipcRenderer.invoke('fs:extractZip', zipPath, targetDir),
 
+    // WALLPAPER SELECTION (for popout settings)
+    selectWallpaper: () => ipcRenderer.invoke('settings:selectWallpaper'),
+    setWallpaper: (path) => ipcRenderer.invoke('settings:setWallpaper', path),
+
     // FILE BOOKMARKS (synced between inline and popout)
     getBookmarks: () => ipcRenderer.invoke('bookmarks:get'),
     addBookmark: (path) => ipcRenderer.invoke('bookmarks:add', path),

@@ -2133,6 +2133,57 @@ ipcMain.handle('settings:setTaskbarPosition', async (event, position) => {
     return { success: false, error: 'Invalid position' };
 });
 
+// IPC: Select wallpaper via native file dialog
+ipcMain.handle('settings:selectWallpaper', async (event) => {
+    const { dialog, BrowserWindow } = require('electron');
+    const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    const result = await dialog.showOpenDialog(focusedWindow, {
+        title: 'Select Wallpaper',
+        filters: [
+            { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }
+        ],
+        properties: ['openFile']
+    });
+
+    if (result.canceled || !result.filePaths.length) {
+        return { success: false, canceled: true };
+    }
+
+    const selectedPath = result.filePaths[0];
+
+    // Broadcast to all windows via config:changed
+    BrowserWindow.getAllWindows().forEach(win => {
+        if (win.webContents) {
+            win.webContents.send('config:changed', {
+                wallpaper: selectedPath,
+                effects: { wallpaper: selectedPath }
+            });
+        }
+    });
+
+    return { success: true, path: selectedPath };
+});
+
+// IPC: Set wallpaper (for default or programmatic change)
+ipcMain.handle('settings:setWallpaper', async (event, path) => {
+    const { BrowserWindow } = require('electron');
+
+    const wallpaperValue = path === 'default' ? '' : path;
+
+    // Broadcast to all windows via config:changed
+    BrowserWindow.getAllWindows().forEach(win => {
+        if (win.webContents) {
+            win.webContents.send('config:changed', {
+                wallpaper: wallpaperValue,
+                effects: { wallpaper: wallpaperValue }
+            });
+        }
+    });
+
+    return { success: true, path: wallpaperValue };
+});
+
 // IPC: Get tiling state for debugging
 ipcMain.handle('x11:getTilingState', async () => {
     return {

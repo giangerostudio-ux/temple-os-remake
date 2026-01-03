@@ -294,12 +294,12 @@
 
             0%,
             100% {
-                opacity: calc(var(--pulse-intensity, 0.20) * 0.6);
+                opacity: calc(var(--pulse-intensity, 0.20) * 1.5);
                 transform: scaleY(1.4);
             }
 
             50% {
-                opacity: var(--pulse-intensity, 0.20);
+                opacity: calc(var(--pulse-intensity, 0.20) * 2.5);
                 transform: scaleY(2.2);
             }
         }
@@ -312,10 +312,10 @@
             left: 0;
             right: 0;
             height: 50vh;
-            background: radial-gradient(ellipse at top, var(--temple-glow-color, #ffd700) 0%, transparent 70%);
+            background: radial-gradient(ellipse at top, var(--main-color, #00ff41) 0%, transparent 70%);
             pointer-events: none;
-            z-index: 5;
-            /* Behind app window but visible */
+            z-index: 9999;
+            /* ABOVE app window so it's visible */
             transform-origin: top center;
             animation: heavenlyPulse 8s ease-in-out infinite;
             will-change: transform, opacity;

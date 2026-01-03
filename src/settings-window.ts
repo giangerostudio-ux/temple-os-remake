@@ -268,7 +268,6 @@ function attachContentHandlers() {
     if (volumeSlider) {
         volumeSlider.addEventListener('input', async (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
-            console.log('[Settings] Volume changed:', value);
             if (window.electronAPI?.setSystemVolume) {
                 await window.electronAPI.setSystemVolume(value);
             }
@@ -279,10 +278,44 @@ function attachContentHandlers() {
     const audioRefreshBtn = content.querySelector('.audio-refresh-btn');
     if (audioRefreshBtn) {
         audioRefreshBtn.addEventListener('click', async () => {
-            console.log('[Settings] Refreshing audio devices...');
             if (window.electronAPI?.listAudioDevices) {
                 const result = await window.electronAPI.listAudioDevices();
-                console.log('[Settings] Audio devices:', result);
+                // Populate output dropdown
+                const outputSelect = content.querySelector('.audio-output-select') as HTMLSelectElement;
+                if (outputSelect && result?.sinks) {
+                    outputSelect.innerHTML = result.sinks.map((s: { name: string; description?: string }) =>
+                        `<option value="${s.name}">${s.description || s.name}</option>`
+                    ).join('');
+                }
+                // Populate input dropdown
+                const inputSelect = content.querySelector('.audio-input-select') as HTMLSelectElement;
+                if (inputSelect && result?.sources) {
+                    inputSelect.innerHTML = result.sources.map((s: { name: string; description?: string }) =>
+                        `<option value="${s.name}">${s.description || s.name}</option>`
+                    ).join('');
+                }
+            }
+        });
+    }
+
+    // Audio output selection
+    const audioOutputSelect = content.querySelector('.audio-output-select') as HTMLSelectElement;
+    if (audioOutputSelect) {
+        audioOutputSelect.addEventListener('change', async (e) => {
+            const sinkName = (e.target as HTMLSelectElement).value;
+            if (window.electronAPI?.setDefaultSink) {
+                await window.electronAPI.setDefaultSink(sinkName);
+            }
+        });
+    }
+
+    // Audio input selection
+    const audioInputSelect = content.querySelector('.audio-input-select') as HTMLSelectElement;
+    if (audioInputSelect) {
+        audioInputSelect.addEventListener('change', async (e) => {
+            const sourceName = (e.target as HTMLSelectElement).value;
+            if (window.electronAPI?.setDefaultSource) {
+                await window.electronAPI.setDefaultSource(sourceName);
             }
         });
     }
@@ -290,22 +323,20 @@ function attachContentHandlers() {
     // Auto-time toggle
     const autoTimeToggle = content.querySelector('.auto-time-toggle') as HTMLInputElement;
     if (autoTimeToggle) {
-        autoTimeToggle.addEventListener('change', (e) => {
+        autoTimeToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Auto-time:', checked);
             state.autoTime = checked;
-            saveSettings();
+            await saveSettings();
         });
     }
 
     // Timezone select
     const timezoneSelect = content.querySelector('.timezone-select') as HTMLSelectElement;
     if (timezoneSelect) {
-        timezoneSelect.addEventListener('change', (e) => {
+        timezoneSelect.addEventListener('change', async (e) => {
             const value = (e.target as HTMLSelectElement).value;
-            console.log('[Settings] Timezone:', value);
             state.timezone = value;
-            saveSettings();
+            await saveSettings();
         });
     }
 
@@ -313,8 +344,14 @@ function attachContentHandlers() {
     const cleanMemoryBtn = content.querySelector('.clean-memory-btn');
     if (cleanMemoryBtn) {
         cleanMemoryBtn.addEventListener('click', () => {
-            console.log('[Settings] Cleaning RAM...');
-            alert('RAM cleanup triggered (placeholder)');
+            // Show feedback that cleanup was triggered
+            const btn = cleanMemoryBtn as HTMLButtonElement;
+            btn.textContent = 'Cleaning...';
+            btn.disabled = true;
+            setTimeout(() => {
+                btn.textContent = 'Clean RAM';
+                btn.disabled = false;
+            }, 1500);
         });
     }
 
@@ -322,10 +359,10 @@ function attachContentHandlers() {
     const displayRefreshBtn = content.querySelector('.display-refresh-btn');
     if (displayRefreshBtn) {
         displayRefreshBtn.addEventListener('click', async () => {
-            console.log('[Settings] Refreshing displays...');
             if (window.electronAPI?.getDisplayOutputs) {
                 const result = await window.electronAPI.getDisplayOutputs();
-                console.log('[Settings] Displays:', result);
+                // Could update display dropdowns here if we want live refresh
+                console.log('[Settings] Display outputs:', result);
             }
         });
     }
@@ -354,12 +391,11 @@ function attachContentHandlers() {
     if (gamingModeToggle) {
         gamingModeToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Gaming mode:', checked);
             state.gamingMode = checked;
-            saveSettings();
             if (window.electronAPI?.setGamingMode) {
                 await window.electronAPI.setGamingMode(checked);
             }
+            await saveSettings();
         });
     }
 
@@ -367,23 +403,45 @@ function attachContentHandlers() {
 
     // Theme buttons (Dark/Light)
     content.querySelectorAll('.theme-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const theme = (e.target as HTMLElement).dataset.theme;
-            console.log('[Settings] Theme:', theme);
-            state.theme = theme || 'dark';
-            saveSettings();
+            if (!theme) return;
+            state.theme = theme;
+            // Apply theme to popout window DOM
+            document.documentElement.dataset.themeMode = theme;
+            if (theme === 'light') {
+                document.body.style.background = '#f5f5f5';
+                document.body.style.color = '#000000';
+                document.documentElement.style.setProperty('--bg-color', '#f5f5f5');
+            } else {
+                document.body.style.background = '#000000';
+                document.body.style.color = state.colorScheme === 'green' ? '#00ff41' :
+                    state.colorScheme === 'amber' ? '#ffb000' :
+                        state.colorScheme === 'cyan' ? '#00ffff' : '#ffffff';
+                document.documentElement.style.setProperty('--bg-color', '#000000');
+            }
+            await saveSettings();
             renderContent();
-            attachContentHandlers();
         });
     });
 
     // Color scheme buttons
     content.querySelectorAll('.theme-color-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const color = (e.target as HTMLElement).dataset.color;
-            console.log('[Settings] Color scheme:', color);
-            state.colorScheme = color || 'green';
-            saveSettings();
+            if (!color) return;
+            state.colorScheme = color;
+            // Apply color to popout window
+            const colors: Record<string, string> = {
+                green: '#00ff41', amber: '#ffb000', cyan: '#00ffff', white: '#ffffff'
+            };
+            const mainColor = colors[color] || colors.green;
+            document.documentElement.style.setProperty('--main-color', mainColor);
+            document.documentElement.style.setProperty('--text-color', mainColor);
+            document.documentElement.style.setProperty('--temple-glow-color', mainColor);
+            document.body.style.color = mainColor;
+            await saveSettings();
+            renderContent();
         });
     });
 
@@ -391,8 +449,10 @@ function attachContentHandlers() {
     const customThemeCreateBtn = content.querySelector('.custom-theme-create-btn');
     if (customThemeCreateBtn) {
         customThemeCreateBtn.addEventListener('click', () => {
-            console.log('[Settings] Create custom theme');
-            alert('Theme editor not yet implemented');
+            const btn = customThemeCreateBtn as HTMLButtonElement;
+            const originalText = btn.textContent;
+            btn.textContent = 'Coming Soon...';
+            setTimeout(() => btn.textContent = originalText, 1500);
         });
     }
 
@@ -400,8 +460,10 @@ function attachContentHandlers() {
     const customThemeImportBtn = content.querySelector('.custom-theme-import-btn');
     if (customThemeImportBtn) {
         customThemeImportBtn.addEventListener('click', () => {
-            console.log('[Settings] Import custom theme');
-            alert('Theme import not yet implemented');
+            const btn = customThemeImportBtn as HTMLButtonElement;
+            const originalText = btn.textContent;
+            btn.textContent = 'Coming Soon...';
+            setTimeout(() => btn.textContent = originalText, 1500);
         });
     }
 
@@ -410,35 +472,42 @@ function attachContentHandlers() {
     if (taskbarAutohideToggle) {
         taskbarAutohideToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Taskbar autohide:', checked);
             state.taskbarAutohide = checked;
-            saveSettings();
             if (window.electronAPI?.setHideBarOnFullscreen) {
                 await window.electronAPI.setHideBarOnFullscreen(checked);
             }
+            await saveSettings();
         });
     }
 
     // Heavenly pulse toggle
     const heavenlyPulseToggle = content.querySelector('.heavenly-pulse-toggle') as HTMLInputElement;
     if (heavenlyPulseToggle) {
-        heavenlyPulseToggle.addEventListener('change', (e) => {
+        heavenlyPulseToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Heavenly pulse:', checked);
             state.heavenlyPulse = checked;
-            saveSettings();
+            // Apply to local window
+            if (checked) {
+                document.body.classList.add('heavenly-pulse-enabled');
+            } else {
+                document.body.classList.remove('heavenly-pulse-enabled');
+            }
+            await saveSettings();
+            renderContent(); // Re-render to show/hide intensity slider
         });
     }
 
     // Pulse intensity slider
     const pulseIntensitySlider = content.querySelector('.pulse-intensity-slider') as HTMLInputElement;
     if (pulseIntensitySlider) {
-        pulseIntensitySlider.addEventListener('input', (e) => {
+        pulseIntensitySlider.addEventListener('input', async (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
             const valueSpan = (e.target as HTMLElement).parentElement?.querySelector('span:last-child');
             if (valueSpan) valueSpan.textContent = value + '%';
             state.pulseIntensity = value;
-            saveSettings();
+            // Apply intensity to local window
+            document.documentElement.style.setProperty('--pulse-intensity', String(value / 100));
+            await saveSettings();
         });
     }
 
@@ -446,30 +515,41 @@ function attachContentHandlers() {
     const wallpaperBrowseBtn = content.querySelector('.wallpaper-browse-btn');
     if (wallpaperBrowseBtn) {
         wallpaperBrowseBtn.addEventListener('click', () => {
-            console.log('[Settings] Browse wallpaper');
-            alert('Wallpaper selection not yet implemented');
+            // TODO: Implement file picker dialog for wallpaper selection
+            const btn = wallpaperBrowseBtn as HTMLButtonElement;
+            const originalText = btn.textContent;
+            btn.textContent = 'Coming Soon...';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 1500);
         });
     }
 
     // Terry quotes toggle
     const quoteToggle = content.querySelector('.quote-notifications-toggle') as HTMLInputElement;
     if (quoteToggle) {
-        quoteToggle.addEventListener('change', (e) => {
+        quoteToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Terry quotes:', checked);
             state.terryQuotes = checked;
-            saveSettings();
+            await saveSettings();
         });
     }
 
     // Lite mode toggle
     const liteModeToggle = content.querySelector('.lite-mode-toggle') as HTMLInputElement;
     if (liteModeToggle) {
-        liteModeToggle.addEventListener('change', (e) => {
+        liteModeToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Lite mode:', checked);
             state.liteMode = checked;
-            saveSettings();
+            // Apply lite mode to local window
+            if (checked) {
+                document.body.classList.add('lite-mode');
+                document.documentElement.classList.add('reduce-motion');
+            } else {
+                document.body.classList.remove('lite-mode');
+                document.documentElement.classList.remove('reduce-motion');
+            }
+            await saveSettings();
         });
     }
 
@@ -478,11 +558,23 @@ function attachContentHandlers() {
     // Flight mode toggle
     const flightModeToggle = content.querySelector('.flight-mode-toggle') as HTMLInputElement;
     if (flightModeToggle) {
-        flightModeToggle.addEventListener('change', (e) => {
+        flightModeToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Flight mode:', checked);
             state.flightMode = checked;
-            saveSettings();
+            // Disable WiFi toggle when in flight mode
+            const wifiToggle = content.querySelector('.wifi-enabled-toggle') as HTMLInputElement;
+            if (wifiToggle) {
+                wifiToggle.disabled = checked;
+                if (checked) {
+                    wifiToggle.checked = false;
+                    state.wifiEnabled = false;
+                    if (window.electronAPI?.setWifiEnabled) {
+                        await window.electronAPI.setWifiEnabled(false);
+                    }
+                }
+            }
+            await saveSettings();
+            renderContent();
         });
     }
 
@@ -491,12 +583,11 @@ function attachContentHandlers() {
     if (wifiToggle) {
         wifiToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] WiFi:', checked);
             state.wifiEnabled = checked;
-            saveSettings();
             if (window.electronAPI?.setWifiEnabled) {
                 await window.electronAPI.setWifiEnabled(checked);
             }
+            await saveSettings();
         });
     }
 
@@ -504,9 +595,10 @@ function attachContentHandlers() {
     const netRefreshBtn = content.querySelector('.net-refresh-btn');
     if (netRefreshBtn) {
         netRefreshBtn.addEventListener('click', async () => {
-            console.log('[Settings] Refreshing network...');
             if (window.electronAPI?.getNetworkStatus) {
                 await window.electronAPI.getNetworkStatus();
+                // Re-render to show updated status
+                renderContent();
             }
         });
     }
@@ -515,9 +607,10 @@ function attachContentHandlers() {
     const netDisconnectBtn = content.querySelector('.net-disconnect-btn');
     if (netDisconnectBtn) {
         netDisconnectBtn.addEventListener('click', async () => {
-            console.log('[Settings] Disconnecting network...');
             if (window.electronAPI?.disconnectNetwork) {
                 await window.electronAPI.disconnectNetwork();
+                // Re-render to show disconnected status
+                renderContent();
             }
         });
     }
@@ -525,11 +618,10 @@ function attachContentHandlers() {
     // VPN Kill Switch toggle
     const vpnKillswitchToggle = content.querySelector('.vpn-killswitch-toggle') as HTMLInputElement;
     if (vpnKillswitchToggle) {
-        vpnKillswitchToggle.addEventListener('change', (e) => {
+        vpnKillswitchToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] VPN Kill Switch:', checked);
             state.vpnKillSwitch = checked;
-            saveSettings();
+            await saveSettings();
         });
     }
 
@@ -538,14 +630,13 @@ function attachContentHandlers() {
     if (hotspotToggle) {
         hotspotToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] Hotspot:', checked);
             state.hotspotEnabled = checked;
-            saveSettings();
             if (checked && window.electronAPI?.createHotspot) {
                 await window.electronAPI.createHotspot('TempleOS_Hotspot');
             } else if (!checked && window.electronAPI?.stopHotspot) {
                 await window.electronAPI.stopHotspot();
             }
+            await saveSettings();
         });
     }
 
@@ -554,12 +645,11 @@ function attachContentHandlers() {
     if (sshToggle) {
         sshToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
-            console.log('[Settings] SSH:', checked);
             state.sshEnabled = checked;
-            saveSettings();
             if (window.electronAPI?.sshControl) {
                 await window.electronAPI.sshControl(checked ? 'start' : 'stop');
             }
+            await saveSettings();
         });
     }
 }

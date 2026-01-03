@@ -69,6 +69,18 @@ interface SettingsState {
     mouseSpeed: number;
     // Bluetooth
     bluetoothEnabled: boolean;
+    // Network
+    autoTime: boolean;
+    timezone: string;
+    colorScheme: string;
+    heavenlyPulse: boolean;
+    pulseIntensity: number;
+    terryQuotes: boolean;
+    liteMode: boolean;
+    flightMode: boolean;
+    vpnKillSwitch: boolean;
+    hotspotEnabled: boolean;
+    sshEnabled: boolean;
 }
 
 let state: SettingsState = {
@@ -93,7 +105,18 @@ let state: SettingsState = {
     audioOutput: 'Default',
     audioInput: 'Default',
     mouseSpeed: 5,
-    bluetoothEnabled: false
+    bluetoothEnabled: false,
+    autoTime: true,
+    timezone: 'Local',
+    colorScheme: 'green',
+    heavenlyPulse: true,
+    pulseIntensity: 20,
+    terryQuotes: true,
+    liteMode: false,
+    flightMode: false,
+    vpnKillSwitch: false,
+    hotspotEnabled: false,
+    sshEnabled: false
 };
 
 // Categories
@@ -234,145 +257,308 @@ function renderContent() {
     content.innerHTML = header + body;
 }
 
-// Attach content event handlers
+// Attach content event handlers - comprehensive implementation
 function attachContentHandlers() {
-    // Checkboxes
-    content.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', (e) => {
-            const target = e.target as HTMLInputElement;
-            handleCheckboxChange(target.id, target.checked);
+    // ===== SYSTEM CATEGORY =====
+
+    // Volume slider
+    const volumeSlider = content.querySelector('.volume-slider') as HTMLInputElement;
+    if (volumeSlider) {
+        volumeSlider.addEventListener('input', async (e) => {
+            const value = parseInt((e.target as HTMLInputElement).value);
+            console.log('[Settings] Volume changed:', value);
+            if (window.electronAPI?.setSystemVolume) {
+                await window.electronAPI.setSystemVolume(value);
+            }
         });
-    });
+    }
 
-    // Selects
-    content.querySelectorAll('select').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-            const target = e.target as HTMLSelectElement;
-            handleSelectChange(target.id, target.value);
+    // Audio refresh button
+    const audioRefreshBtn = content.querySelector('.audio-refresh-btn');
+    if (audioRefreshBtn) {
+        audioRefreshBtn.addEventListener('click', async () => {
+            console.log('[Settings] Refreshing audio devices...');
+            if (window.electronAPI?.listAudioDevices) {
+                const result = await window.electronAPI.listAudioDevices();
+                console.log('[Settings] Audio devices:', result);
+            }
         });
-    });
+    }
 
-    // Inputs
-    content.querySelectorAll('input[type="number"], input[type="password"], input[type="text"]').forEach(inp => {
-        inp.addEventListener('change', (e) => {
-            const target = e.target as HTMLInputElement;
-            handleInputChange(target.id, target.value);
+    // Auto-time toggle
+    const autoTimeToggle = content.querySelector('.auto-time-toggle') as HTMLInputElement;
+    if (autoTimeToggle) {
+        autoTimeToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Auto-time:', checked);
+            state.autoTime = checked;
+            saveSettings();
         });
-    });
+    }
 
-    // Buttons
-    content.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const target = e.target as HTMLButtonElement;
-            handleButtonClick(target.id);
+    // Timezone select
+    const timezoneSelect = content.querySelector('.timezone-select') as HTMLSelectElement;
+    if (timezoneSelect) {
+        timezoneSelect.addEventListener('change', (e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            console.log('[Settings] Timezone:', value);
+            state.timezone = value;
+            saveSettings();
         });
-    });
-}
+    }
 
-// Handle checkbox changes
-function handleCheckboxChange(id: string, checked: boolean) {
-    console.log('[Settings] Checkbox changed:', id, checked);
+    // Clean RAM button
+    const cleanMemoryBtn = content.querySelector('.clean-memory-btn');
+    if (cleanMemoryBtn) {
+        cleanMemoryBtn.addEventListener('click', () => {
+            console.log('[Settings] Cleaning RAM...');
+            alert('RAM cleanup triggered (placeholder)');
+        });
+    }
 
-    switch (id) {
-        case 'taskbar-autohide':
-            state.taskbarAutohide = checked;
-            break;
-        case 'wifi-enabled':
-            state.wifiEnabled = checked;
-            break;
-        case 'tor-enabled':
-            state.torEnabled = checked;
-            break;
-        case 'gaming-mode':
+    // Display refresh button
+    const displayRefreshBtn = content.querySelector('.display-refresh-btn');
+    if (displayRefreshBtn) {
+        displayRefreshBtn.addEventListener('click', async () => {
+            console.log('[Settings] Refreshing displays...');
+            if (window.electronAPI?.getDisplayOutputs) {
+                const result = await window.electronAPI.getDisplayOutputs();
+                console.log('[Settings] Displays:', result);
+            }
+        });
+    }
+
+    // Display scale slider
+    const displayScaleSlider = content.querySelector('.display-scale-slider') as HTMLInputElement;
+    const displayScaleValue = content.querySelector('.display-scale-value');
+    if (displayScaleSlider && displayScaleValue) {
+        displayScaleSlider.addEventListener('input', (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value);
+            displayScaleValue.textContent = Math.round(value * 100) + '%';
+        });
+    }
+
+    // Display scale reset button
+    const displayScaleResetBtn = content.querySelector('.display-scale-reset-btn');
+    if (displayScaleResetBtn && displayScaleSlider) {
+        displayScaleResetBtn.addEventListener('click', () => {
+            displayScaleSlider.value = '1';
+            if (displayScaleValue) displayScaleValue.textContent = '100%';
+        });
+    }
+
+    // Gaming mode toggle
+    const gamingModeToggle = content.querySelector('.gaming-mode-toggle') as HTMLInputElement;
+    if (gamingModeToggle) {
+        gamingModeToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Gaming mode:', checked);
             state.gamingMode = checked;
-            break;
-        case 'hide-taskbar-fullscreen':
-            state.hideBarOnFullscreen = checked;
-            break;
-        case 'firewall-enabled':
-            state.firewallEnabled = checked;
-            break;
-        case 'encryption-enabled':
-            state.encryptionEnabled = checked;
-            break;
-        case 'mac-randomization':
-            state.macRandomization = checked;
-            break;
-        case 'high-contrast':
-            state.highContrast = checked;
-            break;
-        case 'large-text':
-            state.largeText = checked;
-            break;
-        case 'reduce-motion':
-            state.reduceMotion = checked;
-            break;
-        case 'jelly-mode':
-            state.jellyMode = checked;
-            break;
-        case 'bluetooth-enabled':
-            state.bluetoothEnabled = checked;
-            break;
+            saveSettings();
+            if (window.electronAPI?.setGamingMode) {
+                await window.electronAPI.setGamingMode(checked);
+            }
+        });
     }
 
-    saveSettings();
-}
+    // ===== PERSONALIZATION CATEGORY =====
 
-// Handle select changes
-function handleSelectChange(id: string, value: string) {
-    console.log('[Settings] Select changed:', id, value);
+    // Theme buttons (Dark/Light)
+    content.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const theme = (e.target as HTMLElement).dataset.theme;
+            console.log('[Settings] Theme:', theme);
+            state.theme = theme || 'dark';
+            saveSettings();
+            renderContent();
+            attachContentHandlers();
+        });
+    });
 
-    switch (id) {
-        case 'taskbar-position':
-            state.taskbarPosition = value;
-            break;
-        case 'theme-select':
-            state.theme = value;
-            break;
-        case 'font-select':
-            state.systemFont = value;
-            break;
-        case 'audio-output':
-            state.audioOutput = value;
-            break;
-        case 'audio-input':
-            state.audioInput = value;
-            break;
+    // Color scheme buttons
+    content.querySelectorAll('.theme-color-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const color = (e.target as HTMLElement).dataset.color;
+            console.log('[Settings] Color scheme:', color);
+            state.colorScheme = color || 'green';
+            saveSettings();
+        });
+    });
+
+    // Custom theme create button
+    const customThemeCreateBtn = content.querySelector('.custom-theme-create-btn');
+    if (customThemeCreateBtn) {
+        customThemeCreateBtn.addEventListener('click', () => {
+            console.log('[Settings] Create custom theme');
+            alert('Theme editor not yet implemented');
+        });
     }
 
-    saveSettings();
-}
-
-// Handle input changes
-function handleInputChange(id: string, value: string) {
-    console.log('[Settings] Input changed:', id, value);
-
-    switch (id) {
-        case 'lock-password':
-            state.lockPassword = value;
-            break;
-        case 'lock-pin':
-            state.lockPin = value;
-            break;
-        case 'mouse-speed':
-            state.mouseSpeed = parseInt(value) || 5;
-            break;
+    // Custom theme import button
+    const customThemeImportBtn = content.querySelector('.custom-theme-import-btn');
+    if (customThemeImportBtn) {
+        customThemeImportBtn.addEventListener('click', () => {
+            console.log('[Settings] Import custom theme');
+            alert('Theme import not yet implemented');
+        });
     }
 
-    saveSettings();
-}
+    // Taskbar autohide toggle
+    const taskbarAutohideToggle = content.querySelector('.taskbar-autohide-toggle') as HTMLInputElement;
+    if (taskbarAutohideToggle) {
+        taskbarAutohideToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Taskbar autohide:', checked);
+            state.taskbarAutohide = checked;
+            saveSettings();
+            if (window.electronAPI?.setHideBarOnFullscreen) {
+                await window.electronAPI.setHideBarOnFullscreen(checked);
+            }
+        });
+    }
 
-// Handle button clicks
-function handleButtonClick(id: string) {
-    console.log('[Settings] Button clicked:', id);
+    // Heavenly pulse toggle
+    const heavenlyPulseToggle = content.querySelector('.heavenly-pulse-toggle') as HTMLInputElement;
+    if (heavenlyPulseToggle) {
+        heavenlyPulseToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Heavenly pulse:', checked);
+            state.heavenlyPulse = checked;
+            saveSettings();
+        });
+    }
 
-    switch (id) {
-        case 'wallpaper-select-btn':
+    // Pulse intensity slider
+    const pulseIntensitySlider = content.querySelector('.pulse-intensity-slider') as HTMLInputElement;
+    if (pulseIntensitySlider) {
+        pulseIntensitySlider.addEventListener('input', (e) => {
+            const value = parseInt((e.target as HTMLInputElement).value);
+            const valueSpan = (e.target as HTMLElement).parentElement?.querySelector('span:last-child');
+            if (valueSpan) valueSpan.textContent = value + '%';
+            state.pulseIntensity = value;
+            saveSettings();
+        });
+    }
+
+    // Wallpaper browse button
+    const wallpaperBrowseBtn = content.querySelector('.wallpaper-browse-btn');
+    if (wallpaperBrowseBtn) {
+        wallpaperBrowseBtn.addEventListener('click', () => {
+            console.log('[Settings] Browse wallpaper');
             alert('Wallpaper selection not yet implemented');
-            break;
-        case 'vpn-connect-btn':
-            alert('VPN connection not yet implemented');
-            break;
+        });
+    }
+
+    // Terry quotes toggle
+    const quoteToggle = content.querySelector('.quote-notifications-toggle') as HTMLInputElement;
+    if (quoteToggle) {
+        quoteToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Terry quotes:', checked);
+            state.terryQuotes = checked;
+            saveSettings();
+        });
+    }
+
+    // Lite mode toggle
+    const liteModeToggle = content.querySelector('.lite-mode-toggle') as HTMLInputElement;
+    if (liteModeToggle) {
+        liteModeToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Lite mode:', checked);
+            state.liteMode = checked;
+            saveSettings();
+        });
+    }
+
+    // ===== NETWORK CATEGORY =====
+
+    // Flight mode toggle
+    const flightModeToggle = content.querySelector('.flight-mode-toggle') as HTMLInputElement;
+    if (flightModeToggle) {
+        flightModeToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Flight mode:', checked);
+            state.flightMode = checked;
+            saveSettings();
+        });
+    }
+
+    // WiFi enabled toggle
+    const wifiToggle = content.querySelector('.wifi-enabled-toggle') as HTMLInputElement;
+    if (wifiToggle) {
+        wifiToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] WiFi:', checked);
+            state.wifiEnabled = checked;
+            saveSettings();
+            if (window.electronAPI?.setWifiEnabled) {
+                await window.electronAPI.setWifiEnabled(checked);
+            }
+        });
+    }
+
+    // Network refresh button
+    const netRefreshBtn = content.querySelector('.net-refresh-btn');
+    if (netRefreshBtn) {
+        netRefreshBtn.addEventListener('click', async () => {
+            console.log('[Settings] Refreshing network...');
+            if (window.electronAPI?.getNetworkStatus) {
+                await window.electronAPI.getNetworkStatus();
+            }
+        });
+    }
+
+    // Network disconnect button
+    const netDisconnectBtn = content.querySelector('.net-disconnect-btn');
+    if (netDisconnectBtn) {
+        netDisconnectBtn.addEventListener('click', async () => {
+            console.log('[Settings] Disconnecting network...');
+            if (window.electronAPI?.disconnectNetwork) {
+                await window.electronAPI.disconnectNetwork();
+            }
+        });
+    }
+
+    // VPN Kill Switch toggle
+    const vpnKillswitchToggle = content.querySelector('.vpn-killswitch-toggle') as HTMLInputElement;
+    if (vpnKillswitchToggle) {
+        vpnKillswitchToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] VPN Kill Switch:', checked);
+            state.vpnKillSwitch = checked;
+            saveSettings();
+        });
+    }
+
+    // Hotspot toggle
+    const hotspotToggle = content.querySelector('.hotspot-toggle') as HTMLInputElement;
+    if (hotspotToggle) {
+        hotspotToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] Hotspot:', checked);
+            state.hotspotEnabled = checked;
+            saveSettings();
+            if (checked && window.electronAPI?.createHotspot) {
+                await window.electronAPI.createHotspot('TempleOS_Hotspot');
+            } else if (!checked && window.electronAPI?.stopHotspot) {
+                await window.electronAPI.stopHotspot();
+            }
+        });
+    }
+
+    // SSH toggle
+    const sshToggle = content.querySelector('.ssh-toggle') as HTMLInputElement;
+    if (sshToggle) {
+        sshToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            console.log('[Settings] SSH:', checked);
+            state.sshEnabled = checked;
+            saveSettings();
+            if (window.electronAPI?.sshControl) {
+                await window.electronAPI.sshControl(checked ? 'start' : 'stop');
+            }
+        });
     }
 }
 
@@ -494,91 +680,229 @@ function renderSystemSettings() {
 }
 
 function renderPersonalizationSettings() {
+    const wallpapers = [
+        { id: 'default', label: 'Default', path: './images/wallpaper.png' },
+    ];
+
     return `
-        <div class="settings-card">
-            <h3>Theme</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Theme Selection
-                    <small>Choose your visual style</small>
-                </div>
-                <select id="theme-select">
-                    <option ${state.theme === 'TempleOS Green (Default)' ? 'selected' : ''}>TempleOS Green (Default)</option>
-                    <option ${state.theme === 'Dark' ? 'selected' : ''}>Dark</option>
-                    <option ${state.theme === 'Light' ? 'selected' : ''}>Light</option>
-                </select>
+        ${card('Theme', `
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <button class="theme-btn" data-theme="dark" style="padding: 8px 16px; background: transparent; color: #00ff41; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Dark</button>
+                <button class="theme-btn" data-theme="light" style="padding: 8px 16px; background: transparent; color: #00ff41; border: 1px solid #00ff41; cursor: pointer; border-radius: 6px;">Light</button>
             </div>
-        </div>
+            
+            <div style="font-size: 14px; color: #ffd700; margin-bottom: 8px;">Color Scheme</div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                ${['green', 'amber', 'cyan', 'white'].map(c => `
+                    <button class="theme-color-btn" data-color="${c}" style="
+                        width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+                        background: ${c === 'green' ? '#00ff41' : c === 'amber' ? '#ffb000' : c === 'cyan' ? '#00ffff' : '#ffffff'};
+                        border: 1px solid rgba(255,255,255,0.3);
+                    " title="${c.charAt(0).toUpperCase() + c.slice(1)}"></button>
+                `).join('')}
+            </div>
 
-        <div class="settings-card">
-            <h3>Fonts</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    System Font
-                    <small>Default font for applications</small>
-                </div>
-                <select id="font-select">
-                    <option ${state.systemFont === 'Fira Code' ? 'selected' : ''}>Fira Code</option>
-                    <option ${state.systemFont === 'VT323' ? 'selected' : ''}>VT323</option>
-                    <option ${state.systemFont === 'Consolas' ? 'selected' : ''}>Consolas</option>
-                </select>
-            </div>
-        </div>
+            <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
+        `)}
 
-        <div class="settings-card">
-            <h3>Wallpaper</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Current Wallpaper
-                    <small>Choose background image</small>
+        ${card('Custom Themes', `
+            <div style="margin-bottom: 10px;">
+                <div style="opacity: 0.6; font-size: 12px;">No custom themes found.</div>
+                <div style="display: flex; gap: 10px; margin-top: 12px;">
+                    <button class="custom-theme-create-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;">+ Create New Theme</button>
+                    <button class="custom-theme-import-btn" style="background: none; border: 1px solid rgba(0,255,65,0.4); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;">Import JSON</button>
                 </div>
-                <button id="wallpaper-select-btn">Select Image</button>
             </div>
-        </div>
+        `)}
+
+        ${card('Visual Effects', `
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Window Animations</span>
+                    <input type="checkbox" disabled checked title="Cannot disable animations in this version (use Lite Mode)">
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Auto-hide Taskbar</span>
+                    <input type="checkbox" class="taskbar-autohide-toggle" style="cursor: pointer;">
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Heavenly Pulse</span>
+                    <input type="checkbox" class="heavenly-pulse-toggle" checked style="cursor: pointer;">
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Pulse Intensity</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="range" class="pulse-intensity-slider" min="3" max="70" value="20" style="width: 100px; cursor: pointer; accent-color: #00ff41;">
+                        <span style="min-width: 35px; text-align: right;">20%</span>
+                    </div>
+                </label>
+            </div>
+        `)}
+
+        ${card('Wallpaper', `
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                ${wallpapers.map(w => `
+                    <button class="wallpaper-btn" data-wallpaper="${w.path}" style="aspect-ratio: 16/9; border: 2px solid #00ff41; background: rgba(0,0,0,0.2); color: #00ff41; border-radius: 8px; cursor: pointer;">${w.label}</button>
+                `).join('')}
+                <button class="wallpaper-browse-btn" style="aspect-ratio: 16/9; border: 1px dashed rgba(0,255,65,0.3); background: rgba(0,0,0,0.1); color: #00ff41; border-radius: 8px; cursor: pointer;">📂 Select File...</button>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">Format: JPG, PNG, GIF, WEBP</div>
+        `)}
+
+        ${card('Divine Settings', `
+            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 10px;">
+                <span>Random Terry Quotes</span>
+                <input type="checkbox" class="quote-notifications-toggle" checked style="transform: scale(1.2); accent-color: #00ff41;">
+            </label>
+        `)}
+
+        ${card('Performance', `
+            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                <span>Lite Mode (No Animations)</span>
+                <input type="checkbox" class="lite-mode-toggle" style="transform: scale(1.2); accent-color: #00ff41;">
+            </label>
+        `)}
     `;
 }
 
 function renderNetworkSettings() {
     return `
-        <div class="settings-card">
-            <h3>WiFi</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    WiFi Enabled
-                    <small>Enable/disable WiFi adapter</small>
+        ${card('Status', `
+            <div style="font-weight: bold; color: #ffd700; margin-bottom: 6px;">netplan-enp0s3</div>
+            <div style="font-size: 12px; opacity: 0.85;">ethernet</div>
+            <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 20px;">
+                    <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+                        <input type="checkbox" class="flight-mode-toggle" />
+                        <span style="opacity: 0.9;">✈️ Flight Mode</span>
+                    </label>
+                    <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+                        <input type="checkbox" class="wifi-enabled-toggle" checked />
+                        <span style="opacity: 0.9;">Wi‑Fi</span>
+                    </label>
                 </div>
-                <input type="checkbox" id="wifi-enabled" ${state.wifiEnabled ? 'checked' : ''} />
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Connected Network
-                    <small>Current WiFi connection</small>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="net-refresh-btn" style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Refresh</button>
+                    <button class="net-disconnect-btn" style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Disconnect</button>
                 </div>
-                <span style="opacity: 0.7;">Not connected</span>
             </div>
-        </div>
+        `)}
 
-        <div class="settings-card">
-            <h3>VPN</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    VPN Status
-                    <small>Virtual Private Network</small>
-                </div>
-                <button id="vpn-connect-btn">Connect</button>
-            </div>
-        </div>
+        ${card('Wi‑Fi Networks', `
+            <div style="opacity: 0.6;">No Wi‑F
 
-        <div class="settings-card">
-            <h3>Tor</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Tor Service
-                    <small>Anonymous browsing daemon</small>
+i networks found.</div>
+        `)}
+
+        ${card('Saved Networks', `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                    <div style="min-width: 0;">
+                        <div style="font-weight: bold; color: #00ff41;">netplan-enp0s3</div>
+                        <div style="font-size: 12px; opacity: 0.75;">802-3-ethernet • enp0s3</div>
+                    </div>
+                    <div style="display:flex; gap: 8px;">
+                        <button style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
+                        <button style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Forget</button>
+                    </div>
                 </div>
-                <input type="checkbox" id="tor-enabled" ${state.torEnabled ? 'checked' : ''} />
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(0,255,65,0.2); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                    <div style="min-width: 0;">
+                        <div style="font-weight: bold; color: #00ff41;">lo</div>
+                        <div style="font-size: 12px; opacity: 0.75;">loopback • lo</div>
+                    </div>
+                    <div style="display:flex; gap: 8px;">
+                        <button style="background: none; border: 1px solid rgba(0,255,65,0.5); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Connect</button>
+                        <button style="background: none; border: 1px solid rgba(255,100,100,0.5); color: #ff6464; padding: 6px 10px; border-radius: 6px; cursor: pointer;">Forget</button>
+                    </div>
+                </div>
             </div>
-        </div>
+        `)}
+
+        ${card('VPN Profiles', `
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                <div style="font-size: 12px; opacity: 0.8;">Manage OpenVPN / WireGuard profiles (NetworkManager).</div>
+                <div style="display: flex; gap: 10px;">
+                    <button style="background: none; border: 1px solid rgba(0,255,65,0.45); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Import OpenVPN</button>
+                    <button style="background: none; border: 1px solid rgba(0,255,65,0.45); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Import WireGuard</button>
+                </div>
+            </div>
+            <div style="opacity: 0.6;">No VPN profiles found. Import one to get started.</div>
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+                OpenVPN import may require the NetworkManager OpenVPN plugin. WireGuard requires NetworkManager WireGuard support.
+            </div>
+        `)}
+
+        ${card('VPN Kill Switch', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: #888;">Disabled</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Block network traffic if VPN disconnects.</div>
+                </div>
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="vpn-killswitch-toggle">
+                    <span>Off</span>
+                </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                <div style="opacity: 0.7;">VPN</div>
+                <div style="color: #ff6464;">Not connected</div>
+                <div style="opacity: 0.7;">Mode</div>
+                <select style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+                    <option value="auto" selected>Auto (arm on VPN connect)</option>
+                    <option value="strict">Strict (block when VPN down)</option>
+                </select>
+            </div>
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px;">Enable to prevent traffic leaks if your VPN disconnects.</div>
+        `)}
+
+        ${card('Mobile Hotspot', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: #888;">Off</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Share internet connection</div>
+                </div>
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="hotspot-toggle">
+                    <span>Off</span>
+                </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; opacity: 0.8;">
+                <div>Network Name</div><div>TempleOS_Hotspot</div>
+                <div>Password</div><div><span style="opacity:0.5">None</span></div>
+                <div>Band</div><div>2.4 GHz / 5 GHz</div>
+            </div>
+            <button style="margin-top: 10px; background: none; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Edit Settings</button>
+        `)}
+
+        ${card('SSH Server', `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: #888;">Stopped</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Allow remote SSH connections</div>
+                </div>
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="ssh-toggle">
+                    <span>Off</span>
+                </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                <div style="opacity: 0.7;">Port</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" value="22" min="1" max="65535" style="flex: 0 0 100px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 4px 8px; border-radius: 4px; font-family: inherit;">
+                    <span style="font-size: 11px; opacity: 0.6;">(Default: 22)</span>
+                </div>
+                <div style="opacity: 0.7;">Status</div>
+                <div style="color: #888; font-size: 12px;">⚪ Unknown</div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Regenerate Keys</button>
+                <button style="background: none; border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">View Public Key</button>
+            </div>
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 8px;">
+                ⚠️ Warning: Enabling SSH allows remote terminal access. Ensure your password is secure.
+            </div>
+        `)}
     `;
 }
 

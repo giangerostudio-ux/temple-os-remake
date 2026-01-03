@@ -289,58 +289,11 @@
             color: #d4a017;
         }
 
-        /* ===== HEAVENLY PULSE ANIMATION ===== */
-        @keyframes heavenlyPulse {
-
-            0%,
-            100% {
-                opacity: calc(var(--pulse-intensity, 0.20) * 1.5);
-                transform: scaleY(1.4);
-            }
-
-            50% {
-                opacity: calc(var(--pulse-intensity, 0.20) * 2.5);
-                transform: scaleY(2.2);
-            }
-        }
-
-        .temple-gold-beam {
-            display: none;
-            /* Hidden by default */
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 50vh;
-            background: radial-gradient(ellipse at top, var(--main-color, #00ff41) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 9999;
-            /* ABOVE app window so it's visible */
-            transform-origin: top center;
-            animation: heavenlyPulse 8s ease-in-out infinite;
-            will-change: transform, opacity;
-        }
-
-        /* Show when enabled on body */
-        body.heavenly-pulse-enabled .temple-gold-beam {
-            display: block;
-        }
-
-        /* Lite mode / reduce motion */
-        html.reduce-motion *,
-        html.reduce-motion *::before,
-        html.reduce-motion *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-        }
+        /* No local pulse effect - popout controls main window only */
     </style>
 </head>
 
 <body>
-    <!-- Heavenly Pulse Effect -->
-    <div class="temple-gold-beam"></div>
-
     <div class="app-window">
         <div class="title-bar">
             <span class="title-bar-title">Settings</span>

@@ -153,44 +153,8 @@ async function loadSettings() {
     }
 }
 
-// Apply visual state (pulse, theme, colors) from current state
-function applyVisualState() {
-    // Apply heavenly pulse
-    if (state.heavenlyPulse) {
-        document.body.classList.add('heavenly-pulse-enabled');
-    } else {
-        document.body.classList.remove('heavenly-pulse-enabled');
-    }
-
-    // Apply pulse intensity (0.03-0.70 range)
-    const intensity = typeof state.pulseIntensity === 'number' ? state.pulseIntensity : 0.20;
-    document.documentElement.style.setProperty('--pulse-intensity', String(intensity));
-
-    // Apply theme
-    if (state.theme === 'light') {
-        document.documentElement.dataset.themeMode = 'light';
-    } else {
-        document.documentElement.dataset.themeMode = 'dark';
-    }
-
-    // Apply color scheme
-    const colors: Record<string, { main: string; text: string }> = {
-        green: { main: '#00ff41', text: '#00ff41' },
-        amber: { main: '#ffb000', text: '#ffb000' },
-        cyan: { main: '#00ffff', text: '#00ffff' },
-        white: { main: '#ffffff', text: '#ffffff' }
-    };
-    const scheme = colors[state.colorScheme] || colors.green;
-    document.documentElement.style.setProperty('--main-color', scheme.main);
-    document.documentElement.style.setProperty('--text-color', scheme.text);
-
-    // Apply lite mode
-    if (state.liteMode) {
-        document.documentElement.classList.add('lite-mode', 'reduce-motion');
-    } else {
-        document.documentElement.classList.remove('lite-mode', 'reduce-motion');
-    }
-}
+// Note: Popout settings only saves to config and broadcasts changes.
+// Visual effects (pulse, theme, colors) are applied by the main window when it receives the config.
 
 // Save settings to IPC config (broadcasts to all windows)
 async function saveSettings() {
@@ -556,12 +520,7 @@ function attachContentHandlers() {
         heavenlyPulseToggle.addEventListener('change', async (e) => {
             const checked = (e.target as HTMLInputElement).checked;
             state.heavenlyPulse = checked;
-            // Apply to local window
-            if (checked) {
-                document.body.classList.add('heavenly-pulse-enabled');
-            } else {
-                document.body.classList.remove('heavenly-pulse-enabled');
-            }
+            // Save config - main window will apply the effect
             await saveSettings();
             renderContent(); // Re-render to show/hide intensity slider
         });
@@ -576,8 +535,7 @@ function attachContentHandlers() {
             const valueSpan = (e.target as HTMLElement).parentElement?.querySelector('span:last-child');
             if (valueSpan) valueSpan.textContent = sliderValue + '%';
             state.pulseIntensity = intensity;
-            // Apply intensity to local window
-            document.documentElement.style.setProperty('--pulse-intensity', String(intensity));
+            // Save config - main window will apply the intensity
             await saveSettings();
         });
     }
@@ -1284,7 +1242,6 @@ function renderAboutSettings() {
 // Initialize
 async function init() {
     await loadSettings();
-    applyVisualState(); // Apply pulse, theme, colors from loaded config
     renderSidebar();
     renderContent(); // This now calls attachContentHandlers() internally
     attachSidebarHandlers();

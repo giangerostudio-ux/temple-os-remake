@@ -166,8 +166,7 @@ if (window.electronAPI?.onConfigChanged) {
     window.electronAPI.onConfigChanged((config: Record<string, unknown>) => {
         console.log('[Settings] Config changed from another window:', config);
         state = { ...state, ...config };
-        renderContent();
-        attachContentHandlers();
+        renderContent(); // This now calls attachContentHandlers() internally
     });
 }
 
@@ -255,6 +254,9 @@ function renderContent() {
     }
 
     content.innerHTML = header + body;
+
+    // Re-attach event handlers after DOM update
+    attachContentHandlers();
 }
 
 // Attach content event handlers - comprehensive implementation
@@ -1122,9 +1124,8 @@ function renderAboutSettings() {
 async function init() {
     await loadSettings();
     renderSidebar();
-    renderContent();
+    renderContent(); // This now calls attachContentHandlers() internally
     attachSidebarHandlers();
-    attachContentHandlers();
     console.log('[Settings Window] Initialized with IPC config sync');
 }
 

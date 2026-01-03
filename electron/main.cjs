@@ -2229,7 +2229,8 @@ function showSnapLayoutsPopup(xidHex) {
     });
 
     // Set highest z-order level for X11 compatibility (above Firefox etc.)
-    snapPopupWindow.setAlwaysOnTop(true, 'screen-saver');
+    // Use relativeLevel to ensure this appears above other alwaysOnTop windows (like popout settings)
+    snapPopupWindow.setAlwaysOnTop(true, 'screen-saver', 100);
 
     // HTML content for the popup - IMPROVED for drag-and-release
     const html = `
@@ -2352,6 +2353,8 @@ function showSnapLayoutsPopup(xidHex) {
     snapPopupWindow.once('ready-to-show', () => {
         if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
             snapPopupWindow.show();
+            // Re-assert z-order after show (X11 sometimes loses it)
+            snapPopupWindow.setAlwaysOnTop(true, 'screen-saver', 100);
         }
     });
 
@@ -2693,7 +2696,8 @@ function showSnapPreview(zone) {
     });
 
     // Set highest z-order level for X11 compatibility (above Firefox etc.)
-    snapPreviewWindow.setAlwaysOnTop(true, 'screen-saver');
+    // Use relativeLevel to ensure this appears above other alwaysOnTop windows
+    snapPreviewWindow.setAlwaysOnTop(true, 'screen-saver', 100);
 
     const previewHtml = `<!DOCTYPE html><html><head><style>
         * { margin: 0; padding: 0; }

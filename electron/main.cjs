@@ -3355,9 +3355,21 @@ body {
 .sm-dropdowns { display: none !important; } /* Hide dropdowns for cleaner look */
 
 .sm-section { padding: 10px 15px; overflow-y: auto; flex: 1; }
-.sm-section::-webkit-scrollbar { width: 8px; }
+.sm-section::-webkit-scrollbar { width: 4px; }
 .sm-section::-webkit-scrollbar-track { background: transparent; }
-.sm-section::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.3); border-radius: 4px; }
+.sm-section::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.35); border-radius: 2px; }
+.sm-section::-webkit-scrollbar-thumb:hover { background: #00ff41; box-shadow: 0 0 6px rgba(0, 255, 65, 0.4); }
+
+.sm-apps-list { max-height: 280px; overflow-y: auto; }
+.sm-apps-list::-webkit-scrollbar { width: 4px; }
+.sm-apps-list::-webkit-scrollbar-track { background: transparent; }
+.sm-apps-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.35); border-radius: 2px; }
+.sm-apps-list::-webkit-scrollbar-thumb:hover { background: #00ff41; box-shadow: 0 0 6px rgba(0, 255, 65, 0.4); }
+
+.sm-quick-links::-webkit-scrollbar { width: 4px; }
+.sm-quick-links::-webkit-scrollbar-track { background: transparent; }
+.sm-quick-links::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.35); border-radius: 2px; }
+.sm-quick-links::-webkit-scrollbar-thumb:hover { background: #00ff41; box-shadow: 0 0 6px rgba(0, 255, 65, 0.4); }
 
 .sm-section h3 {
     font-size: 12px; color: rgba(0, 255, 65, 0.7); text-transform: uppercase;

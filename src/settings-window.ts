@@ -207,7 +207,32 @@ async function saveSettings() {
 if (window.electronAPI?.onConfigChanged) {
     window.electronAPI.onConfigChanged((config: Record<string, unknown>) => {
         console.log('[Settings] Config changed from another window:', config);
-        state = { ...state, ...config };
+
+        // Translate nested config back to flat state format
+        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number } | undefined;
+        if (effects) {
+            if (typeof effects.heavenlyPulse === 'boolean') {
+                state.heavenlyPulse = effects.heavenlyPulse;
+            }
+            if (typeof effects.heavenlyPulseIntensity === 'number') {
+                state.pulseIntensity = effects.heavenlyPulseIntensity;
+            }
+        }
+
+        if (config.themeMode === 'light' || config.themeMode === 'dark') {
+            state.theme = config.themeMode as string;
+        }
+        if (typeof config.themeColor === 'string') {
+            state.colorScheme = config.themeColor;
+        }
+
+        const accessibility = config.accessibility as { reduceMotion?: boolean; largeText?: boolean; highContrast?: boolean } | undefined;
+        if (accessibility) {
+            if (typeof accessibility.reduceMotion === 'boolean') {
+                state.liteMode = accessibility.reduceMotion;
+            }
+        }
+
         renderContent(); // This now calls attachContentHandlers() internally
     });
 }
@@ -887,8 +912,8 @@ function renderPersonalizationSettings() {
                 <label style="display: flex; align-items: center; justify-content: space-between;">
                     <span>Pulse Intensity</span>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <input type="range" class="pulse-intensity-slider" min="3" max="70" value="20" style="width: 100px; cursor: pointer; accent-color: #00ff41;">
-                        <span style="min-width: 35px; text-align: right;">20%</span>
+                        <input type="range" class="pulse-intensity-slider" min="3" max="70" value="${Math.round(state.pulseIntensity * 100)}" style="width: 100px; cursor: pointer; accent-color: #00ff41;">
+                        <span style="min-width: 35px; text-align: right;">${Math.round(state.pulseIntensity * 100)}%</span>
                     </div>
                 </label>
             </div>

@@ -2034,6 +2034,33 @@ class TempleOS {
     ]);
   }
 
+  // Save security settings to config and broadcast to other windows (popout)
+  private saveSecurityToConfig(): void {
+    if (!window.electronAPI?.saveConfig) return;
+
+    const securityConfig = {
+      security: {
+        firewallEnabled: this.firewallEnabled,
+        encryptionEnabled: this.encryptionEnabled,
+        macRandomization: this.macRandomization,
+        secureDelete: this.secureDelete,
+        secureWipeOnShutdown: this.secureWipeOnShutdown,
+        trackerBlockingEnabled: this.trackerBlockingEnabled,
+        torMode: this.networkManager?.torMode || 'off',
+        duressPassword: this.duressPassword || ''
+      },
+      lockPassword: this.lockPassword || '',
+      lockPin: this.lockPin || '',
+      sshEnabled: this.sshEnabled
+    };
+
+    void window.electronAPI.saveConfig(securityConfig as any).then(() => {
+      console.log('[Settings] Security config saved and broadcast');
+    }).catch(e => {
+      console.error('[Settings] Failed to save security config:', e);
+    });
+  }
+
   // Physical Security Methods (Tier 7.6)
   private toggleUsbDevice(id: string) {
     const device = this.usbDevices.find(d => d.id === id);
@@ -7197,6 +7224,9 @@ class TempleOS {
         }
 
         if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+
+        // Persist security settings to config file and broadcast to other windows
+        this.saveSecurityToConfig();
       }
 
 

@@ -138,6 +138,11 @@ let state: SettingsState = {
     windowAnimations: true
 };
 
+// Theme editor sub-view state
+let settingsSubView: string = '';
+let themeEditorState = { name: 'New Theme', mainColor: '#00ff41', bgColor: '#0a0a0f', textColor: '#00ff41', glowColor: '#ffd700' };
+let customThemes: Array<{ name: string; mainColor: string; bgColor: string; textColor: string; glowColor?: string }> = [];
+
 // Categories
 const categories = [
     'System',
@@ -671,23 +676,105 @@ function attachContentHandlers() {
         });
     });
 
-    // Custom theme create button
+    // Custom theme create button - opens theme editor
     const customThemeCreateBtn = content.querySelector('.custom-theme-create-btn');
     if (customThemeCreateBtn) {
         customThemeCreateBtn.addEventListener('click', () => {
-            // Theme editor requires inline UI - notify user
-            alert('Theme Editor is only available in the main Settings window.\n\nOpen Settings from the taskbar to create custom themes.');
+            // Reset editor state for new theme
+            themeEditorState = { name: `Theme ${customThemes.length + 1}`, mainColor: '#00ff41', bgColor: '#0a0a0f', textColor: '#00ff41', glowColor: '#ffd700' };
+            settingsSubView = 'theme-editor';
+            renderContent();
         });
     }
 
-    // Custom theme import button
+    // Custom theme import button - file picker for JSON
     const customThemeImportBtn = content.querySelector('.custom-theme-import-btn');
     if (customThemeImportBtn) {
-        customThemeImportBtn.addEventListener('click', () => {
-            // Theme import requires inline UI - notify user
-            alert('Theme Import is only available in the main Settings window.\n\nOpen Settings from the taskbar to import themes.');
+        customThemeImportBtn.addEventListener('click', async () => {
+            // Use file input for JSON import
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const theme = JSON.parse(text);
+                    if (theme.name && theme.mainColor && theme.bgColor && theme.textColor) {
+                        customThemes.push({ ...theme });
+                        await saveSettings();
+                        renderContent();
+                    } else {
+                        alert('Invalid theme file format.');
+                    }
+                } catch {
+                    alert('Failed to parse theme JSON.');
+                }
+            };
+            input.click();
         });
     }
+
+    // Theme editor: color inputs
+    content.querySelectorAll('.theme-editor-color').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const key = (e.target as HTMLElement).dataset.key as keyof typeof themeEditorState;
+            if (key) {
+                themeEditorState[key] = (e.target as HTMLInputElement).value;
+                renderContent();
+            }
+        });
+    });
+
+    // Theme editor: name input
+    const themeNameInput = content.querySelector('.theme-editor-name') as HTMLInputElement;
+    if (themeNameInput) {
+        themeNameInput.addEventListener('input', (e) => {
+            themeEditorState.name = (e.target as HTMLInputElement).value;
+        });
+    }
+
+    // Theme editor: save button
+    const themeSaveBtn = content.querySelector('.theme-editor-save-btn');
+    if (themeSaveBtn) {
+        themeSaveBtn.addEventListener('click', async () => {
+            const name = themeEditorState.name.trim() || 'New Theme';
+            // Check for duplicates
+            const existingIdx = customThemes.findIndex(t => t.name === name);
+            if (existingIdx >= 0) {
+                customThemes[existingIdx] = { ...themeEditorState, name };
+            } else {
+                customThemes.push({ ...themeEditorState, name });
+            }
+            settingsSubView = '';
+            await saveSettings();
+            renderContent();
+        });
+    }
+
+    // Theme editor: cancel button
+    const themeCancelBtn = content.querySelector('.theme-editor-cancel-btn');
+    if (themeCancelBtn) {
+        themeCancelBtn.addEventListener('click', () => {
+            settingsSubView = '';
+            renderContent();
+        });
+    }
+
+    // Custom theme delete buttons
+    content.querySelectorAll('.custom-theme-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const name = (e.target as HTMLElement).dataset.themeName;
+            if (name) {
+                customThemes = customThemes.filter(t => t.name !== name);
+                await saveSettings();
+                renderContent();
+            }
+        });
+    });
+
 
     // Taskbar autohide toggle
     const taskbarAutohideToggle = content.querySelector('.taskbar-autohide-toggle') as HTMLInputElement;
@@ -1349,10 +1436,63 @@ function renderPersonalizationSettings() {
             <div style="opacity: 0.65; margin-top: 8px; font-size: 12px;">Theme is applied to the shell; app themes inherit it.</div>
         `)}
 
-        ${card('Custom Themes', `
+        ${card('Custom Themes', settingsSubView === 'theme-editor' ? `
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 14px; color: #ffd700; margin-bottom: 8px;">Theme Name</div>
+                <input type="text" class="theme-editor-name" value="${themeEditorState.name}" style="width: 100%; padding: 8px; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; border-radius: 6px; font-family: inherit;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 4px;">Main Color</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="color" class="theme-editor-color" data-key="mainColor" value="${themeEditorState.mainColor}" style="width: 40px; height: 32px; padding: 0; border: none; cursor: pointer;">
+                        <span style="font-family: monospace; color: #00ff41;">${themeEditorState.mainColor}</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 4px;">Background</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="color" class="theme-editor-color" data-key="bgColor" value="${themeEditorState.bgColor}" style="width: 40px; height: 32px; padding: 0; border: none; cursor: pointer;">
+                        <span style="font-family: monospace; color: #00ff41;">${themeEditorState.bgColor}</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 4px;">Text Color</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="color" class="theme-editor-color" data-key="textColor" value="${themeEditorState.textColor}" style="width: 40px; height: 32px; padding: 0; border: none; cursor: pointer;">
+                        <span style="font-family: monospace; color: #00ff41;">${themeEditorState.textColor}</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 4px;">Glow Color</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="color" class="theme-editor-color" data-key="glowColor" value="${themeEditorState.glowColor || '#ffd700'}" style="width: 40px; height: 32px; padding: 0; border: none; cursor: pointer;">
+                        <span style="font-family: monospace; color: #00ff41;">${themeEditorState.glowColor || '#ffd700'}</span>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom: 15px; padding: 12px; border: 1px solid ${themeEditorState.mainColor}; border-radius: 8px; background: ${themeEditorState.bgColor};">
+                <div style="font-size: 14px; color: ${themeEditorState.mainColor}; margin-bottom: 8px; border-bottom: 1px solid ${themeEditorState.mainColor}; padding-bottom: 4px;">Preview</div>
+                <div style="color: ${themeEditorState.textColor}; font-size: 12px;">Sample text with theme colors</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="theme-editor-save-btn" style="flex: 1; background: ${themeEditorState.mainColor}; color: #000; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold;">Save Theme</button>
+                <button class="theme-editor-cancel-btn" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 10px 16px; border-radius: 6px; cursor: pointer;">Cancel</button>
+            </div>
+        ` : `
             <div style="margin-bottom: 10px;">
-                <div style="opacity: 0.6; font-size: 12px;">No custom themes found.</div>
-                <div style="display: flex; gap: 10px; margin-top: 12px;">
+                ${customThemes.length === 0 ? '<div style="opacity: 0.6; font-size: 12px;">No custom themes found.</div>' : `
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        ${customThemes.map(t => `
+                            <div class="custom-theme-item" data-theme-name="${t.name}" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid rgba(0,255,65,0.3); border-radius: 6px; cursor: pointer; background: rgba(0,0,0,0.2);">
+                                <div style="width: 12px; height: 12px; border-radius: 50%; background: ${t.mainColor}; border: 1px solid #fff;"></div>
+                                <span style="font-size: 13px;">${t.name}</span>
+                                <button class="custom-theme-delete-btn" data-theme-name="${t.name}" title="Delete" style="background: none; border: none; color: #ff6464; cursor: pointer; font-size: 14px; margin-left: 4px;">&times;</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+                <div style="display: flex; gap: 10px;">
                     <button class="custom-theme-create-btn" style="background: rgba(0,255,65,0.1); border: 1px solid #00ff41; color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;">+ Create New Theme</button>
                     <button class="custom-theme-import-btn" style="background: none; border: 1px solid rgba(0,255,65,0.4); color: #00ff41; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;">Import JSON</button>
                 </div>

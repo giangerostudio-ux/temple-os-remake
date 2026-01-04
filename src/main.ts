@@ -16757,7 +16757,7 @@ class TempleOS {
             align-items: center;
             justify-content: center;
             font-size: 48px;
-            color: white;
+            color: #ffd700;
             margin-bottom: 15px;
             box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
           ">✝</div>

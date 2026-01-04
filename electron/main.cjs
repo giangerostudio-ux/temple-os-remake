@@ -3041,23 +3041,10 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
                 continue;
             }
 
-            // Skip windows that share the same wmClass as an already-tracked window
-            // This catches secondary/child windows from apps like Shotwell (e.g., Adjust panel)
-            // that are _NET_WM_WINDOW_TYPE_NORMAL but should not be auto-snapped
-            if (w.wmClass) {
-                // Check if any existing tracked window has the same wmClass
-                const existingXidsWithSameClass = Array.from(previousX11Xids).filter(existingXid => {
-                    const existingWindow = snapshot.windows.find(win =>
-                        String(win.xidHex).toLowerCase() === existingXid
-                    );
-                    return existingWindow && existingWindow.wmClass === w.wmClass;
-                });
-
-                if (existingXidsWithSameClass.length > 0) {
-                    console.log(`[X11 Snap Layouts] Skipping secondary window with same wmClass: ${xid} (${w.wmClass}) - already have ${existingXidsWithSameClass.length} window(s) from this app`);
-                    continue;
-                }
-            }
+            // NOTE: We previously had a wmClass filter here to skip secondary windows
+            // from the same app, but this was too aggressive - it blocked ALL additional
+            // Firefox windows from auto-snapping. The _NET_WM_WINDOW_TYPE_NORMAL check
+            // above already handles dialogs and utilities properly.
 
             // This is a NEW window - determine what slot to use
             // Use tiling slots if any existing window is in a non-maximize position

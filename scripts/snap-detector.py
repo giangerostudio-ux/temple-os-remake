@@ -236,29 +236,37 @@ class SnapDetector:
                 if not self.is_dragging:
                     return
                 
-                # If not yet confirmed, check if MOUSE has moved (not window!)
-                # This prevents false positives when apps reconfigure their UI (like Shotwell panels)
+                # If not yet confirmed, check if window has moved
                 if not self.drag_confirmed:
-                    # Wait a bit before checking (gives time for intentional drag to start)
+                    # Wait a bit before checking (gives WM time to start the move)
                     if now - self.drag_start_time < MOVEMENT_CHECK_DELAY_MS:
                         return
                     
-                    # Check if MOUSE has moved from initial position
-                    if self.initial_mouse_pos:
-                        mouse_dx = abs(x - self.initial_mouse_pos[0])
-                        mouse_dy = abs(y - self.initial_mouse_pos[1])
-                        if mouse_dx >= MOVEMENT_THRESHOLD_PX or mouse_dy >= MOVEMENT_THRESHOLD_PX:
-                            # Mouse has moved! This is a real drag.
-                            self.drag_confirmed = True
-                            self.log(f"Drag CONFIRMED: MOUSE moved ({mouse_dx}px, {mouse_dy}px)")
+                    # Check current window position
+                    if self.drag_xid and self.initial_window_pos:
+                        current_pos = self.get_window_position(self.drag_xid)
+                        if current_pos:
+                            dx = abs(current_pos[0] - self.initial_window_pos[0])
+                            dy = abs(current_pos[1] - self.initial_window_pos[1])
+                            if dx >= MOVEMENT_THRESHOLD_PX or dy >= MOVEMENT_THRESHOLD_PX:
+                                # Window has moved! This is a real drag.
+                                self.drag_confirmed = True
+                                self.log(f"Drag CONFIRMED: window moved ({dx}px, {dy}px)")
+                            else:
+                                # Window hasn't moved yet - probably not a drag
+                                # Keep checking on subsequent polls
+                                return
                         else:
-                            # Mouse hasn't moved yet - keep checking
+                            # Couldn't get position - be lenient and confirm after delay
+                            if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
+                                self.drag_confirmed = True
+                                self.log(f"Drag confirmed (fallback - couldn't track position)")
                             return
                     else:
-                        # No initial mouse position - fallback to confirm after delay
+                        # No initial position - confirm after delay as fallback
                         if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
                             self.drag_confirmed = True
-                            self.log(f"Drag confirmed (fallback - no initial mouse position)")
+                            self.log(f"Drag confirmed (fallback - no initial position)")
                         return
                 
                 # Drag is confirmed - proceed with zone detection

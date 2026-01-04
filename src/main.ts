@@ -2168,7 +2168,7 @@ class TempleOS {
         await this.settingsManager.loadConfig();
 
         // If visual effects changed, apply immediately
-        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number } | undefined;
+        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number; jellyMode?: boolean } | undefined;
         if (effects !== undefined) {
           if (typeof effects.heavenlyPulse === 'boolean') {
             this.heavenlyPulse = effects.heavenlyPulse;
@@ -2177,7 +2177,18 @@ class TempleOS {
             this.heavenlyPulseIntensity = effects.heavenlyPulseIntensity;
             document.documentElement.style.setProperty('--pulse-intensity', String(effects.heavenlyPulseIntensity));
           }
+          if (typeof effects.jellyMode === 'boolean') {
+            this.jellyMode = effects.jellyMode;
+          }
           this.settingsManager.applyTheme();
+        }
+
+        // If accessibility settings changed, update inline state
+        const accessibility = config.accessibility as { highContrast?: boolean; largeText?: boolean; reduceMotion?: boolean } | undefined;
+        if (accessibility !== undefined) {
+          if (typeof accessibility.highContrast === 'boolean') this.highContrast = accessibility.highContrast;
+          if (typeof accessibility.largeText === 'boolean') this.largeText = accessibility.largeText;
+          if (typeof accessibility.reduceMotion === 'boolean') this.reduceMotion = accessibility.reduceMotion;
         }
 
         // If security settings changed, update inline state
@@ -2196,8 +2207,12 @@ class TempleOS {
           if (typeof security.secureDelete === 'boolean') this.secureDelete = security.secureDelete;
           if (typeof security.secureWipeOnShutdown === 'boolean') this.secureWipeOnShutdown = security.secureWipeOnShutdown;
           if (typeof security.trackerBlockingEnabled === 'boolean') this.trackerBlockingEnabled = security.trackerBlockingEnabled;
-          // Refresh Security settings UI if it's currently active
-          if (this.activeSettingsCategory === 'Security') this.refreshSettingsWindow();
+        }
+
+        // Refresh settings UI if it's currently visible (any category)
+        const settingsWindow = this.windows.find(w => w.id.startsWith('settings'));
+        if (settingsWindow) {
+          this.refreshSettingsWindow();
         }
       });
     }

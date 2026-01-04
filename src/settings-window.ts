@@ -365,13 +365,16 @@ if (window.electronAPI?.onConfigChanged) {
         console.log('[Settings] Config changed from another window:', config);
 
         // Translate nested config back to flat state format
-        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number } | undefined;
+        const effects = config.effects as { heavenlyPulse?: boolean; heavenlyPulseIntensity?: number; jellyMode?: boolean } | undefined;
         if (effects) {
             if (typeof effects.heavenlyPulse === 'boolean') {
                 state.heavenlyPulse = effects.heavenlyPulse;
             }
             if (typeof effects.heavenlyPulseIntensity === 'number') {
                 state.pulseIntensity = effects.heavenlyPulseIntensity;
+            }
+            if (typeof effects.jellyMode === 'boolean') {
+                state.jellyMode = effects.jellyMode;
             }
         }
 

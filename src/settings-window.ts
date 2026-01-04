@@ -233,6 +233,14 @@ async function loadSettings() {
                 console.log('[Settings] No volumeLevel in config, using default:', volumeLevel);
             }
 
+            // Parse mouse settings
+            const mouse = config.mouse as { speed?: number; dpi?: number; raw?: boolean } | undefined;
+            if (mouse) {
+                if (typeof mouse.speed === 'number') state.mouseSpeed = mouse.speed;
+                if (typeof mouse.dpi === 'number') state.mouseDpi = mouse.dpi;
+                if (typeof mouse.raw === 'boolean') state.mouseRawInput = mouse.raw;
+            }
+
             console.log('[Settings] Loaded config, security state:', {
                 firewallEnabled: state.firewallEnabled,
                 encryptionEnabled: state.encryptionEnabled,
@@ -429,6 +437,14 @@ if (window.electronAPI?.onConfigChanged) {
         if (typeof config.lockPassword === 'string') state.lockPassword = config.lockPassword;
         if (typeof config.lockPin === 'string') state.lockPin = config.lockPin;
         if (typeof config.sshEnabled === 'boolean') state.sshEnabled = config.sshEnabled;
+
+        // Parse mouse settings for sync
+        const mouse = config.mouse as { speed?: number; dpi?: number; raw?: boolean } | undefined;
+        if (mouse) {
+            if (typeof mouse.speed === 'number') state.mouseSpeed = mouse.speed;
+            if (typeof mouse.dpi === 'number') state.mouseDpi = mouse.dpi;
+            if (typeof mouse.raw === 'boolean') state.mouseRawInput = mouse.raw;
+        }
 
         renderContent(); // This now calls attachContentHandlers() internally
     });

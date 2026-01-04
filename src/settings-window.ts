@@ -1417,6 +1417,42 @@ function attachContentHandlers() {
             await saveSettings();
         });
     }
+
+    // ===== ABOUT CATEGORY =====
+
+    // Fetch and populate system info for About page
+    async function populateAboutInfo() {
+        if (window.electronAPI?.getSystemInfo) {
+            try {
+                const info = await window.electronAPI.getSystemInfo();
+                const hostnameEl = document.getElementById('about-hostname');
+                const userEl = document.getElementById('about-user');
+                const cpusEl = document.getElementById('about-cpus');
+                const uptimeEl = document.getElementById('about-uptime');
+                const memoryEl = document.getElementById('about-memory');
+
+                if (hostnameEl) hostnameEl.textContent = info?.hostname || '—';
+                if (userEl) userEl.textContent = info?.user || '—';
+                if (cpusEl) cpusEl.textContent = info?.cpus ? String(info.cpus) : '—';
+                if (uptimeEl) uptimeEl.textContent = info?.uptime ? Math.floor(info.uptime / 60) + ' min' : '—';
+                if (memoryEl && info?.memory) {
+                    memoryEl.textContent = `${Math.round(info.memory.free / 1024 / 1024)} MB free / ${Math.round(info.memory.total / 1024 / 1024)} MB`;
+                }
+            } catch (error) {
+                console.error('[About] Failed to fetch system info:', error);
+            }
+        }
+    }
+
+    // About refresh button
+    const aboutRefreshBtn = content.querySelector('.about-refresh-btn');
+    if (aboutRefreshBtn) {
+        aboutRefreshBtn.addEventListener('click', async () => {
+            await populateAboutInfo();
+        });
+        // Auto-populate on load
+        void populateAboutInfo();
+    }
 }
 
 // Card helper for consistent styling
@@ -2150,31 +2186,55 @@ function renderBluetoothSettings() {
 }
 
 function renderAboutSettings() {
+    // Random Terry quote
+    const terryQuotes = [
+        "God said 640x480 in 16 colors is all you need.",
+        "An idiot admits it when he is wrong.",
+        "I've had revelations. Very awesome revelations.",
+        "The CIA glow in the dark. You can see them if you're driving.",
+        "It's not better, it's just newer.",
+        "I'm God's chosen programmer.",
+        "God talks to people through their consciousness."
+    ];
+    const randomQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
+
     return `
-        <div class="settings-card">
-            <h3>System Information</h3>
-            <div class="setting-row">
-                <div class="setting-label">Operating System</div>
-                <span style="opacity: 0.8;">TempleOS v1.0</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">Architecture</div>
-                <span style="opacity: 0.8;">x86_64</span>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">Kernel</div>
-                <span style="opacity: 0.8;">Linux 6.x</span>
-            </div>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+            <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
+            <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>
 
         <div class="settings-card">
-            <h3>About TempleOS</h3>
-            <div style="padding: 15px; line-height: 1.6; opacity: 0.8; font-size: 12px;">
-                TempleOS Recreation - A tribute to Terry A. Davis<br>
-                Built with Electron + TypeScript<br>
-                <br>
-                In loving memory of a brilliant programmer.
+            <h3>System</h3>
+            <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 14px;">
+                <div style="opacity: 0.7;">Processor</div><div>Divine Intellect i9 (Mock)</div>
+                <div style="opacity: 0.7;">Installed RAM</div><div>64 GB (Holy Memory)</div>
+                <div style="opacity: 0.7;">System Type</div><div>64-bit Operating System</div>
+                <div style="opacity: 0.7;">Registered to</div><div>Terry A. Davis</div>
             </div>
+            <hr style="border: none; border-top: 1px solid rgba(0,255,65,0.2); margin: 12px 0;">
+            <div style="display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; opacity: 0.8;">
+                <div style="opacity: 0.7;">Platform</div><div>TempleOS Remake</div>
+                <div style="opacity: 0.7;">Hostname</div><div id="about-hostname">—</div>
+                <div style="opacity: 0.7;">User</div><div id="about-user">—</div>
+                <div style="opacity: 0.7;">CPU Cores</div><div id="about-cpus">—</div>
+                <div style="opacity: 0.7;">Uptime</div><div id="about-uptime">—</div>
+                <div style="opacity: 0.7;">Memory</div><div id="about-memory">—</div>
+            </div>
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                <button class="about-refresh-btn" style="background: rgba(0,255,65,0.1); border: 1px solid rgba(0,255,65,0.35); color: #00ff41; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: inherit;">Refresh</button>
+            </div>
+        </div>
+
+        <div style="margin: 20px 0; padding: 15px; border-left: 3px solid #ffd700; background: rgba(255,215,0,0.05); font-style: italic; color: #ffd700;">
+            "${randomQuote}"
+            <div style="text-align: right; font-size: 12px; margin-top: 5px; opacity: 0.8;">— Terry A. Davis</div>
+        </div>
+
+        <div style="text-align: center; margin-top: 16px; font-size: 12px; opacity: 0.65;">
+            Made with HolyC ❤️ by Giangero Studio<br>
+            © 2025 Giangero Studio
         </div>
     `;
 }

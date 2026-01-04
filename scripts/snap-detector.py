@@ -50,6 +50,10 @@ REENTER_GRACE_MS = 500
 MOVEMENT_THRESHOLD_PX = 8    # Window must move at least 8px to be considered a real drag
 MOVEMENT_CHECK_DELAY_MS = 100  # Wait this long before checking if window moved
 
+# Title bar detection: height of the window decoration above the client area
+# xwininfo returns CLIENT area position, so title bar is ABOVE the reported Y
+TITLE_BAR_HEIGHT_PX = 35     # Openbox title bar is typically ~28-35px
+
 # Button masks (from X11)
 Button1Mask = 1 << 8  # Left mouse button (256)
 
@@ -133,6 +137,37 @@ class SnapDetector:
     def is_button1_pressed(self, mask):
         """Check if left mouse button is currently held down"""
         return bool(mask & Button1Mask)
+    
+    def is_click_on_titlebar(self, xid, mouse_x, mouse_y):
+        """Check if mouse click is on the window's title bar (decoration area).
+        
+        IMPORTANT: xwininfo returns the CLIENT area position, NOT the frame position.
+        The title bar decoration is ABOVE the client area, so we check if the mouse
+        is between (window_y - TITLE_BAR_HEIGHT) and window_y.
+        
+        Returns True if click is on title bar, False otherwise.
+        """
+        try:
+            pos = self.get_window_position(xid)
+            if pos is None:
+                return True  # Can't determine, allow drag (be permissive)
+            
+            win_x, win_y = pos
+            
+            # Title bar is ABOVE the client area
+            # Check if mouse Y is in the decoration region: (win_y - TITLE_BAR_HEIGHT) to win_y
+            titlebar_top = win_y - TITLE_BAR_HEIGHT_PX
+            titlebar_bottom = win_y + 5  # Small buffer into client area for tolerance
+            
+            if mouse_y >= titlebar_top and mouse_y <= titlebar_bottom:
+                # Also verify mouse X is within window width (approximately)
+                # We don't have exact width, but title bar spans full window width
+                return True
+            
+            return False
+        except Exception as e:
+            self.log(f"is_click_on_titlebar error: {e}")
+            return True  # On error, be permissive and allow drag
     
     def get_zone(self, x, y):
         """Determine which snap zone the mouse coordinates are in"""
@@ -218,8 +253,16 @@ class SnapDetector:
                     
                     # Check if it's a protected window
                     if active_xid and active_xid not in self.protected_xids:
+                        # IMPORTANT: Only start drag tracking if click is on the TITLE BAR
+                        # This prevents UI button clicks (which can reposition windows) from
+                        # falsely triggering snap detection. Clicks on content area are ignored.
+                        if not self.is_click_on_titlebar(active_xid, x, y):
+                            # Click is on content area, not title bar - don't track this as a drag
+                            self.log(f"Click NOT on title bar, skipping drag tracking for xid={hex(active_xid)}, mouse=({x},{y})")
+                            return
+                        
                         self.is_dragging = True
-                        self.drag_confirmed = False  # NOT confirmed until MOUSE moves
+                        self.drag_confirmed = False  # NOT confirmed until window moves
                         self.drag_xid = active_xid  # LOCKED for entire drag
                         self.drag_start_time = now
                         self.initial_window_pos = self.get_window_position(active_xid)
@@ -227,7 +270,7 @@ class SnapDetector:
                         self.current_zone = None
                         self.zone_enter_time = 0
                         self.zone_activated = False
-                        self.log(f"Button down on xid={hex(active_xid)}, mouse=({x},{y}) (awaiting MOUSE movement)")
+                        self.log(f"Button down on TITLE BAR of xid={hex(active_xid)}, mouse=({x},{y}) (awaiting movement)")
                     else:
                         # Protected window or no window - ignore
                         return

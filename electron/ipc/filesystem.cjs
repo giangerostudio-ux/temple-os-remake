@@ -331,19 +331,8 @@ function registerFilesystemHandlers() {
     ipcMain.handle('fs:getHome', () => os.homedir());
     ipcMain.handle('fs:getAppPath', () => app.getAppPath());
 
-    ipcMain.handle('fs:openExternal', async (event, filePath) => {
-        try {
-            const target = String(filePath || '');
-            if (target.startsWith('http://') || target.startsWith('https://')) {
-                await shell.openExternal(target);
-            } else {
-                await shell.openPath(target);
-            }
-            return ipcSuccess();
-        } catch (error) {
-            return ipcError(error.message);
-        }
-    });
+    // NOTE: fs:openExternal is handled in main.cjs (with Linux setsid/xdg-open support)
+    // Do NOT register a duplicate handler here!
 
     // ============================================
     // EXIF METADATA (best-effort)

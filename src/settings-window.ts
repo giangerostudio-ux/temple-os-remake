@@ -221,6 +221,11 @@ async function loadSettings() {
             if (typeof config.lockPin === 'string') state.lockPin = config.lockPin;
             if (typeof config.sshEnabled === 'boolean') state.sshEnabled = config.sshEnabled;
 
+            // Parse volume level
+            if (typeof config.volumeLevel === 'number') {
+                volumeLevel = config.volumeLevel;
+            }
+
             console.log('[Settings] Loaded config, security state:', {
                 firewallEnabled: state.firewallEnabled,
                 encryptionEnabled: state.encryptionEnabled,

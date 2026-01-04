@@ -12,6 +12,45 @@
     href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Noto+Color+Emoji&family=VT323&family=Press+Start+2P&display=swap"
     rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    /* Global slider styling - draggable thumb fix for all sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      outline: none;
+      cursor: pointer;
+      touch-action: none;
+      /* Prevents touch interference - critical for dragging */
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: grab;
+      /* Allows dragging on thumb itself */
+    }
+
+    input[type="range"]::-webkit-slider-thumb:active {
+      cursor: grabbing;
+    }
+
+    input[type="range"]::-moz-range-track {
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      cursor: grab;
+    }
+
+    input[type="range"]::-moz-range-thumb:active {
+      cursor: grabbing;
+    }
+  </style>
 </head>
 
 <body>

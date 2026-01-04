@@ -2200,6 +2200,7 @@ function renderAboutSettings() {
 
     return `
         <div style="text-align: center; margin-bottom: 20px;">
+            <!-- Simple golden cross icon - no purple box -->
             <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
             <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
             <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>

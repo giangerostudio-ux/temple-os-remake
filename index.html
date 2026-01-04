@@ -13,42 +13,27 @@
     rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
-    /* Global slider styling - draggable thumb fix for all sliders */
+    /* Minimal global slider fix - allows dragging on thumb without breaking existing styles */
     input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
-      background: transparent;
-      outline: none;
-      cursor: pointer;
-      touch-action: none;
-      /* Prevents touch interference - critical for dragging */
-    }
-
-    input[type="range"]::-webkit-slider-runnable-track {
-      cursor: pointer;
+      touch-action: none !important;
+      /* Critical: prevents touch interference */
     }
 
     input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      cursor: grab;
-      /* Allows dragging on thumb itself */
+      cursor: grab !important;
+      /* Allows dragging directly on thumb */
     }
 
     input[type="range"]::-webkit-slider-thumb:active {
-      cursor: grabbing;
-    }
-
-    input[type="range"]::-moz-range-track {
-      cursor: pointer;
+      cursor: grabbing !important;
     }
 
     input[type="range"]::-moz-range-thumb {
-      cursor: grab;
+      cursor: grab !important;
     }
 
     input[type="range"]::-moz-range-thumb:active {
-      cursor: grabbing;
+      cursor: grabbing !important;
     }
   </style>
 </head>

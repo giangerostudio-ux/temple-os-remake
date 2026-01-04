@@ -7815,6 +7815,7 @@ class TempleOS {
             this._lastOpenedTime = now;
 
             // Smart file type routing
+            // Note: Images use openExternal to respect system default (e.g., Shotwell)
             const ext = filePath.split('.').pop()?.toLowerCase() || '';
             if (ext === 'dd') {
               window.electronAPI.readFile(filePath).then(res => {
@@ -7828,9 +7829,8 @@ class TempleOS {
               });
             } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
               this.openApp('media-player', { file: filePath });
-            } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
-              this.openApp('image-viewer', { file: filePath });
             } else {
+              // All other files including images - use system default app
               window.electronAPI.openExternal(filePath);
             }
           }

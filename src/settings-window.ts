@@ -525,9 +525,15 @@ function attachContentHandlers() {
     if (volumeSlider) {
         volumeSlider.addEventListener('input', async (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
-            if (window.electronAPI?.setSystemVolume) {
-                await window.electronAPI.setSystemVolume(value);
+            volumeLevel = value; // Update local variable
+
+            // Set system volume via IPC
+            if (window.electronAPI?.setAudioVolume) {
+                await window.electronAPI.setAudioVolume(value);
             }
+
+            // Save to config so it persists and broadcasts to inline/tray
+            await saveSettings();
         });
     }
 

@@ -7798,11 +7798,19 @@ class TempleOS {
             return;
           }
 
-          // Normal click - open file/folder (existing behavior)
+          // Normal click - navigate directories OR select files
+          // (opening files is now double-click only, like Windows)
           if (isDir) {
             this.loadFiles(filePath);
-          } else if (window.electronAPI?.openExternal) {
-            void window.electronAPI.openExternal(filePath);
+          } else {
+            // Single-click selects file, double-click opens (handled in dblclick handler)
+            this.selectedFiles.clear();
+            this.selectedFiles.add(filePath);
+            const currentIndex = this.fileEntries.findIndex(f => f.path === filePath);
+            if (currentIndex >= 0) {
+              this.lastSelectedIndex = currentIndex;
+            }
+            this.updateFileBrowserWindow();
           }
         }
         return;
@@ -9265,26 +9273,17 @@ class TempleOS {
         const trashPath = fileItem.dataset.trashPath || '';
         const effectivePath = (this.currentPath === 'trash:' && trashPath) ? trashPath : (filePath || '');
         if (effectivePath && isDir) {
+          // Directories: navigate on single click
           this.loadFiles(effectivePath);
-        } else if (effectivePath && window.electronAPI) {
-          const ext = effectivePath.split('.').pop()?.toLowerCase() || '';
-          if (ext === 'dd') {
-            window.electronAPI.readFile(effectivePath).then(res => {
-              if (res.success && typeof res.content === 'string') {
-                this.dolDocContent = res.content;
-                this.dolDocPath = effectivePath;
-                this.openApp('doldoc-viewer');
-              } else {
-                window.electronAPI!.openExternal(effectivePath);
-              }
-            });
-          } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
-            this.openApp('media-player', { file: effectivePath });
-          } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
-            this.openApp('image-viewer', { file: effectivePath });
-          } else {
-            window.electronAPI.openExternal(effectivePath);
+        } else if (effectivePath) {
+          // Files: SELECT on single click (open on double-click only)
+          this.selectedFiles.clear();
+          this.selectedFiles.add(effectivePath);
+          const currentIndex = this.fileEntries.findIndex(f => f.path === effectivePath);
+          if (currentIndex >= 0) {
+            this.lastSelectedIndex = currentIndex;
           }
+          this.updateFileBrowserWindow();
         }
         return;
       }
@@ -10504,6 +10503,51 @@ class TempleOS {
       document.addEventListener('mousedown', closeContextMenuOnPointer, true);
       document.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape') this.closeContextMenu();
+      });
+
+      // ============================================
+      // FILE BROWSER DOUBLE-CLICK TO OPEN
+      // ============================================
+      app.addEventListener('dblclick', (e) => {
+        const target = e.target as HTMLElement;
+        const fileItem = (target.closest('.file-item') || target.closest('[data-file-path]')) as HTMLElement;
+
+        if (fileItem) {
+          const filePath = fileItem.dataset.filePath;
+          const isDir = fileItem.dataset.isDir === 'true';
+          const trashPath = fileItem.dataset.trashPath || '';
+          const effectivePath = (this.currentPath === 'trash:' && trashPath) ? trashPath : (filePath || '');
+
+          if (!effectivePath) return;
+
+          // Directories are already handled by single-click, but double-click should also work
+          if (isDir) {
+            this.loadFiles(effectivePath);
+            return;
+          }
+
+          // OPEN FILE on double-click (this is the Windows behavior)
+          if (window.electronAPI) {
+            const ext = effectivePath.split('.').pop()?.toLowerCase() || '';
+            if (ext === 'dd') {
+              window.electronAPI.readFile(effectivePath).then(res => {
+                if (res.success && typeof res.content === 'string') {
+                  this.dolDocContent = res.content;
+                  this.dolDocPath = effectivePath;
+                  this.openApp('doldoc-viewer');
+                } else {
+                  window.electronAPI!.openExternal(effectivePath);
+                }
+              });
+            } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
+              this.openApp('media-player', { file: effectivePath });
+            } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+              this.openApp('image-viewer', { file: effectivePath });
+            } else {
+              window.electronAPI.openExternal(effectivePath);
+            }
+          }
+        }
       });
 
       // Start Menu Search

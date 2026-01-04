@@ -597,9 +597,6 @@ class TempleOS {
   // Multi-select support (Priority 1)
   private selectedFiles: Set<string> = new Set();
   private lastSelectedIndex = -1; // For Shift+Click range selection
-  // Debounce: prevent opening same file twice on fast double-click
-  private _lastOpenedFilePath: string | null = null;
-  private _lastOpenedTime = 0;
   // Desktop icon positions (Priority 1)
   // Default positions for first-time install - matches the preferred layout:
   // Left column: HolyC Editor, Hymn Player, Godly Notes, Files, Terminal, Holy Updater, Word of God
@@ -7801,38 +7798,19 @@ class TempleOS {
             return;
           }
 
-          // Normal click - navigate directories OR open files
-          // Debounce: prevent opening the same file twice in quick succession (e.g., double-click)
+          // Normal click - navigate directories OR select files (consistent with popout)
+          // Files are opened on double-click only (see dblclick handler below)
           if (isDir) {
             this.loadFiles(filePath);
-          } else if (window.electronAPI) {
-            const now = Date.now();
-            // Skip if same file was opened within last 500ms (debounce double-click)
-            if (this._lastOpenedFilePath === filePath && now - this._lastOpenedTime < 500) {
-              return;
+          } else {
+            // Single-click selects file
+            this.selectedFiles.clear();
+            this.selectedFiles.add(filePath);
+            const currentIndex = this.fileEntries.findIndex(f => f.path === filePath);
+            if (currentIndex >= 0) {
+              this.lastSelectedIndex = currentIndex;
             }
-            this._lastOpenedFilePath = filePath;
-            this._lastOpenedTime = now;
-
-            // Smart file type routing
-            // Note: Images use openExternal to respect system default (e.g., Shotwell)
-            const ext = filePath.split('.').pop()?.toLowerCase() || '';
-            if (ext === 'dd') {
-              window.electronAPI.readFile(filePath).then(res => {
-                if (res.success && typeof res.content === 'string') {
-                  this.dolDocContent = res.content;
-                  this.dolDocPath = filePath;
-                  this.openApp('doldoc-viewer');
-                } else {
-                  window.electronAPI!.openExternal(filePath);
-                }
-              });
-            } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
-              this.openApp('media-player', { file: filePath });
-            } else {
-              // All other files including images - use system default app
-              window.electronAPI.openExternal(filePath);
-            }
+            this.updateFileBrowserWindow();
           }
         }
         return;
@@ -10541,9 +10519,8 @@ class TempleOS {
               });
             } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
               this.openApp('media-player', { file: effectivePath });
-            } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
-              this.openApp('image-viewer', { file: effectivePath });
             } else {
+              // All other files including images - use system default app (e.g., Shotwell)
               window.electronAPI.openExternal(effectivePath);
             }
           }

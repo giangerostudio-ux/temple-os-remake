@@ -3041,10 +3041,14 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
                 continue;
             }
 
-            // NOTE: We previously had a wmClass filter here to skip secondary windows
-            // from the same app, but this was too aggressive - it blocked ALL additional
-            // Firefox windows from auto-snapping. The _NET_WM_WINDOW_TYPE_NORMAL check
-            // above already handles dialogs and utilities properly.
+            // Skip small windows that are likely dialogs/panels (e.g., Shotwell's Adjust panel)
+            // Main application windows should be at least 600x400 to be auto-snapped
+            const MIN_SNAP_WIDTH = 600;
+            const MIN_SNAP_HEIGHT = 400;
+            if (w.width && w.height && (w.width < MIN_SNAP_WIDTH || w.height < MIN_SNAP_HEIGHT)) {
+                console.log(`[X11 Snap Layouts] Skipping small window (likely dialog): ${xid} (${w.wmClass || w.title}) size=${w.width}x${w.height}`);
+                continue;
+            }
 
             // This is a NEW window - determine what slot to use
             // Use tiling slots if any existing window is in a non-maximize position

@@ -74,10 +74,11 @@ class SnapDetector:
         
         # State tracking
         self.is_dragging = False
-        self.drag_confirmed = False     # True only after window has actually moved
+        self.drag_confirmed = False     # True only after MOUSE has actually moved
         self.drag_xid = None           # XID captured at drag START - doesn't change
         self.drag_start_time = 0       # When the drag started (for movement check delay)
         self.initial_window_pos = None  # (x, y) of window when drag started
+        self.initial_mouse_pos = None   # (x, y) of MOUSE when click started
         self.current_zone = None       # Current zone mouse is in
         self.zone_enter_time = 0       # When mouse entered current zone
         self.zone_activated = False    # True if we've emitted zone_enter for current zone
@@ -218,14 +219,15 @@ class SnapDetector:
                     # Check if it's a protected window
                     if active_xid and active_xid not in self.protected_xids:
                         self.is_dragging = True
-                        self.drag_confirmed = False  # NOT confirmed until window moves
+                        self.drag_confirmed = False  # NOT confirmed until MOUSE moves
                         self.drag_xid = active_xid  # LOCKED for entire drag
                         self.drag_start_time = now
                         self.initial_window_pos = self.get_window_position(active_xid)
+                        self.initial_mouse_pos = (x, y)  # Track initial MOUSE position
                         self.current_zone = None
                         self.zone_enter_time = 0
                         self.zone_activated = False
-                        self.log(f"Button down on xid={hex(active_xid)}, pos={self.initial_window_pos} (awaiting movement)")
+                        self.log(f"Button down on xid={hex(active_xid)}, mouse=({x},{y}) (awaiting MOUSE movement)")
                     else:
                         # Protected window or no window - ignore
                         return
@@ -234,37 +236,29 @@ class SnapDetector:
                 if not self.is_dragging:
                     return
                 
-                # If not yet confirmed, check if window has moved
+                # If not yet confirmed, check if MOUSE has moved (not window!)
+                # This prevents false positives when apps reconfigure their UI (like Shotwell panels)
                 if not self.drag_confirmed:
-                    # Wait a bit before checking (gives WM time to start the move)
+                    # Wait a bit before checking (gives time for intentional drag to start)
                     if now - self.drag_start_time < MOVEMENT_CHECK_DELAY_MS:
                         return
                     
-                    # Check current window position
-                    if self.drag_xid and self.initial_window_pos:
-                        current_pos = self.get_window_position(self.drag_xid)
-                        if current_pos:
-                            dx = abs(current_pos[0] - self.initial_window_pos[0])
-                            dy = abs(current_pos[1] - self.initial_window_pos[1])
-                            if dx >= MOVEMENT_THRESHOLD_PX or dy >= MOVEMENT_THRESHOLD_PX:
-                                # Window has moved! This is a real drag.
-                                self.drag_confirmed = True
-                                self.log(f"Drag CONFIRMED: window moved ({dx}px, {dy}px)")
-                            else:
-                                # Window hasn't moved yet - probably not a drag
-                                # Keep checking on subsequent polls
-                                return
+                    # Check if MOUSE has moved from initial position
+                    if self.initial_mouse_pos:
+                        mouse_dx = abs(x - self.initial_mouse_pos[0])
+                        mouse_dy = abs(y - self.initial_mouse_pos[1])
+                        if mouse_dx >= MOVEMENT_THRESHOLD_PX or mouse_dy >= MOVEMENT_THRESHOLD_PX:
+                            # Mouse has moved! This is a real drag.
+                            self.drag_confirmed = True
+                            self.log(f"Drag CONFIRMED: MOUSE moved ({mouse_dx}px, {mouse_dy}px)")
                         else:
-                            # Couldn't get position - be lenient and confirm after delay
-                            if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
-                                self.drag_confirmed = True
-                                self.log(f"Drag confirmed (fallback - couldn't track position)")
+                            # Mouse hasn't moved yet - keep checking
                             return
                     else:
-                        # No initial position - confirm after delay as fallback
+                        # No initial mouse position - fallback to confirm after delay
                         if now - self.drag_start_time > MOVEMENT_CHECK_DELAY_MS * 3:
                             self.drag_confirmed = True
-                            self.log(f"Drag confirmed (fallback - no initial position)")
+                            self.log(f"Drag confirmed (fallback - no initial mouse position)")
                         return
                 
                 # Drag is confirmed - proceed with zone detection
@@ -372,16 +366,17 @@ class SnapDetector:
                 self.drag_xid = None
                 self.drag_start_time = 0
                 self.initial_window_pos = None
+                self.initial_mouse_pos = None
                 self.current_zone = None
                 self.zone_enter_time = 0
                 self.zone_activated = False
                 self.last_activated_zone = None  # Clear sticky state
                 self.last_zone_leave_time = 0
                 
-                # If drag was never confirmed (window didn't move), silently ignore
-                # This is the key fix for scrollbar/text selection interactions
+                # If drag was never confirmed (mouse didn't move), silently ignore
+                # This is the key fix for UI button clicks that don't move the mouse
                 if not was_confirmed:
-                    self.log("Button released - drag was NOT confirmed (window didn't move)")
+                    self.log("Button released - drag was NOT confirmed (mouse didn't move)")
                     return
                 
                 # Query current mouse position for popup hit detection

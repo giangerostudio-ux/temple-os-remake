@@ -74,6 +74,8 @@ interface SettingsState {
     audioOutput: string;
     audioInput: string;
     mouseSpeed: number;
+    mouseDpi: number;
+    mouseRawInput: boolean;
     // Bluetooth
     bluetoothEnabled: boolean;
     // Network
@@ -122,6 +124,8 @@ let state: SettingsState = {
     audioOutput: 'Default',
     audioInput: 'Default',
     mouseSpeed: 5,
+    mouseDpi: 800,
+    mouseRawInput: false,
     bluetoothEnabled: false,
     autoTime: true,
     timezone: 'Local',
@@ -1329,14 +1333,55 @@ function attachContentHandlers() {
         });
     }
 
-    // Mouse speed input
-    const mouseSpeedInput = content.querySelector('#mouse-speed') as HTMLInputElement;
-    if (mouseSpeedInput) {
-        mouseSpeedInput.addEventListener('change', async (e) => {
-            const value = parseInt((e.target as HTMLInputElement).value) || 5;
-            state.mouseSpeed = Math.max(1, Math.min(10, value));
+    // Mouse speed slider
+    const mouseSpeedSlider = content.querySelector('.mouse-speed-slider') as HTMLInputElement;
+    if (mouseSpeedSlider) {
+        mouseSpeedSlider.addEventListener('input', async (e) => {
+            const value = parseFloat((e.target as HTMLInputElement).value);
+            state.mouseSpeed = value;
             if (window.electronAPI?.applyMouseSettings) {
-                await window.electronAPI.applyMouseSettings({ speed: state.mouseSpeed / 10, raw: false, naturalScroll: false });
+                await window.electronAPI.applyMouseSettings({
+                    speed: value,
+                    raw: state.mouseRawInput,
+                    naturalScroll: false,
+                    dpi: state.mouseDpi
+                });
+            }
+            await saveSettings();
+        });
+    }
+
+    // Mouse DPI select
+    const mouseDpiSelect = content.querySelector('.mouse-dpi-select') as HTMLSelectElement;
+    if (mouseDpiSelect) {
+        mouseDpiSelect.addEventListener('change', async (e) => {
+            const value = parseInt((e.target as HTMLSelectElement).value);
+            state.mouseDpi = value;
+            if (window.electronAPI?.applyMouseSettings) {
+                await window.electronAPI.applyMouseSettings({
+                    speed: state.mouseSpeed,
+                    raw: state.mouseRawInput,
+                    naturalScroll: false,
+                    dpi: value
+                });
+            }
+            await saveSettings();
+        });
+    }
+
+    // Mouse raw input toggle
+    const mouseRawToggle = content.querySelector('.mouse-raw-toggle') as HTMLInputElement;
+    if (mouseRawToggle) {
+        mouseRawToggle.addEventListener('change', async (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            state.mouseRawInput = checked;
+            if (window.electronAPI?.applyMouseSettings) {
+                await window.electronAPI.applyMouseSettings({
+                    speed: state.mouseSpeed,
+                    raw: checked,
+                    naturalScroll: false,
+                    dpi: state.mouseDpi
+                });
             }
             await saveSettings();
         });
@@ -2038,38 +2083,33 @@ function renderAccessibilitySettings() {
 function renderDevicesSettings() {
     return `
         <div class="settings-card">
-            <h3>Audio</h3>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Output Device
-                    <small>Select audio output</small>
-                </div>
-                <select id="audio-output">
-                    <option ${state.audioOutput === 'Default' ? 'selected' : ''}>Default</option>
-                    <option ${state.audioOutput === 'Speakers' ? 'selected' : ''}>Speakers</option>
-                    <option ${state.audioOutput === 'Headphones' ? 'selected' : ''}>Headphones</option>
-                </select>
-            </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    Input Device
-                    <small>Select microphone</small>
-                </div>
-                <select id="audio-input">
-                    <option ${state.audioInput === 'Default' ? 'selected' : ''}>Default</option>
-                    <option ${state.audioInput === 'Built-in Microphone' ? 'selected' : ''}>Built-in Microphone</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="settings-card">
             <h3>Mouse</h3>
             <div class="setting-row">
                 <div class="setting-label">
                     Pointer Speed
                     <small>Adjust mouse sensitivity</small>
                 </div>
-                <input type="number" min="1" max="10" value="${state.mouseSpeed}" id="mouse-speed" />
+                <input type="range" class="mouse-speed-slider" min="-1" max="1" step="0.1" value="${state.mouseSpeed}" style="width: 100%; accent-color: #00ff41;" />
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    DPI
+                    <small>Mouse sensitivity</small>
+                </div>
+                <select class="mouse-dpi-select" style="background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
+                    <option value="400" ${state.mouseDpi === 400 ? 'selected' : ''}>400 DPI</option>
+                    <option value="800" ${state.mouseDpi === 800 ? 'selected' : ''}>800 DPI</option>
+                    <option value="1200" ${state.mouseDpi === 1200 ? 'selected' : ''}>1200 DPI</option>
+                    <option value="1600" ${state.mouseDpi === 1600 ? 'selected' : ''}>1600 DPI</option>
+                    <option value="3200" ${state.mouseDpi === 3200 ? 'selected' : ''}>3200 DPI</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    Raw Input
+                    <small>Disable mouse acceleration</small>
+                </div>
+                <input type="checkbox" class="mouse-raw-toggle" ${state.mouseRawInput ? 'checked' : ''} />
             </div>
         </div>
     `;

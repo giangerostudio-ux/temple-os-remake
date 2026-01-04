@@ -16747,8 +16747,8 @@ class TempleOS {
       const randomQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
       return `
         <div style="text-align: center; margin-bottom: 20px;">
-          <!-- Simple golden cross icon - no purple box -->
-          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+          <!-- Simple golden cross icon - using HTML entity not emoji -->
+          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700; font-family: serif;">&#10013;</div>
           <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
           <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>

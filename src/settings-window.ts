@@ -224,6 +224,9 @@ async function loadSettings() {
             // Parse volume level
             if (typeof config.volumeLevel === 'number') {
                 volumeLevel = config.volumeLevel;
+                console.log('[Settings] Loaded volumeLevel from config:', volumeLevel);
+            } else {
+                console.log('[Settings] No volumeLevel in config, using default:', volumeLevel);
             }
 
             console.log('[Settings] Loaded config, security state:', {
@@ -241,23 +244,10 @@ async function loadSettings() {
 // Dynamic device data (fetched on init)
 let audioDevices: { sinks: Array<{ name: string; description?: string }>; sources: Array<{ name: string; description?: string }>; defaultSink?: string; defaultSource?: string } = { sinks: [], sources: [] };
 let displayOutputs: Array<{ name: string; current?: string; active?: boolean; scale?: number; modes?: Array<{ width: number; height: number; refreshHz?: number | null }> }> = [];
-let volumeLevel = 50; // Default volume, will be fetched on init
+let volumeLevel = 50; // Default volume, loaded from config
 
-// Fetch current volume level
-async function fetchVolume() {
-    try {
-        if ((window.electronAPI as any)?.getVolume) {
-            const result = await (window.electronAPI as any).getVolume();
-            if (typeof result === 'number') {
-                volumeLevel = result;
-            } else if (result?.volume !== undefined) {
-                volumeLevel = result.volume;
-            }
-        }
-    } catch (e) {
-        console.warn('[Settings] Failed to fetch volume:', e);
-    }
-}
+// Note: fetchVolume IPC exists but we use config as source of truth
+// The inline saves volumeLevel to config, popout reads from config
 
 // Fetch audio devices for dropdown population
 async function fetchAudioDevices() {
@@ -2126,13 +2116,13 @@ function renderAboutSettings() {
 
 // Initialize
 async function init() {
-    await loadSettings();
-    // Fetch dynamic device data for dropdowns and volume
-    await Promise.all([fetchAudioDevices(), fetchDisplayOutputs(), fetchVolume()]);
+    await loadSettings(); // This loads volumeLevel from config
+    // Fetch dynamic device data for dropdowns (volume comes from config, not IPC)
+    await Promise.all([fetchAudioDevices(), fetchDisplayOutputs()]);
     renderSidebar();
     renderContent(); // This now calls attachContentHandlers() internally
     attachSidebarHandlers();
-    console.log('[Settings Window] Initialized with IPC config sync');
+    console.log('[Settings Window] Initialized with IPC config sync, volume:', volumeLevel);
 }
 
 void init();

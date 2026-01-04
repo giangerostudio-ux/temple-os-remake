@@ -52,7 +52,7 @@ MOVEMENT_CHECK_DELAY_MS = 100  # Wait this long before checking if window moved
 
 # Title bar detection: height of the window decoration above the client area
 # xwininfo returns CLIENT area position, so title bar is ABOVE the reported Y
-TITLE_BAR_HEIGHT_PX = 50     # Increased from 35 - includes headerbar for apps like Nautilus
+TITLE_BAR_HEIGHT_PX = 60     # Increased from 50 - includes headerbar for apps like Nautilus
 
 # Button masks (from X11)
 Button1Mask = 1 << 8  # Left mouse button (256)
@@ -157,7 +157,7 @@ class SnapDetector:
             # Title bar is ABOVE the client area
             # Check if mouse Y is in the decoration region: (win_y - TITLE_BAR_HEIGHT) to win_y
             titlebar_top = win_y - TITLE_BAR_HEIGHT_PX
-            titlebar_bottom = win_y + 25  # Generous buffer into client area (was 5, now 25)
+            titlebar_bottom = win_y + 30  # Generous buffer into client area (was 25, now 30)
             
             if mouse_y >= titlebar_top and mouse_y <= titlebar_bottom:
                 # Also verify mouse X is within window width (approximately)

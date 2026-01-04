@@ -597,6 +597,9 @@ class TempleOS {
   // Multi-select support (Priority 1)
   private selectedFiles: Set<string> = new Set();
   private lastSelectedIndex = -1; // For Shift+Click range selection
+  // Debounce: prevent opening same file twice on fast double-click
+  private _lastOpenedFilePath: string | null = null;
+  private _lastOpenedTime = 0;
   // Desktop icon positions (Priority 1)
   // Default positions for first-time install - matches the preferred layout:
   // Left column: HolyC Editor, Hymn Player, Godly Notes, Files, Terminal, Holy Updater, Word of God
@@ -7798,19 +7801,19 @@ class TempleOS {
             return;
           }
 
-          // Normal click - navigate directories OR select files
-          // (opening files is now double-click only, like Windows)
+          // Normal click - navigate directories OR open files
+          // Debounce: prevent opening the same file twice in quick succession (e.g., double-click)
           if (isDir) {
             this.loadFiles(filePath);
-          } else {
-            // Single-click selects file, double-click opens (handled in dblclick handler)
-            this.selectedFiles.clear();
-            this.selectedFiles.add(filePath);
-            const currentIndex = this.fileEntries.findIndex(f => f.path === filePath);
-            if (currentIndex >= 0) {
-              this.lastSelectedIndex = currentIndex;
+          } else if (window.electronAPI?.openExternal) {
+            const now = Date.now();
+            // Skip if same file was opened within last 500ms (debounce double-click)
+            if (this._lastOpenedFilePath === filePath && now - this._lastOpenedTime < 500) {
+              return;
             }
-            this.updateFileBrowserWindow();
+            this._lastOpenedFilePath = filePath;
+            this._lastOpenedTime = now;
+            void window.electronAPI.openExternal(filePath);
           }
         }
         return;
@@ -9275,15 +9278,33 @@ class TempleOS {
         if (effectivePath && isDir) {
           // Directories: navigate on single click
           this.loadFiles(effectivePath);
-        } else if (effectivePath) {
-          // Files: SELECT on single click (open on double-click only)
-          this.selectedFiles.clear();
-          this.selectedFiles.add(effectivePath);
-          const currentIndex = this.fileEntries.findIndex(f => f.path === effectivePath);
-          if (currentIndex >= 0) {
-            this.lastSelectedIndex = currentIndex;
+        } else if (effectivePath && window.electronAPI) {
+          // Files: open with debounce to prevent double-open on double-click
+          const now = Date.now();
+          if (this._lastOpenedFilePath === effectivePath && now - this._lastOpenedTime < 500) {
+            return;
           }
-          this.updateFileBrowserWindow();
+          this._lastOpenedFilePath = effectivePath;
+          this._lastOpenedTime = now;
+
+          const ext = effectivePath.split('.').pop()?.toLowerCase() || '';
+          if (ext === 'dd') {
+            window.electronAPI.readFile(effectivePath).then(res => {
+              if (res.success && typeof res.content === 'string') {
+                this.dolDocContent = res.content;
+                this.dolDocPath = effectivePath;
+                this.openApp('doldoc-viewer');
+              } else {
+                window.electronAPI!.openExternal(effectivePath);
+              }
+            });
+          } else if (['mp3', 'wav', 'mp4', 'webm', 'ogg', 'mkv'].includes(ext)) {
+            this.openApp('media-player', { file: effectivePath });
+          } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+            this.openApp('image-viewer', { file: effectivePath });
+          } else {
+            window.electronAPI.openExternal(effectivePath);
+          }
         }
         return;
       }

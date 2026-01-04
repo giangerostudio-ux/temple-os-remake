@@ -3034,6 +3034,13 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
                 continue;
             }
 
+            // Skip non-NORMAL window types (dialogs, utilities, menus, splash screens, etc.)
+            // These are typically child windows or popouts from main applications
+            if (w.windowType && !w.windowType.includes('_NET_WM_WINDOW_TYPE_NORMAL')) {
+                console.log(`[X11 Snap Layouts] Skipping non-NORMAL window type: ${xid} (${w.wmClass || w.title}) type=${w.windowType}`);
+                continue;
+            }
+
             // This is a NEW window - determine what slot to use
             // Use tiling slots if any existing window is in a non-maximize position
             const existingSlots = Array.from(occupiedSlots.values());

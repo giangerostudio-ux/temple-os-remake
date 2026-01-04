@@ -270,6 +270,10 @@ async function createEwmhBridge(options = {}) {
         if (st?.above) {
           w.alwaysOnTop = true;
         }
+        // Include window type for filtering dialogs/utilities from auto-snap
+        if (st?.windowType) {
+          w.windowType = st.windowType;
+        }
       }
       // Get window geometry for snap slot detection
       const geom = await getWindowGeometry(w.xidHex).catch(() => null);

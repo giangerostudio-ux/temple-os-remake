@@ -3041,13 +3041,27 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
                 continue;
             }
 
-            // Skip small windows that are likely dialogs/panels (e.g., Shotwell's Adjust panel)
-            // Main application windows should be at least 600x400 to be auto-snapped
-            const MIN_SNAP_WIDTH = 600;
-            const MIN_SNAP_HEIGHT = 400;
-            if (w.width && w.height && (w.width < MIN_SNAP_WIDTH || w.height < MIN_SNAP_HEIGHT)) {
-                console.log(`[X11 Snap Layouts] Skipping small window (likely dialog): ${xid} (${w.wmClass || w.title}) size=${w.width}x${w.height}`);
-                continue;
+            // Skip small SECONDARY windows from apps we've already snapped (e.g., Shotwell's Adjust panel)
+            // Logic: If a window has the same wmClass as an already-SNAPPED window AND is small, skip it.
+            // This allows multiple full-sized Firefox windows but blocks small dialogs from Shotwell.
+            if (w.wmClass && w.width && w.height) {
+                // Check if any already-snapped window has the same wmClass
+                const sameClassSnapped = Array.from(occupiedSlots.keys()).some(trackedXid => {
+                    const trackedWindow = snapshot.windows.find(win =>
+                        String(win.xidHex).toLowerCase() === trackedXid
+                    );
+                    return trackedWindow && trackedWindow.wmClass === w.wmClass;
+                });
+
+                // If same-class window is already snapped AND this new window is small, skip it
+                const MIN_MAIN_WINDOW_WIDTH = 500;
+                const MIN_MAIN_WINDOW_HEIGHT = 350;
+                const isSmall = w.width < MIN_MAIN_WINDOW_WIDTH || w.height < MIN_MAIN_WINDOW_HEIGHT;
+
+                if (sameClassSnapped && isSmall) {
+                    console.log(`[X11 Snap Layouts] Skipping small secondary window: ${xid} (${w.wmClass}) size=${w.width}x${w.height} - parent app already snapped`);
+                    continue;
+                }
             }
 
             // This is a NEW window - determine what slot to use

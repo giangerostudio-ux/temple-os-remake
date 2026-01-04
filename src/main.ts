@@ -16747,7 +16747,20 @@ class TempleOS {
       const randomQuote = terryQuotes[Math.floor(Math.random() * terryQuotes.length)];
       return `
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 64px; margin-bottom: 10px; color: #ffd700;">✝</div>
+          <div style="
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: white;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+          ">✝</div>
           <h2 style="color: #ffd700; margin: 0 0 5px 0;">TempleOS Remake</h2>
           <div style="opacity: 0.85;">Version 2.5.0 (Divine Intellect)</div>
         </div>

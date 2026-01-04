@@ -5147,6 +5147,41 @@ ipcMain.handle('audio:setVolume', async (event, level) => {
     return amixerResult.error ? { success: false, error: amixerResult.error.message } : { success: true, backend: 'amixer' };
 });
 
+ipcMain.handle('audio:getVolume', async () => {
+    if (process.platform !== 'linux') return { success: false, unsupported: true, volume: 50 };
+
+    // Try wpctl first (PipeWire)
+    const wpctlResult = await execAsync(`wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null`);
+    if (!wpctlResult.error && wpctlResult.stdout) {
+        // Output is like "Volume: 1.00" or "Volume: 0.50 [MUTED]"
+        const match = wpctlResult.stdout.match(/Volume:\s*([\d.]+)/);
+        if (match) {
+            return { success: true, volume: Math.round(parseFloat(match[1]) * 100), backend: 'wpctl' };
+        }
+    }
+
+    // Try pactl (PulseAudio)
+    const pactlResult = await execAsync(`pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null`);
+    if (!pactlResult.error && pactlResult.stdout) {
+        // Output like "Volume: front-left: 65536 / 100% / 0.00 dB..."
+        const match = pactlResult.stdout.match(/(\d+)%/);
+        if (match) {
+            return { success: true, volume: parseInt(match[1], 10), backend: 'pactl' };
+        }
+    }
+
+    // Try amixer
+    const amixerResult = await execAsync(`amixer get Master 2>/dev/null`);
+    if (!amixerResult.error && amixerResult.stdout) {
+        const match = amixerResult.stdout.match(/\[(\d+)%\]/);
+        if (match) {
+            return { success: true, volume: parseInt(match[1], 10), backend: 'amixer' };
+        }
+    }
+
+    return { success: false, volume: 50 };
+});
+
 // ============================================
 // NETWORK (NetworkManager via nmcli)
 // ============================================

@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setDefaultSink: (sinkName) => ipcRenderer.invoke('audio:setDefaultSink', sinkName),
     setDefaultSource: (sourceName) => ipcRenderer.invoke('audio:setDefaultSource', sourceName),
     setAudioVolume: (level) => ipcRenderer.invoke('audio:setVolume', level),
+    getVolume: () => ipcRenderer.invoke('audio:getVolume'),
 
     // ============================================
     // BLUETOOTH (BlueZ via bluetoothctl)

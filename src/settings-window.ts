@@ -236,6 +236,23 @@ async function loadSettings() {
 // Dynamic device data (fetched on init)
 let audioDevices: { sinks: Array<{ name: string; description?: string }>; sources: Array<{ name: string; description?: string }>; defaultSink?: string; defaultSource?: string } = { sinks: [], sources: [] };
 let displayOutputs: Array<{ name: string; current?: string; active?: boolean; scale?: number; modes?: Array<{ width: number; height: number; refreshHz?: number | null }> }> = [];
+let volumeLevel = 50; // Default volume, will be fetched on init
+
+// Fetch current volume level
+async function fetchVolume() {
+    try {
+        if ((window.electronAPI as any)?.getVolume) {
+            const result = await (window.electronAPI as any).getVolume();
+            if (typeof result === 'number') {
+                volumeLevel = result;
+            } else if (result?.volume !== undefined) {
+                volumeLevel = result.volume;
+            }
+        }
+    } catch (e) {
+        console.warn('[Settings] Failed to fetch volume:', e);
+    }
+}
 
 // Fetch audio devices for dropdown population
 async function fetchAudioDevices() {
@@ -1352,7 +1369,7 @@ function renderSystemSettings() {
         ${card('Sound', `
             <div style="display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; align-items: center;">
                 <div>Volume</div>
-                <input type="range" class="volume-slider" min="0" max="100" value="50" style="width: 100%; accent-color: #00ff41;">
+                <input type="range" class="volume-slider" min="0" max="100" value="${volumeLevel}" style="width: 100%; accent-color: #00ff41;">
 
                 <div>Output</div>
                 <select class="audio-output-select" style="width: 100%; background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.3); color: #00ff41; padding: 6px 10px; border-radius: 6px; font-family: inherit;">
@@ -2105,8 +2122,8 @@ function renderAboutSettings() {
 // Initialize
 async function init() {
     await loadSettings();
-    // Fetch dynamic device data for dropdowns
-    await Promise.all([fetchAudioDevices(), fetchDisplayOutputs()]);
+    // Fetch dynamic device data for dropdowns and volume
+    await Promise.all([fetchAudioDevices(), fetchDisplayOutputs(), fetchVolume()]);
     renderSidebar();
     renderContent(); // This now calls attachContentHandlers() internally
     attachSidebarHandlers();

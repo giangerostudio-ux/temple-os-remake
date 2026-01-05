@@ -108,7 +108,13 @@ async function adjustExistingWindowsForQuarterSnap(newSlot, desktopData, taskbar
     };
 
     const correspondingHalf = quarterToHalf[newSlot];
-    if (!correspondingHalf) return; // Not a quarter slot
+    if (!correspondingHalf) {
+        console.log(`[X11 Snap Layouts] adjustExisting: ${newSlot} is not a quarter slot, skipping`);
+        return; // Not a quarter slot
+    }
+
+    console.log(`[X11 Snap Layouts] adjustExisting: Looking for window in '${correspondingHalf}' slot to adjust`);
+    console.log(`[X11 Snap Layouts] adjustExisting: Current slots:`, Object.fromEntries(desktopData.slots));
 
     // Find window in the corresponding half slot
     for (const [xid, slot] of desktopData.slots) {
@@ -121,10 +127,20 @@ async function adjustExistingWindowsForQuarterSnap(newSlot, desktopData, taskbar
                 'bottomright': 'topright'
             }[newSlot];
 
-            console.log(`[X11 Snap Layouts] Adjusting ${xid} from ${slot} to ${newQuarter}`);
-            await snapX11WindowCore(xid, newQuarter, taskbarConfig);
-            desktopData.slots.set(xid, newQuarter);
-            break; // Only adjust one window
+            console.log(`[X11 Snap Layouts] adjustExisting: Found window ${xid} in '${slot}', resizing to '${newQuarter}'`);
+
+            try {
+                const result = await snapX11WindowCore(xid, newQuarter, taskbarConfig);
+                if (result.success) {
+                    desktopData.slots.set(xid, newQuarter);
+                    console.log(`[X11 Snap Layouts] adjustExisting: Successfully resized ${xid} to ${newQuarter}`);
+                } else {
+                    console.error(`[X11 Snap Layouts] adjustExisting: Failed to resize ${xid}:`, result.error);
+                }
+            } catch (err) {
+                console.error(`[X11 Snap Layouts] adjustExisting: Exception resizing ${xid}:`, err.message);
+            }
+            break; // Only adjust one window per half
         }
     }
 }

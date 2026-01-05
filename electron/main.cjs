@@ -2907,9 +2907,15 @@ function getNextAvailableSlot(desktopData) {
 
     const occupied = new Set(slots);
 
-    // Priority: fill halves first, then quadrants
-    if (!occupied.has('left')) return 'left';
-    if (!occupied.has('right')) return 'right';
+    // Helper: check if a side is occupied (by half OR any quarter on that side)
+    const isLeftSideOccupied = () => occupied.has('left') || occupied.has('topleft') || occupied.has('bottomleft');
+    const isRightSideOccupied = () => occupied.has('right') || occupied.has('topright') || occupied.has('bottomright');
+
+    // Priority: fill halves first (only if no quarter already on that side), then quadrants
+    if (!isLeftSideOccupied()) return 'left';
+    if (!isRightSideOccupied()) return 'right';
+
+    // Both sides have at least one window, now fill remaining quarters
     if (!occupied.has('topleft')) return 'topleft';
     if (!occupied.has('topright')) return 'topright';
     if (!occupied.has('bottomleft')) return 'bottomleft';

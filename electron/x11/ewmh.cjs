@@ -106,6 +106,30 @@ async function getWindowGeometry(xidHex) {
 }
 
 /**
+ * Get the WM_TRANSIENT_FOR property (parent window XID for dialogs/child windows)
+ * @param {string} xidHex - Window ID in hex format
+ * @returns {Promise<string | null>} Parent window XID hex, or null if main window
+ */
+async function getTransientFor(xidHex) {
+  if (!xidHex) return null;
+  try {
+    const { stdout } = await execFileAsync('xprop', ['-id', xidHex, 'WM_TRANSIENT_FOR']);
+    // Format: WM_TRANSIENT_FOR(WINDOW): window id # 0x1234567
+    // Or: WM_TRANSIENT_FOR:  not found. (for main windows)
+    if (stdout.includes('not found') || stdout.includes('no such')) {
+      return null;
+    }
+    const match = stdout.match(/window id #\s*(0x[0-9a-fA-F]+)/i);
+    if (match) {
+      return match[1].toLowerCase();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get the current desktop work area (screen minus panels/docks)
  * @returns {Promise<{x: number, y: number, width: number, height: number} | null>}
  */
@@ -282,6 +306,11 @@ async function createEwmhBridge(options = {}) {
         w.y = geom.y;
         w.width = geom.width;
         w.height = geom.height;
+      }
+      // Get transient parent (for detecting dialogs/child windows)
+      const transient = await getTransientFor(w.xidHex).catch(() => null);
+      if (transient) {
+        w.transientFor = transient;
       }
       windows.push(w);
     }

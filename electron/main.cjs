@@ -77,8 +77,66 @@ let ewmhBridge = null;
 let x11IgnoreXids = new Set();
 let mainWindowXid = null; // Store main window XID to protect it from snap operations
 let x11SnapLayoutsEnabled = true; // Setting: Enable X11 Snap Layouts (default: ON)
-let tilingModeActive = false; // Auto-tiling state
-const occupiedSlots = new Map(); // xidHex -> slot ('maximize', 'left', 'right', 'topleft', etc.)
+// Per-desktop slot tracking: Map<desktopIndex, { tilingModeActive: boolean, slots: Map<xidHex, slot> }>
+const occupiedSlotsByDesktop = new Map();
+
+// Helper: Get or create desktop slot data
+function getDesktopSlotData(desktopIndex) {
+    if (!occupiedSlotsByDesktop.has(desktopIndex)) {
+        occupiedSlotsByDesktop.set(desktopIndex, {
+            tilingModeActive: false,
+            slots: new Map()
+        });
+    }
+    return occupiedSlotsByDesktop.get(desktopIndex);
+}
+
+// Helper: Get current desktop's slot data (async - requires getCurrentDesktop call)
+async function getCurrentDesktopSlotData() {
+    const desktop = await getCurrentDesktop().catch(() => 0);
+    return { desktop, data: getDesktopSlotData(desktop) };
+}
+
+// Helper: Adjust existing half-snapped windows when a quarter slot is used
+async function adjustExistingWindowsForQuarterSnap(newSlot, desktopData, taskbarConfig) {
+    // Only relevant for quarter slots
+    const quarterToHalf = {
+        'topleft': 'left',
+        'bottomleft': 'left',
+        'topright': 'right',
+        'bottomright': 'right'
+    };
+
+    const correspondingHalf = quarterToHalf[newSlot];
+    if (!correspondingHalf) return; // Not a quarter slot
+
+    // Find window in the corresponding half slot
+    for (const [xid, slot] of desktopData.slots) {
+        if (slot === correspondingHalf) {
+            // Resize to complementary quarter
+            const newQuarter = {
+                'topleft': 'bottomleft',
+                'bottomleft': 'topleft',
+                'topright': 'bottomright',
+                'bottomright': 'topright'
+            }[newSlot];
+
+            console.log(`[X11 Snap Layouts] Adjusting ${xid} from ${slot} to ${newQuarter}`);
+            await snapX11WindowCore(xid, newQuarter, taskbarConfig);
+            desktopData.slots.set(xid, newQuarter);
+            break; // Only adjust one window
+        }
+    }
+}
+
+// Legacy compatibility: tilingModeActive getter (uses desktop 0 as fallback)
+function getTilingModeActive(desktopIndex = 0) {
+    return getDesktopSlotData(desktopIndex).tilingModeActive;
+}
+
+function setTilingModeActive(desktopIndex, value) {
+    getDesktopSlotData(desktopIndex).tilingModeActive = value;
+}
 let panelPolicy = {
     hideOnFullscreen: true,
     forceHidden: false,
@@ -2117,8 +2175,8 @@ ipcMain.handle('x11:setSnapLayoutsEnabled', async (event, enabled) => {
         startSnapDetector();
     } else {
         stopSnapDetector();
-        tilingModeActive = false;
-        occupiedSlots.clear();
+        // Clear all desktop slot data
+        occupiedSlotsByDesktop.clear();
     }
     return { success: true };
 });
@@ -2186,11 +2244,13 @@ ipcMain.handle('settings:setWallpaper', async (event, path) => {
 
 // IPC: Get tiling state for debugging
 ipcMain.handle('x11:getTilingState', async () => {
+    const { desktop, data } = await getCurrentDesktopSlotData();
     return {
         success: true,
-        tilingModeActive,
-        occupiedSlots: Object.fromEntries(occupiedSlots),
-        mainWindowXid
+        tilingModeActive: data.tilingModeActive,
+        occupiedSlots: Object.fromEntries(data.slots),
+        mainWindowXid,
+        currentDesktop: desktop
     };
 });
 
@@ -2205,15 +2265,18 @@ ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
         return { success: false, error: 'Cannot track main window' };
     }
 
+    // Get current desktop slot data
+    const { desktop, data: desktopData } = await getCurrentDesktopSlotData();
+
     // Update slot tracking - track ALL slots including maximize
     if (!slot) {
-        occupiedSlots.delete(normalizedXid);
-        console.log(`[X11 Snap Layouts] Removed ${normalizedXid} from slots (empty slot)`);
+        desktopData.slots.delete(normalizedXid);
+        console.log(`[X11 Snap Layouts] Removed ${normalizedXid} from slots on desktop ${desktop}`);
     } else {
-        occupiedSlots.set(normalizedXid, slot);
+        desktopData.slots.set(normalizedXid, slot);
         // Activate tiling mode when user manually snaps to ANY slot (including maximize)
-        tilingModeActive = true;
-        console.log(`[X11 Snap Layouts] Tiling mode activated by user snap: ${slot}, occupiedSlots:`, Object.fromEntries(occupiedSlots));
+        desktopData.tilingModeActive = true;
+        console.log(`[X11 Snap Layouts] Tiling mode activated on desktop ${desktop} by user snap: ${slot}, slots:`, Object.fromEntries(desktopData.slots));
     }
 
     return { success: true };
@@ -2221,11 +2284,13 @@ ipcMain.handle('x11:setOccupiedSlot', async (event, xidHex, slot) => {
 
 // IPC: Get next available slot for auto-tiling
 ipcMain.handle('x11:getNextSlot', async () => {
-    if (!x11SnapLayoutsEnabled || !tilingModeActive) {
+    const { data: desktopData } = await getCurrentDesktopSlotData();
+
+    if (!x11SnapLayoutsEnabled || !desktopData.tilingModeActive) {
         return { success: true, slot: 'maximize' };
     }
 
-    const occupied = new Set(occupiedSlots.values());
+    const occupied = new Set(desktopData.slots.values());
 
     // Priority: fill halves first, then quadrants
     if (!occupied.has('left')) return { success: true, slot: 'left' };
@@ -2235,7 +2300,7 @@ ipcMain.handle('x11:getNextSlot', async () => {
     if (!occupied.has('bottomleft')) return { success: true, slot: 'bottomleft' };
     if (!occupied.has('bottomright')) return { success: true, slot: 'bottomright' };
 
-    return { success: true, slot: 'maximize' }; // Overflow
+    return { success: true, slot: 'maximize' }; // Overflow - all slots full
 });
 
 // Snap Layouts Popup Window (alwaysOnTop to appear above X11 windows)
@@ -2431,13 +2496,18 @@ function showSnapLayoutsPopup(xidHex) {
         try {
             const data = JSON.parse(msg);
             if (data.type === 'snap-select' && snapPopupXid) {
-                // Perform the snap
-                void snapX11WindowCore(snapPopupXid, data.mode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition }).then(() => {
+                const taskbarConfig = { height: TASKBAR_HEIGHT, position: currentTaskbarPosition };
+                // Perform the snap with per-desktop tracking
+                getCurrentDesktopSlotData().then(async ({ desktop, data: desktopData }) => {
+                    await snapX11WindowCore(snapPopupXid, data.mode, taskbarConfig);
                     // Track slot
                     if (data.mode !== 'maximize') {
-                        tilingModeActive = true;
+                        desktopData.tilingModeActive = true;
+                        // Adjust existing half-snapped windows if snapping to quarter
+                        await adjustExistingWindowsForQuarterSnap(data.mode, desktopData, taskbarConfig);
                     }
-                    occupiedSlots.set(snapPopupXid.toLowerCase(), data.mode);
+                    desktopData.slots.set(snapPopupXid.toLowerCase(), data.mode);
+                    console.log(`[SnapPopup] Snapped ${snapPopupXid} to ${data.mode} on desktop ${desktop}`);
                 });
                 if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
                     snapPopupWindow.close();
@@ -2626,16 +2696,17 @@ function handleSnapDetectorEvent(event) {
                             closeSnapLayoutsPopup();
 
                             if (event.xid) {
-                                snapX11WindowCore(event.xid, selectedMode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
-                                    .then(() => {
-                                        if (selectedMode !== 'maximize') {
-                                            tilingModeActive = true;
-                                            console.log(`[SnapDetector Popup] Activated tiling mode for mode: ${selectedMode}`);
-                                        }
-                                        occupiedSlots.set(event.xid.toLowerCase(), selectedMode);
-                                        console.log(`[SnapDetector Popup] Snapped ${event.xid} to ${selectedMode}, occupiedSlots now:`, Object.fromEntries(occupiedSlots), `tilingModeActive: ${tilingModeActive}`);
-                                    })
-                                    .catch(err => console.error('[SnapDetector] Snap error:', err));
+                                const taskbarConfig = { height: TASKBAR_HEIGHT, position: currentTaskbarPosition };
+                                getCurrentDesktopSlotData().then(async ({ desktop, data: desktopData }) => {
+                                    await snapX11WindowCore(event.xid, selectedMode, taskbarConfig);
+                                    if (selectedMode !== 'maximize') {
+                                        desktopData.tilingModeActive = true;
+                                        // Adjust existing half-snapped windows if snapping to quarter
+                                        await adjustExistingWindowsForQuarterSnap(selectedMode, desktopData, taskbarConfig);
+                                    }
+                                    desktopData.slots.set(event.xid.toLowerCase(), selectedMode);
+                                    console.log(`[SnapDetector Popup] Snapped ${event.xid} to ${selectedMode} on desktop ${desktop}`);
+                                }).catch(err => console.error('[SnapDetector] Snap error:', err));
                             }
                             break;  // Don't fall through to default maximize
                         }
@@ -2664,23 +2735,22 @@ function handleSnapDetectorEvent(event) {
 
             if (event.xid) {
                 console.log(`[SnapDetector] About to snap ${event.xid} to mode ${mode}`);
-                // Apply the snap
-                snapX11WindowCore(event.xid, mode, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
-                    .then(() => {
-                        // Track slot for tiling - ALWAYS set tilingModeActive for non-maximize
-                        if (mode !== 'maximize') {
-                            tilingModeActive = true;
-                            console.log(`[SnapDetector] Activated tiling mode for mode: ${mode}`);
-                        }
-                        const normalizedXid = String(event.xid).toLowerCase();
-                        occupiedSlots.set(normalizedXid, mode);
-                        console.log(`[SnapDetector] SUCCESS: Snapped ${event.xid} (normalized: ${normalizedXid}) to ${mode}`);
-                        console.log(`[SnapDetector] occupiedSlots now:`, Object.fromEntries(occupiedSlots));
-                        console.log(`[SnapDetector] tilingModeActive: ${tilingModeActive}`);
-                    })
-                    .catch(err => {
-                        console.error('[SnapDetector] Snap FAILED:', err);
-                    });
+                const taskbarConfig = { height: TASKBAR_HEIGHT, position: currentTaskbarPosition };
+                // Apply the snap with per-desktop tracking
+                getCurrentDesktopSlotData().then(async ({ desktop, data: desktopData }) => {
+                    await snapX11WindowCore(event.xid, mode, taskbarConfig);
+                    // Track slot for tiling - ALWAYS set tilingModeActive for non-maximize
+                    if (mode !== 'maximize') {
+                        desktopData.tilingModeActive = true;
+                        // Adjust existing half-snapped windows if snapping to quarter
+                        await adjustExistingWindowsForQuarterSnap(mode, desktopData, taskbarConfig);
+                    }
+                    const normalizedXid = String(event.xid).toLowerCase();
+                    desktopData.slots.set(normalizedXid, mode);
+                    console.log(`[SnapDetector] SUCCESS: Snapped ${event.xid} to ${mode} on desktop ${desktop}`);
+                }).catch(err => {
+                    console.error('[SnapDetector] Snap FAILED:', err);
+                });
             } else {
                 console.log(`[SnapDetector] No XID in event, cannot snap`);
             }
@@ -2805,13 +2875,13 @@ let previousX11Xids = new Set();
 const recentlySnappedXids = new Map(); // xidHex -> timestamp
 const AUTO_SNAP_COOLDOWN_MS = 2000;
 
-// Get next available slot for auto-tiling (same logic as IPC handler)
-function getNextAvailableSlot() {
+// Get next available slot for auto-tiling (accepts desktopData for per-desktop tracking)
+function getNextAvailableSlot(desktopData) {
     if (!x11SnapLayoutsEnabled) {
         return 'maximize';
     }
 
-    const slots = Array.from(occupiedSlots.values());
+    const slots = Array.from(desktopData.slots.values());
 
     // If no windows are tracked yet, or ALL existing windows are maximized, new windows should also be maximized
     if (slots.length === 0 || slots.every(s => s === 'maximize')) {
@@ -2829,7 +2899,7 @@ function getNextAvailableSlot() {
     if (!occupied.has('bottomleft')) return 'bottomleft';
     if (!occupied.has('bottomright')) return 'bottomright';
 
-    return 'maximize'; // Overflow
+    return 'maximize'; // Overflow - all slots full
 }
 
 // Infer what slot a window occupies based on its geometry
@@ -2919,16 +2989,18 @@ function getAdjustedWorkArea() {
 }
 
 // Track window closures AND detect new windows to auto-snap
-function updateOccupiedSlotsFromSnapshot(snapshot) {
+async function updateOccupiedSlotsFromSnapshot(snapshot) {
     if (!snapshot?.windows) return;
 
+    // Get current desktop's slot data
+    const { desktop, data: desktopData } = await getCurrentDesktopSlotData();
     const currentXids = new Set(snapshot.windows.map(w => String(w.xidHex).toLowerCase()));
 
-    // Remove closed windows from tracking
-    for (const [xid] of occupiedSlots) {
+    // Remove closed windows from tracking (for current desktop only)
+    for (const [xid] of desktopData.slots) {
         if (!currentXids.has(xid)) {
-            occupiedSlots.delete(xid);
-            console.log('[X11 Snap Layouts] Removed closed window from slots:', xid);
+            desktopData.slots.delete(xid);
+            console.log(`[X11 Snap Layouts] Removed closed window from desktop ${desktop} slots:`, xid);
         }
     }
 
@@ -2941,7 +3013,7 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
     }
 
     // Debug: Log current state
-    console.log(`[X11 Snap Layouts] State check: enabled=${x11SnapLayoutsEnabled}, tilingActive=${tilingModeActive}, occupiedSlots=${JSON.stringify(Object.fromEntries(occupiedSlots))}`);
+    console.log(`[X11 Snap Layouts] State check: desktop=${desktop}, enabled=${x11SnapLayoutsEnabled}, tilingActive=${desktopData.tilingModeActive}, slots=${JSON.stringify(Object.fromEntries(desktopData.slots))}`);
 
     // Use our adjusted work area (accounts for Electron taskbar) instead of X11 work area
     const adjustedWorkArea = getAdjustedWorkArea();
@@ -2983,22 +3055,22 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             console.log(`[X11 Snap Layouts] Window ${xid} inferred slot: ${inferredSlot || 'null (no match)'}`);
 
             if (inferredSlot) {
-                const previousSlot = occupiedSlots.get(xid);
+                const previousSlot = desktopData.slots.get(xid);
 
                 // Update the slot if it changed (user manually moved/snapped the window)
                 if (previousSlot !== inferredSlot) {
-                    occupiedSlots.set(xid, inferredSlot);
+                    desktopData.slots.set(xid, inferredSlot);
                     console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) slot changed: ${previousSlot || 'none'} -> ${inferredSlot}`);
 
                     // If user manually snapped to a non-maximize position, activate tiling mode
                     if (inferredSlot !== 'maximize') {
-                        if (!tilingModeActive) {
-                            tilingModeActive = true;
-                            console.log(`[X11 Snap Layouts] Tiling mode ACTIVATED by manual snap detection (${inferredSlot})`);
+                        if (!desktopData.tilingModeActive) {
+                            desktopData.tilingModeActive = true;
+                            console.log(`[X11 Snap Layouts] Tiling mode ACTIVATED on desktop ${desktop} by manual snap detection (${inferredSlot})`);
                         }
                     }
                 }
-            } else if (!occupiedSlots.has(xid)) {
+            } else if (!desktopData.slots.has(xid)) {
                 // Window not in a recognized snap position and not tracked - could be floating
                 // Don't track it yet, wait until it's snapped or a new window needs to know
             }
@@ -3019,8 +3091,8 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Skip windows we've already seen
             if (previousX11Xids.has(xid)) continue;
 
-            // Skip windows already in occupiedSlots
-            if (occupiedSlots.has(xid)) continue;
+            // Skip windows already in slots
+            if (desktopData.slots.has(xid)) continue;
 
             // Skip recently snapped windows (cooldown)
             if (recentlySnappedXids.has(xid)) continue;
@@ -3052,41 +3124,46 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
 
             // This is a NEW window - determine what slot to use
             // Use tiling slots if any existing window is in a non-maximize position
-            const existingSlots = Array.from(occupiedSlots.values());
+            const existingSlots = Array.from(desktopData.slots.values());
             const hasTilingSlots = existingSlots.some(s => s && s !== 'maximize');
 
             let slot;
             if (hasTilingSlots) {
                 // At least one window is in a tiling position - find next available slot
-                slot = getNextAvailableSlot();
+                slot = getNextAvailableSlot(desktopData);
                 console.log(`[X11 Snap Layouts] Tiling detected with slots: ${JSON.stringify(existingSlots)}, next slot: ${slot}`);
             } else {
                 // Default: maximize new windows (all existing windows are maximized or none tracked)
                 slot = 'maximize';
             }
 
-            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} (tilingActive=${tilingModeActive}, hasTilingSlots=${hasTilingSlots}, existingSlots=${JSON.stringify(existingSlots)})`);
+            console.log(`[X11 Snap Layouts] New window detected: ${xid} (${w.wmClass || w.title}), snapping to: ${slot} on desktop ${desktop} (tilingActive=${desktopData.tilingModeActive}, hasTilingSlots=${hasTilingSlots})`);
 
             // Mark as recently snapped to avoid re-snapping
             recentlySnappedXids.set(xid, now);
 
             // Delay the snap slightly to let the window fully appear and settle
             const xidToSnap = w.xidHex;
-            setTimeout(() => {
-                // Snap the window with proper taskbar config
-                snapX11WindowCore(xidToSnap, slot, { height: TASKBAR_HEIGHT, position: currentTaskbarPosition })
-                    .then((result) => {
-                        if (result.success) {
-                            // Track the slot
-                            occupiedSlots.set(xid, slot);
-                            console.log(`[X11 Snap Layouts] Auto-snapped ${xid} to ${slot}`);
-                        } else {
-                            console.error(`[X11 Snap Layouts] Failed to auto-snap ${xid}:`, result.error);
+            const taskbarConfig = { height: TASKBAR_HEIGHT, position: currentTaskbarPosition };
+
+            // Use async IIFE to maintain async context inside setTimeout
+            setTimeout(async () => {
+                try {
+                    const result = await snapX11WindowCore(xidToSnap, slot, taskbarConfig);
+                    if (result.success) {
+                        // Adjust existing half-snapped windows if snapping to quarter
+                        if (slot !== 'maximize') {
+                            await adjustExistingWindowsForQuarterSnap(slot, desktopData, taskbarConfig);
                         }
-                    })
-                    .catch((err) => {
-                        console.error(`[X11 Snap Layouts] Error auto-snapping ${xid}:`, err.message);
-                    });
+                        // Track the slot
+                        desktopData.slots.set(xid, slot);
+                        console.log(`[X11 Snap Layouts] Auto-snapped ${xid} to ${slot} on desktop ${desktop}`);
+                    } else {
+                        console.error(`[X11 Snap Layouts] Failed to auto-snap ${xid}:`, result.error);
+                    }
+                } catch (err) {
+                    console.error(`[X11 Snap Layouts] Error auto-snapping ${xid}:`, err.message);
+                }
             }, 300); // 300ms delay for window to settle
         }
     }
@@ -3094,10 +3171,10 @@ function updateOccupiedSlotsFromSnapshot(snapshot) {
     // Update previous XIDs for next comparison
     previousX11Xids = currentXids;
 
-    // If no more slots occupied, disable tiling mode
-    if (occupiedSlots.size === 0 && tilingModeActive) {
-        tilingModeActive = false;
-        console.log('[X11 Snap Layouts] Tiling mode deactivated (no occupied slots)');
+    // If no more slots occupied on this desktop, disable tiling mode for this desktop
+    if (desktopData.slots.size === 0 && desktopData.tilingModeActive) {
+        desktopData.tilingModeActive = false;
+        console.log(`[X11 Snap Layouts] Tiling mode deactivated on desktop ${desktop} (no occupied slots)`);
     }
 }
 

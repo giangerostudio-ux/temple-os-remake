@@ -78,7 +78,10 @@ let x11IgnoreXids = new Set();
 let mainWindowXid = null; // Store main window XID to protect it from snap operations
 let x11SnapLayoutsEnabled = true; // Setting: Enable X11 Snap Layouts (default: ON)
 // Per-desktop slot tracking: Map<desktopIndex, { tilingModeActive: boolean, slots: Map<xidHex, slot> }>
+// Note: desktopIndex here refers to VIRTUAL workspace ID (1-4), not X11 desktop
 const occupiedSlotsByDesktop = new Map();
+// Virtual workspace ID (synced from renderer's WorkspaceManager)
+let virtualWorkspaceId = 1;
 
 // Helper: Get or create desktop slot data
 function getDesktopSlotData(desktopIndex) {
@@ -91,10 +94,11 @@ function getDesktopSlotData(desktopIndex) {
     return occupiedSlotsByDesktop.get(desktopIndex);
 }
 
-// Helper: Get current desktop's slot data (async - requires getCurrentDesktop call)
-async function getCurrentDesktopSlotData() {
-    const desktop = await getCurrentDesktop().catch(() => 0);
-    return { desktop, data: getDesktopSlotData(desktop) };
+// Helper: Get current virtual workspace's slot data (uses renderer-synced virtualWorkspaceId)
+function getCurrentDesktopSlotData() {
+    // Use the virtual workspace ID synced from renderer instead of X11 desktop
+    const desktop = virtualWorkspaceId;
+    return Promise.resolve({ desktop, data: getDesktopSlotData(desktop) });
 }
 
 // Helper: Adjust existing half-snapped windows when a quarter slot is used
@@ -1956,6 +1960,29 @@ ipcMain.handle('x11:setAlwaysOnTop', async (event, xidHex, enabled) => {
     } catch (e) {
         return { success: false, error: e && e.message ? e.message : String(e) };
     }
+});
+
+// ============================================
+// VIRTUAL WORKSPACE SYNC (from renderer WorkspaceManager)
+// ============================================
+
+/**
+ * Set the active virtual workspace ID (synced from renderer's WorkspaceManager)
+ * This is used for per-workspace snap slot tracking
+ */
+ipcMain.handle('workspace:setActive', async (event, workspaceId) => {
+    const id = Math.max(1, Math.min(10, Math.trunc(Number(workspaceId) || 1)));
+    const previousId = virtualWorkspaceId;
+    virtualWorkspaceId = id;
+    console.log(`[Virtual Workspaces] Active workspace changed: ${previousId} -> ${id}`);
+    return { success: true, workspaceId: id };
+});
+
+/**
+ * Get the current virtual workspace ID
+ */
+ipcMain.handle('workspace:getActive', async () => {
+    return { success: true, workspaceId: virtualWorkspaceId };
 });
 
 // ============================================

@@ -27,6 +27,17 @@ export class WorkspaceManager {
     constructor() {
         this.initializeWorkspaces();
         this.loadFromStorage();
+        // Sync initial workspace to main process
+        this.syncToMain();
+    }
+
+    /**
+     * Sync current workspace ID to main process (for snap slot tracking)
+     */
+    private syncToMain(): void {
+        if (typeof window !== 'undefined' && (window as any).electronAPI?.setActiveWorkspace) {
+            (window as any).electronAPI.setActiveWorkspace(this.activeWorkspaceId).catch(() => { });
+        }
     }
 
     /**
@@ -127,6 +138,10 @@ export class WorkspaceManager {
         this.activeWorkspaceId = workspaceId;
         this.saveToStorage();
         this.triggerChange();
+
+        // Sync to main process for per-workspace snap slot tracking
+        this.syncToMain();
+
         return true;
     }
 

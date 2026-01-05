@@ -276,6 +276,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getX11DesktopCount: () => ipcRenderer.invoke('x11:getDesktopCount'),
     moveX11WindowToDesktop: (xidHex, desktopIndex) => ipcRenderer.invoke('x11:moveWindowToDesktop', xidHex, desktopIndex),
 
+    // Virtual Workspace Sync (for snap slot tracking)
+    setActiveWorkspace: (workspaceId) => ipcRenderer.invoke('workspace:setActive', workspaceId),
+    getActiveWorkspace: () => ipcRenderer.invoke('workspace:getActive'),
+
     getPanelPolicy: () => ipcRenderer.invoke('shell:getPanelPolicy'),
     setHideBarOnFullscreen: (enabled) => ipcRenderer.invoke('shell:setHideBarOnFullscreen', enabled),
     setGamingMode: (enabled) => ipcRenderer.invoke('shell:setGamingMode', enabled),

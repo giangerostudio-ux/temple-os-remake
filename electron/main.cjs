@@ -3121,27 +3121,31 @@ async function updateOccupiedSlotsFromSnapshot(snapshot) {
             // Log window geometry for debugging
             console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) geometry: x=${w.x}, y=${w.y}, w=${w.width}, h=${w.height}`);
 
+            // Get the workspace this window is assigned to (use assigned workspace, not current)
+            const windowWorkspace = xidToWorkspace.get(xid) || virtualWorkspaceId;
+            const windowDesktopData = getDesktopSlotData(windowWorkspace);
+
             // Try to infer the slot from the window's current position using taskbar-adjusted work area
             const inferredSlot = inferSlotFromGeometry(w, adjustedWorkArea);
             console.log(`[X11 Snap Layouts] Window ${xid} inferred slot: ${inferredSlot || 'null (no match)'}`);
 
             if (inferredSlot) {
-                const previousSlot = desktopData.slots.get(xid);
+                const previousSlot = windowDesktopData.slots.get(xid);
 
                 // Update the slot if it changed (user manually moved/snapped the window)
                 if (previousSlot !== inferredSlot) {
-                    desktopData.slots.set(xid, inferredSlot);
-                    console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) slot changed: ${previousSlot || 'none'} -> ${inferredSlot}`);
+                    windowDesktopData.slots.set(xid, inferredSlot);
+                    console.log(`[X11 Snap Layouts] Window ${xid} (${w.wmClass || w.title}) slot changed: ${previousSlot || 'none'} -> ${inferredSlot} (workspace ${windowWorkspace})`);
 
                     // If user manually snapped to a non-maximize position, activate tiling mode
                     if (inferredSlot !== 'maximize') {
-                        if (!desktopData.tilingModeActive) {
-                            desktopData.tilingModeActive = true;
-                            console.log(`[X11 Snap Layouts] Tiling mode ACTIVATED on desktop ${desktop} by manual snap detection (${inferredSlot})`);
+                        if (!windowDesktopData.tilingModeActive) {
+                            windowDesktopData.tilingModeActive = true;
+                            console.log(`[X11 Snap Layouts] Tiling mode ACTIVATED on desktop ${windowWorkspace} by manual snap detection (${inferredSlot})`);
                         }
                     }
                 }
-            } else if (!desktopData.slots.has(xid)) {
+            } else if (!windowDesktopData.slots.has(xid)) {
                 // Window not in a recognized snap position and not tracked - could be floating
                 // Don't track it yet, wait until it's snapped or a new window needs to know
             }

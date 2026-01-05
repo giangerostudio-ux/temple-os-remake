@@ -82,6 +82,9 @@ let x11SnapLayoutsEnabled = true; // Setting: Enable X11 Snap Layouts (default: 
 const occupiedSlotsByDesktop = new Map();
 // Virtual workspace ID (synced from renderer's WorkspaceManager)
 let virtualWorkspaceId = 1;
+// Track which X11 window (XID) belongs to which virtual workspace
+// Map<xidHex, workspaceId>
+const xidToWorkspace = new Map();
 
 // Helper: Get or create desktop slot data
 function getDesktopSlotData(desktopIndex) {
@@ -99,6 +102,21 @@ function getCurrentDesktopSlotData() {
     // Use the virtual workspace ID synced from renderer instead of X11 desktop
     const desktop = virtualWorkspaceId;
     return Promise.resolve({ desktop, data: getDesktopSlotData(desktop) });
+}
+
+// Helper: Check if an XID belongs to the current virtual workspace
+function isXidOnCurrentWorkspace(xidHex) {
+    const assignedWorkspace = xidToWorkspace.get(xidHex);
+    // If not tracked yet, or assigned to current workspace
+    return !assignedWorkspace || assignedWorkspace === virtualWorkspaceId;
+}
+
+// Helper: Assign an XID to current virtual workspace
+function assignXidToCurrentWorkspace(xidHex) {
+    if (!xidToWorkspace.has(xidHex)) {
+        xidToWorkspace.set(xidHex, virtualWorkspaceId);
+        console.log(`[X11 Snap Layouts] Assigned ${xidHex} to workspace ${virtualWorkspaceId}`);
+    }
 }
 
 // Helper: Adjust existing half-snapped windows when a quarter slot is used
@@ -3049,6 +3067,7 @@ async function updateOccupiedSlotsFromSnapshot(snapshot) {
     for (const [xid] of desktopData.slots) {
         if (!currentXids.has(xid)) {
             desktopData.slots.delete(xid);
+            xidToWorkspace.delete(xid); // Also remove workspace assignment
             console.log(`[X11 Snap Layouts] Removed closed window from desktop ${desktop} slots:`, xid);
         }
     }
@@ -3082,6 +3101,9 @@ async function updateOccupiedSlotsFromSnapshot(snapshot) {
 
             // Skip main window
             if (mainWindowXid && xid === mainWindowXid.toLowerCase()) continue;
+
+            // Skip windows not assigned to current virtual workspace
+            if (!isXidOnCurrentWorkspace(xid)) continue;
 
             // IMPORTANT: Skip NEW windows - they should be handled by new window detection, not inference
             // This prevents a new window's initial random position from being "inferred" as a snap slot
@@ -3139,6 +3161,16 @@ async function updateOccupiedSlotsFromSnapshot(snapshot) {
 
             // Skip windows we've already seen
             if (previousX11Xids.has(xid)) continue;
+
+            // Skip windows already assigned to other workspaces
+            // (they were created on a different virtual workspace)
+            if (xidToWorkspace.has(xid) && !isXidOnCurrentWorkspace(xid)) {
+                console.log(`[X11 Snap Layouts] Skipping window from another workspace: ${xid} (assigned to workspace ${xidToWorkspace.get(xid)}, current=${virtualWorkspaceId})`);
+                continue;
+            }
+
+            // Assign this new window to current virtual workspace
+            assignXidToCurrentWorkspace(xid);
 
             // Skip windows already in slots
             if (desktopData.slots.has(xid)) continue;

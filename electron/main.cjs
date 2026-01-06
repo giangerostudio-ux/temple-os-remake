@@ -2467,16 +2467,16 @@ function showSnapLayoutsPopup(xidHex) {
         <div class="close" onclick="window.close()">×</div>
         <div class="title">Choose Snap Layout</div>
         <div class="grid">
-            <!-- Order adjusted: Left group, then Maximize (center), then Right group -->
-            <div class="option" data-mode="left" title="Left Half"><div class="preview left"></div></div>
+            <!-- Order: Quarter options on outer edges, Half options next to center Maximize -->
             <div class="option" data-mode="topleft" title="Top-Left Quarter"><div class="preview tl"></div></div>
             <div class="option" data-mode="bottomleft" title="Bottom-Left Quarter"><div class="preview bl"></div></div>
+            <div class="option" data-mode="left" title="Left Half"><div class="preview left"></div></div>
             
             <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
             
+            <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
             <div class="option" data-mode="topright" title="Top-Right Quarter"><div class="preview tr"></div></div>
             <div class="option" data-mode="bottomright" title="Bottom-Right Quarter"><div class="preview br"></div></div>
-            <div class="option" data-mode="right" title="Right Half"><div class="preview right"></div></div>
         </div>
         <script>
             const options = document.querySelectorAll('.option');
@@ -2750,7 +2750,7 @@ function handleSnapDetectorEvent(event) {
                         const optionStartX = 12 + (popupContentWidth - totalOptionsWidth) / 2; // Centered
                         const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
 
-                        const modes = ['left', 'topleft', 'bottomleft', 'maximize', 'topright', 'bottomright', 'right'];
+                        const modes = ['topleft', 'bottomleft', 'left', 'maximize', 'right', 'topright', 'bottomright'];
                         if (optionIndex >= 0 && optionIndex < modes.length) {
                             const selectedMode = modes[optionIndex];
                             console.log(`[SnapDetector] Released on popup option: ${selectedMode}`);

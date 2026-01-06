@@ -10499,9 +10499,12 @@ class TempleOS {
       // ============================================
       app.addEventListener('dblclick', (e) => {
         const target = e.target as HTMLElement;
-        const fileItem = (target.closest('.file-item') || target.closest('[data-file-path]')) as HTMLElement;
+        const fileItem = target.closest('.file-item') as HTMLElement;
 
         if (fileItem) {
+          // Prevent any duplicate event handling
+          e.stopPropagation();
+
           // Cancel any pending single-click selection so dblclick opens without selecting
           if (this.fileClickTimer) {
             window.clearTimeout(this.fileClickTimer);

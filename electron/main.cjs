@@ -2821,6 +2821,11 @@ function handleSnapDetectorEvent(event) {
             console.log('[SnapDetector] Drag ended (no zone)');
             closeSnapPreview();
             closeSnapLayoutsPopup();
+
+            // Check if window is in valid position, reposition if needed
+            if (event.xid) {
+                constrainX11WindowPosition(event.xid);
+            }
             break;
 
         case 'error':
@@ -2927,6 +2932,53 @@ function closeSnapPreview() {
 function closeSnapLayoutsPopup() {
     if (snapPopupWindow && !snapPopupWindow.isDestroyed()) {
         try { snapPopupWindow.close(); } catch { }
+    }
+}
+
+/**
+ * Constrain X11 window position after drag ends.
+ * Ensures the window title bar remains visible and above the taskbar.
+ * @param {string} xidHex - Window XID in hex format
+ */
+async function constrainX11WindowPosition(xidHex) {
+    try {
+        // Get window geometry using xwininfo (same approach as ewmh.cjs)
+        const { stdout } = await require('child_process').execFile('xwininfo', ['-id', xidHex], (err, stdout) => {
+            if (err) return;
+
+            const s = stdout || '';
+            const absXMatch = s.match(/Absolute upper-left X:\s*(-?\d+)/);
+            const absYMatch = s.match(/Absolute upper-left Y:\s*(-?\d+)/);
+
+            if (!absXMatch || !absYMatch) return;
+
+            const currentX = parseInt(absXMatch[1], 10);
+            const currentY = parseInt(absYMatch[1], 10);
+
+            const primary = screen.getPrimaryDisplay();
+            const screenHeight = primary.bounds.height;
+            const taskbarHeight = TASKBAR_HEIGHT;
+            const taskbarPosition = currentTaskbarPosition;
+            const minVisible = 30;
+
+            // Calculate valid Y range
+            const minY = taskbarPosition === 'top' ? taskbarHeight : 0;
+            const maxY = taskbarPosition === 'top'
+                ? screenHeight - minVisible
+                : screenHeight - taskbarHeight - minVisible;
+
+            // Check if window title bar is out of bounds
+            if (currentY < minY || currentY > maxY) {
+                const newY = Math.max(minY, Math.min(currentY, maxY));
+                console.log(`[X11] Window ${xidHex} out of bounds (y=${currentY}), moving to y=${newY}`);
+
+                spawn('wmctrl', ['-i', '-r', xidHex, '-e', `0,${currentX},${newY},-1,-1`], {
+                    stdio: 'ignore'
+                });
+            }
+        });
+    } catch (err) {
+        console.warn('[X11] Failed to constrain window position:', err.message);
     }
 }
 

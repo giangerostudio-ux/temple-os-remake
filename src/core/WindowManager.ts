@@ -400,6 +400,7 @@ export class WindowManager {
     /**
      * Handle drag movement
      * Returns new position { x, y } or null if not dragging
+     * Clamps Y position to keep window visible and above/below taskbar
      */
     handleDrag(clientX: number, clientY: number): { windowId: string; x: number; y: number } | null {
         if (!this.dragState) return null;
@@ -407,8 +408,23 @@ export class WindowManager {
         const win = this.windows.find(w => w.id === this.dragState!.windowId);
         if (!win) return null;
 
+        // Calculate Y bounds based on taskbar position
+        const TASKBAR_HEIGHT = 68;  // 56px height + 12px margin
+        const MIN_VISIBLE = 30;     // Keep at least 30px of window visible
+        const screenH = window.innerHeight;
+
+        // Get taskbar position from DOM (set by SettingsManager)
+        const taskbarAtTop = document.body.getAttribute('data-taskbar-position') === 'top';
+
+        // minY: can't drag into the taskbar (or top of screen)
+        // maxY: keep title bar visible above taskbar (or bottom of screen)
+        const minY = taskbarAtTop ? TASKBAR_HEIGHT : 0;
+        const maxY = taskbarAtTop
+            ? screenH - MIN_VISIBLE
+            : screenH - TASKBAR_HEIGHT - MIN_VISIBLE;
+
         win.x = clientX - this.dragState.offsetX;
-        win.y = clientY - this.dragState.offsetY;
+        win.y = Math.max(minY, Math.min(clientY - this.dragState.offsetY, maxY));
 
         return { windowId: this.dragState.windowId, x: win.x, y: win.y };
     }

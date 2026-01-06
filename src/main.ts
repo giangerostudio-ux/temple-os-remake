@@ -916,6 +916,9 @@ class TempleOS {
   private taskbarHoverPreview: { windowId: string; x: number; y: number } | null = null;
   private taskbarHoverTimeout: number | null = null;
 
+  // File Browser click/double-click debounce
+  private fileClickTimer: number | null = null;
+
   // X11 external windows for unified taskbar (Linux X11 only)
   private x11Windows: Array<{
     xidHex: string;
@@ -7803,14 +7806,22 @@ class TempleOS {
           if (isDir) {
             this.loadFiles(filePath);
           } else {
-            // Single-click selects file
-            this.selectedFiles.clear();
-            this.selectedFiles.add(filePath);
-            const currentIndex = this.fileEntries.findIndex(f => f.path === filePath);
-            if (currentIndex >= 0) {
-              this.lastSelectedIndex = currentIndex;
+            // Delay single-click selection to allow double-click to fire first
+            // This prevents the file from being selected when the user wants to open it
+            if (this.fileClickTimer) {
+              window.clearTimeout(this.fileClickTimer);
             }
-            this.updateFileBrowserWindow();
+            this.fileClickTimer = window.setTimeout(() => {
+              this.fileClickTimer = null;
+              // Single-click selects file (only if timer wasn't cancelled by dblclick)
+              this.selectedFiles.clear();
+              this.selectedFiles.add(filePath);
+              const currentIndex = this.fileEntries.findIndex(f => f.path === filePath);
+              if (currentIndex >= 0) {
+                this.lastSelectedIndex = currentIndex;
+              }
+              this.updateFileBrowserWindow();
+            }, 200);
           }
         }
         return;
@@ -10491,6 +10502,12 @@ class TempleOS {
         const fileItem = (target.closest('.file-item') || target.closest('[data-file-path]')) as HTMLElement;
 
         if (fileItem) {
+          // Cancel any pending single-click selection so dblclick opens without selecting
+          if (this.fileClickTimer) {
+            window.clearTimeout(this.fileClickTimer);
+            this.fileClickTimer = null;
+          }
+
           const filePath = fileItem.dataset.filePath;
           const isDir = fileItem.dataset.isDir === 'true';
           const trashPath = fileItem.dataset.trashPath || '';

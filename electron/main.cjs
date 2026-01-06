@@ -2468,8 +2468,8 @@ function showSnapLayoutsPopup(xidHex) {
         <div class="title">Choose Snap Layout</div>
         <div class="grid">
             <!-- Order: Quarter options on outer edges, Half options next to center Maximize -->
-            <div class="option" data-mode="topleft" title="Top-Left Quarter"><div class="preview tl"></div></div>
             <div class="option" data-mode="bottomleft" title="Bottom-Left Quarter"><div class="preview bl"></div></div>
+            <div class="option" data-mode="topleft" title="Top-Left Quarter"><div class="preview tl"></div></div>
             <div class="option" data-mode="left" title="Left Half"><div class="preview left"></div></div>
             
             <div class="option" data-mode="maximize" title="Maximize"><div class="preview full"></div></div>
@@ -2750,7 +2750,7 @@ function handleSnapDetectorEvent(event) {
                         const optionStartX = 12 + (popupContentWidth - totalOptionsWidth) / 2; // Centered
                         const optionIndex = Math.floor((relX - optionStartX) / optionWidth);
 
-                        const modes = ['topleft', 'bottomleft', 'left', 'maximize', 'right', 'topright', 'bottomright'];
+                        const modes = ['bottomleft', 'topleft', 'left', 'maximize', 'right', 'topright', 'bottomright'];
                         if (optionIndex >= 0 && optionIndex < modes.length) {
                             const selectedMode = modes[optionIndex];
                             console.log(`[SnapDetector] Released on popup option: ${selectedMode}`);

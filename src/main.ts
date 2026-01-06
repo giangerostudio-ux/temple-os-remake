@@ -10497,6 +10497,9 @@ class TempleOS {
       // ============================================
       // FILE BROWSER DOUBLE-CLICK TO OPEN
       // ============================================
+      let lastFileOpenPath = '';
+      let lastFileOpenTime = 0;
+
       app.addEventListener('dblclick', (e) => {
         const target = e.target as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
@@ -10504,6 +10507,7 @@ class TempleOS {
         if (fileItem) {
           // Prevent any duplicate event handling
           e.stopPropagation();
+          e.preventDefault();
 
           // Cancel any pending single-click selection so dblclick opens without selecting
           if (this.fileClickTimer) {
@@ -10517,6 +10521,14 @@ class TempleOS {
           const effectivePath = (this.currentPath === 'trash:' && trashPath) ? trashPath : (filePath || '');
 
           if (!effectivePath) return;
+
+          // Debounce: prevent opening the same file twice within 500ms
+          const now = Date.now();
+          if (effectivePath === lastFileOpenPath && now - lastFileOpenTime < 500) {
+            return; // Duplicate open, ignore
+          }
+          lastFileOpenPath = effectivePath;
+          lastFileOpenTime = now;
 
           // Directories are already handled by single-click, but double-click should also work
           if (isDir) {

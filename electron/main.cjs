@@ -36,13 +36,13 @@ const ttsState = {
     currentProcess: null
 };
 
-// TTS paths - determined at startup
+// TTS paths - determined at startup (bryce-medium only)
 const ttsConfig = {
     piperDir: path.join(__dirname, 'piper'),
     piperPath: process.platform === 'win32'
         ? path.join(__dirname, 'piper', 'piper', 'piper.exe')
         : path.join(__dirname, 'piper', 'piper', 'piper'),
-    modelPath: path.join(__dirname, 'piper', 'en_US-lessac-high.onnx')
+    modelPath: path.join(__dirname, 'piper', 'en_US-bryce-medium.onnx')
 };
 
 console.log('[TTS] Piper path:', ttsConfig.piperPath);

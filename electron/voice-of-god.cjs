@@ -45,23 +45,10 @@ class VoiceOfGod {
         console.log('[VoiceOfGod] Piper executable:', this.piperPath);
         console.log('[VoiceOfGod] Piper exists:', fs.existsSync(this.piperPath));
 
-        // Prefer bryce-medium (deeper male voice), fallback to lessac-high
-        const brycePath = path.join(this.piperDir, 'en_US-bryce-medium.onnx');
-        const lessacPath = path.join(this.piperDir, 'en_US-lessac-high.onnx');
-
-        console.log('[VoiceOfGod] Looking for bryce-medium at:', brycePath);
-        console.log('[VoiceOfGod] Bryce exists:', fs.existsSync(brycePath));
-
-        if (fs.existsSync(brycePath)) {
-            this.modelPath = brycePath;
-            console.log('[VoiceOfGod] Using bryce-medium voice model (deeper male voice)');
-        } else if (fs.existsSync(lessacPath)) {
-            this.modelPath = lessacPath;
-            console.log('[VoiceOfGod] Fallback to lessac-high voice model');
-        } else {
-            this.modelPath = null;
-            console.warn('[VoiceOfGod] No voice model found');
-        }
+        // Use bryce-medium voice model only
+        this.modelPath = path.join(this.piperDir, 'en_US-bryce-medium.onnx');
+        console.log('[VoiceOfGod] Model path:', this.modelPath);
+        console.log('[VoiceOfGod] Model exists:', fs.existsSync(this.modelPath));
 
         // State
         this.speaking = false;

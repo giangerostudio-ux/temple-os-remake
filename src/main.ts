@@ -8296,6 +8296,45 @@ class TempleOS {
         return;
       }
 
+      // Notification center actions (must be BEFORE #tray-notification handler since popup is inside it)
+      const notifBtn = target.closest('.notif-btn') as HTMLElement;
+      if (notifBtn && notifBtn.dataset.notifAction) {
+        const action = notifBtn.dataset.notifAction;
+        const id = notifBtn.dataset.notifId;
+        if (action === 'clear') {
+          this.notificationManager.clearAll();
+          this.render();
+          return;
+        }
+        if (action === 'mark-all-read') {
+          this.notificationManager.markAllRead();
+          this.render();
+          return;
+        }
+        if (action === 'dismiss' && id) {
+          this.notificationManager.dismissNotification(id);
+          this.render();
+          return;
+        }
+      }
+
+      const notifItem = target.closest('.notification-item') as HTMLElement;
+      if (notifItem && notifItem.dataset.notifId) {
+        this.notificationManager.markAsRead(notifItem.dataset.notifId);
+        this.render();
+        return;
+      }
+
+      // DND Toggle (must be before #tray-notification handler)
+      const dndBtn = target.closest('.dnd-btn');
+      if (dndBtn) {
+        this.doNotDisturb = !this.doNotDisturb;
+        this.notificationManager.setDoNotDisturb(this.doNotDisturb);
+        this.queueSaveConfig();
+        this.render();
+        return;
+      }
+
       // Tray: Notifications
       const notifIcon = target.closest('#tray-notification');
       if (notifIcon) {
@@ -8323,48 +8362,9 @@ class TempleOS {
         return;
       }
 
-      // DND Toggle
-      const dndBtn = target.closest('.dnd-btn');
-      if (dndBtn) {
-        this.doNotDisturb = !this.doNotDisturb;
-        this.notificationManager.setDoNotDisturb(this.doNotDisturb);
-        this.queueSaveConfig();
-        this.render();
-        return;
-      }
-
       // Preview Close
       if (target.closest('.preview-close-btn')) {
         this.closePreview();
-        return;
-      }
-
-      // Notification center actions
-      const notifBtn = target.closest('.notif-btn') as HTMLElement;
-      if (notifBtn && notifBtn.dataset.notifAction) {
-        const action = notifBtn.dataset.notifAction;
-        const id = notifBtn.dataset.notifId;
-        if (action === 'clear') {
-          this.notificationManager.clearAll();
-          this.render();
-          return;
-        }
-        if (action === 'mark-all-read') {
-          this.notificationManager.markAllRead();
-          this.render();
-          return;
-        }
-        if (action === 'dismiss' && id) {
-          this.notificationManager.dismissNotification(id);
-          this.render();
-          return;
-        }
-      }
-
-      const notifItem = target.closest('.notification-item') as HTMLElement;
-      if (notifItem && notifItem.dataset.notifId) {
-        this.notificationManager.markAsRead(notifItem.dataset.notifId);
-        this.render();
         return;
       }
 
@@ -19241,9 +19241,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
     this.settingsManager.applyTaskbarPosition();
   }
 
-  private setTaskbarPosition(position: 'top' | 'bottom'): void {
-    this.settingsManager.setTaskbarPosition(position);
-  }
 
 
 
@@ -21117,13 +21114,6 @@ Write-Host "Done! Restart the app to use Voice of God."`;
           this.taskbarTransparent = !this.taskbarTransparent;
           localStorage.setItem('temple_taskbar_transparent', String(this.taskbarTransparent));
           this.render();
-        }
-      },
-      { divider: true },
-      {
-        label: `Move to ${this.taskbarPosition === 'bottom' ? 'Top' : 'Bottom'}`,
-        action: () => {
-          this.setTaskbarPosition(this.taskbarPosition === 'bottom' ? 'top' : 'bottom');
         }
       },
       { divider: true },

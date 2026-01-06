@@ -10499,14 +10499,22 @@ class TempleOS {
       // ============================================
       let lastFileOpenPath = '';
       let lastFileOpenTime = 0;
+      let isProcessingDblClick = false;
 
       app.addEventListener('dblclick', (e) => {
+        // Prevent re-entry during processing
+        if (isProcessingDblClick) return;
+
         const target = e.target as HTMLElement;
         const fileItem = target.closest('.file-item') as HTMLElement;
 
         if (fileItem) {
+          // Set processing flag immediately
+          isProcessingDblClick = true;
+
           // Prevent any duplicate event handling
           e.stopPropagation();
+          e.stopImmediatePropagation();
           e.preventDefault();
 
           // Cancel any pending single-click selection so dblclick opens without selecting
@@ -10520,15 +10528,22 @@ class TempleOS {
           const trashPath = fileItem.dataset.trashPath || '';
           const effectivePath = (this.currentPath === 'trash:' && trashPath) ? trashPath : (filePath || '');
 
-          if (!effectivePath) return;
+          if (!effectivePath) {
+            isProcessingDblClick = false;
+            return;
+          }
 
-          // Debounce: prevent opening the same file twice within 500ms
+          // Debounce: prevent opening the same file twice within 1000ms
           const now = Date.now();
-          if (effectivePath === lastFileOpenPath && now - lastFileOpenTime < 500) {
+          if (effectivePath === lastFileOpenPath && now - lastFileOpenTime < 1000) {
+            isProcessingDblClick = false;
             return; // Duplicate open, ignore
           }
           lastFileOpenPath = effectivePath;
           lastFileOpenTime = now;
+
+          // Reset processing flag after a short delay
+          setTimeout(() => { isProcessingDblClick = false; }, 100);
 
           // Directories are already handled by single-click, but double-click should also work
           if (isDir) {
@@ -10557,7 +10572,7 @@ class TempleOS {
             }
           }
         }
-      });
+      }, true); // Use capture phase
 
       // Start Menu Search
       app.addEventListener('input', (e) => {
